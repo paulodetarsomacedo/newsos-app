@@ -12,8 +12,9 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, 
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX
 } from 'lucide-react';
+
 
 
 // --- DADOS MOCKADOS ---
@@ -919,36 +920,9 @@ const SmartImage = ({ src, title, logo, isDarkMode, className, sourceName }) => 
   );
 };
 
-const NewsCardSkeleton = ({ isDarkMode }) => {
-  return (
-    <div className={`
-      flex flex-row gap-5 w-full p-3 rounded-3xl border animate-pulse
-      ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100'}
-    `}>
-      {/* Imagem Skeleton */}
-      <div className={`w-28 h-28 md:w-36 md:h-36 rounded-2xl flex-shrink-0 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-
-      {/* Conteúdo Skeleton */}
-      <div className="flex-1 flex flex-col gap-3 py-2 min-w-0">
-        <div className="flex justify-between items-center">
-           <div className={`h-3 w-20 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-           <div className={`h-3 w-10 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-        </div>
-        <div className="space-y-2">
-           <div className={`h-4 w-full rounded-md ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-           <div className={`h-4 w-3/4 rounded-md ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-        </div>
-        <div className={`h-3 w-full rounded-md mt-1 ${isDarkMode ? 'bg-zinc-800/50' : 'bg-zinc-100'}`} />
-        <div className={`h-3 w-16 rounded-full mt-auto ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-      </div>
-    </div>
-  );
-};
-
-
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
-const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike }) => {
+const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isDarkMode, onClick, onToggleSave }) => {
   return (
     <div 
       onClick={() => onClick(news)}
@@ -990,9 +964,11 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
             <div>
                 <div className="flex justify-between items-center mb-2">
                     <div className="flex items-center">
+                        {/* LOGO PEQUENO */}
                         <div className={`relative z-20 w-8 h-8 rounded-lg overflow-hidden border shadow-sm shrink-0 ${isDarkMode ? 'border-zinc-700 bg-zinc-800' : 'border-zinc-200 bg-white'}`}>
                             <img src={news.logo} className="w-full h-full object-cover" alt="" onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${news.source}&background=random`}/>
                         </div>
+                        {/* NOME FONTE */}
                         <div className={`relative z-10 -ml-3 pl-4 pr-3 py-1 rounded-lg border-y border-r border-l-0 text-[10px] font-bold tracking-tight uppercase flex items-center h-7.5 mt-0.6 ${isDarkMode ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300' : 'bg-white/80 border-zinc-300 text-zinc-600'}`}>
                             {news.source}
                         </div>
@@ -1031,32 +1007,12 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
           </div>
       </div>
 
-      {/* RODAPÉ DO CARD (Botões) */}
+      {/* RODAPÉ DO CARD */}
       <div className="absolute bottom-3 right-3 flex items-center gap-2 z-30">
           <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border backdrop-blur-md select-none ${isDarkMode ? 'bg-black/20 border-white/5 text-zinc-400' : 'bg-white/40 border-black/5 text-zinc-500'}`}>
               <Clock size={10} className={isDarkMode ? 'text-zinc-500' : 'text-zinc-400'} />
               <span className="text-[9px] font-bold uppercase tracking-wider">{news.readTime || '3 min'}</span>
           </div>
-
-          {/* --- BOTÃO DE CURTIR CORRIGIDO --- */}
-<button 
-  onClick={(e) => { 
-      e.stopPropagation(); 
-      // Se a função existir, chama ela. Se não, não faz nada (sem alert chato)
-      if (onToggleLike) onToggleLike(news);
-  }} 
-  className={`
-      p-2 rounded-full transition-all duration-300 active:scale-75 group/like
-      ${isLiked 
-          ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' // Vermelho forte quando curtido
-          : (isDarkMode ? 'bg-black/20 text-zinc-400 hover:text-rose-500' : 'bg-white/40 text-zinc-500 hover:text-rose-500')
-      }
-  `} 
-  title="Curtir"
->
-   {/* fill={isLiked ? "currentColor" : "none"} garante que fique preenchido */}
-   <Heart size={18} fill={isLiked ? "currentColor" : "none"} className="transition-transform group-hover/like:scale-110" />
-</button>
 
           <button onClick={(e) => { e.stopPropagation(); alert(`Iniciando leitura por IA de: ${news.title}`); }} className={`p-2 rounded-full transition-all duration-300 active:scale-90 group/audio ${isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95] text-zinc-400 hover:text-white' : 'bg-white/40 hover:bg-[#4c1d95] text-zinc-500 hover:text-white'}`} title="Ouvir Resumo">
              <Headphones size={18} />
@@ -1074,12 +1030,11 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     prev.isSelected === next.isSelected &&
     prev.isRead === next.isRead &&
     prev.isSaved === next.isSaved &&
-    prev.isLiked === next.isLiked && // Adicionei verificação para evitar re-render desnecessário
     prev.isDarkMode === next.isDarkMode
   );
 });
 
-function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike }) {
+function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter }) {
   const [category, setCategory] = useState('Tudo');
   
   // --- ESTADOS DO PULL-TO-REFRESH ---
@@ -1191,19 +1146,9 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
          </div>
       </div>
       
-     {/* LISTA DE CARDS OTIMIZADA */}
+      {/* LISTA DE CARDS OTIMIZADA */}
       <div className="flex flex-col gap-4">
-        
-        {/* MOSTRA SKELETONS SE ESTIVER CARREGANDO */}
-        {isLoading && safeNews === FEED_NEWS && (
-            <>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <NewsCardSkeleton key={i} isDarkMode={isDarkMode} />
-              ))}
-            </>
-        )}
-
-        {!isLoading && displayedNews.length === 0 && (
+        {displayedNews.length === 0 && (
            <div className="text-center py-10 opacity-50">
              <p>Nenhuma notícia encontrada nesta categoria.</p>
            </div>
@@ -1218,7 +1163,6 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
               isDarkMode={isDarkMode}
               onClick={openArticle}
               onToggleSave={onToggleSave}
-              isLiked={likedItems?.includes(news.id)}
             />
         ))}
       </div>
@@ -1609,575 +1553,8 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   );
 }
 
-
-// ==========================================================
-// FUNÇÕES DE INTELIGÊNCIA ARTIFICIAL (V3.1 - 4 TÓPICOS)
-// ==========================================================
-
-const cleanGeminiJSON = (text) => {
-  if (!text) return "";
-  return text.replace(/```json/g, '').replace(/```/g, '').trim();
-};
-
-const parseAndNormalize = (text) => {
-    try {
-        const cleanText = cleanGeminiJSON(text);
-        const json = JSON.parse(cleanText);
-        if (Array.isArray(json)) {
-            console.log("IA retornou Array, normalizando para Objeto...");
-            return json[0];
-        }
-        return json;
-    } catch (e) {
-        console.error("Erro ao fazer parse do JSON:", e);
-        return null;
-    }
-}
-
-// --- FALLBACK (ATUALIZADO PARA 4 TÓPICOS) ---
-const generateBriefingFallback = async (news, apiKey) => {
-    console.log("Iniciando Fallback (Gemini 1.5)...");
-    
-    if (!news || news.length === 0) return null;
-    
-    const context = news.slice(0, 15).map(n => `- ${n.title}`).join('\n');
-    
-    const prompt = `
-      Atue como editor de notícias. Resuma os fatos abaixo em um JSON estrito.
-      
-      NOTÍCIAS:
-      ${context}
-      
-      SCHEMA JSON OBRIGATÓRIO (4 TÓPICOS):
-      { 
-        "vibe_emoji": "🔥", 
-        "vibe_title": "Resumo Rápido", 
-        "topics": [
-          { "tag": "Geral", "summary": "Resumo conciso de 20 palavras." },
-          { "tag": "Destaques", "summary": "Outros pontos relevantes." },
-          { "tag": "Mercados", "summary": "Movimentações financeiras ou políticas." },
-          { "tag": "Variedades", "summary": "Esportes, cultura ou tecnologia." }
-        ] 
-      }
-    `;
-
-    try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { response_mime_type: "application/json" }
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) { return null; }
-
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) throw new Error("Vazio");
-        
-        return parseAndNormalize(text);
-    } catch (e) {
-        console.error("Erro fatal no sistema de Fallback:", e);
-        return null;
-    }
-};
-
-// --- PRINCIPAL (ATUALIZADO PARA 4 TÓPICOS) ---
-const generateBriefing = async (news, apiKey) => {
-  if (!news || news.length === 0) return null;
-  if (!apiKey) {
-      alert("API Key não configurada! Vá em Ajustes > Inteligência IA.");
-      return null;
-  }
-
-  const context = news.slice(0, 30).map(n => {
-      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 400) : "Sem detalhes.";
-      return `[FONTE: ${n.source}] MANCHETE: ${n.title} | CONTEXTO: ${cleanSummary}`;
-  }).join('\n\n');
-
-  const prompt = `
-  Você é o Editor-Chefe de uma newsletter premium e inteligente (estilo Morning Brew ou Axios).
-  
-  SUA MISSÃO:
-  Ler as notícias fornecidas abaixo, identificar os 4 (QUATRO) maiores temas do momento e escrever resumos EXPLICATIVOS, fluídos e concatenados.
-  
-  REGRAS EDITORIAIS:
-  1. CONTEXTUALIZE: Não apenas repita o título. Explique o "porquê".
-  2. AGRUPE: Junte notícias parecidas no mesmo tópico.
-  3. TOM DE VOZ: Profissional, direto, mas conversacional.
-  4. TAMANHO: O campo "summary" deve ter entre 25 a 40 palavras.
-
-  MATÉRIA PRIMA:
-  ${context}
-
-  RETORNE APENAS ESTE JSON (Exatamente 4 itens em 'topics'):
-  {
-    "vibe_emoji": "Um único emoji que defina o humor global",
-    "vibe_title": "Uma manchete de capa impactante e curta (3 a 6 palavras)",
-    "topics": [
-      { 
-        "tag": "Categoria 1 (Ex: Política)", 
-        "summary": "Texto explicativo rico..." 
-      },
-      { 
-        "tag": "Categoria 2 (Ex: Economia)", 
-        "summary": "Texto explicativo rico..." 
-      },
-      { 
-        "tag": "Categoria 3 (Ex: Tech/Mundo)", 
-        "summary": "Texto explicativo rico..." 
-      },
-      { 
-        "tag": "Categoria 4 (Ex: Brasil/Cultura)", 
-        "summary": "Texto explicativo rico..." 
-      }
-    ]
-  }
-  `;
-
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-        console.warn(`Erro Principal (${data.error.message}). Fallback...`);
-        return await generateBriefingFallback(news, apiKey);
-    }
-
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) {
-        return await generateBriefingFallback(news, apiKey);
-    }
-
-    const finalData = parseAndNormalize(text);
-    
-    if (!finalData || !finalData.topics || finalData.topics.length === 0) {
-        return await generateBriefingFallback(news, apiKey);
-    }
-
-    return finalData;
-
-  } catch (error) {
-    console.warn("Erro fatal. Fallback...", error);
-    return await generateBriefingFallback(news, apiKey);
-  }
-};
-
-// --- FUNÇÃO TREND RADAR (V4 - SINGLE FACT FOCUS) ---
-const generateTrendRadar = async (news, apiKey) => {
-  if (!news || news.length === 0) return null;
-
-  // Enviamos Título + Snippet para a IA ter contexto
-  const context = news.slice(0, 40).map(n => `- ${n.title} (${n.summary ? n.summary.slice(0, 80) : ''})`).join('\n');
-
-  const prompt = `
-  Analise estas manchetes. Agrupe por temas e identifique os 6 Tópicos mais quentes.
-  
-  Para cada tópico, siga esta lógica OBRIGATÓRIA:
-  1. Identifique a notícia "Capitânia" (a mais importante/impactante daquele grupo).
-  2. Esqueça as outras notícias menores do grupo. Foco total na Capitânia.
-  3. Escreva um resumo de 2 a 3 linhas explicando ESSE FATO específico.
-  
-  Gere este JSON:
-  - "topic": Nome curto do tema (Ex: "Mercosul", "SpaceX").
-  - "score": 1 a 10.
-  - "hex": Cor hexadecimal.
-  - "summary": O texto explicando o fato principal.
-  
-  EXEMPLO DE SUMMARY (O que eu quero):
-  "Lula endurece discurso e exige que União Europeia retire taxas ambientais para fechar o acordo ainda hoje."
-  
-  EXEMPLO DO QUE NÃO FAZER (Genérico):
-  "Discussões sobre taxas e clima continuam no bloco econômico."
-
-  DADOS:
-  ${context}
-
-  RETORNE APENAS A LISTA JSON:
-  [ { "topic": "...", "score": 9, "hex": "#...", "summary": "..." } ]
-  `;
-
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
-    });
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) return null;
-    
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const json = JSON.parse(cleanText);
-
-    if (Array.isArray(json)) return json;
-    const possibleArray = Object.values(json).find(val => Array.isArray(val));
-    if (possibleArray) return possibleArray;
-
-    return []; 
-
-  } catch (error) {
-    console.warn("Erro Trend Radar:", error);
-    return []; 
-  }
-};
-
-// ==========================================================
-// NOVO COMPONENTE SMART DIGEST (DESIGN BENTO GRID)
-// ==========================================================
-
-const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
-  const [digest, setDigest] = useState(null);
-  const [status, setStatus] = useState('idle'); // idle | loading | success | error
-
-  // 1. LÓGICA DE RESET AUTOMÁTICO (Ao puxar a aba para atualizar)
-  useEffect(() => {
-    if (refreshTrigger > 0) {
-        setDigest(null);
-        setStatus('idle');
-    }
-  }, [refreshTrigger]);
-
-  const handleGenerate = async () => {
-    if (!apiKey) {
-        alert("Configure sua API Key nas configurações primeiro.");
-        return;
-    }
-    setStatus('loading');
-    
-    // Pequeno delay para a animação ser sentida
-    await new Promise(r => setTimeout(r, 800));
-
-    const result = await generateBriefing(newsData, apiKey);
-    
-    if (result) {
-        setDigest(result);
-        setStatus('success');
-    } else {
-        setStatus('error');
-    }
-  };
-
-  // Cores para as tags (para não ficar tudo cinza)
-  const getTagStyle = (index) => {
-      const styles = [
-          'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border-blue-200 dark:border-blue-500/30',
-          'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 border-orange-200 dark:border-orange-500/30',
-          'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30',
-          'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 border-purple-200 dark:border-purple-500/30',
-      ];
-      return styles[index % styles.length];
-  };
-
-  // --- 1. ESTADO INICIAL (CONVITE) ---
-  if (status === 'idle') {
-    return (
-      <div className="px-1 mb-6">
-        <div className={`relative overflow-hidden rounded-[2rem] p-8 border transition-all shadow-lg ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-           <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-gradient-to-bl from-purple-500/20 to-transparent rounded-full blur-[80px] pointer-events-none -mr-20 -mt-20" />
-           
-           <div className="flex flex-col items-center text-center relative z-10">
-              <div className="mb-4 p-3 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
-                 <Sparkles size={24} className="text-white animate-pulse" />
-              </div>
-              <h2 className={`text-xl font-black mb-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>O que está acontecendo?</h2>
-              <p className={`text-sm mb-6 max-w-[260px] leading-relaxed opacity-70 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                Deixe a IA ler {newsData?.length || 0} manchetes e explicar o mundo para você em segundos.
-              </p>
-              <button 
-                onClick={handleGenerate}
-                className={`
-                    group relative px-8 py-3 rounded-full font-bold text-xs uppercase tracking-widest overflow-hidden shadow-xl active:scale-95 transition-all
-                    ${isDarkMode ? 'bg-white text-black' : 'bg-zinc-900 text-white'}
-                `}
-              >
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                <span className="flex items-center gap-2 relative z-10"><Zap size={14} fill="currentColor"/> Gerar Smart Digest</span>
-              </button>
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- 2. ESTADO LOADING (COM PERSONALIDADE) ---
-  if (status === 'loading') {
-    return (
-      <div className="px-1 mb-6">
-        <div className={`h-[350px] rounded-[2rem] flex flex-col items-center justify-center border relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-           <div className="w-16 h-16 border-4 border-t-purple-500 border-r-transparent border-b-purple-500 border-l-transparent rounded-full animate-spin mb-6" />
-           <div className="text-center space-y-1 relative z-10">
-               <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Processando Fatos...</p>
-               <p className="text-xs font-mono opacity-50 uppercase tracking-widest">Lendo Fontes • Analisando Viés</p>
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- 3. ESTADO ERRO (RETRY FÁCIL) ---
-  if (status === 'error' || !digest) {
-      return (
-        <div className="px-1 mb-6">
-            <div className="p-6 rounded-[2rem] bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 text-center">
-                <p className="text-red-500 font-bold text-sm mb-2">A IA falhou ao processar.</p>
-                <button onClick={handleGenerate} className="text-xs font-bold underline decoration-red-500 underline-offset-4 opacity-80 hover:opacity-100">Tentar Novamente</button>
-            </div>
-        </div>
-      );
-  }
-
-  // --- 4. ESTADO FINAL (BENTO GRID LAYOUT) ---
-  return (
-    <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className={`relative p-5 rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-         
-         {/* CABEÇALHO HERO */}
-         <div className="flex flex-col items-center text-center mb-8 pt-2">
-            <div className="text-5xl mb-3 animate-bounce shadow-xl rounded-full">{digest.vibe_emoji}</div>
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500 mb-1">
-                Vibe do Momento
-            </span>
-            <h2 className={`text-2xl md:text-3xl font-black leading-tight max-w-sm ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                {digest.vibe_title}
-            </h2>
-         </div>
-
-         {/* GRID DE TÓPICOS */}
-         <div className="grid grid-cols-1 gap-3">
-            {digest.topics?.map((topic, i) => (
-                <div 
-                    key={i} 
-                    className={`
-                        group relative p-5 rounded-3xl border transition-all hover:scale-[1.01]
-                        ${isDarkMode ? 'bg-black/40 border-white/5 hover:bg-white/5' : 'bg-zinc-50 border-zinc-100 hover:shadow-md'}
-                    `}
-                >
-                    <div className="flex justify-between items-start mb-2">
-                        <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border ${getTagStyle(i)}`}>
-                            {topic.tag}
-                        </span>
-                        {/* Indicador visual pequeno */}
-                        <div className="w-1.5 h-1.5 rounded-full bg-current opacity-20 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                        {topic.summary}
-                    </p>
-                </div>
-            ))}
-         </div>
-
-         {/* RODAPÉ E REFRESH MANUAL */}
-         <div className="mt-6 flex justify-between items-center px-2">
-            <div className="flex items-center gap-1.5 opacity-30">
-                <BrainCircuit size={12} />
-                <span className="text-[10px] font-mono">Gemini 2.0 Flash</span>
-            </div>
-            <button 
-                onClick={handleGenerate} 
-                className={`p-2 rounded-full transition-all active:rotate-180 ${isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'}`}
-                title="Regerar análise"
-            >
-                <RefreshCw size={16}/>
-            </button>
-         </div>
-      </div>
-    </div>
-  );
-};
-
-
-
-const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
-  const [trends, setTrends] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(null);
-
-  // Lógica de Cores Personalizada
-  const getHeatColor = (score) => {
-      if (score >= 9) return '#ef4444'; // Vermelho (Explosivo)
-      if (score >= 7) return '#f97316'; // Laranja (Quente)
-      if (score >= 5) return '#10b981'; // Verde (Médio)
-      return '#3b82f6';                 // Azul (Frio)
-  };
-
-  useEffect(() => {
-    if (!apiKey || !newsData || newsData.length === 0) return;
-    
-    const loadTrends = async () => {
-        setLoading(true);
-        setActiveIndex(null); 
-        await new Promise(r => setTimeout(r, 600)); 
-        const data = await generateTrendRadar(newsData, apiKey);
-        
-        if (data && Array.isArray(data)) {
-            // Mantendo a ordem original da IA (Misturada/Orgânica) conforme solicitado
-            setTrends(data);
-        }
-        setLoading(false);
-    };
-
-    loadTrends();
-  }, [newsData, apiKey, refreshTrigger]);
-
-  const handleToggle = (idx) => {
-      setActiveIndex(activeIndex === idx ? null : idx);
-  };
-
-  if ((!trends || !Array.isArray(trends)) && !loading) return null;
-
-  return (
-    <div className="px-1 mb-2 animate-in fade-in duration-1000 slide-in-from-right-8 relative z-30">
-      
-      {/* Título */}
-      <div className="flex items-center justify-center gap-2 mb-2 opacity-70">
-         <div className="relative">
-            <Activity size={14} className="text-orange-500" />
-            <div className="absolute inset-0 bg-orange-500 blur-[8px] opacity-50 animate-pulse" />
-         </div>
-         <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Trend Radar</span>
-      </div>
-
-      {loading ? (
-         <div className="flex justify-center gap-4 overflow-hidden px-2 opacity-50 pb-8">
-            {[1,2,3,4].map(i => (
-                <div key={i} className={`h-9 w-24 rounded-full animate-pulse ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-            ))}
-         </div>
-      ) : (
-         // Usei gap-4 para dar um espaçamento uniforme e elegante
-         <div className="flex justify-start md:justify-center items-start gap-4 overflow-x-auto scrollbar-hide px-4 pb-47 pt-2 snap-x">
-            {trends.map((item, idx) => {
-                const color = getHeatColor(item.score);
-                const isActive = activeIndex === idx;
-                const isExplosive = item.score >= 9;
-                
-                // Escala uniforme: Todos 100%, crescem só na interação para manter alinhamento
-                const scale = isActive ? 'scale-105' : 'scale-100 hover:scale-105';
-                
-                // Lógica de posição do balão (Anti-corte)
-                const isFirst = idx === 0;
-                const isLast = idx === trends.length - 1;
-                
-                let balloonAlignClass = "-translate-x-1/2 left-1/2"; 
-                if (isFirst) balloonAlignClass = "left-0";           
-                if (isLast) balloonAlignClass = "right-0";           
-                
-                let arrowAlignClass = "-translate-x-1/2 left-1/2";   
-                if (isFirst) arrowAlignClass = "left-8";             
-                if (isLast) arrowAlignClass = "right-8";             
-
-                return (
-                    <div key={idx} className={`relative flex-shrink-0 snap-center flex flex-col items-center`}>
-                        
-                        {/* BOTÃO */}
-                        <div 
-                            onClick={() => handleToggle(idx)}
-                            className={`
-                                relative group cursor-pointer transition-all duration-300 ${scale}
-                                ${isActive ? 'z-30' : 'z-10'}
-                            `}
-                        >
-                            {/* AURA (Para todos, seguindo a cor do score) */}
-                            <div 
-                                className="absolute inset-0 rounded-full blur-md opacity-50 animate-pulse"
-                                style={{ backgroundColor: color }}
-                            />
-
-                            <div 
-                                className={`
-                                    relative px-5 py-2.5 rounded-full border flex items-center gap-2 shadow-sm backdrop-blur-md transition-colors
-                                    ${isDarkMode ? 'bg-zinc-900/90 text-white' : 'bg-white/90 text-zinc-800'}
-                                    ${isActive || isExplosive ? 'border-2' : 'border'}
-                                `}
-                                style={{ 
-                                    borderColor: isActive ? color : color, 
-                                    boxShadow: `0 4px 15px ${color}30`
-                                }}
-                            >
-                                {isExplosive && <span className="text-[10px] animate-bounce">🔥</span>}
-                                <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
-                                
-                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                            </div>
-                        </div>
-
-                        {/* O BALÃO */}
-                        {isActive && (
-                            <div className={`absolute top-full mt-4 w-80 z-50 animate-in zoom-in-95 slide-in-from-top-2 duration-300 origin-top ${balloonAlignClass}`}>
-                                {/* Seta */}
-                                <div 
-                                    className={`absolute -top-2 w-4 h-4 rotate-45 border-l border-t ${arrowAlignClass}`}
-                                    style={{ 
-                                        backgroundColor: isDarkMode ? '#09090b' : '#ffffff',
-                                        borderColor: color,
-                                        borderWidth: '1px'
-                                    }}
-                                />
-                                
-                                {/* Conteúdo */}
-                                <div 
-                                    className={`
-                                        relative p-5 rounded-2xl border shadow-2xl backdrop-blur-xl flex flex-col gap-2
-                                        ${isDarkMode ? 'bg-zinc-950/95 text-zinc-200' : 'bg-white/95 text-zinc-800'}
-                                    `}
-                                    style={{ borderColor: color, boxShadow: `0 10px 50px -10px ${color}60` }}
-                                >
-                                    <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{backgroundColor: color}}/>
-                                            <span 
-                                                className="text-[10px] font-black uppercase tracking-widest opacity-80"
-                                                style={{ color: color }}
-                                            >
-                                                SCORE: {item.score}/10
-                                            </span>
-                                        </div>
-                                        {/* Barra de progresso visual */}
-                                        <div className="h-1 w-12 rounded-full bg-white/10 overflow-hidden">
-                                            <div className="h-full rounded-full" style={{ width: `${item.score * 10}%`, backgroundColor: color }} />
-                                        </div>
-                                    </div>
-                                    
-                                    <p className={`text-xs font-medium leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                                        {item.summary}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                    </div>
-                )
-            })}
-         </div>
-      )}
-    </div>
-  );
-};
-
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, seenStoryIds = [], apiKey }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, seenStoryIds = [] }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
-  
-  // Estado para sinalizar o reset do Smart Digest quando atualizar a página
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // --- ESTADOS DO PULL-TO-REFRESH ---
   const [startY, setStartY] = useState(0);
@@ -2186,7 +1563,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
   // --- LÓGICA DE STORIES (APENAS A ÚLTIMA DE CADA FONTE + FILTRO DE VISTOS) ---
   const storiesToDisplay = useMemo(() => {
-    // Se não houver dados reais, retorna vazio
+    // Se não houver dados reais, não mostramos os mocks para não confundir o usuário
     if (!newsData || newsData.length === 0) return [];
 
     const uniqueStories = [];
@@ -2202,7 +1579,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             // Verifica se este ID específico já foi visto
             const isSeen = seenStoryIds.includes(item.id);
             
-            // REGRA: Se foi visto, ele não entra na lista (ele some da barra de stories)
+            // REGRA: Se foi visto, ele não entra na lista (ele some)
+            // Ele só reaparecerá quando o ID mudar (nova notícia)
             if (isSeen) return;
 
             // Gerador de imagem de fallback elegante caso o RSS não tenha imagem
@@ -2251,14 +1629,11 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         setIsRefreshing(true);
         setPullDistance(120); // Trava na posição de loading
         
-        // --- AQUI ESTÁ O SEGREDO: Reseta o Smart Digest ---
-        setRefreshTrigger(prev => prev + 1);
-        
         if (onRefresh) {
             await onRefresh();
         }
         
-        // Mantém o ícone visível por 1 segundo após o término para feedback visual
+        // Mantém o ícone visível por 1 segundo após o término
         setTimeout(() => {
             setIsRefreshing(false);
             setPullDistance(0);
@@ -2269,7 +1644,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     setStartY(0);
   };
 
-  // Dados para os cards estáticos de "Em Alta"
+  // Dados para os cards estáticos
   const trending = [
     { id: 1, title: 'IA Generativa: O novo marco regulatório começa a valer hoje na Europa', source: 'Politico', time: '15m', img: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&q=80' },
     { id: 2, title: 'Final da Champions: Real Madrid e City se enfrentam em jogo histórico', source: 'ESPN', time: '45m', img: 'https://images.unsplash.com/photo-1522778119026-d647f0565c6a?w=600&q=80' },
@@ -2331,6 +1706,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
                 {storiesToDisplay.map((story) => (
                 <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
+                    {/* CÍRCULO DINÂMICO: Vermelho/Rosa se novo, Azul se lido (embora o filtro remova os lidos) */}
                     <div className={`
                         relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500
                         bg-gradient-to-tr 
@@ -2365,24 +1741,22 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
 
-{/* --- NOVO RADAR DE TENDÊNCIAS --- */}
-      <TrendRadar 
-          newsData={newsData} 
-          apiKey={apiKey} 
-          isDarkMode={isDarkMode} 
-          refreshTrigger={refreshTrigger} 
-      />
+      {/* --- CARDS ORIGINAIS --- */}
+      <div className="px-1">
+        <div className={`relative overflow-hidden rounded-[32px] border p-8 shadow-2xl transition-all hover:scale-[1.01] duration-500 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-gradient-to-br from-zinc-900 to-black text-white border-transparent'}`}>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/30 blur-[90px]" />
+          <div className="flex items-center gap-3 mb-6 relative z-10">
+            <div className="bg-blue-400 text-black p-2 rounded-xl shadow-[0_0_20px_rgba(52,211,153,0.4)]"><Sparkles size={20} fill="black" /></div>
+            <span className="text-xs font-bold uppercase tracking-widest text-blue-300">Resumo do Momento</span>
+          </div>
+          <div className="relative z-10">
+              <h2 className="text-3xl md:text-4xl font-bold leading-tight mb-4 text-white">Mercado global reage: Pacote fiscal e avanços em IA dominam a pauta.</h2>
+              <p className="text-zinc-300 text-base leading-relaxed mb-8 font-serif">Nossa IA processou {newsData?.length || 0} fontes para criar este resumo.</p>
+              <button onClick={() => openArticle({ title: 'Briefing IA', source: 'NewsOS Intelligence', img: null, origin: 'rss' })} className="py-3.5 px-8 bg-white text-black font-bold text-sm rounded-full hover:bg-zinc-200 transition active:scale-[0.98] flex items-center gap-2">Ler Briefing Completo <ArrowRight size={16} /></button>
+          </div>
+        </div>
+      </div>
 
-      {/* --- SMART DIGEST (BENTO GRID) --- */}
-      {/* Substitui o antigo card "Resumo do Momento" */}
-      <SmartDigestWidget 
-          newsData={newsData} 
-          apiKey={apiKey} 
-          isDarkMode={isDarkMode} 
-          refreshTrigger={refreshTrigger} // Prop para resetar o componente
-      />
-
-      {/* --- OUTRO CARD DE DESTAQUE (SPACEX) --- */}
       <div className="px-1">
          <div onClick={() => openArticle({ title: 'SpaceX prepara lançamento histórico', source: 'SpaceX Live', img: 'https://images.unsplash.com/photo-1517976487492-5750f3195933?w=800&q=80', origin: 'rss' })} className="group relative h-[400px] w-full rounded-[32px] overflow-hidden cursor-pointer shadow-2xl transition-all duration-500 hover:shadow-orange-500/20">
             <img src="https://images.unsplash.com/photo-1517976487492-5750f3195933?w=800&q=80" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="SpaceX" />
@@ -2399,7 +1773,6 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
          </div>
       </div>
 
-      {/* --- SEÇÃO EM ALTA --- */}
       <div className="px-2 pt-4">
         <div className="flex items-center gap-2 mb-4 px-1"><TrendingUp size={20} className="text-blue-500" /><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Em Alta Agora</h3></div>
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
@@ -2420,7 +1793,6 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
 
-      {/* MODAL DO PODCAST (SE ABERTO) */}
       {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
   );
@@ -3305,23 +2677,6 @@ export default function NewsOS_V12() {
   const [realPodcasts, setRealPodcasts] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
   const [readHistory, setReadHistory] = useState([]);
-  const [likedItems, setLikedItems] = useState([]); 
-
-
-
-  // NOVA FUNÇÃO PARA ALTERNAR O LIKE
-  const handleToggleLike = (article) => {
-    setLikedItems(prev => {
-      if (prev.includes(article.id)) {
-        // Se já curtiu, remove (descurtir)
-        return prev.filter(id => id !== article.id);
-      } else {
-        // Se não curtiu, adiciona
-        return [...prev, article.id];
-      }
-    });
-  };
-
 
   // --- FUNÇÃO FETCH FEEDS (V9 - LIMITES DINÂMICOS: 5 POD / 10 VID / 20 NEWS) ---
   const fetchFeeds = async () => {
@@ -3369,12 +2724,12 @@ export default function NewsOS_V12() {
             }
 
             // --- DEFINIÇÃO DO LIMITE DINÂMICO ---
-            let LIMIT = 12; // Padrão (Notícias)
+            let LIMIT = 20; // Padrão (Notícias)
             
             if (feed.type === 'podcast') {
-                LIMIT = 2; // Podcasts: Apenas os 5 mais recentes
+                LIMIT = 5; // Podcasts: Apenas os 5 mais recentes
             } else if (feed.type === 'youtube' || isFeedYoutube) {
-                LIMIT = 3; // Vídeos: Apenas os 10 mais recentes
+                LIMIT = 10; // Vídeos: Apenas os 10 mais recentes
             }
 
             const items = data.items.slice(0, LIMIT).map(item => {
@@ -3534,7 +2889,6 @@ export default function NewsOS_V12() {
                     onRefresh={fetchFeeds}
                     seenStoryIds={seenStoryIds} 
                     onMarkAsSeen={markStoryAsSeen}
-                    apiKey={apiKey}
                 />
             )}
 
@@ -3564,14 +2918,12 @@ export default function NewsOS_V12() {
                     selectedArticleId={selectedArticle?.id}
                     savedItems={savedItems}
                     onToggleSave={handleToggleSave}
-                                        readHistory={readHistory}
+                    readHistory={readHistory}
                     newsData={realNews} 
                     isLoading={isLoadingFeeds}
                     onPlayVideo={setPlayingVideo}
                     sourceFilter={sourceFilter}
                     setSourceFilter={setSourceFilter}
-                    likedItems={likedItems}       // A lista de IDs curtidos
-        onToggleLike={handleToggleLike} // A função para curtir
                 />
             )}
             
@@ -4579,7 +3931,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
   const [newUrl, setNewUrl] = useState('');
   
   // --- ESTADOS: TIPO (Novo) + DESTINO (Restaurado) ---
-  const [feedType, setFeedType] = useState('news'); 
+  const [feedType, setFeedType] = useState('news'); // 'news', 'youtube', 'podcast'
   const [targetFeed, setTargetFeed] = useState(true);
   const [targetBanca, setTargetBanca] = useState(false);
   
@@ -4602,6 +3954,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
 
           setNewUrl(data.url);
           
+          // Tenta adivinhar o tipo automaticamente
           if (data.url.includes('youtube') || data.url.includes('youtu.be')) {
               setFeedType('youtube');
           } else if (data.url.includes('pod') || data.url.includes('cast')) {
@@ -4617,6 +3970,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
       }
   };
 
+  // --- IMPORTAR OPML (Mantido igual) ---
   const handleImportClick = () => fileInputRef.current?.click();
   const handleImportOPML = (event) => {
     const file = event.target.files[0];
@@ -4637,7 +3991,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
             name: node.getAttribute("text") || "Fonte Importada",
             url: xmlUrl,
             category: 'Importado',
-            type: 'news',
+            type: 'news', // Default para importação
             display: { feed: true, banca: false }
           });
         }
@@ -4647,9 +4001,11 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
     reader.readAsText(file);
   };
 
+  // --- ADICIONAR FEED (Lógica Combinada) ---
   const handleAddFeed = () => {
     if (!newUrl.trim()) return; 
     
+    // Validação: Precisa escolher pelo menos um destino
     if (!targetFeed && !targetBanca) {
         alert("Selecione onde exibir (Feed ou Banca).");
         return;
@@ -4662,13 +4018,18 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
         id: Date.now(), 
         name: 'Nova Fonte', 
         url: formattedUrl,
+        
+        // 1. Define o TIPO (Importante para a aba Podcast funcionar)
         type: feedType, 
         category: feedType === 'podcast' ? 'Podcast' : 'Geral',
+        
+        // 2. Define o DESTINO (Importante para Feed e Banca funcionarem)
         display: { feed: targetFeed, banca: targetBanca }
     };
     
     setFeeds(prev => [...prev, newFeed]);
     setNewUrl('');
+    // Reseta para padrões
     setTargetFeed(true);
     setTargetBanca(false);
     setFeedType('news');
@@ -4677,38 +4038,19 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
   const removeFeed = (id) => setFeeds(feeds.filter(f => f.id !== id));
 
   return (
-    <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}>
         
-        {/* HEADER */}
         <div className="p-4 border-b border-white/10 flex justify-between items-center">
             <h2 className="font-bold text-lg">Configurações</h2>
             <button onClick={onClose}><X size={20} /></button>
         </div>
 
-        {/* --- AQUI ESTAVA FALTANDO: A BARRA DE NAVEGAÇÃO ENTRE ABAS --- */}
-        <div className="flex p-2 gap-2 border-b border-white/5 bg-black/5 dark:bg-white/5">
-            <button 
-                onClick={() => setActiveTab('sources')} 
-                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'sources' ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : 'opacity-50 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}
-            >
-                Minhas Fontes
-            </button>
-            <button 
-                onClick={() => setActiveTab('api')} 
-                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${activeTab === 'api' ? 'bg-purple-600 text-white' : 'opacity-50 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}
-            >
-                <BrainCircuit size={14}/> Inteligência IA
-            </button>
-        </div>
-
-        {/* CONTEÚDO SCROLLÁVEL */}
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-            
-            {/* CONTEÚDO DA ABA FONTES */}
+        <div className="p-6 overflow-y-auto custom-scrollbar">
             {activeTab === 'sources' && (
                 <div className="space-y-6">
+                    {/* Botão Importar */}
                     <div className="flex gap-2 mb-2">
                         <input type="file" accept=".opml,.xml" ref={fileInputRef} onChange={handleImportOPML} className="hidden" />
                         <button onClick={handleImportClick} className="flex-1 py-3 bg-zinc-200 dark:bg-zinc-800 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-zinc-300 dark:hover:bg-zinc-700 transition flex items-center justify-center gap-2">
@@ -4732,6 +4074,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                             </button>
                         </div>
 
+                        {/* 1. SELETOR DE TIPO (NOVO - Para a aba Podcast funcionar) */}
                         <div className="mb-4">
                             <label className="text-[10px] font-bold uppercase opacity-50 mb-1.5 block">Tipo de Conteúdo</label>
                             <div className="grid grid-cols-3 gap-2">
@@ -4747,6 +4090,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                             </div>
                         </div>
                         
+                        {/* 2. SELETOR DE DESTINO (RESTAURADO - Feed / Banca) */}
                         <div className="mb-4">
                             <label className="text-[10px] font-bold uppercase opacity-50 mb-1.5 block">Onde Exibir?</label>
                             <div className="grid grid-cols-2 gap-3">
@@ -4762,56 +4106,40 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                         <button onClick={handleAddFeed} disabled={!newUrl || (!targetFeed && !targetBanca)} className="w-full py-3 bg-purple-600 text-white rounded-lg font-bold text-sm transition hover:bg-purple-500 disabled:opacity-50">Adicionar Fonte</button>
                     </div>
 
+                    {/* Lista de Fontes */}
                     <div>
                         <label className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2 block">Fontes Ativas</label>
                         <div className="space-y-2">
                             {feeds.map(feed => (
-                                <div key={feed.id} className={`flex justify-between items-center p-3 rounded-lg border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        {feed.type === 'podcast' ? <Mic size={14} className="text-orange-500"/> : feed.type === 'youtube' ? <Youtube size={14} className="text-red-500"/> : <Rss size={14} className="text-blue-500"/>}
-                                        <div className="min-w-0">
-                                            <p className={`font-bold text-sm truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{feed.name}</p>
-                                            <div className="flex gap-2 text-[9px] opacity-60"><span>{feed.type === 'podcast' ? 'Podcast' : feed.type === 'youtube' ? 'Canal' : 'Site'}</span></div>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => removeFeed(feed.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-full transition"><Trash2 size={16} /></button>
-                                </div>
-                            ))}
+    <div key={feed.id} className={`flex justify-between items-center p-3 rounded-lg border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+        <div className="flex items-center gap-3 min-w-0">
+            {/* Ícone */}
+            {feed.type === 'podcast' ? <Mic size={14} className="text-orange-500"/> : feed.type === 'youtube' ? <Youtube size={14} className="text-red-500"/> : <Rss size={14} className="text-blue-500"/>}
+            
+            <div className="min-w-0">
+                {/* AQUI: Garanta que a classe de cor está explicita se precisar */}
+                <p className={`font-bold text-sm truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                    {feed.name}
+                </p>
+                
+                {/* Pequeno badge do tipo */}
+                <div className="flex gap-2 text-[9px] opacity-60">
+                    <span>{feed.type === 'podcast' ? 'Podcast' : feed.type === 'youtube' ? 'Canal' : 'Site'}</span>
+                </div>
+            </div>
+        </div>
+        <button onClick={() => removeFeed(feed.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-full transition"><Trash2 size={16} /></button>
+    </div>
+))}
                         </div>
                     </div>
                 </div>
             )}
             
-            {/* CONTEÚDO DA ABA API (Melhorei o visual aqui também) */}
             {activeTab === 'api' && (
-                <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                     <div className={`p-6 rounded-3xl text-center ${isDarkMode ? 'bg-gradient-to-b from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-b from-purple-50 to-white border border-purple-100'}`}>
-                        <div className="w-16 h-16 mx-auto bg-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 mb-4">
-                            <Sparkles size={32} className="text-white animate-pulse"/>
-                        </div>
-                        <h3 className="text-xl font-black mb-2">Google Gemini AI</h3>
-                        <p className="text-sm opacity-70 mb-6 leading-relaxed">
-                            Para ativar o <strong>Smart Digest</strong> e a <strong>Análise de Notícias</strong>, você precisa de uma chave gratuita do Google AI Studio.
-                        </p>
-                        
-                        <div className="text-left mb-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 ml-1">Sua API Key</label>
-                            <div className="relative mt-1">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50"><BrainCircuit size={16}/></div>
-                                <input 
-                                    type="text" 
-                                    value={apiKey} 
-                                    onChange={(e) => setApiKey(e.target.value)} 
-                                    placeholder="Cole sua chave aqui (AIza...)" 
-                                    className={`w-full pl-10 pr-4 py-3 rounded-xl border font-mono text-sm outline-none transition-all ${isDarkMode ? 'bg-black/50 border-purple-500/30 focus:border-purple-500 text-purple-300' : 'bg-white border-purple-200 focus:border-purple-500 text-purple-700 shadow-inner'}`} 
-                                />
-                            </div>
-                        </div>
-
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-purple-500 hover:underline">
-                            Obter chave no Google AI Studio <ArrowRight size={12}/>
-                        </a>
-                     </div>
+                <div className="space-y-4">
+                     <p className="text-sm opacity-70">Cole sua chave da API do Google Gemini.</p>
+                     <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-zinc-300'}`} />
                 </div>
             )}
         </div>
@@ -4819,7 +4147,6 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
     </div>
   );
 }
-
 
 function NewsletterTab({ openArticle, isDarkMode, newsData }) {
   const [copied, setCopied] = useState(false);

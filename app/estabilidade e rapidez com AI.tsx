@@ -12,7 +12,7 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, 
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX
 } from 'lucide-react';
 
 
@@ -948,7 +948,7 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
-const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike }) => {
+const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isDarkMode, onClick, onToggleSave }) => {
   return (
     <div 
       onClick={() => onClick(news)}
@@ -990,9 +990,11 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
             <div>
                 <div className="flex justify-between items-center mb-2">
                     <div className="flex items-center">
+                        {/* LOGO PEQUENO */}
                         <div className={`relative z-20 w-8 h-8 rounded-lg overflow-hidden border shadow-sm shrink-0 ${isDarkMode ? 'border-zinc-700 bg-zinc-800' : 'border-zinc-200 bg-white'}`}>
                             <img src={news.logo} className="w-full h-full object-cover" alt="" onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${news.source}&background=random`}/>
                         </div>
+                        {/* NOME FONTE */}
                         <div className={`relative z-10 -ml-3 pl-4 pr-3 py-1 rounded-lg border-y border-r border-l-0 text-[10px] font-bold tracking-tight uppercase flex items-center h-7.5 mt-0.6 ${isDarkMode ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300' : 'bg-white/80 border-zinc-300 text-zinc-600'}`}>
                             {news.source}
                         </div>
@@ -1031,32 +1033,12 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
           </div>
       </div>
 
-      {/* RODAPÉ DO CARD (Botões) */}
+      {/* RODAPÉ DO CARD */}
       <div className="absolute bottom-3 right-3 flex items-center gap-2 z-30">
           <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border backdrop-blur-md select-none ${isDarkMode ? 'bg-black/20 border-white/5 text-zinc-400' : 'bg-white/40 border-black/5 text-zinc-500'}`}>
               <Clock size={10} className={isDarkMode ? 'text-zinc-500' : 'text-zinc-400'} />
               <span className="text-[9px] font-bold uppercase tracking-wider">{news.readTime || '3 min'}</span>
           </div>
-
-          {/* --- BOTÃO DE CURTIR CORRIGIDO --- */}
-<button 
-  onClick={(e) => { 
-      e.stopPropagation(); 
-      // Se a função existir, chama ela. Se não, não faz nada (sem alert chato)
-      if (onToggleLike) onToggleLike(news);
-  }} 
-  className={`
-      p-2 rounded-full transition-all duration-300 active:scale-75 group/like
-      ${isLiked 
-          ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' // Vermelho forte quando curtido
-          : (isDarkMode ? 'bg-black/20 text-zinc-400 hover:text-rose-500' : 'bg-white/40 text-zinc-500 hover:text-rose-500')
-      }
-  `} 
-  title="Curtir"
->
-   {/* fill={isLiked ? "currentColor" : "none"} garante que fique preenchido */}
-   <Heart size={18} fill={isLiked ? "currentColor" : "none"} className="transition-transform group-hover/like:scale-110" />
-</button>
 
           <button onClick={(e) => { e.stopPropagation(); alert(`Iniciando leitura por IA de: ${news.title}`); }} className={`p-2 rounded-full transition-all duration-300 active:scale-90 group/audio ${isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95] text-zinc-400 hover:text-white' : 'bg-white/40 hover:bg-[#4c1d95] text-zinc-500 hover:text-white'}`} title="Ouvir Resumo">
              <Headphones size={18} />
@@ -1074,12 +1056,11 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     prev.isSelected === next.isSelected &&
     prev.isRead === next.isRead &&
     prev.isSaved === next.isSaved &&
-    prev.isLiked === next.isLiked && // Adicionei verificação para evitar re-render desnecessário
     prev.isDarkMode === next.isDarkMode
   );
 });
 
-function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike }) {
+function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter }) {
   const [category, setCategory] = useState('Tudo');
   
   // --- ESTADOS DO PULL-TO-REFRESH ---
@@ -1218,7 +1199,6 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
               isDarkMode={isDarkMode}
               onClick={openArticle}
               onToggleSave={onToggleSave}
-              isLiked={likedItems?.includes(news.id)}
             />
         ))}
       </div>
@@ -1775,38 +1755,26 @@ const generateBriefing = async (news, apiKey) => {
   }
 };
 
-// --- FUNÇÃO TREND RADAR (V4 - SINGLE FACT FOCUS) ---
+// --- FUNÇÃO PARA EXTRAIR TENDÊNCIAS (TREND RADAR - CORRIGIDA) ---
 const generateTrendRadar = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
 
-  // Enviamos Título + Snippet para a IA ter contexto
-  const context = news.slice(0, 40).map(n => `- ${n.title} (${n.summary ? n.summary.slice(0, 80) : ''})`).join('\n');
+  const headlines = news.slice(0, 30).map(n => n.title).join('\n');
 
   const prompt = `
-  Analise estas manchetes. Agrupe por temas e identifique os 6 Tópicos mais quentes.
+  Analise estas 30 manchetes. Identifique as 6 (seis) entidades ou conceitos mais repetidos/importantes (Ex: "IA", "Mercado", "Neymar", "Eleições").
   
-  Para cada tópico, siga esta lógica OBRIGATÓRIA:
-  1. Identifique a notícia "Capitânia" (a mais importante/impactante daquele grupo).
-  2. Esqueça as outras notícias menores do grupo. Foco total na Capitânia.
-  3. Escreva um resumo de 2 a 3 linhas explicando ESSE FATO específico.
-  
-  Gere este JSON:
-  - "topic": Nome curto do tema (Ex: "Mercosul", "SpaceX").
-  - "score": 1 a 10.
-  - "hex": Cor hexadecimal.
-  - "summary": O texto explicando o fato principal.
-  
-  EXEMPLO DE SUMMARY (O que eu quero):
-  "Lula endurece discurso e exige que União Europeia retire taxas ambientais para fechar o acordo ainda hoje."
-  
-  EXEMPLO DO QUE NÃO FAZER (Genérico):
-  "Discussões sobre taxas e clima continuam no bloco econômico."
+  Para cada um, atribua um "heat_score" de 1 a 10 (10 = muito falado).
+  Atribua uma cor hexadecimal (hex) que combine com o tema.
 
-  DADOS:
-  ${context}
+  MANCHETES:
+  ${headlines}
 
-  RETORNE APENAS A LISTA JSON:
-  [ { "topic": "...", "score": 9, "hex": "#...", "summary": "..." } ]
+  RETORNE APENAS JSON (UMA LISTA):
+  [
+    { "topic": "Nome Curto", "score": 10, "hex": "#FF0000" },
+    { "topic": "Nome", "score": 5, "hex": "#0000FF" }
+  ]
   `;
 
   try {
@@ -1824,18 +1792,23 @@ const generateTrendRadar = async (news, apiKey) => {
     
     if (!text) return null;
     
+    // --- LÓGICA DE PARSE ESPECÍFICA PARA LISTAS ---
+    // Não usamos parseAndNormalize aqui porque ela destrói arrays.
     const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const json = JSON.parse(cleanText);
 
+    // Se já for um Array, ótimo.
     if (Array.isArray(json)) return json;
+
+    // Se a IA embrulhou num objeto (ex: { "trends": [...] }), tentamos extrair o array.
     const possibleArray = Object.values(json).find(val => Array.isArray(val));
     if (possibleArray) return possibleArray;
 
-    return []; 
+    return []; // Retorna lista vazia se falhar, para não quebrar o .map
 
   } catch (error) {
     console.warn("Erro Trend Radar:", error);
-    return []; 
+    return []; // Retorna lista vazia em caso de erro
   }
 };
 
@@ -2005,165 +1978,91 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
 };
 
 
-
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(null);
-
-  // Lógica de Cores Personalizada
-  const getHeatColor = (score) => {
-      if (score >= 9) return '#ef4444'; // Vermelho (Explosivo)
-      if (score >= 7) return '#f97316'; // Laranja (Quente)
-      if (score >= 5) return '#10b981'; // Verde (Médio)
-      return '#3b82f6';                 // Azul (Frio)
-  };
 
   useEffect(() => {
     if (!apiKey || !newsData || newsData.length === 0) return;
     
     const loadTrends = async () => {
         setLoading(true);
-        setActiveIndex(null); 
+        // Pequeno delay para não competir com a renderização inicial do app
         await new Promise(r => setTimeout(r, 600)); 
         const data = await generateTrendRadar(newsData, apiKey);
-        
-        if (data && Array.isArray(data)) {
-            // Mantendo a ordem original da IA (Misturada/Orgânica) conforme solicitado
-            setTrends(data);
-        }
+        if (data) setTrends(data);
         setLoading(false);
     };
 
     loadTrends();
   }, [newsData, apiKey, refreshTrigger]);
 
-  const handleToggle = (idx) => {
-      setActiveIndex(activeIndex === idx ? null : idx);
-  };
-
   if ((!trends || !Array.isArray(trends)) && !loading) return null;
 
   return (
-    <div className="px-1 mb-2 animate-in fade-in duration-1000 slide-in-from-right-8 relative z-30">
-      
-      {/* Título */}
-      <div className="flex items-center justify-center gap-2 mb-2 opacity-70">
+    <div className="px-1 mb-4 animate-in fade-in duration-1000 slide-in-from-right-8">
+      {/* Título da Seção */}
+      <div className="flex items-center gap-2 mb-3 px-3 opacity-70">
          <div className="relative">
             <Activity size={14} className="text-orange-500" />
             <div className="absolute inset-0 bg-orange-500 blur-[8px] opacity-50 animate-pulse" />
          </div>
-         <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Trend Radar</span>
+         <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Radar de Tendências</span>
       </div>
 
       {loading ? (
-         <div className="flex justify-center gap-4 overflow-hidden px-2 opacity-50 pb-8">
+         // Skeleton Loading Horizontal
+         <div className="flex gap-3 overflow-hidden px-2 opacity-50">
             {[1,2,3,4].map(i => (
                 <div key={i} className={`h-9 w-24 rounded-full animate-pulse ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
             ))}
          </div>
       ) : (
-         // Usei gap-4 para dar um espaçamento uniforme e elegante
-         <div className="flex justify-start md:justify-center items-start gap-4 overflow-x-auto scrollbar-hide px-4 pb-47 pt-2 snap-x">
+         // Lista Horizontal com Scroll
+         <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide px-2 pb-4 pt-2 snap-x">
             {trends.map((item, idx) => {
-                const color = getHeatColor(item.score);
-                const isActive = activeIndex === idx;
-                const isExplosive = item.score >= 9;
+                // AJUSTE 1: Baixei a régua para 7 para garantir mais brilho
+                const isHot = (item.score || 0) >= 5;
+                // AJUSTE 2: Cor padrão (Roxo) se a IA falhar no hex
+                const color = item.hex || '#a855f7'; 
                 
-                // Escala uniforme: Todos 100%, crescem só na interação para manter alinhamento
-                const scale = isActive ? 'scale-105' : 'scale-100 hover:scale-105';
+                const scale = isHot ? 'scale-105' : 'scale-100';
                 
-                // Lógica de posição do balão (Anti-corte)
-                const isFirst = idx === 0;
-                const isLast = idx === trends.length - 1;
-                
-                let balloonAlignClass = "-translate-x-1/2 left-1/2"; 
-                if (isFirst) balloonAlignClass = "left-0";           
-                if (isLast) balloonAlignClass = "right-0";           
-                
-                let arrowAlignClass = "-translate-x-1/2 left-1/2";   
-                if (isFirst) arrowAlignClass = "left-8";             
-                if (isLast) arrowAlignClass = "right-8";             
-
                 return (
-                    <div key={idx} className={`relative flex-shrink-0 snap-center flex flex-col items-center`}>
+                    <div key={idx} className={`relative group flex-shrink-0 transition-transform duration-500 ${scale} snap-start`}>
                         
-                        {/* BOTÃO */}
-                        <div 
-                            onClick={() => handleToggle(idx)}
-                            className={`
-                                relative group cursor-pointer transition-all duration-300 ${scale}
-                                ${isActive ? 'z-30' : 'z-10'}
-                            `}
-                        >
-                            {/* AURA (Para todos, seguindo a cor do score) */}
+                        {/* AURA / GLOW (Apenas para os quentes) */}
+                        {isHot && (
                             <div 
-                                className="absolute inset-0 rounded-full blur-md opacity-50 animate-pulse"
+                                className="absolute inset-0 rounded-full blur-md opacity-60 animate-pulse"
                                 style={{ backgroundColor: color }}
                             />
-
-                            <div 
-                                className={`
-                                    relative px-5 py-2.5 rounded-full border flex items-center gap-2 shadow-sm backdrop-blur-md transition-colors
-                                    ${isDarkMode ? 'bg-zinc-900/90 text-white' : 'bg-white/90 text-zinc-800'}
-                                    ${isActive || isExplosive ? 'border-2' : 'border'}
-                                `}
-                                style={{ 
-                                    borderColor: isActive ? color : color, 
-                                    boxShadow: `0 4px 15px ${color}30`
-                                }}
-                            >
-                                {isExplosive && <span className="text-[10px] animate-bounce">🔥</span>}
-                                <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
-                                
-                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                            </div>
-                        </div>
-
-                        {/* O BALÃO */}
-                        {isActive && (
-                            <div className={`absolute top-full mt-4 w-80 z-50 animate-in zoom-in-95 slide-in-from-top-2 duration-300 origin-top ${balloonAlignClass}`}>
-                                {/* Seta */}
-                                <div 
-                                    className={`absolute -top-2 w-4 h-4 rotate-45 border-l border-t ${arrowAlignClass}`}
-                                    style={{ 
-                                        backgroundColor: isDarkMode ? '#09090b' : '#ffffff',
-                                        borderColor: color,
-                                        borderWidth: '1px'
-                                    }}
-                                />
-                                
-                                {/* Conteúdo */}
-                                <div 
-                                    className={`
-                                        relative p-5 rounded-2xl border shadow-2xl backdrop-blur-xl flex flex-col gap-2
-                                        ${isDarkMode ? 'bg-zinc-950/95 text-zinc-200' : 'bg-white/95 text-zinc-800'}
-                                    `}
-                                    style={{ borderColor: color, boxShadow: `0 10px 50px -10px ${color}60` }}
-                                >
-                                    <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{backgroundColor: color}}/>
-                                            <span 
-                                                className="text-[10px] font-black uppercase tracking-widest opacity-80"
-                                                style={{ color: color }}
-                                            >
-                                                SCORE: {item.score}/10
-                                            </span>
-                                        </div>
-                                        {/* Barra de progresso visual */}
-                                        <div className="h-1 w-12 rounded-full bg-white/10 overflow-hidden">
-                                            <div className="h-full rounded-full" style={{ width: `${item.score * 10}%`, backgroundColor: color }} />
-                                        </div>
-                                    </div>
-                                    
-                                    <p className={`text-xs font-medium leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                                        {item.summary}
-                                    </p>
-                                </div>
-                            </div>
                         )}
 
+                        {/* O CHIP/PÍLULA */}
+                        <div 
+                            className={`
+                                relative px-4 py-2.5 rounded-full border flex items-center gap-2 shadow-sm backdrop-blur-sm
+                                ${isDarkMode ? 'bg-zinc-900/90 border-white/10 text-white' : 'bg-white/90 border-zinc-200 text-zinc-800'}
+                            `}
+                            style={{ 
+                                borderColor: isHot ? color : '', 
+                                // Sombra colorida suave
+                                boxShadow: isHot ? `0 4px 15px ${color}40` : 'none'
+                            }}
+                        >
+                            {isHot && <span className="text-[10px] animate-bounce">🔥</span>}
+                            
+                            <span className="text-xs font-bold whitespace-nowrap tracking-tight">
+                                {item.topic}
+                            </span>
+                            
+                            {/* Bolinha de Score (Indicador visual) */}
+                            <div 
+                                className="w-1.5 h-1.5 rounded-full" 
+                                style={{ backgroundColor: color }}
+                            />
+                        </div>
                     </div>
                 )
             })}
@@ -2172,6 +2071,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
     </div>
   );
 };
+
 
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, seenStoryIds = [], apiKey }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
@@ -3305,23 +3205,6 @@ export default function NewsOS_V12() {
   const [realPodcasts, setRealPodcasts] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
   const [readHistory, setReadHistory] = useState([]);
-  const [likedItems, setLikedItems] = useState([]); 
-
-
-
-  // NOVA FUNÇÃO PARA ALTERNAR O LIKE
-  const handleToggleLike = (article) => {
-    setLikedItems(prev => {
-      if (prev.includes(article.id)) {
-        // Se já curtiu, remove (descurtir)
-        return prev.filter(id => id !== article.id);
-      } else {
-        // Se não curtiu, adiciona
-        return [...prev, article.id];
-      }
-    });
-  };
-
 
   // --- FUNÇÃO FETCH FEEDS (V9 - LIMITES DINÂMICOS: 5 POD / 10 VID / 20 NEWS) ---
   const fetchFeeds = async () => {
@@ -3369,12 +3252,12 @@ export default function NewsOS_V12() {
             }
 
             // --- DEFINIÇÃO DO LIMITE DINÂMICO ---
-            let LIMIT = 12; // Padrão (Notícias)
+            let LIMIT = 20; // Padrão (Notícias)
             
             if (feed.type === 'podcast') {
-                LIMIT = 2; // Podcasts: Apenas os 5 mais recentes
+                LIMIT = 5; // Podcasts: Apenas os 5 mais recentes
             } else if (feed.type === 'youtube' || isFeedYoutube) {
-                LIMIT = 3; // Vídeos: Apenas os 10 mais recentes
+                LIMIT = 10; // Vídeos: Apenas os 10 mais recentes
             }
 
             const items = data.items.slice(0, LIMIT).map(item => {
@@ -3564,14 +3447,12 @@ export default function NewsOS_V12() {
                     selectedArticleId={selectedArticle?.id}
                     savedItems={savedItems}
                     onToggleSave={handleToggleSave}
-                                        readHistory={readHistory}
+                    readHistory={readHistory}
                     newsData={realNews} 
                     isLoading={isLoadingFeeds}
                     onPlayVideo={setPlayingVideo}
                     sourceFilter={sourceFilter}
                     setSourceFilter={setSourceFilter}
-                    likedItems={likedItems}       // A lista de IDs curtidos
-        onToggleLike={handleToggleLike} // A função para curtir
                 />
             )}
             

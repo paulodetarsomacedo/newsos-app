@@ -12,9 +12,50 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, 
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX
 } from 'lucide-react';
 
+// --- UTILITÁRIO: RESOLVER COR DA MARCA (V2 - EXPANDIDA) ---
+const resolveBrandColor = (sourceName, isDarkMode = false) => {
+    if (!sourceName) return isDarkMode ? '#1f1f1f' : '#000000';
+    const name = sourceName.toLowerCase().replace(/\s+/g, '').replace(/[^\w\s]/gi, '');
+
+    const BRANDS = {
+        // BRASIL
+        'g1': '#C4170C', 'globo': '#006497', 'folha': '#004990', 'estadao': '#003B5C',
+        'uol': '#F99D1C', 'cnn': '#CC0000', 'veja': '#E61E25', 'exame': '#004375',
+        'valor': '#006758', 'tecmundo': '#0083CA', 'canaltech': '#007BD4', 
+        'jovemnerd': '#29A0DA', 'omelete': '#FFC600', 'tecnoblog': '#E67E22',
+        'metropoles': '#FDB415', 'poder360': '#2E4053', 'infomoney': '#004D40',
+        'macmagazine': '#0090C5', 'olhardigital': '#FF3300',
+
+        // INTERNACIONAL & TECH
+        'theverge': '#E219E6', 'wired': '#000000', 'techcrunch': '#02D15D',
+        'bbc': '#BB1919', 'nytimes': '#121212', 'bloomberg': '#2F00F9',
+        'wsj': '#000000', 'reuters': '#FF8000', 'espn': '#CD122D',
+        'ign': '#BF1313', 'politico': '#CE1126', 'vogue': '#000000',
+        'engadget': '#2B2D32', 'gizmodo': '#2B2D32', 'mashable': '#0073D1',
+        'vice': '#000000', 'forbes': '#222222', 'time': '#E90606'
+    };
+
+    // 1. Busca Exata/Parcial
+    for (const [key, color] of Object.entries(BRANDS)) {
+        if (name.includes(key)) return color;
+    }
+
+    // 2. Cores por Categoria (Semântica)
+    if (name.match(/money|finance|invest|valor|econom/)) return '#059669'; // Verde
+    if (name.match(/tech|code|apple|mac|android|bit|cyber/)) return '#2563EB'; // Azul
+    if (name.match(/sport|futebol|soccer|nba|nfl/)) return '#16A34A'; // Verde Esporte
+    if (name.match(/game|play|xbox|nintendo|ps5/)) return '#7C3AED'; // Roxo
+    if (name.match(/car|auto|motor/)) return '#DC2626'; // Vermelho
+
+    // 3. Fallback Determinístico (Evita cores aleatórias feias)
+    const SAFE_PALETTE = ['#0F172A', '#1E3A8A', '#B91C1C', '#047857', '#7C3AED', '#BE123C', '#C2410C'];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return SAFE_PALETTE[Math.abs(hash) % SAFE_PALETTE.length];
+};
 
 // --- DADOS MOCKADOS ---
 
@@ -645,14 +686,14 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
               <button 
                 onClick={() => setIsSearchOpen(!isSearchOpen)}
                 className={`
-                    relative z-[60] p-2.5 rounded-xl transition-all duration-500 flex items-center gap-2 border -mr-6
+                    relative z-[60] p-2.5 rounded-2xl transition-all duration-500 flex items-center gap-2 border
                     ${isSearchOpen 
                         ? 'bg-white text-black border-white shadow-[0_0_30px_rgba(255,255,255,0.2)] scale-90' 
                         : 'bg-white/5 border-white/10 text-white hover:bg-white/10 active:scale-95'}
                 `}
               >
                 {isSearchOpen ? <X size={18} /> : <Sparkles size={18} className="text-purple-400 animate-pulse" />}
-                {!isSearchOpen && <span className="text-[10px] font-black uppercase tracking-widest px-4">Ask AI</span>}
+                {!isSearchOpen && <span className="text-[10px] font-black uppercase tracking-widest px-1">Ask AI</span>}
               </button>
            </div>
 
@@ -919,36 +960,9 @@ const SmartImage = ({ src, title, logo, isDarkMode, className, sourceName }) => 
   );
 };
 
-const NewsCardSkeleton = ({ isDarkMode }) => {
-  return (
-    <div className={`
-      flex flex-row gap-5 w-full p-3 rounded-3xl border animate-pulse
-      ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-100'}
-    `}>
-      {/* Imagem Skeleton */}
-      <div className={`w-28 h-28 md:w-36 md:h-36 rounded-2xl flex-shrink-0 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-
-      {/* Conteúdo Skeleton */}
-      <div className="flex-1 flex flex-col gap-3 py-2 min-w-0">
-        <div className="flex justify-between items-center">
-           <div className={`h-3 w-20 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-           <div className={`h-3 w-10 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-        </div>
-        <div className="space-y-2">
-           <div className={`h-4 w-full rounded-md ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-           <div className={`h-4 w-3/4 rounded-md ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-        </div>
-        <div className={`h-3 w-full rounded-md mt-1 ${isDarkMode ? 'bg-zinc-800/50' : 'bg-zinc-100'}`} />
-        <div className={`h-3 w-16 rounded-full mt-auto ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-      </div>
-    </div>
-  );
-};
-
-
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
-const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike }) => {
+const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isDarkMode, onClick, onToggleSave }) => {
   return (
     <div 
       onClick={() => onClick(news)}
@@ -990,9 +1004,11 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
             <div>
                 <div className="flex justify-between items-center mb-2">
                     <div className="flex items-center">
+                        {/* LOGO PEQUENO */}
                         <div className={`relative z-20 w-8 h-8 rounded-lg overflow-hidden border shadow-sm shrink-0 ${isDarkMode ? 'border-zinc-700 bg-zinc-800' : 'border-zinc-200 bg-white'}`}>
                             <img src={news.logo} className="w-full h-full object-cover" alt="" onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${news.source}&background=random`}/>
                         </div>
+                        {/* NOME FONTE */}
                         <div className={`relative z-10 -ml-3 pl-4 pr-3 py-1 rounded-lg border-y border-r border-l-0 text-[10px] font-bold tracking-tight uppercase flex items-center h-7.5 mt-0.6 ${isDarkMode ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300' : 'bg-white/80 border-zinc-300 text-zinc-600'}`}>
                             {news.source}
                         </div>
@@ -1000,7 +1016,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
 
                     <div className="flex items-center gap-1">
                       {isRead && !isSelected && (
-                         <div className="flex items-center gap-1 bg-red-500 px-1.5 py-0.5 rounded text-white" title="Notícia já lida">
+                         <div className="flex items-center gap-1 bg-zinc-500/10 px-1.5 py-0.5 rounded text-zinc-500" title="Notícia já lida">
                             <CheckCircle size={10} />
                             <span className="text-[9px] font-bold uppercase">Lido</span>
                          </div>
@@ -1031,32 +1047,12 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
           </div>
       </div>
 
-      {/* RODAPÉ DO CARD (Botões) */}
+      {/* RODAPÉ DO CARD */}
       <div className="absolute bottom-3 right-3 flex items-center gap-2 z-30">
           <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border backdrop-blur-md select-none ${isDarkMode ? 'bg-black/20 border-white/5 text-zinc-400' : 'bg-white/40 border-black/5 text-zinc-500'}`}>
               <Clock size={10} className={isDarkMode ? 'text-zinc-500' : 'text-zinc-400'} />
               <span className="text-[9px] font-bold uppercase tracking-wider">{news.readTime || '3 min'}</span>
           </div>
-
-          {/* --- BOTÃO DE CURTIR CORRIGIDO --- */}
-<button 
-  onClick={(e) => { 
-      e.stopPropagation(); 
-      // Se a função existir, chama ela. Se não, não faz nada (sem alert chato)
-      if (onToggleLike) onToggleLike(news);
-  }} 
-  className={`
-      p-2 rounded-full transition-all duration-300 active:scale-75 group/like
-      ${isLiked 
-          ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' // Vermelho forte quando curtido
-          : (isDarkMode ? 'bg-black/20 text-zinc-400 hover:text-rose-500' : 'bg-white/40 text-zinc-500 hover:text-rose-500')
-      }
-  `} 
-  title="Curtir"
->
-   {/* fill={isLiked ? "currentColor" : "none"} garante que fique preenchido */}
-   <Heart size={18} fill={isLiked ? "currentColor" : "none"} className="transition-transform group-hover/like:scale-110" />
-</button>
 
           <button onClick={(e) => { e.stopPropagation(); alert(`Iniciando leitura por IA de: ${news.title}`); }} className={`p-2 rounded-full transition-all duration-300 active:scale-90 group/audio ${isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95] text-zinc-400 hover:text-white' : 'bg-white/40 hover:bg-[#4c1d95] text-zinc-500 hover:text-white'}`} title="Ouvir Resumo">
              <Headphones size={18} />
@@ -1074,12 +1070,11 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     prev.isSelected === next.isSelected &&
     prev.isRead === next.isRead &&
     prev.isSaved === next.isSaved &&
-    prev.isLiked === next.isLiked && // Adicionei verificação para evitar re-render desnecessário
     prev.isDarkMode === next.isDarkMode
   );
 });
 
-function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike }) {
+function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter }) {
   const [category, setCategory] = useState('Tudo');
   
   // --- ESTADOS DO PULL-TO-REFRESH ---
@@ -1191,19 +1186,9 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
          </div>
       </div>
       
-     {/* LISTA DE CARDS OTIMIZADA */}
+      {/* LISTA DE CARDS OTIMIZADA */}
       <div className="flex flex-col gap-4">
-        
-        {/* MOSTRA SKELETONS SE ESTIVER CARREGANDO */}
-        {isLoading && safeNews === FEED_NEWS && (
-            <>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <NewsCardSkeleton key={i} isDarkMode={isDarkMode} />
-              ))}
-            </>
-        )}
-
-        {!isLoading && displayedNews.length === 0 && (
+        {displayedNews.length === 0 && (
            <div className="text-center py-10 opacity-50">
              <p>Nenhuma notícia encontrada nesta categoria.</p>
            </div>
@@ -1218,7 +1203,6 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
               isDarkMode={isDarkMode}
               onClick={openArticle}
               onToggleSave={onToggleSave}
-              isLiked={likedItems?.includes(news.id)}
             />
         ))}
       </div>
@@ -1559,26 +1543,8 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
                                 </div>
                             </div>
                             <div>
-                                <span className={`text-xs font-bold block ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-        {video.channel || video.source}
-    </span>
-    
-    <span className="text-[10px] uppercase font-bold text-zinc-500">
-        {/* Data (Ex: 20 de dez. de 2025) */}
-        {new Date(video.rawDate).toLocaleDateString('pt-BR', { 
-            day: 'numeric', 
-            month: 'short', 
-            year: 'numeric' 
-        })}
-        
-        {/* Separador e Hora (Ex: • 14:30) */}
-        <span className="mx-1 opacity-50">•</span>
-        
-        {new Date(video.rawDate).toLocaleTimeString('pt-BR', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        })}
-    </span>
+                                <span className={`text-lx font-bold block ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{video.channel || video.source}</span>
+                                <span className="text-lx uppercase font-bold text-zinc-500">{video.time}</span>
                             </div>
                         </div>
                         <MoreHorizontal size={20} className="text-zinc-400" />
@@ -1609,575 +1575,8 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   );
 }
 
-
-// ==========================================================
-// FUNÇÕES DE INTELIGÊNCIA ARTIFICIAL (V3.1 - 4 TÓPICOS)
-// ==========================================================
-
-const cleanGeminiJSON = (text) => {
-  if (!text) return "";
-  return text.replace(/```json/g, '').replace(/```/g, '').trim();
-};
-
-const parseAndNormalize = (text) => {
-    try {
-        const cleanText = cleanGeminiJSON(text);
-        const json = JSON.parse(cleanText);
-        if (Array.isArray(json)) {
-            console.log("IA retornou Array, normalizando para Objeto...");
-            return json[0];
-        }
-        return json;
-    } catch (e) {
-        console.error("Erro ao fazer parse do JSON:", e);
-        return null;
-    }
-}
-
-// --- FALLBACK (ATUALIZADO PARA 4 TÓPICOS) ---
-const generateBriefingFallback = async (news, apiKey) => {
-    console.log("Iniciando Fallback (Gemini 1.5)...");
-    
-    if (!news || news.length === 0) return null;
-    
-    const context = news.slice(0, 15).map(n => `- ${n.title}`).join('\n');
-    
-    const prompt = `
-      Atue como editor de notícias. Resuma os fatos abaixo em um JSON estrito.
-      
-      NOTÍCIAS:
-      ${context}
-      
-      SCHEMA JSON OBRIGATÓRIO (4 TÓPICOS):
-      { 
-        "vibe_emoji": "🔥", 
-        "vibe_title": "Resumo Rápido", 
-        "topics": [
-          { "tag": "Geral", "summary": "Resumo conciso de 20 palavras." },
-          { "tag": "Destaques", "summary": "Outros pontos relevantes." },
-          { "tag": "Mercados", "summary": "Movimentações financeiras ou políticas." },
-          { "tag": "Variedades", "summary": "Esportes, cultura ou tecnologia." }
-        ] 
-      }
-    `;
-
-    try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { response_mime_type: "application/json" }
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) { return null; }
-
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) throw new Error("Vazio");
-        
-        return parseAndNormalize(text);
-    } catch (e) {
-        console.error("Erro fatal no sistema de Fallback:", e);
-        return null;
-    }
-};
-
-// --- PRINCIPAL (ATUALIZADO PARA 4 TÓPICOS) ---
-const generateBriefing = async (news, apiKey) => {
-  if (!news || news.length === 0) return null;
-  if (!apiKey) {
-      alert("API Key não configurada! Vá em Ajustes > Inteligência IA.");
-      return null;
-  }
-
-  const context = news.slice(0, 30).map(n => {
-      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 400) : "Sem detalhes.";
-      return `[FONTE: ${n.source}] MANCHETE: ${n.title} | CONTEXTO: ${cleanSummary}`;
-  }).join('\n\n');
-
-  const prompt = `
-  Você é o Editor-Chefe de uma newsletter premium e inteligente (estilo Morning Brew ou Axios).
-  
-  SUA MISSÃO:
-  Ler as notícias fornecidas abaixo, identificar os 4 (QUATRO) maiores temas do momento e escrever resumos EXPLICATIVOS, fluídos e concatenados.
-  
-  REGRAS EDITORIAIS:
-  1. CONTEXTUALIZE: Não apenas repita o título. Explique o "porquê".
-  2. AGRUPE: Junte notícias parecidas no mesmo tópico.
-  3. TOM DE VOZ: Profissional, direto, mas conversacional.
-  4. TAMANHO: O campo "summary" deve ter entre 25 a 40 palavras.
-
-  MATÉRIA PRIMA:
-  ${context}
-
-  RETORNE APENAS ESTE JSON (Exatamente 4 itens em 'topics'):
-  {
-    "vibe_emoji": "Um único emoji que defina o humor global",
-    "vibe_title": "Uma manchete de capa impactante e curta (3 a 6 palavras)",
-    "topics": [
-      { 
-        "tag": "Categoria 1 (Ex: Política)", 
-        "summary": "Texto explicativo rico..." 
-      },
-      { 
-        "tag": "Categoria 2 (Ex: Economia)", 
-        "summary": "Texto explicativo rico..." 
-      },
-      { 
-        "tag": "Categoria 3 (Ex: Tech/Mundo)", 
-        "summary": "Texto explicativo rico..." 
-      },
-      { 
-        "tag": "Categoria 4 (Ex: Brasil/Cultura)", 
-        "summary": "Texto explicativo rico..." 
-      }
-    ]
-  }
-  `;
-
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-        console.warn(`Erro Principal (${data.error.message}). Fallback...`);
-        return await generateBriefingFallback(news, apiKey);
-    }
-
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) {
-        return await generateBriefingFallback(news, apiKey);
-    }
-
-    const finalData = parseAndNormalize(text);
-    
-    if (!finalData || !finalData.topics || finalData.topics.length === 0) {
-        return await generateBriefingFallback(news, apiKey);
-    }
-
-    return finalData;
-
-  } catch (error) {
-    console.warn("Erro fatal. Fallback...", error);
-    return await generateBriefingFallback(news, apiKey);
-  }
-};
-
-// --- FUNÇÃO TREND RADAR (V4 - SINGLE FACT FOCUS) ---
-const generateTrendRadar = async (news, apiKey) => {
-  if (!news || news.length === 0) return null;
-
-  // Enviamos Título + Snippet para a IA ter contexto
-  const context = news.slice(0, 40).map(n => `- ${n.title} (${n.summary ? n.summary.slice(0, 80) : ''})`).join('\n');
-
-  const prompt = `
-  Analise estas manchetes. Agrupe por temas e identifique os 6 Tópicos mais quentes.
-  
-  Para cada tópico, siga esta lógica OBRIGATÓRIA:
-  1. Identifique a notícia "Capitânia" (a mais importante/impactante daquele grupo).
-  2. Esqueça as outras notícias menores do grupo. Foco total na Capitânia.
-  3. Escreva um resumo de 2 a 3 linhas explicando ESSE FATO específico.
-  
-  Gere este JSON:
-  - "topic": Nome curto do tema (Ex: "Mercosul", "SpaceX").
-  - "score": 1 a 10.
-  - "hex": Cor hexadecimal.
-  - "summary": O texto explicando o fato principal.
-  
-  EXEMPLO DE SUMMARY (O que eu quero):
-  "Lula endurece discurso e exige que União Europeia retire taxas ambientais para fechar o acordo ainda hoje."
-  
-  EXEMPLO DO QUE NÃO FAZER (Genérico):
-  "Discussões sobre taxas e clima continuam no bloco econômico."
-
-  DADOS:
-  ${context}
-
-  RETORNE APENAS A LISTA JSON:
-  [ { "topic": "...", "score": 9, "hex": "#...", "summary": "..." } ]
-  `;
-
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
-    });
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) return null;
-    
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const json = JSON.parse(cleanText);
-
-    if (Array.isArray(json)) return json;
-    const possibleArray = Object.values(json).find(val => Array.isArray(val));
-    if (possibleArray) return possibleArray;
-
-    return []; 
-
-  } catch (error) {
-    console.warn("Erro Trend Radar:", error);
-    return []; 
-  }
-};
-
-// ==========================================================
-// NOVO COMPONENTE SMART DIGEST (DESIGN BENTO GRID)
-// ==========================================================
-
-const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
-  const [digest, setDigest] = useState(null);
-  const [status, setStatus] = useState('idle'); // idle | loading | success | error
-
-  // 1. LÓGICA DE RESET AUTOMÁTICO (Ao puxar a aba para atualizar)
-  useEffect(() => {
-    if (refreshTrigger > 0) {
-        setDigest(null);
-        setStatus('idle');
-    }
-  }, [refreshTrigger]);
-
-  const handleGenerate = async () => {
-    if (!apiKey) {
-        alert("Configure sua API Key nas configurações primeiro.");
-        return;
-    }
-    setStatus('loading');
-    
-    // Pequeno delay para a animação ser sentida
-    await new Promise(r => setTimeout(r, 800));
-
-    const result = await generateBriefing(newsData, apiKey);
-    
-    if (result) {
-        setDigest(result);
-        setStatus('success');
-    } else {
-        setStatus('error');
-    }
-  };
-
-  // Cores para as tags (para não ficar tudo cinza)
-  const getTagStyle = (index) => {
-      const styles = [
-          'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border-blue-200 dark:border-blue-500/30',
-          'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 border-orange-200 dark:border-orange-500/30',
-          'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30',
-          'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 border-purple-200 dark:border-purple-500/30',
-      ];
-      return styles[index % styles.length];
-  };
-
-  // --- 1. ESTADO INICIAL (CONVITE) ---
-  if (status === 'idle') {
-    return (
-      <div className="px-1 mb-6">
-        <div className={`relative overflow-hidden rounded-[2rem] p-8 border transition-all shadow-lg ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-           <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-gradient-to-bl from-purple-500/20 to-transparent rounded-full blur-[80px] pointer-events-none -mr-20 -mt-20" />
-           
-           <div className="flex flex-col items-center text-center relative z-10">
-              <div className="mb-4 p-3 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
-                 <Sparkles size={24} className="text-white animate-pulse" />
-              </div>
-              <h2 className={`text-xl font-black mb-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>O que está acontecendo?</h2>
-              <p className={`text-sm mb-6 max-w-[260px] leading-relaxed opacity-70 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                Deixe a IA ler {newsData?.length || 0} manchetes e explicar o mundo para você em segundos.
-              </p>
-              <button 
-                onClick={handleGenerate}
-                className={`
-                    group relative px-8 py-3 rounded-full font-bold text-xs uppercase tracking-widest overflow-hidden shadow-xl active:scale-95 transition-all
-                    ${isDarkMode ? 'bg-white text-black' : 'bg-zinc-900 text-white'}
-                `}
-              >
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                <span className="flex items-center gap-2 relative z-10"><Zap size={14} fill="currentColor"/> Gerar Smart Digest</span>
-              </button>
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- 2. ESTADO LOADING (COM PERSONALIDADE) ---
-  if (status === 'loading') {
-    return (
-      <div className="px-1 mb-6">
-        <div className={`h-[350px] rounded-[2rem] flex flex-col items-center justify-center border relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-           <div className="w-16 h-16 border-4 border-t-purple-500 border-r-transparent border-b-purple-500 border-l-transparent rounded-full animate-spin mb-6" />
-           <div className="text-center space-y-1 relative z-10">
-               <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Processando Fatos...</p>
-               <p className="text-xs font-mono opacity-50 uppercase tracking-widest">Lendo Fontes • Analisando Viés</p>
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- 3. ESTADO ERRO (RETRY FÁCIL) ---
-  if (status === 'error' || !digest) {
-      return (
-        <div className="px-1 mb-6">
-            <div className="p-6 rounded-[2rem] bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 text-center">
-                <p className="text-red-500 font-bold text-sm mb-2">A IA falhou ao processar.</p>
-                <button onClick={handleGenerate} className="text-xs font-bold underline decoration-red-500 underline-offset-4 opacity-80 hover:opacity-100">Tentar Novamente</button>
-            </div>
-        </div>
-      );
-  }
-
-  // --- 4. ESTADO FINAL (BENTO GRID LAYOUT) ---
-  return (
-    <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className={`relative p-5 rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-         
-         {/* CABEÇALHO HERO */}
-         <div className="flex flex-col items-center text-center mb-8 pt-2">
-            <div className="text-5xl mb-3 animate-bounce shadow-xl rounded-full">{digest.vibe_emoji}</div>
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500 mb-1">
-                Vibe do Momento
-            </span>
-            <h2 className={`text-2xl md:text-3xl font-black leading-tight max-w-sm ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                {digest.vibe_title}
-            </h2>
-         </div>
-
-         {/* GRID DE TÓPICOS */}
-         <div className="grid grid-cols-1 gap-3">
-            {digest.topics?.map((topic, i) => (
-                <div 
-                    key={i} 
-                    className={`
-                        group relative p-5 rounded-3xl border transition-all hover:scale-[1.01]
-                        ${isDarkMode ? 'bg-black/40 border-white/5 hover:bg-white/5' : 'bg-zinc-50 border-zinc-100 hover:shadow-md'}
-                    `}
-                >
-                    <div className="flex justify-between items-start mb-2">
-                        <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border ${getTagStyle(i)}`}>
-                            {topic.tag}
-                        </span>
-                        {/* Indicador visual pequeno */}
-                        <div className="w-1.5 h-1.5 rounded-full bg-current opacity-20 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                        {topic.summary}
-                    </p>
-                </div>
-            ))}
-         </div>
-
-         {/* RODAPÉ E REFRESH MANUAL */}
-         <div className="mt-6 flex justify-between items-center px-2">
-            <div className="flex items-center gap-1.5 opacity-30">
-                <BrainCircuit size={12} />
-                <span className="text-[10px] font-mono">Gemini 2.0 Flash</span>
-            </div>
-            <button 
-                onClick={handleGenerate} 
-                className={`p-2 rounded-full transition-all active:rotate-180 ${isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'}`}
-                title="Regerar análise"
-            >
-                <RefreshCw size={16}/>
-            </button>
-         </div>
-      </div>
-    </div>
-  );
-};
-
-
-
-const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
-  const [trends, setTrends] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(null);
-
-  // Lógica de Cores Personalizada
-  const getHeatColor = (score) => {
-      if (score >= 9) return '#ef4444'; // Vermelho (Explosivo)
-      if (score >= 7) return '#f97316'; // Laranja (Quente)
-      if (score >= 5) return '#10b981'; // Verde (Médio)
-      return '#3b82f6';                 // Azul (Frio)
-  };
-
-  useEffect(() => {
-    if (!apiKey || !newsData || newsData.length === 0) return;
-    
-    const loadTrends = async () => {
-        setLoading(true);
-        setActiveIndex(null); 
-        await new Promise(r => setTimeout(r, 600)); 
-        const data = await generateTrendRadar(newsData, apiKey);
-        
-        if (data && Array.isArray(data)) {
-            // Mantendo a ordem original da IA (Misturada/Orgânica) conforme solicitado
-            setTrends(data);
-        }
-        setLoading(false);
-    };
-
-    loadTrends();
-  }, [newsData, apiKey, refreshTrigger]);
-
-  const handleToggle = (idx) => {
-      setActiveIndex(activeIndex === idx ? null : idx);
-  };
-
-  if ((!trends || !Array.isArray(trends)) && !loading) return null;
-
-  return (
-    <div className="px-1 mb-2 animate-in fade-in duration-1000 slide-in-from-right-8 relative z-30">
-      
-      {/* Título */}
-      <div className="flex items-center justify-center gap-2 mb-2 opacity-70">
-         <div className="relative">
-            <Activity size={14} className="text-orange-500" />
-            <div className="absolute inset-0 bg-orange-500 blur-[8px] opacity-50 animate-pulse" />
-         </div>
-         <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Trend Radar</span>
-      </div>
-
-      {loading ? (
-         <div className="flex justify-center gap-4 overflow-hidden px-2 opacity-50 pb-8">
-            {[1,2,3,4].map(i => (
-                <div key={i} className={`h-9 w-24 rounded-full animate-pulse ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-            ))}
-         </div>
-      ) : (
-         // Usei gap-4 para dar um espaçamento uniforme e elegante
-         <div className="flex justify-start md:justify-center items-start gap-4 overflow-x-auto scrollbar-hide px-4 pb-47 pt-2 snap-x">
-            {trends.map((item, idx) => {
-                const color = getHeatColor(item.score);
-                const isActive = activeIndex === idx;
-                const isExplosive = item.score >= 9;
-                
-                // Escala uniforme: Todos 100%, crescem só na interação para manter alinhamento
-                const scale = isActive ? 'scale-105' : 'scale-100 hover:scale-105';
-                
-                // Lógica de posição do balão (Anti-corte)
-                const isFirst = idx === 0;
-                const isLast = idx === trends.length - 1;
-                
-                let balloonAlignClass = "-translate-x-1/2 left-1/2"; 
-                if (isFirst) balloonAlignClass = "left-0";           
-                if (isLast) balloonAlignClass = "right-0";           
-                
-                let arrowAlignClass = "-translate-x-1/2 left-1/2";   
-                if (isFirst) arrowAlignClass = "left-8";             
-                if (isLast) arrowAlignClass = "right-8";             
-
-                return (
-                    <div key={idx} className={`relative flex-shrink-0 snap-center flex flex-col items-center`}>
-                        
-                        {/* BOTÃO */}
-                        <div 
-                            onClick={() => handleToggle(idx)}
-                            className={`
-                                relative group cursor-pointer transition-all duration-300 ${scale}
-                                ${isActive ? 'z-30' : 'z-10'}
-                            `}
-                        >
-                            {/* AURA (Para todos, seguindo a cor do score) */}
-                            <div 
-                                className="absolute inset-0 rounded-full blur-md opacity-50 animate-pulse"
-                                style={{ backgroundColor: color }}
-                            />
-
-                            <div 
-                                className={`
-                                    relative px-5 py-2.5 rounded-full border flex items-center gap-2 shadow-sm backdrop-blur-md transition-colors
-                                    ${isDarkMode ? 'bg-zinc-900/90 text-white' : 'bg-white/90 text-zinc-800'}
-                                    ${isActive || isExplosive ? 'border-2' : 'border'}
-                                `}
-                                style={{ 
-                                    borderColor: isActive ? color : color, 
-                                    boxShadow: `0 4px 15px ${color}30`
-                                }}
-                            >
-                                {isExplosive && <span className="text-[10px] animate-bounce">🔥</span>}
-                                <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
-                                
-                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                            </div>
-                        </div>
-
-                        {/* O BALÃO */}
-                        {isActive && (
-                            <div className={`absolute top-full mt-4 w-80 z-50 animate-in zoom-in-95 slide-in-from-top-2 duration-300 origin-top ${balloonAlignClass}`}>
-                                {/* Seta */}
-                                <div 
-                                    className={`absolute -top-2 w-4 h-4 rotate-45 border-l border-t ${arrowAlignClass}`}
-                                    style={{ 
-                                        backgroundColor: isDarkMode ? '#09090b' : '#ffffff',
-                                        borderColor: color,
-                                        borderWidth: '1px'
-                                    }}
-                                />
-                                
-                                {/* Conteúdo */}
-                                <div 
-                                    className={`
-                                        relative p-5 rounded-2xl border shadow-2xl backdrop-blur-xl flex flex-col gap-2
-                                        ${isDarkMode ? 'bg-zinc-950/95 text-zinc-200' : 'bg-white/95 text-zinc-800'}
-                                    `}
-                                    style={{ borderColor: color, boxShadow: `0 10px 50px -10px ${color}60` }}
-                                >
-                                    <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{backgroundColor: color}}/>
-                                            <span 
-                                                className="text-[10px] font-black uppercase tracking-widest opacity-80"
-                                                style={{ color: color }}
-                                            >
-                                                SCORE: {item.score}/10
-                                            </span>
-                                        </div>
-                                        {/* Barra de progresso visual */}
-                                        <div className="h-1 w-12 rounded-full bg-white/10 overflow-hidden">
-                                            <div className="h-full rounded-full" style={{ width: `${item.score * 10}%`, backgroundColor: color }} />
-                                        </div>
-                                    </div>
-                                    
-                                    <p className={`text-xs font-medium leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                                        {item.summary}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                    </div>
-                )
-            })}
-         </div>
-      )}
-    </div>
-  );
-};
-
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, seenStoryIds = [], apiKey }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, seenStoryIds = [] }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
-  
-  // Estado para sinalizar o reset do Smart Digest quando atualizar a página
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // --- ESTADOS DO PULL-TO-REFRESH ---
   const [startY, setStartY] = useState(0);
@@ -2186,7 +1585,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
   // --- LÓGICA DE STORIES (APENAS A ÚLTIMA DE CADA FONTE + FILTRO DE VISTOS) ---
   const storiesToDisplay = useMemo(() => {
-    // Se não houver dados reais, retorna vazio
+    // Se não houver dados reais, não mostramos os mocks para não confundir o usuário
     if (!newsData || newsData.length === 0) return [];
 
     const uniqueStories = [];
@@ -2202,7 +1601,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             // Verifica se este ID específico já foi visto
             const isSeen = seenStoryIds.includes(item.id);
             
-            // REGRA: Se foi visto, ele não entra na lista (ele some da barra de stories)
+            // REGRA: Se foi visto, ele não entra na lista (ele some)
+            // Ele só reaparecerá quando o ID mudar (nova notícia)
             if (isSeen) return;
 
             // Gerador de imagem de fallback elegante caso o RSS não tenha imagem
@@ -2251,14 +1651,11 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         setIsRefreshing(true);
         setPullDistance(120); // Trava na posição de loading
         
-        // --- AQUI ESTÁ O SEGREDO: Reseta o Smart Digest ---
-        setRefreshTrigger(prev => prev + 1);
-        
         if (onRefresh) {
             await onRefresh();
         }
         
-        // Mantém o ícone visível por 1 segundo após o término para feedback visual
+        // Mantém o ícone visível por 1 segundo após o término
         setTimeout(() => {
             setIsRefreshing(false);
             setPullDistance(0);
@@ -2269,7 +1666,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     setStartY(0);
   };
 
-  // Dados para os cards estáticos de "Em Alta"
+  // Dados para os cards estáticos
   const trending = [
     { id: 1, title: 'IA Generativa: O novo marco regulatório começa a valer hoje na Europa', source: 'Politico', time: '15m', img: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&q=80' },
     { id: 2, title: 'Final da Champions: Real Madrid e City se enfrentam em jogo histórico', source: 'ESPN', time: '45m', img: 'https://images.unsplash.com/photo-1522778119026-d647f0565c6a?w=600&q=80' },
@@ -2331,6 +1728,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
                 {storiesToDisplay.map((story) => (
                 <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
+                    {/* CÍRCULO DINÂMICO: Vermelho/Rosa se novo, Azul se lido (embora o filtro remova os lidos) */}
                     <div className={`
                         relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500
                         bg-gradient-to-tr 
@@ -2365,24 +1763,22 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
 
-{/* --- NOVO RADAR DE TENDÊNCIAS --- */}
-      <TrendRadar 
-          newsData={newsData} 
-          apiKey={apiKey} 
-          isDarkMode={isDarkMode} 
-          refreshTrigger={refreshTrigger} 
-      />
+      {/* --- CARDS ORIGINAIS --- */}
+      <div className="px-1">
+        <div className={`relative overflow-hidden rounded-[32px] border p-8 shadow-2xl transition-all hover:scale-[1.01] duration-500 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-gradient-to-br from-zinc-900 to-black text-white border-transparent'}`}>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/30 blur-[90px]" />
+          <div className="flex items-center gap-3 mb-6 relative z-10">
+            <div className="bg-blue-400 text-black p-2 rounded-xl shadow-[0_0_20px_rgba(52,211,153,0.4)]"><Sparkles size={20} fill="black" /></div>
+            <span className="text-xs font-bold uppercase tracking-widest text-blue-300">Resumo do Momento</span>
+          </div>
+          <div className="relative z-10">
+              <h2 className="text-3xl md:text-4xl font-bold leading-tight mb-4 text-white">Mercado global reage: Pacote fiscal e avanços em IA dominam a pauta.</h2>
+              <p className="text-zinc-300 text-base leading-relaxed mb-8 font-serif">Nossa IA processou {newsData?.length || 0} fontes para criar este resumo.</p>
+              <button onClick={() => openArticle({ title: 'Briefing IA', source: 'NewsOS Intelligence', img: null, origin: 'rss' })} className="py-3.5 px-8 bg-white text-black font-bold text-sm rounded-full hover:bg-zinc-200 transition active:scale-[0.98] flex items-center gap-2">Ler Briefing Completo <ArrowRight size={16} /></button>
+          </div>
+        </div>
+      </div>
 
-      {/* --- SMART DIGEST (BENTO GRID) --- */}
-      {/* Substitui o antigo card "Resumo do Momento" */}
-      <SmartDigestWidget 
-          newsData={newsData} 
-          apiKey={apiKey} 
-          isDarkMode={isDarkMode} 
-          refreshTrigger={refreshTrigger} // Prop para resetar o componente
-      />
-
-      {/* --- OUTRO CARD DE DESTAQUE (SPACEX) --- */}
       <div className="px-1">
          <div onClick={() => openArticle({ title: 'SpaceX prepara lançamento histórico', source: 'SpaceX Live', img: 'https://images.unsplash.com/photo-1517976487492-5750f3195933?w=800&q=80', origin: 'rss' })} className="group relative h-[400px] w-full rounded-[32px] overflow-hidden cursor-pointer shadow-2xl transition-all duration-500 hover:shadow-orange-500/20">
             <img src="https://images.unsplash.com/photo-1517976487492-5750f3195933?w=800&q=80" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="SpaceX" />
@@ -2399,7 +1795,6 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
          </div>
       </div>
 
-      {/* --- SEÇÃO EM ALTA --- */}
       <div className="px-2 pt-4">
         <div className="flex items-center gap-2 mb-4 px-1"><TrendingUp size={20} className="text-blue-500" /><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Em Alta Agora</h3></div>
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
@@ -2420,18 +1815,124 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
 
-      {/* MODAL DO PODCAST (SE ABERTO) */}
       {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
   );
 }
 
-function BancaTab({ openOutlet, isDarkMode }) {
+// --- COMPONENTE: CARD DA BANCA (MAGAZINE V3 - LOGO UPSCALE) ---
+const MagazineCard = ({ item, onClick, isDarkMode }) => {
+    const [isOpening, setIsOpening] = useState(false);
+
+    const handleClick = () => {
+        setIsOpening(true);
+        setTimeout(() => {
+            onClick(item);
+            setIsOpening(false);
+        }, 500);
+    };
+
+    return (
+        <div 
+            className="relative w-full aspect-[3/4] cursor-pointer group perspective-1000"
+            onClick={handleClick}
+        >
+            <div 
+                className={`
+                    relative w-full h-full transition-transform duration-700 transform-style-3d
+                    ${isOpening ? 'rotate-y-[-180deg] scale-110' : 'group-hover:rotate-y-[-5deg] group-hover:scale-[1.02]'}
+                `}
+            >
+                {/* --- FRENTE (CAPA) --- */}
+                <div 
+                    className="absolute inset-0 backface-hidden rounded-r-2xl rounded-l-sm shadow-[5px_5px_15px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col border-l-4 border-white/20"
+                    style={{ backgroundColor: item.color }}
+                >
+                    {/* ÁREA DO LOGO (AUMENTADA E COM UPSCALE) */}
+                    <div className="h-[35%] flex items-center justify-center p-6 bg-gradient-to-b from-black/20 to-transparent">
+                        <div className="bg-white/95 backdrop-blur-xl shadow-2xl px-6 py-4 rounded-xl border border-white/50 w-full max-w-[90%] flex items-center justify-center h-24 transform transition-transform group-hover:scale-105">
+                             <img 
+                                src={item.logo} 
+                                className="h-full w-full object-contain" 
+                                alt={item.name}
+                                onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'block';
+                                }}
+                             />
+                             <span className="hidden text-black font-black uppercase tracking-tighter text-2xl leading-none text-center">
+                                {item.name}
+                             </span>
+                        </div>
+                    </div>
+                    
+                    {/* IMAGEM DE DESTAQUE */}
+                    <div className="flex-1 relative m-4 mt-0 rounded-t-2xl overflow-hidden shadow-inner bg-black">
+                        {item.coverImg ? (
+                            <img src={item.coverImg} className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700" />
+                        ) : (
+                            <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                                <LayoutGrid size={48} className="text-white"/>
+                            </div>
+                        )}
+                        
+                        {/* Gradiente apenas embaixo para leitura */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+                        
+                        {/* Manchete */}
+                        <div className="absolute bottom-0 left-0 p-5 w-full">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="px-2 py-0.5 text-[9px] font-bold text-black bg-white uppercase tracking-widest rounded-sm shadow-sm">
+                                    Destaque
+                                </span>
+                            </div>
+                            <h3 className="text-white font-serif font-bold text-xl md:text-2xl leading-tight line-clamp-3 drop-shadow-lg">
+                                {item.headline || item.items?.[0]?.title || "Edição Diária"}
+                            </h3>
+                        </div>
+                    </div>
+                    
+                    {/* Rodapé */}
+                    <div className="h-4 bg-white/10 mx-4 mb-4 rounded flex justify-between items-center px-2">
+                        <div className="h-1.5 w-1/3 bg-white/40 rounded-sm"></div>
+                        <div className="text-[7px] text-white/50 font-mono">VOL. {new Date().getMonth() + 1}</div>
+                    </div>
+                </div>
+
+                {/* --- VERSO --- */}
+                <div className="absolute inset-0 backface-hidden rotate-y-180 bg-[#f4f4f4] rounded-l-2xl rounded-r-sm shadow-xl p-8 flex flex-col items-center justify-center border-r-4 border-gray-300">
+                    <img src={item.logo} className="w-20 h-20 object-contain mb-6 opacity-80 mix-blend-multiply" />
+                    <Loader2 className="animate-spin text-zinc-400 mb-2" size={32} />
+                    <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Abrindo Edição...</p>
+                </div>
+            </div>
+            
+            <style jsx="true">{`
+                .perspective-1000 { perspective: 1000px; }
+                .transform-style-3d { transform-style: preserve-3d; }
+                .backface-hidden { backface-visibility: hidden; }
+                .rotate-y-\[-180deg\] { transform: rotateY(-180deg); }
+                .rotate-y-\[-5deg\] { transform: rotateY(-5deg); }
+                .rotate-y-180 { transform: rotateY(180deg); }
+            `}</style>
+        </div>
+    );
+};
+
+
+// --- ABA BANCA (ATUALIZADA) ---
+function BancaTab({ openOutlet, isDarkMode, bancaData }) {
   const [category, setCategory] = useState('Tudo');
-  const displayedItems = category === 'Tudo' ? BANCA_ITEMS : BANCA_ITEMS.filter(i => i.category === category);
+  
+  // Mescla dados reais com mocks se estiver vazio para demonstração
+  const displayData = (bancaData && bancaData.length > 0) ? bancaData : BANCA_ITEMS.map(i => ({...i, color: resolveBrandColor(i.name)}));
+
+  const displayedItems = category === 'Tudo' ? displayData : displayData.filter(i => i.category === category);
 
   return (
-    <div className="pt-2 pb-24 pr-16 animate-in zoom-in-95 duration-500 min-h-screen">
+    <div className="pt-2 pb-24 pr-4 pl-4 animate-in zoom-in-95 duration-500 min-h-screen">
+      
+      {/* Filtros Verticais (Direita) */}
       <div className="fixed right-0 top-[25%] z-30 flex flex-col gap-1 items-end pointer-events-none">
           {BANCA_CATEGORIES.map((cat) => (
               <button key={cat} onClick={() => setCategory(cat)} className={`pointer-events-auto relative flex items-center justify-center w-10 py-6 rounded-l-xl rounded-r-none shadow-lg border-y border-l border-r-0 transition-all duration-300 ${category === cat ? 'bg-purple-500 text-white border-white-400 translate-x-0 w-12' : (isDarkMode ? 'bg-zinc-900 text-zinc-500 border-zinc-800 translate-x-2 hover:translate-x-0' : 'bg-zinc-200 text-zinc-400 border-zinc-300 translate-x-2 hover:translate-x-0')}`}>
@@ -2439,13 +1940,20 @@ function BancaTab({ openOutlet, isDarkMode }) {
               </button>
           ))}
       </div>
-      <h2 className={`text-xl font-bold mb-6 px-2 mt-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}><LayoutGrid size={20} className="text-emerald-600"/> Banca de Jornais</h2>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
+
+      <h2 className={`text-xl font-bold mb-6 mt-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+          <LayoutGrid size={20} className="text-emerald-600"/> Banca de Jornais
+      </h2>
+
+      {/* Grid de Revistas (AQUI ESTÁ A MUDANÇA: grid-cols-1 md:grid-cols-2) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-12 pb-10 px-2 md:px-6">
         {displayedItems.map((item) => (
-          <div key={item.id} onClick={() => openOutlet(item)} className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 group ${item.color}`}>
-            <div className="p-4 flex justify-center border-b border-white/20 relative z-20 bg-black/10 backdrop-blur-sm"><span className={`font-black tracking-tighter text-2xl uppercase ${item.id === 3 || item.id === 4 ? 'text-black' : 'text-white'}`}>{item.logo}</span></div>
-            <div className="flex-1 relative p-4 flex flex-col justify-end"><h3 className={`font-serif font-bold leading-tight text-lg ${item.id === 3 || item.id === 4 ? 'text-black' : 'text-white'}`}>{item.headline}</h3></div>
-          </div>
+            <MagazineCard 
+                key={item.id} 
+                item={item} 
+                onClick={openOutlet} 
+                isDarkMode={isDarkMode}
+            />
         ))}
       </div>
     </div>
@@ -2786,78 +2294,146 @@ function TabButton({ icon, label, active, onClick, isDarkMode }) {
 // --- APP PRINCIPAL ---
 
 
-// --- NOVO: Função que lê XML (RSS/Atom) e converte para nosso formato ---
+// --- FUNÇÃO AUXILIAR: EXTRATOR DE IMAGENS "NUCLEAR" (V4 - DEFINITIVA) ---
+const extractImageFromContent = (content, itemNode) => {
+  if (!itemNode) return null;
+
+  // 1. Tenta pegar Enclosure (Padrão RSS Ouro)
+  const enclosure = itemNode.querySelector("enclosure");
+  if (enclosure) {
+      const url = enclosure.getAttribute("url");
+      if (url && (url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.jpeg'))) return url;
+  }
+
+  // 2. Tenta pegar Media:Content ou Media:Thumbnail (Padrão Yahoo/Wordpress)
+  const mediaContent = itemNode.getElementsByTagNameNS("*", "content");
+  if (mediaContent.length > 0) return mediaContent[0].getAttribute("url");
+  
+  const mediaThumbnail = itemNode.getElementsByTagNameNS("*", "thumbnail");
+  if (mediaThumbnail.length > 0) return mediaThumbnail[0].getAttribute("url");
+
+  // 3. Tenta pegar tag <image> direta (Caso específico do GP1 - RSS mal formatado)
+  // Nota: Alguns browsers movem tags invalidas, entao procuramos nos filhos
+  for (let i = 0; i < itemNode.children.length; i++) {
+      const child = itemNode.children[i];
+      if (child.tagName === 'image' || child.tagName === 'IMAGE') {
+          if (child.textContent && child.textContent.startsWith('http')) return child.textContent.trim();
+      }
+  }
+
+  // 4. DECODIFICAÇÃO DE HTML (Caso Cidade Verde)
+  // O conteúdo muitas vezes vem como "&lt;img..." (texto) em vez de "<img..." (html)
+  if (content) {
+      // Truque para decodificar entidades HTML
+      const txt = document.createElement("textarea");
+      txt.innerHTML = content;
+      const decodedHtml = txt.value;
+
+      // Cria um DOM virtual para achar a imagem
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(decodedHtml, "text/html");
+      const imgTag = doc.querySelector("img");
+      
+      if (imgTag && imgTag.src) {
+          // Filtra pixels de rastreamento (imagens 1x1)
+          if (!imgTag.src.includes('pixel') && !imgTag.src.includes('analytics')) {
+               return imgTag.src;
+          }
+      }
+
+      // 5. REGEX DE ÚLTIMO RECURSO (Força Bruta)
+      // Procura qualquer string que pareça uma URL de imagem jpg/png
+      const urlMatch = decodedHtml.match(/(https?:\/\/[^\s"']+\.(?:jpg|jpeg|png|webp))/i);
+      if (urlMatch && urlMatch[1]) return urlMatch[1];
+  }
+
+  return null;
+};
+
+// --- FUNÇÃO DE PARSE RSS (V4 - COM LIMPEZA DE DADOS) ---
 const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlText, "text/xml");
   
-  // 1. TENTATIVA DE DESCOBRIR O NOME REAL E LINK DO SITE
+  // Título do Canal
   let detectedTitle = feedSource;
-  let siteLink = "";
-  
   const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
-  if (channelTitle && channelTitle.textContent) {
-      detectedTitle = channelTitle.textContent.trim();
-  }
+  if (channelTitle && channelTitle.textContent) detectedTitle = channelTitle.textContent.trim();
 
+  // Logo Automática (Favicon)
+  let siteLink = "";
   const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("link");
-  if (channelLink) {
-      siteLink = channelLink.textContent || channelLink.getAttribute("href") || "";
-  }
+  if (channelLink) siteLink = channelLink.textContent || channelLink.getAttribute("href") || "";
 
-  // --- LOGICA DE LOGO AUTOMÁTICA (FAVICON DO GOOGLE) ---
-  // Se achamos o link do site (ex: https://g1.globo.com), pedimos o ícone pro Google
-  let autoLogo = `https://ui-avatars.com/api/?name=${detectedTitle}&background=random`;
+  let autoLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(detectedTitle)}&background=random`;
   if (siteLink) {
       try {
           const domain = new URL(siteLink).hostname;
           autoLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-      } catch (e) { /* ignora erro de url */ }
+      } catch (e) {}
   }
+  
+  // Tenta imagem oficial do canal
+  const channelImage = xmlDoc.querySelector("channel > image > url");
 
-  // Agora processamos os itens
   const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
   
   const parsedItems = items.map((node, index) => {
-    const getTxt = (tag) => node.querySelector(tag)?.textContent || "";
+    const getTxt = (tag) => {
+        const el = node.getElementsByTagName(tag)[0] || node.getElementsByTagNameNS("*", tag)[0];
+        return el ? (el.textContent || el.innerHTML).trim() : "";
+    };
     
-    // Tenta links de várias formas
+    // Links
+    let link = "";
     const linkNode = node.querySelector("link");
-    let link = linkNode?.getAttribute("href") || linkNode?.textContent || "";
-
-    // MELHORIA: Suporte específico para feeds do YouTube (Atom)
-    // Feeds do YouTube costumam colocar o ID na tag <yt:videoId>
-    const ytId = getTxt("yt:videoId") || getTxt("videoId");
-    if (ytId) {
-        // Se achou o ID direto no XML, reconstrói o link perfeito
-        link = `https://www.youtube.com/watch?v=${ytId}`;
-    }
-
+    if (linkNode) link = linkNode.getAttribute("href") || linkNode.textContent || "";
+    if (!link) link = getTxt("guid"); 
+    
+    // Datas
     const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated") || new Date().toISOString();
-    const description = getTxt("description") || getTxt("summary") || getTxt("content");
+    
+    // Conteúdo Combinado para busca
+    const description = getTxt("description");
+    const contentEncoded = getTxt("content:encoded") || getTxt("content");
+    const fullSearchText = `${description} ${contentEncoded}`;
 
-    // Imagem (Lógica melhorada)
-    let img = null;
-    const mediaContent = node.getElementsByTagNameNS("*", "content");
-    if (mediaContent.length > 0) img = mediaContent[0].getAttribute("url");
+    // --- EXTRAÇÃO DA IMAGEM ---
+    let img = extractImageFromContent(fullContentSearch, node);
+
+    // Se ainda não achou imagem, e é um feed "problemático" conhecido (como GP1),
+    // Tenta uma busca manual no texto XML bruto do item (Regex na string bruta)
     if (!img) {
-        const enclosure = node.querySelector("enclosure");
-        if (enclosure) img = enclosure.getAttribute("url");
+         const nodeHtml = node.outerHTML; // Pega o XML bruto deste item
+         const rawMatch = nodeHtml.match(/<image>(.*?)<\/image>/i);
+         if (rawMatch && rawMatch[1] && rawMatch[1].startsWith('http')) {
+             img = rawMatch[1];
+         }
     }
-    if (!img) {
-        img = extractImageFromContent(description);
+
+    // Se ainda não achou, usa a imagem do canal como fallback (melhor que nada)
+    if (!img && channelImage && channelImage.textContent) {
+        // img = channelImage.textContent; // Descomente se quiser usar o logo do canal como capa de notícia
     }
+
+    // Limpeza do Resumo
+    const cleanSummary = (description || contentEncoded || "")
+        .replace(/<[^>]+>/g, '') // Remove tags
+        .replace(/&nbsp;/g, ' ') 
+        .replace(/\s+/g, ' ')    
+        .trim()
+        .slice(0, 160) + '...';
 
     return {
       id: `${feedId}-${index}-${Math.random().toString(36).substr(2, 5)}`,
-      source: detectedTitle, // USA O NOME REAL DESCOBERTO
-      logo: autoLogo,        // USA A LOGO REAL DO GOOGLE
+      source: detectedTitle,
+      logo: autoLogo,
       time: new Date(pubDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       rawDate: new Date(pubDate),
-      title: getTxt("title"),
-      summary: description.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
+      title: getTxt("title") || "Sem título",
+      summary: cleanSummary,
       category: 'Geral',
-      img: img,
+      img: img, 
       readTime: '3 min',
       link: link,
       origin: 'rss'
@@ -2867,13 +2443,6 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
   return { items: parsedItems, realTitle: detectedTitle, realLogo: autoLogo };
 };
 
-// Função Auxiliar (pode ficar fora ou antes do componente)
-const extractImageFromContent = (content, enclosure) => {
-  if (enclosure?.link) return enclosure.link;
-  const imgMatch = content?.match(/<img[^>]+src="([^">]+)"/);
-  if (imgMatch) return imgMatch[1];
-  return null;
-};
 
 
 // --- COMPONENTE: MODAL DE VÍDEO/PODCAST COM MINI-PLAYER E PROGRESSO (V7 - FINAL) ---
@@ -2884,102 +2453,44 @@ const VideoPlayerModal = ({ video, onClose }) => {
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     
-    // --- O SEGREDO: Versão do Player ---
-    // Toda vez que esse número mudar, o React destrói o player antigo e cria um novo.
-    const [playerVersion, setPlayerVersion] = useState(1);
-    const [isAppVisible, setIsAppVisible] = useState(true);
-
     const playerRef = useRef(null); 
-    const progressInterval = useRef(null);
-    // Usamos um ID fixo para o container, mas o React vai recriar o elemento pelo key
-    const containerId = "yt-player-container";
+    const progressInterval = useRef(null); 
 
     const isPodcastMode = video.category === 'Podcast' || video.isPodcast;
     const finalId = video.videoId || getVideoId(video.link);
 
-    // 1. DETECTOR DE VISIBILIDADE (CORREÇÃO PARA O iOS "CONGELAR")
+    // --- INICIALIZAÇÃO DA API DO YOUTUBE ---
     useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') {
-                // Usuário minimizou o app: PAUSA E MARCA COMO INVISÍVEL
-                setIsAppVisible(false);
-                if (playerRef.current && typeof playerRef.current.pauseVideo === 'function') {
-                    playerRef.current.pauseVideo();
-                }
-            } else if (document.visibilityState === 'visible') {
-                // Usuário voltou: MARCA COMO VISÍVEL E FORÇA RE-RENDER
-                setIsAppVisible(true);
-                // Incrementa a versão para forçar o React a desmontar e montar de novo
-                setPlayerVersion(v => v + 1);
-            }
-        };
+        if (!finalId) return;
 
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-        return () => {
-            document.removeEventListener("visibilitychange", handleVisibilityChange);
-        };
-    }, []);
+        const createPlayer = () => {
+            if (window.YT && window.YT.Player) {
+                // Se já existir player nessa div, tenta destruir antes de criar outro
+                try {
+                     const existingInstance = window.YT.get('yt-player-frame');
+                     if (existingInstance) existingInstance.destroy();
+                } catch(e){}
 
-    // 2. CARREGAR API (Global)
-    useEffect(() => {
-        if (!window.YT) {
-            const tag = document.createElement('script');
-            tag.src = "https://www.youtube.com/iframe_api";
-            tag.async = true;
-            document.body.appendChild(tag);
-        }
-    }, []);
-
-    // 3. INICIALIZAR PLAYER (Executa toda vez que playerVersion muda)
-    useEffect(() => {
-        if (!finalId || !isAppVisible) return;
-
-        let isMounted = true;
-
-        const initPlayer = () => {
-            // Se o componente já desmontou, cancela
-            if (!isMounted) return;
-
-            // Se a API ainda não existe, tenta de novo em breve
-            if (!window.YT || !window.YT.Player) {
-                setTimeout(initPlayer, 100);
-                return;
-            }
-
-            // Destrói anterior se existir (Segurança)
-            if (playerRef.current) {
-                try { playerRef.current.destroy(); } catch(e) {}
-                playerRef.current = null;
-            }
-
-            const origin = typeof window !== 'undefined' ? window.location.origin : '';
-
-            try {
-                playerRef.current = new window.YT.Player(containerId, {
+                playerRef.current = new window.YT.Player('yt-player-frame', {
                     videoId: finalId,
-                    height: '100%',
-                    width: '100%',
-                    host: 'https://www.youtube.com',
+                    height: '100%', // FORÇA TELA CHEIA
+                    width: '100%',  // FORÇA TELA CHEIA
                     playerVars: {
                         autoplay: 1,
-                        controls: isPodcastMode ? 0 : 1,
-                        playsinline: 1, // CRUCIAL
+                        // Se for Podcast, esconde controles (usamos custom). 
+                        // Se for Vídeo, mostra nativos (para ter Fullscreen).
+                        controls: isPodcastMode ? 0 : 1, 
+                        playsinline: 1,
                         rel: 0,
-                        modestbranding: 1,
-                        origin: origin,
-                        enablejsapi: 1,
-                        widget_referrer: origin,
-                        fs: 1
+                        modestbranding: 1
                     },
                     events: {
                         onReady: (event) => {
-                            if(!isMounted) return;
-                            try { event.target.playVideo(); } catch(e) {}
+                            event.target.playVideo();
                             setDuration(event.target.getDuration());
                             setIsPlaying(true);
                         },
                         onStateChange: (event) => {
-                            if(!isMounted) return;
                             if (event.data === 1) { // Playing
                                 setIsPlaying(true);
                                 startProgressTimer();
@@ -2987,38 +2498,33 @@ const VideoPlayerModal = ({ video, onClose }) => {
                                 setIsPlaying(false);
                                 stopProgressTimer();
                             }
-                        },
-                        onError: (e) => {
-                            console.error("Erro Player:", e);
-                            // Se der erro 100/150 (vídeo restrito), não trava o app
-                            stopProgressTimer();
                         }
                     }
                 });
-            } catch (err) {
-                console.error("Erro fatal init:", err);
             }
         };
 
-        // Pequeno delay para garantir que o React pintou a div nova
-        const timer = setTimeout(initPlayer, 50);
+        if (!window.YT) {
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            const firstScriptTag = document.getElementsByTagName('script')[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            window.onYouTubeIframeAPIReady = createPlayer;
+        } else {
+            createPlayer();
+        }
 
         return () => {
-            isMounted = false;
-            clearTimeout(timer);
             stopProgressTimer();
-            if (playerRef.current) {
-                try { playerRef.current.destroy(); } catch(e) {}
-                playerRef.current = null;
-            }
+            // Nota: Não destruímos o player no cleanup do useEffect para permitir minimizar
+            // A destruição ocorre quando o componente é desmontado pelo pai (onClose)
         };
-    }, [finalId, isPodcastMode, playerVersion, isAppVisible]); // Dependência crucial: playerVersion
+    }, [finalId, isPodcastMode]);
 
-    // --- FUNÇÕES AUXILIARES ---
     const startProgressTimer = () => {
         stopProgressTimer();
         progressInterval.current = setInterval(() => {
-            if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+            if (playerRef.current && playerRef.current.getCurrentTime) {
                 const curr = playerRef.current.getCurrentTime();
                 const dur = playerRef.current.getDuration();
                 if (dur > 0) {
@@ -3027,33 +2533,60 @@ const VideoPlayerModal = ({ video, onClose }) => {
                     setProgress((curr / dur) * 100);
                 }
             }
-        }, 500); 
+        }, 500); // Atualiza a cada 0.5s para a barra ficar mais fluida
     };
-    const stopProgressTimer = () => { if (progressInterval.current) clearInterval(progressInterval.current); };
-    
+
+    const stopProgressTimer = () => {
+        if (progressInterval.current) clearInterval(progressInterval.current);
+    };
+
+    // --- AÇÕES ---
     const togglePlay = (e) => {
         e?.stopPropagation();
-        if (playerRef.current?.getPlayerState) {
+        if (playerRef.current && playerRef.current.getPlayerState) {
             const state = playerRef.current.getPlayerState();
-            state === 1 ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
+            if (state === 1) playerRef.current.pauseVideo();
+            else playerRef.current.playVideo();
         }
     };
+
     const handleSeek = (e) => {
         e?.stopPropagation();
         const newVal = Number(e.target.value);
         if (playerRef.current && duration) {
-            playerRef.current.seekTo((newVal / 100) * duration, true);
+            const newTime = (newVal / 100) * duration;
+            playerRef.current.seekTo(newTime, true);
             setProgress(newVal);
         }
     };
-    const skipTime = (seconds) => { if (playerRef.current) playerRef.current.seekTo(playerRef.current.getCurrentTime() + seconds, true); };
-    const formatTime = (t) => { if (!t || isNaN(t)) return "0:00"; const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = Math.floor(t%60); return h>0?`${h}:${m<10?'0'+m:m}:${s<10?'0'+s:s}`:`${m}:${s<10?'0'+s:s}`; };
-    const toggleMinimize = (e) => { e?.stopPropagation(); setIsMinimized(!isMinimized); };
+
+    const skipTime = (seconds) => {
+        if (playerRef.current) {
+            const newTime = playerRef.current.getCurrentTime() + seconds;
+            playerRef.current.seekTo(newTime, true);
+        }
+    };
+
+    const formatTime = (t) => {
+        if (!t || isNaN(t)) return "0:00";
+        const hours = Math.floor(t / 3600);
+        const mins = Math.floor((t % 3600) / 60);
+        const secs = Math.floor(t % 60);
+        return hours > 0 
+            ? `${hours}:${mins < 10 ? '0'+mins : mins}:${secs < 10 ? '0'+secs : secs}`
+            : `${mins}:${secs < 10 ? '0'+secs : secs}`;
+    };
+
+    const toggleMinimize = (e) => {
+        e?.stopPropagation();
+        setIsMinimized(!isMinimized);
+    };
 
     if (!finalId) return null;
 
     return (
         <>
+            {/* CONTAINER PRINCIPAL */}
             <div 
                 className={`
                     fixed transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] z-[50000] overflow-hidden
@@ -3064,28 +2597,44 @@ const VideoPlayerModal = ({ video, onClose }) => {
                 `}
                 onClick={() => isMinimized && setIsMinimized(false)}
             >
-                {/* 1. MODO EXPANDIDO */}
+                
+                {/* --- 1. MODO EXPANDIDO (TELA CHEIA) --- */}
                 <div className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-300 ${isMinimized ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                     
+                    {/* Botões Superiores (Aparecem em ambos os modos, mas só úteis no Podcast Mode ou pra minimizar Video) */}
                     <div className="absolute top-0 left-0 right-0 p-6 flex justify-between z-[60000] pointer-events-none">
-                        <button onClick={toggleMinimize} className="pointer-events-auto p-3 bg-black/50 hover:bg-zinc-800 backdrop-blur-md rounded-full text-white border border-white/10"><ChevronLeft size={24} className="-rotate-90" /></button>
-                        <button onClick={onClose} className="pointer-events-auto p-3 bg-black/50 hover:bg-red-900/50 backdrop-blur-md rounded-full text-white border border-white/10"><X size={24} /></button>
+                        <button onClick={toggleMinimize} className="pointer-events-auto p-3 bg-black/50 hover:bg-zinc-800 backdrop-blur-md rounded-full text-white border border-white/10">
+                            <ChevronLeft size={24} className="-rotate-90" />
+                        </button>
+                        <button onClick={onClose} className="pointer-events-auto p-3 bg-black/50 hover:bg-red-900/50 backdrop-blur-md rounded-full text-white border border-white/10">
+                            <X size={24} />
+                        </button>
                     </div>
 
+                    {/* UI PODCAST (Capa Grande + Controles Customizados) */}
                     {isPodcastMode && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center z-20 p-8 w-full max-w-lg mx-auto">
                              <div className="absolute inset-0 z-0 opacity-40" style={{ backgroundImage: `url(${video.cover || video.img})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(80px)' }} />
+                             
                              <div className="relative z-10 w-64 h-64 md:w-80 md:h-80 rounded-3xl shadow-2xl overflow-hidden border border-white/10 mb-8">
                                 <img src={video.cover || video.img} className="w-full h-full object-cover" />
                              </div>
+
                              <div className="relative z-10 text-center mb-6 w-full">
                                 <h2 className="text-2xl font-black text-white mb-2 leading-tight drop-shadow-md line-clamp-2">{video.title}</h2>
                                 <p className="text-white/60 text-sm font-bold uppercase tracking-widest">{video.source || video.channel}</p>
                              </div>
+
                              <div className="relative z-10 w-full mb-8">
-                                <input type="range" min="0" max="100" value={progress} onChange={handleSeek} className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer" />
-                                <div className="flex justify-between text-xs font-mono text-white/50 mt-2"><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div>
+                                <input 
+                                    type="range" min="0" max="100" value={progress} onChange={handleSeek}
+                                    className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full hover:[&::-webkit-slider-thumb]:scale-125 transition-all"
+                                />
+                                <div className="flex justify-between text-xs font-mono text-white/50 mt-2">
+                                    <span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span>
+                                </div>
                              </div>
+
                              <div className="relative z-10 flex items-center gap-8">
                                  <button onClick={() => skipTime(-15)} className="p-4 rounded-full text-white/50 hover:text-white transition active:scale-90"><span className="text-xs font-bold">-15s</span></button>
                                  <button onClick={togglePlay} className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black shadow-xl hover:scale-105 active:scale-95 transition-all">
@@ -3097,39 +2646,47 @@ const VideoPlayerModal = ({ video, onClose }) => {
                     )}
                 </div>
 
-                {/* 2. MODO MINIMIZADO */}
+                {/* --- 2. MODO MINIMIZADO (BARRA FLUTUANTE) --- */}
                 <div className={`flex items-center w-full gap-3 transition-opacity duration-300 ${isMinimized ? 'opacity-100 delay-150' : 'opacity-0 pointer-events-none absolute'}`}>
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10"><div className="h-full bg-orange-500 transition-all duration-500 ease-linear" style={{ width: `${progress}%` }} /></div>
-                    <div className="h-10 w-10 bg-zinc-800 rounded-lg overflow-hidden shrink-0 relative"><img src={video.cover || video.img} className="w-full h-full object-cover" /></div>
-                    <div className="flex-1 min-w-0 flex flex-col justify-center py-1"><h4 className="text-white text-xs font-bold truncate leading-tight">{video.title}</h4><p className="text-zinc-400 text-[10px] truncate">{formatTime(currentTime)} / {formatTime(duration)}</p></div>
+                    
+                    {/* BARRA DE PROGRESSO NO MINI PLAYER */}
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
+                        <div className="h-full bg-orange-500 transition-all duration-500 ease-linear" style={{ width: `${progress}%` }} />
+                    </div>
+                    
+                    <div className="h-10 w-10 bg-zinc-800 rounded-lg overflow-hidden shrink-0 relative">
+                        <img src={video.cover || video.img} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col justify-center py-1">
+                        <h4 className="text-white text-xs font-bold truncate leading-tight">{video.title}</h4>
+                        <p className="text-zinc-400 text-[10px] truncate">{formatTime(currentTime)} / {formatTime(duration)}</p>
+                    </div>
                     <div className="flex items-center gap-2">
-                        <button onClick={togglePlay} className="p-2 text-white hover:bg-white/10 rounded-full">{isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}</button>
+                        <button onClick={togglePlay} className="p-2 text-white hover:bg-white/10 rounded-full">
+                            {isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}
+                        </button>
                         <button onClick={onClose} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-white/10 rounded-full"><X size={20} /></button>
                     </div>
                 </div>
 
-                {/* 3. O MOTOR (Reset via KEY) */}
-                <div className={`absolute z-10 transition-all duration-300 ${isPodcastMode ? 'w-px h-px opacity-0 pointer-events-none bottom-0 right-0' : (isMinimized ? 'w-px h-px opacity-0 pointer-events-none' : 'w-full h-full flex items-center justify-center')}`}>
-                    
-                    {/* 
-                       AQUI ESTÁ A CORREÇÃO:
-                       O "key={playerVersion}" força o React a apagar completamente a div 
-                       e criar uma nova quando o usuário volta para o app.
-                       Isso limpa qualquer "conexão zumbi" do iOS.
-                    */}
-                    {isAppVisible && (
-                        <div key={playerVersion} id={containerId} className="w-full h-full"></div>
-                    )}
-
-                    {!isAppVisible && (
-                        <div className="w-full h-full bg-black flex items-center justify-center">
-                            <Loader2 className="animate-spin text-white/20" />
-                        </div>
-                    )}
+                {/* --- 3. O MOTOR (DIV do YouTube) --- */}
+                <div 
+                    className={`
+                        absolute z-10 transition-all duration-300
+                        ${isPodcastMode 
+                            ? 'w-px h-px opacity-0 pointer-events-none bottom-0 right-0' // Podcast: Escondido
+                            : (isMinimized ? 'w-px h-px opacity-0 pointer-events-none' : 'w-full h-full flex items-center justify-center') // Video: Fullscreen ou Escondido
+                        }
+                    `}
+                >
+                    {/* Esta div é substituída pelo Iframe API com width: 100% e height: 100% */}
+                    <div id="yt-player-frame" className="w-full h-full"></div>
                 </div>
             </div>
             
-            {!isMinimized && (<div className="fixed inset-0 bg-black/80 z-[49999] animate-in fade-in duration-500" onClick={toggleMinimize} />)}
+            {!isMinimized && (
+                <div className="fixed inset-0 bg-black/80 z-[49999] animate-in fade-in duration-500" onClick={toggleMinimize} />
+            )}
         </>
     );
 };
@@ -3271,6 +2828,7 @@ export default function NewsOS_V12() {
   const [playingVideo, setPlayingVideo] = useState(null); 
   const [seenStoryIds, setSeenStoryIds] = useState([]);
   const [playingAudio, setPlayingAudio] = useState(null);
+ 
   
   // --- ESTADO NOVO: FILTRO DE FONTE (ELEVADO DA FEEDTAB) ---
   const [sourceFilter, setSourceFilter] = useState('all');
@@ -3305,30 +2863,16 @@ export default function NewsOS_V12() {
   const [realPodcasts, setRealPodcasts] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
   const [readHistory, setReadHistory] = useState([]);
-  const [likedItems, setLikedItems] = useState([]); 
-
-
-
-  // NOVA FUNÇÃO PARA ALTERNAR O LIKE
-  const handleToggleLike = (article) => {
-    setLikedItems(prev => {
-      if (prev.includes(article.id)) {
-        // Se já curtiu, remove (descurtir)
-        return prev.filter(id => id !== article.id);
-      } else {
-        // Se não curtiu, adiciona
-        return [...prev, article.id];
-      }
-    });
-  };
-
+  const [realBanca, setRealBanca] = useState([]);
 
   // --- FUNÇÃO FETCH FEEDS (V9 - LIMITES DINÂMICOS: 5 POD / 10 VID / 20 NEWS) ---
+  // --- FUNÇÃO FETCH FEEDS (V10 - INTEGRADA COM BANCA) ---
   const fetchFeeds = async () => {
     if (userFeeds.length === 0) {
         setRealNews([]);
         setRealVideos([]);
         setRealPodcasts([]);
+        setRealBanca([]); // Limpa a banca também
         return;
     }
 
@@ -3336,6 +2880,7 @@ export default function NewsOS_V12() {
     let allNewsItems = [];
     let allVideoItems = [];
     let allPodcastItems = [];
+    let allBancaItems = []; // <--- NOVO: Array para as Revistas
     let feedsThatNeedUpdate = [];
 
     const promises = userFeeds.map(async (feed) => {
@@ -3369,16 +2914,14 @@ export default function NewsOS_V12() {
             }
 
             // --- DEFINIÇÃO DO LIMITE DINÂMICO ---
-            let LIMIT = 12; // Padrão (Notícias)
-            
+            let LIMIT = 20; 
             if (feed.type === 'podcast') {
-                LIMIT = 2; // Podcasts: Apenas os 5 mais recentes
+                LIMIT = 5; 
             } else if (feed.type === 'youtube' || isFeedYoutube) {
-                LIMIT = 3; // Vídeos: Apenas os 10 mais recentes
+                LIMIT = 10; 
             }
 
             const items = data.items.slice(0, LIMIT).map(item => {
-                
                 let mediaLink = item.link;
                 let hasEnclosure = false;
 
@@ -3420,12 +2963,30 @@ export default function NewsOS_V12() {
                 };
             });
 
+            // Distribuição Geral (Mantida)
             if (feed.type === 'podcast') {
                 allPodcastItems.push(...items);
             } else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) {
                 allVideoItems.push(...items);
             } else {
                 allNewsItems.push(...items);
+            }
+
+            // --- LÓGICA DA BANCA (ADICIONADA AQUI) ---
+            // Se o usuário marcou o check "Banca" no modal de settings
+            if (feed.display && feed.display.banca) {
+                allBancaItems.push({
+                    id: feed.id,
+                    name: sourceName,
+                    logo: finalLogo,
+                    // Usa a função global resolveBrandColor que criamos
+                    color: resolveBrandColor(sourceName), 
+                    // Categorização simples baseada no tipo
+                    category: feed.type === 'news' ? 'Jornais' : (feed.type === 'podcast' ? 'Podcast' : 'Revistas'),
+                    items: items, // Guarda todas as notícias dentro deste objeto de revista
+                    headline: items[0]?.title || sourceName, // Manchete da capa é a última notícia
+                    coverImg: items[0]?.img // Imagem da capa é a imagem da última notícia
+                });
             }
 
         } catch (err) { console.error(`Erro no feed ${feed.name}`, err); }
@@ -3445,10 +3006,10 @@ export default function NewsOS_V12() {
     setRealNews(allNewsItems.sort(sortFn));
     setRealVideos(allVideoItems.sort(sortFn));
     setRealPodcasts(allPodcastItems.sort(sortFn));
+    setRealBanca(allBancaItems); // <--- Atualiza o estado da Banca
     
     setIsLoadingFeeds(false);
-  };
-  
+};
   useEffect(() => {
     fetchFeeds();
   }, [userFeeds]);
@@ -3534,7 +3095,6 @@ export default function NewsOS_V12() {
                     onRefresh={fetchFeeds}
                     seenStoryIds={seenStoryIds} 
                     onMarkAsSeen={markStoryAsSeen}
-                    apiKey={apiKey}
                 />
             )}
 
@@ -3564,18 +3124,16 @@ export default function NewsOS_V12() {
                     selectedArticleId={selectedArticle?.id}
                     savedItems={savedItems}
                     onToggleSave={handleToggleSave}
-                                        readHistory={readHistory}
+                    readHistory={readHistory}
                     newsData={realNews} 
                     isLoading={isLoadingFeeds}
                     onPlayVideo={setPlayingVideo}
                     sourceFilter={sourceFilter}
                     setSourceFilter={setSourceFilter}
-                    likedItems={likedItems}       // A lista de IDs curtidos
-        onToggleLike={handleToggleLike} // A função para curtir
                 />
             )}
             
-            {activeTab === 'banca' && <BancaTab openOutlet={setSelectedOutlet} isDarkMode={isDarkMode} />}
+            {activeTab === 'banca' && <BancaTab openOutlet={setSelectedOutlet} isDarkMode={isDarkMode} bancaData={realBanca}/>}
             
             {activeTab === 'youtube' && (
                 <YouTubeTab 
@@ -3700,80 +3258,166 @@ export default function NewsOS_V12() {
 
 
 
+// --- COMPONENTE: DETALHE DA BANCA (V5 - HERO CINEMATOGRÁFICO + BRAND CARD) ---
 function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
-  const renderLayout = () => {
-    const layout = outlet.layoutType;
-    const articles = [1, 2, 3, 4, 5, 6];
+  
+  // PREPARAÇÃO DOS DADOS
+  const articles = outlet.items && outlet.items.length > 0 
+      ? outlet.items 
+      : [1,2,3,4,5,6,7,8].map(i => ({ 
+          id: i, 
+          title: 'Manchete em Atualização...', 
+          summary: 'O conteúdo está sendo preparado pela nossa redação virtual.', 
+          img: null,
+          category: 'Geral' 
+        }));
 
-    if (layout === 'standard') {
+  const coverStory = articles[0];
+  const otherStories = articles.slice(1);
+  const brandColor = outlet.color || (isDarkMode ? '#fff' : '#000');
+
+  // SELETOR DE LAYOUT INTELIGENTE
+  const layoutIndex = outlet.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const LAYOUT_OPTIONS = ['standard', 'magazine', 'visual', 'minimal', 'editorial', 'grid-hero'];
+  const activeLayout = LAYOUT_OPTIONS[layoutIndex % LAYOUT_OPTIONS.length];
+
+  // --- RENDERIZADORES DE LAYOUT (Mantidos iguais, focando na mudança do Hero) ---
+  const renderLayout = () => {
+    if (activeLayout === 'standard') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle({ title: 'Manchete do Jornal', source: outlet.name, category: 'Capa', img: `https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80` })}>
-            <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-              <img src={`https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200&q=80`} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="Cover" />
+          <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle(coverStory)}>
+            <div className={`aspect-video mb-6 rounded-sm overflow-hidden border-b-4 ${isDarkMode ? 'border-zinc-700' : 'border-zinc-200'}`} style={{ borderColor: brandColor }}>
+              <img src={coverStory.img || outlet.coverImg} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" onError={(e) => e.target.style.display = 'none'} />
             </div>
-            <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>A Manchete Principal do Dia</h2>
-            <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>Um resumo detalhado sobre o principal acontecimento do mercado global e político.</p>
+            <h2 className={`text-3xl md:text-5xl font-serif font-black mb-4 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{coverStory.title}</h2>
+            <p className={`font-serif text-lg leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{coverStory.summary}</p>
           </div>
-          <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`}>
-            {articles.slice(0, 4).map((i) => (
-              <div key={i} className="cursor-pointer" onClick={() => openArticle({ title: `Notícia Secundária ${i}`, source: outlet.name, category: 'Geral', img: null })}>
-                <span className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Política</span>
-                <h4 className={`font-serif font-bold text-xl leading-tight ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Notícia secundária de grande impacto no cenário nacional.</h4>
+          <div className={`md:col-span-4 space-y-6 border-l pl-0 md:pl-8 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+            {otherStories.slice(0, 5).map((item) => (
+              <div key={item.id} className="cursor-pointer group" onClick={() => openArticle(item)}>
+                <span className="text-[9px] font-bold uppercase tracking-widest opacity-50">{item.category}</span>
+                <h4 className={`font-bold text-lg leading-snug group-hover:text-blue-500 transition-colors ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{item.title}</h4>
+                <div className={`h-px w-full mt-4 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
               </div>
             ))}
           </div>
         </div>
       );
     }
-    
-    if (layout === 'magazine') {
+    if (activeLayout === 'magazine') {
       return (
         <div className={`space-y-12 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {articles.slice(0, 3).map((i) => (
-            <div key={i} className={`flex gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`} onClick={() => openArticle({ title: 'Artigo da Revista', source: outlet.name, category: 'Feature', img: `https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=800&q=80` })}>
-              <span className={`text-8xl font-black transition-colors ${isDarkMode ? 'text-zinc-800 group-hover:text-blue-500/20' : 'text-zinc-100 group-hover:text-blue-500/20'}`}>0{i}</span>
-              <div className="w-full">
-                <span className="text-blue-500 font-bold tracking-widest uppercase text-xs mb-2 block">Destaque da Semana</span>
-                <h3 className={`text-4xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white group-hover:text-blue-400' : 'text-zinc-900 group-hover:text-blue-600'}`}>O Futuro da Tecnologia e da Humanidade.</h3>
-                <p className="opacity-70 text-lg line-clamp-2 font-serif">Uma análise profunda, visual e detalhada sobre os próximos passos da IA.</p>
+           <div className="cursor-pointer group grid grid-cols-1 md:grid-cols-2 gap-8 items-center" onClick={() => openArticle(coverStory)}>
+                <div className="order-2 md:order-1">
+                    <span className="inline-block px-3 py-1 mb-4 text-[10px] font-bold uppercase tracking-[0.2em] bg-black text-white dark:bg-white dark:text-black">Capa</span>
+                    <h2 className={`text-4xl md:text-6xl font-black mb-6 leading-none tracking-tight ${isDarkMode ? 'text-white' : 'text-black'}`}>{coverStory.title}</h2>
+                    <p className="text-lg opacity-80 border-l-4 pl-4" style={{ borderColor: brandColor }}>{coverStory.summary}</p>
+                </div>
+                <div className="order-1 md:order-2 aspect-square w-full overflow-hidden rounded-full shadow-2xl border-8 border-white dark:border-zinc-800">
+                     <img src={coverStory.img || outlet.coverImg} className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" />
+                </div>
+           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 pt-8 border-t border-current">
+            {otherStories.slice(0, 6).map((item, i) => (
+                <div key={item.id} className="group cursor-pointer" onClick={() => openArticle(item)}>
+                    <span className="text-4xl font-black opacity-20 block mb-2" style={{ color: brandColor }}>0{i+1}</span>
+                    <h3 className={`text-lg font-bold leading-tight group-hover:underline ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{item.title}</h3>
+                </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    if (activeLayout === 'visual') {
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1 auto-rows-[200px] md:auto-rows-[300px]">
+          {articles.map((item, i) => (
+            <div key={item.id} onClick={() => openArticle(item)} className={`relative group cursor-pointer overflow-hidden ${i === 0 ? 'col-span-2 row-span-2' : ''} ${i === 3 ? 'col-span-2' : ''}`}>
+              <img src={item.img || outlet.coverImg} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-800" onError={(e) => e.target.style.display = 'none'} />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-90 transition" />
+              <div className="absolute bottom-0 left-0 p-4 md:p-6 w-full">
+                <h3 className={`text-white font-bold leading-tight drop-shadow-md ${i === 0 ? 'text-2xl md:text-3xl' : 'text-sm md:text-lg'}`}>{item.title}</h3>
               </div>
             </div>
           ))}
         </div>
       );
     }
-    
-    if (layout === 'visual') {
+    if (activeLayout === 'minimal') {
       return (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {articles.map((i) => (
-            <div key={i} onClick={() => openArticle({ title: 'Visual Story', source: outlet.name, category: 'Photo', img: `https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80` })} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square ${i === 1 ? 'md:col-span-2 md:row-span-2' : ''}`}>
-              <img src={`https://images.unsplash.com/photo-${1500000000000 + i}?w=800&q=80`} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt="Visual" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition" />
-              <div className="absolute bottom-0 left-0 p-4">
-                <h3 className="text-white font-bold text-lg leading-tight">Uma história contada através de imagens impactantes.</h3>
-              </div>
+        <div className="max-w-4xl mx-auto space-y-12">
+            <div className="text-center cursor-pointer group" onClick={() => openArticle(coverStory)}>
+                <h2 className={`text-4xl md:text-6xl font-serif font-black mb-6 leading-tight ${isDarkMode ? 'text-white' : 'text-black'}`}>{coverStory.title}</h2>
+                <div className="h-1 w-20 bg-current mx-auto mb-6" style={{ color: brandColor }} />
+                <p className="text-lg opacity-70 font-serif max-w-2xl mx-auto">{coverStory.summary}</p>
             </div>
-          ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 border-t pt-12 border-dashed border-zinc-500/30">
+                {otherStories.slice(0, 8).map(item => (
+                    <div key={item.id} className="flex gap-4 cursor-pointer group" onClick={() => openArticle(item)}>
+                        <div className="text-xs font-bold opacity-30 pt-1">●</div>
+                        <div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider mb-1 block" style={{ color: brandColor }}>{item.category}</span>
+                            <h4 className={`font-bold text-lg leading-snug group-hover:underline ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{item.title}</h4>
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
       );
     }
-    
-    if (layout === 'minimal') {
-      return (
-        <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {articles.map((i) => (
-            <div key={i} className="flex gap-4 cursor-pointer group" onClick={() => openArticle({ title: 'Quick Read', source: outlet.name, category: 'Brief', img: null })}>
-              <div className={`w-16 h-16 rounded bg-zinc-200 flex-shrink-0 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`} />
-              <div>
-                <h4 className={`font-bold text-lg mb-1 group-hover:underline decoration-blue-500 underline-offset-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>Manchete rápida e direta número {i}</h4>
-                <p className="text-sm opacity-60 line-clamp-2">Um breve resumo do que aconteceu, sem imagens grandes para leitura rápida.</p>
-              </div>
+    if (activeLayout === 'editorial') {
+        return (
+            <div className="flex flex-col md:flex-row gap-8">
+                <div className={`w-full md:w-1/4 space-y-6 border-r pr-6 hidden md:block ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                    <h5 className="font-black uppercase text-xs tracking-widest opacity-40 mb-4">Top Stories</h5>
+                    {otherStories.slice(0, 3).map(item => (
+                        <div key={item.id} onClick={() => openArticle(item)} className="cursor-pointer group">
+                             <h4 className="font-bold text-sm leading-snug group-hover:text-blue-500">{item.title}</h4>
+                             <p className="text-xs opacity-50 mt-1 line-clamp-2">{item.summary}</p>
+                        </div>
+                    ))}
+                </div>
+                <div className="w-full md:w-1/2 cursor-pointer group" onClick={() => openArticle(coverStory)}>
+                    <div className="aspect-[4/3] w-full overflow-hidden mb-4 border-b-4" style={{ borderColor: brandColor }}>
+                        <img src={coverStory.img || outlet.coverImg} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+                    </div>
+                    <h1 className={`text-3xl md:text-5xl font-serif font-bold mb-4 leading-tight ${isDarkMode ? 'text-white' : 'text-black'}`}>{coverStory.title}</h1>
+                    <p className="text-lg opacity-80 leading-relaxed font-serif">{coverStory.summary}</p>
+                </div>
+                <div className={`w-full md:w-1/4 space-y-4 pl-0 md:pl-4 border-t md:border-t-0 pt-6 md:pt-0 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                    {otherStories.slice(3, 8).map(item => (
+                        <div key={item.id} onClick={() => openArticle(item)} className="flex gap-3 cursor-pointer group">
+                            <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-800 flex-shrink-0">
+                                <img src={item.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'}/>
+                            </div>
+                            <h4 className="font-bold text-sm leading-snug group-hover:underline line-clamp-3">{item.title}</h4>
+                        </div>
+                    ))}
+                </div>
             </div>
-          ))}
-        </div>
-      );
+        );
+    }
+    if (activeLayout === 'grid-hero') {
+        return (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 auto-rows-[180px]">
+                <div className="col-span-2 row-span-2 relative rounded-2xl overflow-hidden cursor-pointer group" onClick={() => openArticle(coverStory)}>
+                    <img src={coverStory.img || outlet.coverImg} className="w-full h-full object-cover transition duration-700 group-hover:scale-105" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent p-6 flex flex-col justify-end">
+                        <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded w-fit mb-2">{coverStory.category}</span>
+                        <h2 className="text-white text-2xl md:text-3xl font-bold leading-tight">{coverStory.title}</h2>
+                    </div>
+                </div>
+                {otherStories.slice(0, 6).map(item => (
+                    <div key={item.id} onClick={() => openArticle(item)} className={`relative rounded-2xl overflow-hidden cursor-pointer group border ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`}>
+                         <div className="p-4 flex flex-col h-full justify-between">
+                             <h4 className={`font-bold text-sm leading-snug line-clamp-3 group-hover:text-blue-500 ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{item.title}</h4>
+                             <span className="text-[9px] opacity-40 font-bold uppercase mt-2 block" style={{ color: brandColor }}>Ler mais</span>
+                         </div>
+                    </div>
+                ))}
+            </div>
+        );
     }
   };
 
@@ -3781,31 +3425,60 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
     <div className={`fixed inset-0 z-[65] overflow-y-auto animate-in slide-in-from-bottom-10 duration-500 ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
       
       {/* Header Sticky */}
-      <div className={`sticky top-0 z-10 px-6 py-4 flex items-center justify-between backdrop-blur-md border-b ${isDarkMode ? 'bg-zinc-950/80 border-white/10' : 'bg-white/80 border-zinc-200'}`}>
+      <div className={`sticky top-0 z-50 px-6 py-4 flex items-center justify-between backdrop-blur-xl border-b ${isDarkMode ? 'bg-zinc-950/80 border-white/10' : 'bg-white/80 border-zinc-200'}`}>
         <button onClick={onClose} className={`flex items-center gap-1 text-sm font-bold transition ${isDarkMode ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-black'}`}>
-          <ChevronLeft size={20} /> Voltar
+          <ChevronLeft size={20} /> Fechar
         </button>
-        <span className={`font-bold text-lg tracking-tight ${isDarkMode ? 'text-white' : 'text-black'}`}>{outlet.name}</span>
+        <span className={`font-bold text-lg tracking-tight uppercase ${isDarkMode ? 'text-white' : 'text-black'}`}>{outlet.name}</span>
         <div className="w-6" />
       </div>
 
-      {/* Hero Section (Capa) */}
-      <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl`}>
-        <div className={`absolute inset-0 ${outlet.color}`} />
-        <div className="absolute inset-0 bg-black/20" />
-        <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-end justify-between">
-          <div>
-            <h1 className="text-6xl md:text-8xl font-black text-white tracking-tighter mb-2 drop-shadow-lg">{outlet.logo}</h1>
-            <p className="text-white/90 uppercase tracking-widest text-sm font-bold">Edição de Hoje • Exclusivo NewsOS</p>
-          </div>
-          <div className="hidden md:block">
-            <span className="text-white/80 text-xs font-mono border border-white/30 px-2 py-1 rounded">Layout: {outlet.layoutType?.toUpperCase()}</span>
-          </div>
+      {/* --- HERO SECTION MODERNA (BRAND CARD FLUTUANTE) --- */}
+      <div className="relative w-full h-[50vh] shadow-xl overflow-hidden group">
+        {/* Fundo com Imagem e Efeito de Zoom Lento */}
+        <div className="absolute inset-0 bg-black">
+             {outlet.coverImg ? (
+                 <img 
+                    src={outlet.coverImg} 
+                    className="w-full h-full object-cover opacity-80 transition-transform duration-[3s] ease-out group-hover:scale-105"
+                 />
+             ) : (
+                 <div className="w-full h-full" style={{ backgroundColor: brandColor }} />
+             )}
+        </div>
+        
+        {/* Gradiente Cinematográfico (Sem Blur no Quadrado) */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+
+        {/* Área da Marca (Brand Card) */}
+        <div className="absolute bottom-0 left-0 p-8 md:p-12 w-full flex flex-col items-start z-20">
+            
+            {/* O "Cartão da Marca" - Branco, Sólido, Grande e Elegante */}
+            <div className="bg-white shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-6 rounded-2xl mb-6 transform transition-transform hover:scale-105 border-4 border-white">
+               {outlet.logo ? (
+                   // LOGO AUMENTADO (h-20 a h-28)
+                   <img 
+                      src={outlet.logo} 
+                      className="h-20 md:h-28 w-auto object-contain" 
+                      alt={outlet.name} 
+                   />
+               ) : (
+                   <h1 className="text-5xl font-black text-black tracking-tighter uppercase">{outlet.name}</h1>
+               )}
+            </div>
+
+            {/* Linha de Dados */}
+            <div className="flex items-center gap-3 text-white/90">
+               <div className="h-1.5 w-16 rounded-full shadow-sm" style={{ backgroundColor: brandColor }}></div>
+               <p className="uppercase tracking-[0.25em] text-xs font-bold text-shadow-sm">
+                   Edição de {new Date().toLocaleDateString()}
+               </p>
+            </div>
         </div>
       </div>
 
       {/* Conteúdo Dinâmico */}
-      <div className={`max-w-5xl mx-auto p-4 md:p-8 min-h-screen ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
+      <div className={`max-w-7xl mx-auto p-4 md:p-10 min-h-screen relative z-20 ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
         {renderLayout()}
       </div>
     </div>
@@ -3983,29 +3656,6 @@ const getBrandIdentity = (sourceName) => {
     return { type: 'default', fontHeader: "'Playfair Display', serif", fontBody: "'Source Serif Pro', serif", align: 'center' };
 };
 
-const resolveBrandColor = (sourceName, isDarkMode) => {
-    if (!sourceName) return isDarkMode ? '#ffffff' : '#000000';
-    const name = sourceName.toLowerCase().replace(/\s+/g, '');
-
-    const BRANDS = {
-        'g1': '#C4170C', 'globo': '#006497', 'folha': '#004990', 'estadao': '#003B5C',
-        'uol': '#F99D1C', 'cnn': '#CC0000', 'bbc': '#BB1919', 'verge': '#E219E6',
-        'wired': '#000000', 'nytimes': '#000000', 'bloomberg': '#000000', 'vogue': '#000000',
-        'espn': '#CD122D'
-    };
-    for (const [key, color] of Object.entries(BRANDS)) if (name.includes(key)) return color;
-    
-    if (name.includes('money') || name.includes('finance')) return '#118C4F'; 
-    if (name.includes('tech') || name.includes('code')) return '#3B82F6'; 
-    if (name.includes('sport') || name.includes('futebol')) return '#16A34A'; 
-    if (name.includes('pink') || name.includes('woman')) return '#EC4899'; 
-    if (name.includes('auto') || name.includes('car')) return '#DC2626'; 
-
-    const SAFE_PALETTE = ['#1E3A8A', '#B91C1C', '#0F766E', '#7C3AED', '#BE123C', '#C2410C', '#374151', '#000000'];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return SAFE_PALETTE[Math.abs(hash) % SAFE_PALETTE.length];
-};
 
 // 2. Componentes de Visualização MEMOIZADOS (evita re-render desnecessário)
 const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontSize }) => {
@@ -4225,6 +3875,8 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
     );
 });
 
+
+// --- COMPONENTE: PAINEL DE ARTIGO (V25 - HÍBRIDO E INTELIGENTE) ---
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
   const [viewMode, setViewMode] = useState('web'); 
@@ -4579,7 +4231,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
   const [newUrl, setNewUrl] = useState('');
   
   // --- ESTADOS: TIPO (Novo) + DESTINO (Restaurado) ---
-  const [feedType, setFeedType] = useState('news'); 
+  const [feedType, setFeedType] = useState('news'); // 'news', 'youtube', 'podcast'
   const [targetFeed, setTargetFeed] = useState(true);
   const [targetBanca, setTargetBanca] = useState(false);
   
@@ -4602,6 +4254,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
 
           setNewUrl(data.url);
           
+          // Tenta adivinhar o tipo automaticamente
           if (data.url.includes('youtube') || data.url.includes('youtu.be')) {
               setFeedType('youtube');
           } else if (data.url.includes('pod') || data.url.includes('cast')) {
@@ -4617,6 +4270,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
       }
   };
 
+  // --- IMPORTAR OPML (Mantido igual) ---
   const handleImportClick = () => fileInputRef.current?.click();
   const handleImportOPML = (event) => {
     const file = event.target.files[0];
@@ -4637,7 +4291,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
             name: node.getAttribute("text") || "Fonte Importada",
             url: xmlUrl,
             category: 'Importado',
-            type: 'news',
+            type: 'news', // Default para importação
             display: { feed: true, banca: false }
           });
         }
@@ -4647,9 +4301,11 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
     reader.readAsText(file);
   };
 
+  // --- ADICIONAR FEED (Lógica Combinada) ---
   const handleAddFeed = () => {
     if (!newUrl.trim()) return; 
     
+    // Validação: Precisa escolher pelo menos um destino
     if (!targetFeed && !targetBanca) {
         alert("Selecione onde exibir (Feed ou Banca).");
         return;
@@ -4662,13 +4318,18 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
         id: Date.now(), 
         name: 'Nova Fonte', 
         url: formattedUrl,
+        
+        // 1. Define o TIPO (Importante para a aba Podcast funcionar)
         type: feedType, 
         category: feedType === 'podcast' ? 'Podcast' : 'Geral',
+        
+        // 2. Define o DESTINO (Importante para Feed e Banca funcionarem)
         display: { feed: targetFeed, banca: targetBanca }
     };
     
     setFeeds(prev => [...prev, newFeed]);
     setNewUrl('');
+    // Reseta para padrões
     setTargetFeed(true);
     setTargetBanca(false);
     setFeedType('news');
@@ -4677,38 +4338,19 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
   const removeFeed = (id) => setFeeds(feeds.filter(f => f.id !== id));
 
   return (
-    <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}>
         
-        {/* HEADER */}
         <div className="p-4 border-b border-white/10 flex justify-between items-center">
             <h2 className="font-bold text-lg">Configurações</h2>
             <button onClick={onClose}><X size={20} /></button>
         </div>
 
-        {/* --- AQUI ESTAVA FALTANDO: A BARRA DE NAVEGAÇÃO ENTRE ABAS --- */}
-        <div className="flex p-2 gap-2 border-b border-white/5 bg-black/5 dark:bg-white/5">
-            <button 
-                onClick={() => setActiveTab('sources')} 
-                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'sources' ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : 'opacity-50 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}
-            >
-                Minhas Fontes
-            </button>
-            <button 
-                onClick={() => setActiveTab('api')} 
-                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${activeTab === 'api' ? 'bg-purple-600 text-white' : 'opacity-50 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}
-            >
-                <BrainCircuit size={14}/> Inteligência IA
-            </button>
-        </div>
-
-        {/* CONTEÚDO SCROLLÁVEL */}
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-            
-            {/* CONTEÚDO DA ABA FONTES */}
+        <div className="p-6 overflow-y-auto custom-scrollbar">
             {activeTab === 'sources' && (
                 <div className="space-y-6">
+                    {/* Botão Importar */}
                     <div className="flex gap-2 mb-2">
                         <input type="file" accept=".opml,.xml" ref={fileInputRef} onChange={handleImportOPML} className="hidden" />
                         <button onClick={handleImportClick} className="flex-1 py-3 bg-zinc-200 dark:bg-zinc-800 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-zinc-300 dark:hover:bg-zinc-700 transition flex items-center justify-center gap-2">
@@ -4732,6 +4374,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                             </button>
                         </div>
 
+                        {/* 1. SELETOR DE TIPO (NOVO - Para a aba Podcast funcionar) */}
                         <div className="mb-4">
                             <label className="text-[10px] font-bold uppercase opacity-50 mb-1.5 block">Tipo de Conteúdo</label>
                             <div className="grid grid-cols-3 gap-2">
@@ -4747,6 +4390,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                             </div>
                         </div>
                         
+                        {/* 2. SELETOR DE DESTINO (RESTAURADO - Feed / Banca) */}
                         <div className="mb-4">
                             <label className="text-[10px] font-bold uppercase opacity-50 mb-1.5 block">Onde Exibir?</label>
                             <div className="grid grid-cols-2 gap-3">
@@ -4762,56 +4406,40 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                         <button onClick={handleAddFeed} disabled={!newUrl || (!targetFeed && !targetBanca)} className="w-full py-3 bg-purple-600 text-white rounded-lg font-bold text-sm transition hover:bg-purple-500 disabled:opacity-50">Adicionar Fonte</button>
                     </div>
 
+                    {/* Lista de Fontes */}
                     <div>
                         <label className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2 block">Fontes Ativas</label>
                         <div className="space-y-2">
                             {feeds.map(feed => (
-                                <div key={feed.id} className={`flex justify-between items-center p-3 rounded-lg border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        {feed.type === 'podcast' ? <Mic size={14} className="text-orange-500"/> : feed.type === 'youtube' ? <Youtube size={14} className="text-red-500"/> : <Rss size={14} className="text-blue-500"/>}
-                                        <div className="min-w-0">
-                                            <p className={`font-bold text-sm truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{feed.name}</p>
-                                            <div className="flex gap-2 text-[9px] opacity-60"><span>{feed.type === 'podcast' ? 'Podcast' : feed.type === 'youtube' ? 'Canal' : 'Site'}</span></div>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => removeFeed(feed.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-full transition"><Trash2 size={16} /></button>
-                                </div>
-                            ))}
+    <div key={feed.id} className={`flex justify-between items-center p-3 rounded-lg border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+        <div className="flex items-center gap-3 min-w-0">
+            {/* Ícone */}
+            {feed.type === 'podcast' ? <Mic size={14} className="text-orange-500"/> : feed.type === 'youtube' ? <Youtube size={14} className="text-red-500"/> : <Rss size={14} className="text-blue-500"/>}
+            
+            <div className="min-w-0">
+                {/* AQUI: Garanta que a classe de cor está explicita se precisar */}
+                <p className={`font-bold text-sm truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                    {feed.name}
+                </p>
+                
+                {/* Pequeno badge do tipo */}
+                <div className="flex gap-2 text-[9px] opacity-60">
+                    <span>{feed.type === 'podcast' ? 'Podcast' : feed.type === 'youtube' ? 'Canal' : 'Site'}</span>
+                </div>
+            </div>
+        </div>
+        <button onClick={() => removeFeed(feed.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-full transition"><Trash2 size={16} /></button>
+    </div>
+))}
                         </div>
                     </div>
                 </div>
             )}
             
-            {/* CONTEÚDO DA ABA API (Melhorei o visual aqui também) */}
             {activeTab === 'api' && (
-                <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                     <div className={`p-6 rounded-3xl text-center ${isDarkMode ? 'bg-gradient-to-b from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-b from-purple-50 to-white border border-purple-100'}`}>
-                        <div className="w-16 h-16 mx-auto bg-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 mb-4">
-                            <Sparkles size={32} className="text-white animate-pulse"/>
-                        </div>
-                        <h3 className="text-xl font-black mb-2">Google Gemini AI</h3>
-                        <p className="text-sm opacity-70 mb-6 leading-relaxed">
-                            Para ativar o <strong>Smart Digest</strong> e a <strong>Análise de Notícias</strong>, você precisa de uma chave gratuita do Google AI Studio.
-                        </p>
-                        
-                        <div className="text-left mb-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 ml-1">Sua API Key</label>
-                            <div className="relative mt-1">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50"><BrainCircuit size={16}/></div>
-                                <input 
-                                    type="text" 
-                                    value={apiKey} 
-                                    onChange={(e) => setApiKey(e.target.value)} 
-                                    placeholder="Cole sua chave aqui (AIza...)" 
-                                    className={`w-full pl-10 pr-4 py-3 rounded-xl border font-mono text-sm outline-none transition-all ${isDarkMode ? 'bg-black/50 border-purple-500/30 focus:border-purple-500 text-purple-300' : 'bg-white border-purple-200 focus:border-purple-500 text-purple-700 shadow-inner'}`} 
-                                />
-                            </div>
-                        </div>
-
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-purple-500 hover:underline">
-                            Obter chave no Google AI Studio <ArrowRight size={12}/>
-                        </a>
-                     </div>
+                <div className="space-y-4">
+                     <p className="text-sm opacity-70">Cole sua chave da API do Google Gemini.</p>
+                     <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-zinc-300'}`} />
                 </div>
             )}
         </div>
@@ -4819,7 +4447,6 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
     </div>
   );
 }
-
 
 function NewsletterTab({ openArticle, isDarkMode, newsData }) {
   const [copied, setCopied] = useState(false);
