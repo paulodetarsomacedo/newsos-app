@@ -2880,35 +2880,31 @@ const extractImageFromContent = (content, enclosure) => {
 
 const VideoPlayerModal = ({ video, onClose }) => {
   const [activated, setActivated] = useState(false);
-  
-  // Criamos uma "Versão" para o player. Se ela mudar, o player reseta do zero.
-  const [playerKey, setPlayerKey] = useState(Date.now());
-
+  const [iframeSrc, setIframeSrc] = useState("");
   const finalId = video.videoId || getVideoId(video.link);
 
-  // --- LÓGICA DE RESET PARA PWA ---
+  // --- MÁGICA PARA O IPAD PWA ---
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Quando o usuário volta para o App, forçamos o reset do estado
-        setActivated(false);
-        setPlayerKey(Date.now());
-      }
-    };
+    if (activated && finalId) {
+      // 1. Primeiro garantimos que o Iframe está limpo
+      setIframeSrc("");
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
+      // 2. Pequeno delay (300ms) para o WebKit do iPad estabilizar a conexão de rede
+      // Isso evita o congelamento na reabertura do app
+      const timer = setTimeout(() => {
+        const origin = window.location.origin;
+        const url = `https://www.youtube-nocookie.com/embed/${finalId}?autoplay=1&playsinline=1&enablejsapi=1&origin=${origin}&rel=0&modestbranding=1`;
+        setIframeSrc(url);
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [activated, finalId]);
 
   if (!finalId) return null;
 
-  // Usamos o domínio 'youtube-nocookie' -> É o mais aceito em PWAs da Apple
-  // Adicionamos um timestamp (v=...) para garantir que o iPad não use cache velho
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const embedUrl = `https://www.youtube-nocookie.com/embed/${finalId}?autoplay=1&playsinline=1&enablejsapi=1&origin=${origin}&rel=0&v=${playerKey}`;
-
   return (
-    <div key={playerKey} className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
       
       {/* Botão Fechar */}
       <button 
@@ -2918,17 +2914,17 @@ const VideoPlayerModal = ({ video, onClose }) => {
         <X size={32} />
       </button>
 
-      <div className="w-full max-w-5xl aspect-video bg-zinc-900 rounded-[2rem] overflow-hidden relative shadow-2xl border border-white/5">
+      <div className="w-full max-w-5xl aspect-video bg-zinc-950 rounded-[2rem] overflow-hidden relative shadow-2xl border border-white/5">
         
         {!activated ? (
-          /* ESTADO 1: CAPA (Gatilho para o iPad) */
+          /* ESTADO 1: CAPA (O clique aqui limpa o processo do WebKit) */
           <div 
             className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
             onClick={() => setActivated(true)}
           >
             <img 
               src={video.img || video.cover} 
-              className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-700" 
+              className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" 
               alt="Thumbnail"
             />
             <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all duration-300">
@@ -2936,25 +2932,23 @@ const VideoPlayerModal = ({ video, onClose }) => {
             </div>
             <div className="mt-6 text-center">
                 <p className="text-white font-black uppercase tracking-[0.3em] text-xs">Toque para Reproduzir</p>
-                <p className="text-white/30 text-[9px] font-bold uppercase mt-2">Conexão Segura estabelecida</p>
+                <p className="text-white/30 text-[9px] font-bold uppercase mt-2">Versão PWA Standalone</p>
             </div>
           </div>
         ) : (
-          /* ESTADO 2: IFRAME NATIVO (Sem bibliotecas externas, o mais estável) */
+          /* ESTADO 2: IFRAME INJETADO DINAMICAMENTE */
           <iframe
-            src={embedUrl}
+            src={iframeSrc}
             className="w-full h-full border-none"
-            style={{ 
-                WebkitBackfaceVisibility: 'hidden', 
-                WebkitTransform: 'translate3d(0,0,0)' 
-            }}
+            // ESTA LINHA É CRUCIAL PARA O IPAD NÃO BLOQUEAR NA SEGUNDA VEZ:
+            referrerPolicy="no-referrer"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
         )}
       </div>
       
-      <div className="mt-8 text-center px-8 max-w-3xl animate-in slide-in-from-bottom-4 duration-500">
+      <div className="mt-8 text-center px-8 max-w-3xl">
         <h2 className="text-white text-xl md:text-3xl font-black leading-tight mb-2">
             {video.title}
         </h2>
@@ -2965,6 +2959,7 @@ const VideoPlayerModal = ({ video, onClose }) => {
         iframe {
             -webkit-backface-visibility: hidden !important;
             -webkit-transform: translate3d(0,0,0) !important;
+            background: black;
         }
       `}} />
     </div>
