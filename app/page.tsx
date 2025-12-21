@@ -2877,48 +2877,7 @@ const extractImageFromContent = (content, enclosure) => {
 };
 
 
-const VideoPlayerModal = ({ video, onClose }) => {
-  const [activated, setActivated] = useState(false); // Só vira true após o clique
-  const finalId = video.videoId || getVideoId(video.link);
 
-  return (
-    <div className="fixed inset-0 z-[50000] bg-black flex flex-col items-center justify-center p-4">
-      {/* Botão fechar sempre visível */}
-      <button onClick={onClose} className="absolute top-6 right-6 p-3 bg-white/10 rounded-full text-white z-[60000]">
-        <X size={30} />
-      </button>
-
-      <div className="w-full max-w-4xl aspect-video bg-zinc-900 rounded-2xl overflow-hidden relative shadow-2xl">
-        {!activated ? (
-          // ESTADO 1: Capa com botão de Play real (Gatilho humano)
-          <div 
-            className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
-            onClick={() => setActivated(true)}
-          >
-            <img src={video.img} className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" />
-            <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all">
-              <Play size={40} fill="white" className="text-white ml-1" />
-            </div>
-            <p className="mt-4 text-white font-bold uppercase tracking-widest text-sm">Tocar vídeo no iPad</p>
-          </div>
-        ) : (
-          // ESTADO 2: Iframe só é criado AGORA (O iPad aceita pois veio de um clique real)
-          <iframe
-            src={`https://www.youtube.com/embed/${finalId}?autoplay=1&playsinline=1&enablejsapi=1`}
-            className="w-full h-full border-none"
-            style={{ WebkitBackfaceVisibility: 'hidden', WebkitTransform: 'translate3d(0,0,0)' }}
-            allow="autoplay; encrypted-media; picture-in-picture"
-            allowFullScreen
-          />
-        )}
-      </div>
-      
-      <div className="mt-8 text-center px-6">
-        <h2 className="text-white text-xl font-bold">{video.title}</h2>
-      </div>
-    </div>
-  );
-};
 
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
