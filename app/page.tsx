@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js'
+import ReactPlayer from 'react-player/youtube';
 
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
@@ -2877,128 +2878,56 @@ const extractImageFromContent = (content, enclosure) => {
 };
 
 
-const VideoPlayerModal = ({ video, onClose, isDarkMode }) => {
-    const [isActivated, setIsActivated] = useState(false);
-    const [loadError, setLoadError] = useState(false);
-    const containerRef = useRef(null);
-    
-    // Geramos um Token de sessão único para este vídeo
-    const sessionToken = useMemo(() => Math.random().toString(36).substring(7), [video.id]);
-    const finalId = video.videoId || getVideoId(video.link);
+const VideoPlayerModal = ({ video, onClose }) => {
+  const [activated, setActivated] = useState(false);
+  // Geramos um ID aleatório para a DIV para o iPad não usar lixo de cache
+  const playerUniqueId = useMemo(() => `player-${Math.random().toString(36).substr(2, 9)}`, []);
+  const finalId = video.videoId || getVideoId(video.link);
 
-    // --- MOTOR DE INJEÇÃO (BURLA O CACHE DO IPAD) ---
-    useEffect(() => {
-        if (isActivated && containerRef.current && finalId) {
-            // Limpamos o container fisicamente
-            containerRef.current.innerHTML = '';
+  if (!finalId) return null;
 
-            const iframe = document.createElement('iframe');
-            const origin = window.location.origin;
-            
-            // Usamos o domínio nocookie + parâmetros de reset de cache (v=...)
-            const videoUrl = `https://www.youtube-nocookie.com/embed/${finalId}?` + 
-                             `autoplay=1&` +
-                             `playsinline=1&` +
-                             `enablejsapi=1&` +
-                             `origin=${origin}&` +
-                             `widget_referrer=${origin}&` +
-                             `rel=0&` +
-                             `v=${sessionToken}`; // Força o YouTube a tratar como nova requisição
+  return (
+    <div className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+      <button onClick={onClose} className="absolute top-6 right-6 p-4 bg-white/10 rounded-full text-white z-[60001] active:scale-90">
+        <X size={32} />
+      </button>
 
-            iframe.setAttribute('src', videoUrl);
-            iframe.setAttribute('frameborder', '0');
-            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; compute-pressure');
-            iframe.setAttribute('allowfullscreen', 'true');
-            
-            // Isso impede que o iPad tente "ser esperto" e use o cache do Safari
-            iframe.setAttribute('referrerpolicy', 'no-referrer');
-            
-            iframe.style.width = '100%';
-            iframe.style.height = '100%';
-            iframe.style.position = 'absolute';
-            iframe.style.top = '0';
-            iframe.style.left = '0';
-            iframe.style.background = 'black';
-            iframe.style.borderRadius = '1.5rem';
+      <div className="w-full max-w-5xl aspect-video bg-zinc-900 rounded-[2rem] overflow-hidden relative shadow-2xl">
+        {!activated ? (
+          /* CAPA (O toque aqui 'acorda' o sistema de som/video do iPad PWA) */
+          <div className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group" onClick={() => setActivated(true)}>
+            <img src={video.img || video.cover} className="absolute inset-0 w-full h-full object-cover opacity-50" alt="" />
+            <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all">
+              <Play size={48} fill="white" className="ml-1" />
+            </div>
+            <p className="mt-4 text-white font-black uppercase tracking-widest text-[10px]">Tocar no iPad</p>
+          </div>
+        ) : (
+          /* IFRAME PURO (Sem API de JS externa para não bugar no PWA) */
+          <iframe
+            id={playerUniqueId}
+            src={`https://www.youtube.com/embed/${finalId}?autoplay=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}&rel=0`}
+            className="w-full h-full border-none"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+            // referrerpolicy="no-referrer" resolve o problema do 'Invalid Identity' no PWA
+            referrerPolicy="no-referrer"
+          />
+        )}
+      </div>
 
-            containerRef.current.appendChild(iframe);
+      <div className="mt-8 text-center px-8">
+        <h2 className="text-white text-xl font-bold">{video.title}</h2>
+      </div>
 
-            // Se após 10 segundos ainda estiver no loading, mostra o botão de escape
-            const timer = setTimeout(() => setLoadError(true), 10000);
-            return () => clearTimeout(timer);
+      <style dangerouslySetInnerHTML={{ __html: `
+        iframe {
+            -webkit-backface-visibility: hidden !important;
+            -webkit-transform: translate3d(0,0,0) !important;
         }
-    }, [isActivated, finalId, sessionToken]);
-
-    if (!finalId) return null;
-
-    return (
-        <div className="fixed inset-0 z-[60000] bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
-            
-            {/* Botão Fechar - Super Visível */}
-            <button 
-                onClick={onClose} 
-                className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-red-600 rounded-full text-white z-[60003] backdrop-blur-md transition-all active:scale-90"
-            >
-                <X size={32} />
-            </button>
-
-            <div className="w-full max-w-5xl aspect-video bg-zinc-900 rounded-[2rem] overflow-hidden relative shadow-[0_0_60px_rgba(0,0,0,0.8)] border border-white/5">
-                {!isActivated ? (
-                    /* CAPA DE ATIVAÇÃO */
-                    <div 
-                        className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
-                        onClick={() => setIsActivated(true)}
-                    >
-                        <img 
-                            src={video.img || video.cover} 
-                            className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" 
-                            alt="Capa" 
-                        />
-                        <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all duration-300">
-                            <Play size={48} fill="white" className="text-white ml-1" />
-                        </div>
-                        <div className="mt-8 text-center px-4">
-                            <p className="text-white font-black uppercase tracking-[0.3em] text-xs mb-2">Clique para Carregar</p>
-                            <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest leading-relaxed">
-                                A segurança do iPad exige ativação manual <br/> em modo standalone
-                            </p>
-                        </div>
-                    </div>
-                ) : (
-                    /* ONDE O VÍDEO É INJETADO */
-                    <div ref={containerRef} className="w-full h-full relative bg-black" />
-                )}
-            </div>
-
-            {/* BARRA DE TÍTULO E BOTÃO DE ESCAPE */}
-            <div className="mt-8 text-center px-8 max-w-3xl animate-in slide-in-from-bottom-4 duration-500">
-                <h2 className="text-white text-xl md:text-3xl font-black leading-tight mb-4">
-                    {video.title}
-                </h2>
-                
-                <div className="flex flex-wrap justify-center gap-4">
-                    <div className="flex items-center gap-2 text-purple-400 bg-purple-400/10 px-4 py-2 rounded-full border border-purple-400/20">
-                        <Sparkles size={14} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Safe Stream Active</span>
-                    </div>
-
-                    {/* BOTÃO DE ESCAPE: Se o Iframe congelar, ele abre no Player Nativo */}
-                    <button 
-                        onClick={() => window.open(`https://www.youtube.com/watch?v=${finalId}`, '_blank')}
-                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white/60 px-4 py-2 rounded-full border border-white/10 transition-all text-[10px] font-black uppercase tracking-widest"
-                    >
-                        <Globe size={14} /> Abrir no Navegador
-                    </button>
-                </div>
-
-                {loadError && (
-                    <p className="mt-6 text-orange-400 text-xs font-bold animate-pulse">
-                        O vídeo está demorando? Tente "Abrir no Navegador" acima.
-                    </p>
-                )}
-            </div>
-        </div>
-    );
+      `}} />
+    </div>
+  );
 };
 
 
