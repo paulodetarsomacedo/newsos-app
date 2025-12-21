@@ -2878,6 +2878,96 @@ const extractImageFromContent = (content, enclosure) => {
 
 
 
+const VideoPlayerModal = ({ video, onClose }) => {
+  const [activated, setActivated] = useState(false); // Fica true após o clique no Play
+  
+  // Extrai o ID do vídeo (suporta link direto ou objeto já processado)
+  const finalId = video.videoId || getVideoId(video.link);
+
+  // Se não houver ID, não renderiza nada
+  if (!finalId) return null;
+
+  // --- URL DE REPRODUÇÃO (INVIDIOUS) ---
+  // Usamos o yewtu.be para pular as travas de rastreamento do Google no iPad PWA
+  const embedUrl = `https://yewtu.be/embed/${finalId}?autoplay=1&local=true&dark_mode=true`;
+
+  return (
+    <div className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+      
+      {/* Botão Fechar (Topo Direita) */}
+      <button 
+        onClick={onClose} 
+        className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white z-[60001] backdrop-blur-md transition-all active:scale-90"
+      >
+        <X size={32} />
+      </button>
+
+      {/* Container Principal do Vídeo */}
+      <div className="w-full max-w-5xl aspect-video bg-zinc-900 rounded-[2rem] overflow-hidden relative shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/5">
+        
+        {!activated ? (
+          /* --- ESTADO 1: CAPA COM PLAY (Gatilho Humano) --- */
+          <div 
+            className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
+            onClick={() => setActivated(true)}
+          >
+            {/* Imagem de fundo da notícia */}
+            <img 
+              src={video.img || video.cover} 
+              className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" 
+              alt="Thumbnail"
+            />
+            
+            {/* Botão de Play Central */}
+            <div className="relative bg-red-600 p-6 rounded-full shadow-[0_0_30px_rgba(220,38,38,0.5)] group-hover:scale-110 transition-all duration-300">
+              <Play size={48} fill="white" className="text-white ml-1" />
+            </div>
+            
+            <div className="mt-6 space-y-2 text-center relative z-10">
+                <p className="text-white font-black uppercase tracking-[0.3em] text-xs">Toque para Iniciar</p>
+                <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Modo PWA Seguro Ativado</p>
+            </div>
+          </div>
+        ) : (
+          /* --- ESTADO 2: IFRAME (Nasce apenas após o toque) --- */
+          <iframe
+            src={embedUrl}
+            className="w-full h-full border-none"
+            /* Estilos para forçar a placa de vídeo do iPad e não congelar */
+            style={{ 
+                WebkitBackfaceVisibility: 'hidden', 
+                WebkitTransform: 'translate3d(0,0,0)' 
+            }}
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+            title="Video Player"
+          />
+        )}
+      </div>
+      
+      {/* Informações da Notícia abaixo do vídeo */}
+      <div className="mt-8 text-center px-8 max-w-3xl animate-in slide-in-from-bottom-4 duration-500">
+        <span className="inline-block px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4">
+            {video.source}
+        </span>
+        <h2 className="text-white text-2xl md:text-4xl font-black leading-tight mb-2 drop-shadow-2xl">
+            {video.title}
+        </h2>
+        <p className="text-white/40 text-sm font-medium">A reprodução começará imediatamente após o toque.</p>
+      </div>
+
+      {/* Estilo CSS Global injetado para garantir que nenhum iframe trave */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        iframe {
+            -webkit-backface-visibility: hidden !important;
+            -webkit-transform: translate3d(0,0,0) !important;
+        }
+      `}} />
+    </div>
+  );
+};
+
+
 
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
