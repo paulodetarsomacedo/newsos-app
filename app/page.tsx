@@ -2878,108 +2878,97 @@ const extractImageFromContent = (content, enclosure) => {
 
 
 const VideoPlayerModal = ({ video, onClose }) => {
-  const [activated, setActivated] = useState(false);
-  const containerRef = useRef(null);
-  
-  // Extrai o ID do vídeo de forma ultra-segura
-  const finalId = useMemo(() => {
-    const url = video.link || video.url || "";
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
-  }, [video]);
+    const [isPlayerReady, setIsPlayerReady] = useState(false);
+    const playerRef = useRef(null);
+    const containerId = useMemo(() => `player-${Math.random().toString(36).substr(2, 9)}`, []);
 
-  useEffect(() => {
-    // Se o usuário clicar em Play e tivermos o container pronto
-    if (activated && containerRef.current && finalId) {
-      // Limpeza física do que quer que estivesse ali (mata o congelamento)
-      containerRef.current.innerHTML = '';
+    const finalId = video.videoId || getVideoId(video.link);
 
-      const iframe = document.createElement('iframe');
-      const origin = window.location.origin;
-      
-      // Usamos o domínio de privacidade oficial do YouTube (nocookie)
-      // O segredo para PWA no iPad é o parâmetro 'widget_referrer' + 'origin'
-      const videoUrl = `https://www.youtube-nocookie.com/embed/${finalId}?` + 
-                       `autoplay=1&playsinline=1&enablejsapi=1&rel=0&modestbranding=1` +
-                       `&origin=${encodeURIComponent(origin)}` +
-                       `&widget_referrer=${encodeURIComponent(origin)}`;
+    useEffect(() => {
+        if (!finalId) return;
 
-      iframe.setAttribute('src', videoUrl);
-      iframe.setAttribute('frameborder', '0');
-      iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
-      iframe.setAttribute('allowfullscreen', 'true');
-      
-      // Isso impede que o iPad use lixo de cache na segunda abertura
-      iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-      
-      iframe.style.width = '100%';
-      iframe.style.height = '100%';
-      iframe.style.position = 'absolute';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      iframe.style.background = 'black';
-
-      containerRef.current.appendChild(iframe);
-    }
-  }, [activated, finalId]);
-
-  if (!finalId) return null;
-
-  return (
-    <div className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
-      
-      {/* Botão Fechar - Estilo iOS */}
-      <button 
-        onClick={onClose} 
-        className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white z-[60002] backdrop-blur-md transition-all active:scale-90"
-      >
-        <X size={32} />
-      </button>
-
-      <div className="w-full max-w-5xl aspect-video bg-zinc-900 rounded-[2rem] overflow-hidden relative shadow-2xl border border-white/5">
-        {!activated ? (
-          /* ESTADO 1: CAPA (Obrigatório para PWA iPad liberar a rede e o áudio) */
-          <div 
-            className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
-            onClick={() => setActivated(true)}
-          >
-            <img 
-              src={video.img || video.cover} 
-              className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-700" 
-              alt="Thumbnail"
-            />
-            <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all duration-300">
-              <Play size={48} fill="white" className="text-white ml-1" />
-            </div>
-            <div className="mt-6 text-center">
-                <p className="text-white font-black uppercase tracking-[0.3em] text-xs">Toque para Assistir</p>
-                <p className="text-white/30 text-[9px] font-bold uppercase mt-2">Conexão Segura NewsOS</p>
-            </div>
-          </div>
-        ) : (
-          /* ESTADO 2: O CONTAINER ONDE O JS VAI INJETAR O IFRAME LIMPO */
-          <div ref={containerRef} className="w-full h-full relative bg-black" />
-        )}
-      </div>
-      
-      {/* Título abaixo do vídeo */}
-      <div className="mt-8 text-center px-8 max-w-3xl animate-in slide-in-from-bottom-4">
-        <h2 className="text-white text-xl md:text-3xl font-black leading-tight mb-2 line-clamp-2">
-            {video.title}
-        </h2>
-        <p className="text-white/40 text-xs font-bold uppercase tracking-widest">{video.source}</p>
-      </div>
-
-      {/* Força o iPad a usar a GPU para o vídeo (evita travamentos) */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        iframe {
-            -webkit-backface-visibility: hidden !important;
-            -webkit-transform: translate3d(0,0,0) !important;
+        // 1. Carrega o script da API do YouTube se não existir
+        if (!window.YT) {
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            const firstScriptTag = document.getElementsByTagName('script')[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
         }
-      `}} />
-    </div>
-  );
+
+        // 2. Função que a API chama quando está pronta
+        const onYouTubeIframeAPIReady = () => {
+            playerRef.current = new window.YT.Player(containerId, {
+                videoId: finalId,
+                host: 'https://www.youtube.com', // Força o domínio seguro
+                playerVars: {
+                    autoplay: 1,
+                    playsinline: 1,      // Vital para iOS
+                    origin: window.location.origin, // Identifica seu app para o Google
+                    enablejsapi: 1,
+                    rel: 0,
+                    modestbranding: 1
+                },
+                events: {
+                    onReady: (event) => {
+                        setIsPlayerReady(true);
+                        event.target.playVideo();
+                    },
+                    onError: (e) => {
+                        console.error("Erro na API do YouTube:", e.data);
+                    }
+                }
+            });
+        };
+
+        // Se o script já carregou anteriormente, inicializa direto
+        if (window.YT && window.YT.Player) {
+            onYouTubeIframeAPIReady();
+        } else {
+            window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+        }
+
+        return () => {
+            if (playerRef.current) {
+                try { playerRef.current.destroy(); } catch(e) {}
+            }
+        };
+    }, [finalId, containerId]);
+
+    if (!finalId) return null;
+
+    return (
+        <div className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+            {/* Header com o botão fechar */}
+            <div className="absolute top-0 left-0 right-0 p-6 flex justify-end z-[60002]">
+                <button onClick={onClose} className="p-4 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-md transition-all active:scale-90">
+                    <X size={28} />
+                </button>
+            </div>
+
+            <div className="w-full max-w-5xl aspect-video bg-zinc-900 rounded-[2rem] overflow-hidden relative shadow-2xl border border-white/5">
+                {/* Loader enquanto a API faz o handshake com o Google */}
+                {!isPlayerReady && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950">
+                        <Loader2 className="animate-spin text-purple-500 mb-4" size={40} />
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Validando com Google Services</p>
+                    </div>
+                )}
+                
+                {/* DIV que a API do YouTube vai transformar em Iframe */}
+                <div id={containerId} className="w-full h-full"></div>
+            </div>
+            
+            <div className="mt-8 text-center px-8 max-w-3xl animate-in slide-in-from-bottom-4">
+                <h2 className="text-white text-xl md:text-3xl font-black leading-tight mb-2">
+                    {video.title}
+                </h2>
+                <div className="flex items-center justify-center gap-2 text-purple-400">
+                    <Sparkles size={14} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Conexão Oficial via API v3</span>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 
