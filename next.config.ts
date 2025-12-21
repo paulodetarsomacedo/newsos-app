@@ -4,7 +4,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: false, // DESATIVE ISSO (Causa conflitos em iframes)
   reloadOnOnline: true,
-  swcMinify: true,
+  swcMinify: false,
   disable: process.env.NODE_ENV === "development",
   
   // --- O SEGREDO ESTÁ AQUI: BLOQUEAR CACHE DO YOUTUBE ---

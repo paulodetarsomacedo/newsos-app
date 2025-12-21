@@ -3104,6 +3104,7 @@ export default function NewsOS_V12() {
   const [playingVideo, setPlayingVideo] = useState(null); 
   const [seenStoryIds, setSeenStoryIds] = useState([]);
   const [playingAudio, setPlayingAudio] = useState(null);
+  const [mounted, setMounted] = useState(false);
   
   // --- ESTADO NOVO: FILTRO DE FONTE (ELEVADO DA FEEDTAB) ---
   const [sourceFilter, setSourceFilter] = useState('all');
@@ -3140,7 +3141,9 @@ export default function NewsOS_V12() {
   const [readHistory, setReadHistory] = useState([]);
   const [likedItems, setLikedItems] = useState([]); 
 
-
+useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // NOVA FUNÇÃO PARA ALTERNAR O LIKE
   const handleToggleLike = (article) => {
@@ -3343,6 +3346,7 @@ export default function NewsOS_V12() {
     }
   }, [activeTab]);
 
+  if (!mounted) return null; 
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       
