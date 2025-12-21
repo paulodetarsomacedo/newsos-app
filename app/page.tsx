@@ -2880,46 +2880,78 @@ const extractImageFromContent = (content, enclosure) => {
 
 const VideoPlayerModal = ({ video, onClose }) => {
   const [activated, setActivated] = useState(false);
-  // Geramos um ID aleatório para a DIV para o iPad não usar lixo de cache
-  const playerUniqueId = useMemo(() => `player-${Math.random().toString(36).substr(2, 9)}`, []);
   const finalId = video.videoId || getVideoId(video.link);
 
   if (!finalId) return null;
 
+  // --- CONFIGURAÇÃO DE IDENTIDADE PARA O GOOGLE ---
+  // Pegamos a URL exata do seu app (ex: https://newsos.netlify.app)
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  // Montamos a URL oficial de embed
+  // 1. Voltamos para o domínio padrão do youtube.com (mais compatível com a sua Chave API)
+  // 2. Passamos o 'origin' e o 'widget_referrer' -> Isso mata o Erro 153
+  const embedUrl = `https://www.youtube.com/embed/${finalId}?` + 
+                   `autoplay=1&` +
+                   `playsinline=1&` +
+                   `enablejsapi=1&` +
+                   `widget_referrer=${encodeURIComponent(origin)}&` + 
+                   `origin=${encodeURIComponent(origin)}&` +
+                   `rel=0`;
+
   return (
-    <div className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
-      <button onClick={onClose} className="absolute top-6 right-6 p-4 bg-white/10 rounded-full text-white z-[60001] active:scale-90">
+    /* Usamos o finalId como key para garantir que o modal resete ao trocar de vídeo */
+    <div key={finalId} className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+      
+      {/* Botão Fechar */}
+      <button 
+        onClick={onClose} 
+        className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white z-[60002] backdrop-blur-md transition-all active:scale-90"
+      >
         <X size={32} />
       </button>
 
-      <div className="w-full max-w-5xl aspect-video bg-zinc-900 rounded-[2rem] overflow-hidden relative shadow-2xl">
+      <div className="w-full max-w-5xl aspect-video bg-zinc-950 rounded-[2rem] overflow-hidden relative shadow-2xl border border-white/5">
+        
         {!activated ? (
-          /* CAPA (O toque aqui 'acorda' o sistema de som/video do iPad PWA) */
-          <div className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group" onClick={() => setActivated(true)}>
-            <img src={video.img || video.cover} className="absolute inset-0 w-full h-full object-cover opacity-50" alt="" />
-            <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all">
-              <Play size={48} fill="white" className="ml-1" />
+          /* ESTADO 1: CAPA (O toque aqui autoriza o áudio e vídeo no iPad) */
+          <div 
+            className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
+            onClick={() => setActivated(true)}
+          >
+            <img 
+              src={video.img || video.cover} 
+              className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" 
+              alt="Capa"
+            />
+            <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all duration-300">
+              <Play size={48} fill="white" className="text-white ml-1" />
             </div>
-            <p className="mt-4 text-white font-black uppercase tracking-widest text-[10px]">Tocar no iPad</p>
+            <div className="mt-6 text-center">
+                <p className="text-white font-black uppercase tracking-[0.3em] text-xs">Toque para Assistir</p>
+                <p className="text-white/30 text-[9px] font-bold uppercase mt-2">Conexão Autenticada</p>
+            </div>
           </div>
         ) : (
-          /* IFRAME PURO (Sem API de JS externa para não bugar no PWA) */
+          /* ESTADO 2: IFRAME COM IDENTIDADE RECONHECIDA */
           <iframe
-            id={playerUniqueId}
-            src={`https://www.youtube.com/embed/${finalId}?autoplay=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}&rel=0`}
+            src={embedUrl}
             className="w-full h-full border-none"
-            allow="autoplay; encrypted-media; picture-in-picture"
+            /* IMPORTANTE: Removido o no-referrer que causou o Erro 153 */
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
-            // referrerpolicy="no-referrer" resolve o problema do 'Invalid Identity' no PWA
-            referrerPolicy="no-referrer"
           />
         )}
       </div>
-
-      <div className="mt-8 text-center px-8">
-        <h2 className="text-white text-xl font-bold">{video.title}</h2>
+      
+      <div className="mt-8 text-center px-8 max-w-3xl animate-in slide-in-from-bottom-4">
+        <h2 className="text-white text-xl md:text-3xl font-black leading-tight mb-2 line-clamp-2">
+            {video.title}
+        </h2>
+        <p className="text-white/40 text-xs font-bold uppercase tracking-widest">{video.source}</p>
       </div>
 
+      {/* Força o hardware do iPad a processar o vídeo separadamente para não congelar */}
       <style dangerouslySetInnerHTML={{ __html: `
         iframe {
             -webkit-backface-visibility: hidden !important;
