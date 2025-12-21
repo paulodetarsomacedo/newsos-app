@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js'
-import ReactPlayer from 'react-player/youtube';
+
 
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
@@ -2868,89 +2868,6 @@ const extractImageFromContent = (content, enclosure) => {
 };
 
 
-const VideoPlayerModal = ({ video, onClose }) => {
-  const [activated, setActivated] = useState(false);
-  const finalId = video.videoId || getVideoId(video.link);
-
-  if (!finalId) return null;
-
-  // --- CONFIGURAÇÃO DE IDENTIDADE PARA O GOOGLE ---
-  // Pegamos a URL exata do seu app (ex: https://newsos.netlify.app)
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-
-  // Montamos a URL oficial de embed
-  // 1. Voltamos para o domínio padrão do youtube.com (mais compatível com a sua Chave API)
-  // 2. Passamos o 'origin' e o 'widget_referrer' -> Isso mata o Erro 153
-  const embedUrl = `https://www.youtube.com/embed/${finalId}?` + 
-                   `autoplay=1&` +
-                   `playsinline=1&` +
-                   `enablejsapi=1&` +
-                   `widget_referrer=${encodeURIComponent(origin)}&` + 
-                   `origin=${encodeURIComponent(origin)}&` +
-                   `rel=0`;
-
-  return (
-    /* Usamos o finalId como key para garantir que o modal resete ao trocar de vídeo */
-    <div key={finalId} className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
-      
-      {/* Botão Fechar */}
-      <button 
-        onClick={onClose} 
-        className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white z-[60002] backdrop-blur-md transition-all active:scale-90"
-      >
-        <X size={32} />
-      </button>
-
-      <div className="w-full max-w-5xl aspect-video bg-zinc-950 rounded-[2rem] overflow-hidden relative shadow-2xl border border-white/5">
-        
-        {!activated ? (
-          /* ESTADO 1: CAPA (O toque aqui autoriza o áudio e vídeo no iPad) */
-          <div 
-            className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
-            onClick={() => setActivated(true)}
-          >
-            <img 
-              src={video.img || video.cover} 
-              className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" 
-              alt="Capa"
-            />
-            <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all duration-300">
-              <Play size={48} fill="white" className="text-white ml-1" />
-            </div>
-            <div className="mt-6 text-center">
-                <p className="text-white font-black uppercase tracking-[0.3em] text-xs">Toque para Assistir</p>
-                <p className="text-white/30 text-[9px] font-bold uppercase mt-2">Conexão Autenticada</p>
-            </div>
-          </div>
-        ) : (
-          /* ESTADO 2: IFRAME COM IDENTIDADE RECONHECIDA */
-          <iframe
-            src={embedUrl}
-            className="w-full h-full border-none"
-            /* IMPORTANTE: Removido o no-referrer que causou o Erro 153 */
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
-        )}
-      </div>
-      
-      <div className="mt-8 text-center px-8 max-w-3xl animate-in slide-in-from-bottom-4">
-        <h2 className="text-white text-xl md:text-3xl font-black leading-tight mb-2 line-clamp-2">
-            {video.title}
-        </h2>
-        <p className="text-white/40 text-xs font-bold uppercase tracking-widest">{video.source}</p>
-      </div>
-
-      {/* Força o hardware do iPad a processar o vídeo separadamente para não congelar */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        iframe {
-            -webkit-backface-visibility: hidden !important;
-            -webkit-transform: translate3d(0,0,0) !important;
-        }
-      `}} />
-    </div>
-  );
-};
 
 
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL ---
@@ -3091,87 +3008,41 @@ export default function NewsOS_V12() {
   const [seenStoryIds, setSeenStoryIds] = useState([]);
   const [playingAudio, setPlayingAudio] = useState(null);
   const [mounted, setMounted] = useState(false);
-  
-const handleMediaClick = (item) => {
-    // 1. Extrai o ID do vídeo (funciona para links de vídeo e podcast do YT)
-    const videoId = item.videoId || getVideoId(item.link || item.url);
-    
-    // 2. Se não for um link do YouTube (ex: um MP3 direto de um RSS)
-    if (!videoId) {
-        // Se for um áudio puro (MP3), você pode ainda tentar o GlobalAudioPlayer
-        // ou simplesmente abrir o link original
-        if (item.type === 'audio' && item.link) {
-            setPlayingAudio(item);
-        } else {
-            window.open(item.link || item.url, '_blank');
-        }
-        return;
-    }
-
-    // --- ESTRATÉGIA UNIFICADA: DEEP LINK ---
-    // Este comando diz ao iPad: "Abra isso no aplicativo do YouTube"
-    // Se o usuário não tiver o app, o iPad abre no Safari automaticamente.
-    const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    
-    // Feedback tátil antes de sair
-    if (window.navigator.vibrate) window.navigator.vibrate(15);
-
-    // Redirecionamento instantâneo
-    window.location.href = youtubeUrl;
-};
-
-
-
-const [isRedirecting, setIsRedirecting] = useState(false);
-
-const handleMediaClick = (item) => {
-    // ... lógica anterior ...
-    setIsRedirecting(true);
-    setAiStatus("Handoff: Sintonizando YouTube..."); // Se o status for controlado por estado
-    
-    setTimeout(() => {
-        window.location.href = youtubeUrl;
-        setIsRedirecting(false);
-    }, 500);
-};
-  // --- ESTADO NOVO: FILTRO DE FONTE (ELEVADO DA FEEDTAB) ---
   const [sourceFilter, setSourceFilter] = useState('all');
+
+  // --- FUNÇÃO MAESTRO: ABRE TUDO NO APP DO YOUTUBE (IPAD FIX) ---
+  const handleMediaClick = (item) => {
+      const videoId = item.videoId || getVideoId(item.link || item.url);
+      
+      // Se não for YouTube (ex: um link de site normal ou MP3)
+      if (!videoId) {
+          if (item.type === 'audio' && item.link) {
+              setPlayingAudio(item);
+          } else {
+              window.open(item.link || item.url, '_blank');
+          }
+          return;
+      }
+
+      // Se for YouTube (Vídeo ou Podcast): Abre o App Nativo
+      const directUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      
+      if (window.navigator.vibrate) window.navigator.vibrate(10);
+      
+      // Isso minimiza o PWA e abre o vídeo no Player oficial do iPad
+      window.location.href = directUrl;
+  };
+
+  // --- EFEITOS E OUTRAS FUNÇÕES ---
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const markStoryAsSeen = (id) => {
     if (!seenStoryIds.includes(id)) {
       setSeenStoryIds(prev => [...prev, id]);
     }
   };
-  
-  const handleSaveToArchive = (article, note) => {
-      setSavedItems(prev => {
-          const filtered = prev.filter(i => i.id !== article.id);
-          return [{
-              ...article,
-              category: 'Arquivo', 
-              isArchived: true,
-              userNote: note,
-              date: 'Editado agora'
-          }, ...filtered];
-      });
-      alert("Artigo salvo no Arquivo!");
-  };
-
-  const [userFeeds, setUserFeeds] = useState([
-      { id: 1, name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', category: 'Tech', display: { feed: true } },
-      { id: 2, name: 'G1', url: 'https://g1.globo.com/dynamo/rss2.xml', category: 'Local', display: { feed: true } }
-  ]);
-  const [realNews, setRealNews] = useState([]); 
-  const [realVideos, setRealVideos] = useState([]);
-  const [isLoadingFeeds, setIsLoadingFeeds] = useState(false);
-  const [realPodcasts, setRealPodcasts] = useState([]);
-  const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
-  const [readHistory, setReadHistory] = useState([]);
-  const [likedItems, setLikedItems] = useState([]); 
-
-useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // NOVA FUNÇÃO PARA ALTERNAR O LIKE
   const handleToggleLike = (article) => {
@@ -3404,15 +3275,15 @@ useEffect(() => {
             )}
 
             {activeTab === 'podcast' && (
-                <PodcastTab 
-                    isDarkMode={isDarkMode} 
-                    podcastsData={realPodcasts} 
-                    isLoading={isLoadingFeeds}
-                    onPlayAudio={handleMediaClick} // <--- Mude para handleMediaClick
-                    savedItems={savedItems}
-                    onToggleSave={handleToggleSave}
-                />
-            )}
+    <PodcastTab 
+        isDarkMode={isDarkMode} 
+        podcastsData={realPodcasts} 
+        isLoading={isLoadingFeeds}
+        onPlayAudio={handleMediaClick} // <--- Conectado
+        savedItems={savedItems}
+        onToggleSave={handleToggleSave}
+    />
+)}
             
             {activeTab === 'feed' && (
                 <FeedTab 
@@ -3424,7 +3295,7 @@ useEffect(() => {
                                         readHistory={readHistory}
                     newsData={realNews} 
                     isLoading={isLoadingFeeds}
-                    onPlayVideo={setPlayingVideo}
+                    onPlayVideo={handleMediaClick}
                     sourceFilter={sourceFilter}
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}       // A lista de IDs curtidos
@@ -3533,13 +3404,7 @@ useEffect(() => {
       
       {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen}  />}
 
-      {/* MODAL DE VÍDEO / PODCAST */}
-      {playingVideo && (
-          <VideoPlayerModal 
-              video={playingVideo} 
-              onClose={() => setPlayingVideo(null)} 
-          />
-      )}
+      
 
       {/* PLAYER DE ÁUDIO GLOBAL */}
       {playingAudio && (
