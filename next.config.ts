@@ -13,14 +13,12 @@ const withPWA = require("@ducanh2912/next-pwa").default({
     // Impede o Service Worker de interceptar links do YouTube e Google
     runtimeCaching: [
       {
-        urlPattern: /^https:\/\/(www\.)?youtube\.com\/.*/i,
-        handler: 'NetworkOnly', // Força a buscar SEMPRE na internet, nunca no cache
+        // BLOQUEIO TOTAL DE CACHE PARA YOUTUBE (Padrão e Mídia)
+        urlPattern: /^https:\/\/(www\.)?(youtube\.com|youtube-nocookie\.com|googlevideo\.com|ytimg\.ts)\/.*/i,
+        handler: 'NetworkOnly', 
       },
       {
-        urlPattern: /^https:\/\/(www\.)?youtube-nocookie\.com\/.*/i,
-        handler: 'NetworkOnly',
-      },
-      {
+        // Cache apenas para fontes (melhora a velocidade)
         urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
         handler: 'CacheFirst',
       }
