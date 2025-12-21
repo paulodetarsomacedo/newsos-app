@@ -3033,10 +3033,17 @@ export default function NewsOS_V12() {
       window.location.href = directUrl;
   };
 
-  // --- EFEITOS E OUTRAS FUNÇÕES ---
+  // --- EFEITOS ---
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Chama o fetch apenas quando o componente estiver montado e tiver feeds
+  useEffect(() => {
+    if (mounted) {
+        fetchFeeds();
+    }
+  }, [mounted]);
 
   const markStoryAsSeen = (id) => {
     if (!seenStoryIds.includes(id)) {
@@ -3044,17 +3051,8 @@ export default function NewsOS_V12() {
     }
   };
 
-  // NOVA FUNÇÃO PARA ALTERNAR O LIKE
   const handleToggleLike = (article) => {
-    setLikedItems(prev => {
-      if (prev.includes(article.id)) {
-        // Se já curtiu, remove (descurtir)
-        return prev.filter(id => id !== article.id);
-      } else {
-        // Se não curtiu, adiciona
-        return [...prev, article.id];
-      }
-    });
+    setLikedItems(prev => prev.includes(article.id) ? prev.filter(id => id !== article.id) : [...prev, article.id]);
   };
 
 
