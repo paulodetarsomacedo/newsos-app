@@ -2878,220 +2878,45 @@ const extractImageFromContent = (content, enclosure) => {
 
 
 const VideoPlayerModal = ({ video, onClose }) => {
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [isMinimized, setIsMinimized] = useState(false);
-    const [progress, setProgress] = useState(0);
-    const [currentTime, setCurrentTime] = useState(0);
-    const [duration, setDuration] = useState(0);
-    
-    const playerRef = useRef(null); 
-    const progressInterval = useRef(null);
+  const [activated, setActivated] = useState(false); // Só vira true após o clique
+  const finalId = video.videoId || getVideoId(video.link);
 
-    // --- MUDANÇA 1: ID TOTALMENTE ÚNICO POR INSTÂNCIA ---
-    // Isso evita que o iPad tente "reaproveitar" um player quebrado em cache.
-    const playerUniqueId = useMemo(() => `yt-player-${Math.random().toString(36).substr(2, 9)}`, []);
+  return (
+    <div className="fixed inset-0 z-[50000] bg-black flex flex-col items-center justify-center p-4">
+      {/* Botão fechar sempre visível */}
+      <button onClick={onClose} className="absolute top-6 right-6 p-3 bg-white/10 rounded-full text-white z-[60000]">
+        <X size={30} />
+      </button>
 
-    const isPodcastMode = video.category === 'Podcast' || video.isPodcast;
-    const finalId = video.videoId || getVideoId(video.link);
-
-    // --- MUDANÇA 2: INICIALIZAÇÃO BLINDADA ---
-    useEffect(() => {
-        if (!finalId) return;
-
-        let isMounted = true;
-        let retryCount = 0;
-
-        const initPlayer = () => {
-            if (!isMounted) return;
-
-            // Se a API ainda não estiver pronta, tentamos 10 vezes.
-            if (!window.YT || !window.YT.Player) {
-                if (retryCount < 10) {
-                    retryCount++;
-                    setTimeout(initPlayer, 200);
-                }
-                return;
-            }
-
-            // Destruição total de qualquer rastro anterior
-            if (playerRef.current) {
-                try { playerRef.current.destroy(); } catch(e) {}
-            }
-
-            const origin = typeof window !== 'undefined' ? window.location.origin : '';
-
-            try {
-                playerRef.current = new window.YT.Player(playerUniqueId, {
-                    videoId: finalId,
-                    height: '100%',
-                    width: '100%',
-                    host: 'https://www.youtube.com',
-                    playerVars: {
-                        autoplay: 1,
-                        controls: isPodcastMode ? 0 : 1,
-                        playsinline: 1, // OBRIGATÓRIO PARA IPAD PWA
-                        rel: 0,
-                        modestbranding: 1,
-                        origin: origin, // OBRIGATÓRIO PARA SEGURANÇA NO PWA
-                        enablejsapi: 1,
-                        widget_referrer: origin
-                    },
-                    events: {
-                        onReady: (event) => {
-                            if (!isMounted) return;
-                            // No iPad PWA, o play as vezes falha. Tentamos um play forçado:
-                            event.target.playVideo();
-                            setDuration(event.target.getDuration());
-                            setIsPlaying(true);
-                        },
-                        onStateChange: (event) => {
-                            if (!isMounted) return;
-                            if (event.data === window.YT.PlayerState.PLAYING) {
-                                setIsPlaying(true);
-                                startProgressTimer();
-                            } else {
-                                setIsPlaying(false);
-                                stopProgressTimer();
-                            }
-                        },
-                        onError: () => {
-                            // Se der erro de carregamento (círculo infinito), tentamos resetar
-                            console.error("Erro no player do YouTube");
-                        }
-                    }
-                });
-            } catch (err) {
-                console.error("Falha ao criar instância do player:", err);
-            }
-        };
-
-        // Garante que o script da API existe
-        if (!window.YT) {
-            const tag = document.createElement('script');
-            tag.src = "https://www.youtube.com/iframe_api";
-            tag.async = true;
-            document.body.appendChild(tag);
-            window.onYouTubeIframeAPIReady = initPlayer;
-        } else {
-            // Se já existe, damos um tempo para o React renderizar a div antes de chamar o YouTube
-            setTimeout(initPlayer, 150);
-        }
-
-        return () => {
-            isMounted = false;
-            stopProgressTimer();
-            if (playerRef.current) {
-                try { playerRef.current.destroy(); } catch(e) {}
-            }
-        };
-    }, [finalId, isPodcastMode, playerUniqueId]);
-
-    // --- FUNÇÕES AUXILIARES ---
-    const startProgressTimer = () => {
-        stopProgressTimer();
-        progressInterval.current = setInterval(() => {
-            if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
-                const curr = playerRef.current.getCurrentTime();
-                const dur = playerRef.current.getDuration();
-                if (dur > 0) {
-                    setCurrentTime(curr);
-                    setDuration(dur);
-                    setProgress((curr / dur) * 100);
-                }
-            }
-        }, 500); 
-    };
-
-    const stopProgressTimer = () => { if (progressInterval.current) clearInterval(progressInterval.current); };
-    
-    const togglePlay = (e) => {
-        e?.stopPropagation();
-        if (playerRef.current?.getPlayerState) {
-            const state = playerRef.current.getPlayerState();
-            state === 1 ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
-        }
-    };
-
-    const handleSeek = (e) => {
-        e?.stopPropagation();
-        const newVal = Number(e.target.value);
-        if (playerRef.current && duration) {
-            playerRef.current.seekTo((newVal / 100) * duration, true);
-            setProgress(newVal);
-        }
-    };
-    
-    const skipTime = (seconds) => { if (playerRef.current) playerRef.current.seekTo(playerRef.current.getCurrentTime() + seconds, true); };
-    const formatTime = (t) => { if (!t || isNaN(t)) return "0:00"; const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = Math.floor(t%60); return h>0?`${h}:${m<10?'0'+m:m}:${s<10?'0'+s:s}`:`${m}:${s<10?'0'+s:s}`; };
-    const toggleMinimize = (e) => { e?.stopPropagation(); setIsMinimized(!isMinimized); };
-
-    if (!finalId) return null;
-
-    return (
-        <>
-            <div 
-                className={`
-                    fixed transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] z-[50000] overflow-hidden
-                    ${isMinimized 
-                        ? 'bottom-24 left-2 right-2 h-16 rounded-xl shadow-2xl bg-zinc-900 border border-white/10 flex items-center px-3 md:w-[500px] md:left-1/2 md:-translate-x-1/2' 
-                        : 'inset-0 w-screen h-[100dvh] bg-black/95 backdrop-blur-xl flex flex-col justify-center items-center touch-none'
-                    }
-                `}
-                onClick={() => isMinimized && setIsMinimized(false)}
-            >
-                {/* 1. MODO EXPANDIDO (UI) */}
-                <div className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-300 ${isMinimized ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                    <div className="absolute top-0 left-0 right-0 p-6 flex justify-between z-[60000] pointer-events-none">
-                        <button onClick={toggleMinimize} className="pointer-events-auto p-3 bg-black/50 hover:bg-zinc-800 backdrop-blur-md rounded-full text-white border border-white/10"><ChevronLeft size={24} className="-rotate-90" /></button>
-                        <button onClick={onClose} className="pointer-events-auto p-3 bg-black/50 hover:bg-red-900/50 backdrop-blur-md rounded-full text-white border border-white/10"><X size={24} /></button>
-                    </div>
-
-                    {isPodcastMode && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center z-20 p-8 w-full max-w-lg mx-auto">
-                             <div className="absolute inset-0 z-0 opacity-40" style={{ backgroundImage: `url(${video.cover || video.img})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(80px)' }} />
-                             <div className="relative z-10 w-64 h-64 md:w-80 md:h-80 rounded-3xl shadow-2xl overflow-hidden border border-white/10 mb-8">
-                                <img src={video.cover || video.img} className="w-full h-full object-cover" />
-                             </div>
-                             <div className="relative z-10 text-center mb-6 w-full">
-                                <h2 className="text-2xl font-black text-white mb-2 leading-tight drop-shadow-md line-clamp-2">{video.title}</h2>
-                                <p className="text-white/60 text-sm font-bold uppercase tracking-widest">{video.source || video.channel}</p>
-                             </div>
-                             <div className="relative z-10 w-full mb-8">
-                                <input type="range" min="0" max="100" value={progress} onChange={handleSeek} className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer" />
-                                <div className="flex justify-between text-xs font-mono text-white/50 mt-2"><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div>
-                             </div>
-                             <div className="relative z-10 flex items-center gap-8">
-                                 <button onClick={() => skipTime(-15)} className="p-4 rounded-full text-white/50 hover:text-white transition active:scale-90"><span className="text-xs font-bold">-15s</span></button>
-                                 <button onClick={togglePlay} className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black shadow-xl hover:scale-105 active:scale-95 transition-all">
-                                    {isPlaying ? <Pause size={32} fill="black" /> : <Play size={32} fill="black" className="ml-1" />}
-                                 </button>
-                                 <button onClick={() => skipTime(15)} className="p-4 rounded-full text-white/50 hover:text-white transition active:scale-90"><span className="text-xs font-bold">+15s</span></button>
-                             </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* 2. MODO MINIMIZADO (UI) */}
-                <div className={`flex items-center w-full gap-3 transition-opacity duration-300 ${isMinimized ? 'opacity-100 delay-150' : 'opacity-0 pointer-events-none absolute'}`}>
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10"><div className="h-full bg-orange-500 transition-all duration-500 ease-linear" style={{ width: `${progress}%` }} /></div>
-                    <div className="h-10 w-10 bg-zinc-800 rounded-lg overflow-hidden shrink-0 relative"><img src={video.cover || video.img} className="w-full h-full object-cover" /></div>
-                    <div className="flex-1 min-w-0 flex flex-col justify-center py-1"><h4 className="text-white text-xs font-bold truncate leading-tight">{video.title}</h4><p className="text-zinc-400 text-[10px] truncate">{formatTime(currentTime)} / {formatTime(duration)}</p></div>
-                    <div className="flex items-center gap-2">
-                        <button onClick={togglePlay} className="p-2 text-white hover:bg-white/10 rounded-full">{isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}</button>
-                        <button onClick={onClose} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-white/10 rounded-full"><X size={20} /></button>
-                    </div>
-                </div>
-
-                {/* 3. O MOTOR (Reset via ID Dinâmico) */}
-                <div className={`absolute z-10 transition-all duration-300 ${isPodcastMode ? 'w-px h-px opacity-0 pointer-events-none bottom-0 right-0' : (isMinimized ? 'w-px h-px opacity-0 pointer-events-none' : 'w-full h-full flex items-center justify-center')}`}>
-                    {/* AQUI ESTÁ O SEGREDO: O id é playerUniqueId, que muda sempre que o componente monta */}
-                    <div id={playerUniqueId} className="w-full h-full"></div>
-                </div>
+      <div className="w-full max-w-4xl aspect-video bg-zinc-900 rounded-2xl overflow-hidden relative shadow-2xl">
+        {!activated ? (
+          // ESTADO 1: Capa com botão de Play real (Gatilho humano)
+          <div 
+            className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
+            onClick={() => setActivated(true)}
+          >
+            <img src={video.img} className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" />
+            <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all">
+              <Play size={40} fill="white" className="text-white ml-1" />
             </div>
-            
-            {!isMinimized && (<div className="fixed inset-0 bg-black/80 z-[49999] animate-in fade-in duration-500" onClick={toggleMinimize} />)}
-        </>
-    );
+            <p className="mt-4 text-white font-bold uppercase tracking-widest text-sm">Tocar vídeo no iPad</p>
+          </div>
+        ) : (
+          // ESTADO 2: Iframe só é criado AGORA (O iPad aceita pois veio de um clique real)
+          <iframe
+            src={`https://www.youtube.com/embed/${finalId}?autoplay=1&playsinline=1&enablejsapi=1`}
+            className="w-full h-full border-none"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+          />
+        )}
+      </div>
+      
+      <div className="mt-8 text-center px-6">
+        <h2 className="text-white text-xl font-bold">{video.title}</h2>
+      </div>
+    </div>
+  );
 };
 
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL ---
