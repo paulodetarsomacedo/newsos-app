@@ -1,9 +1,7 @@
-// @ts-nocheck
 "use client";
 
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js'
-
 
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
@@ -142,7 +140,7 @@ const YOUTUBE_CATEGORIES = ['Tudo', 'Tech', 'Finanças', 'Ciência'];
 
 // --- ABA PODCAST (NOVA) ---
 
-const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSave, podcastsData, isLoading }: any) => {  
+const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSave, podcastsData, isLoading }) => {
   const [filter, setFilter] = useState('Todos');
   
   // LOGICA 1: CATEGORIAS DINÂMICAS (Baseado no que tem no feed)
@@ -626,7 +624,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
            </div>
 
            {/* LINHA 1: PERFIL + BOTÃO */}
-           <div className="flex justify-between items-center mt-10">
+           <div className="flex justify-between items-center mt-4">
               <div className="flex items-center gap-3">
                  <div onClick={onOpenSettings} className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] cursor-pointer hover:scale-105 transition-transform shadow-lg">
                     <img src="https://ui-avatars.com/api/?name=User&background=000&color=fff" className="rounded-full w-full h-full border-2 border-black" alt="User" />
@@ -950,7 +948,7 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
-const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike }: any) => {
+const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike }) => {
   return (
     <div 
       onClick={() => onClick(news)}
@@ -1440,58 +1438,58 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   const safeVideos = (realVideos && realVideos.length > 0) ? realVideos : YOUTUBE_FEED;
   const displayedVideos = category === 'Tudo' ? safeVideos : safeVideos.filter(v => v.category === category || v.source === category);
 
-  // --- NOVA FUNÇÃO: REDIRECIONAMENTO EXTERNO (FALHA ZERO) ---
-  const handleVideoRedirect = (video) => {
-      // 1. Tenta pegar o ID do vídeo
-      const videoId = video.videoId || getVideoId(video.link);
-      if (!videoId) return;
-
-      // 2. Feedback tátil (vibrar sutilmente se for iPad/iPhone)
-      if (window.navigator.vibrate) window.navigator.vibrate(10);
-
-      // 3. O SEGREDO: Usar o link direto. 
-      // No iPad PWA, isso forçará a saída para o App do YouTube ou Safari,
-      // que são os únicos locais onde o vídeo roda 100% sem travar.
-      const directUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      window.location.href = directUrl;
-  };
-
   // --- LÓGICA DE STORIES CORRIGIDA ---
   const channelStories = useMemo(() => {
-      const processedChannels = new Set();
+      const processedChannels = new Set(); // Para rastrear quais canais já verificamos
       const stories = [];
       
+      // O array safeVideos JÁ VEM ordenado por data (do mais novo pro mais velho)
       safeVideos.forEach(video => {
           const channelName = video.channel || video.source;
+          
+          // Se já processamos esse canal (ou seja, já passamos pelo vídeo mais recente dele),
+          // IGNORA qualquer outro vídeo mais antigo. Não queremos "voltar no tempo".
           if (processedChannels.has(channelName)) return;
+
+          // Marca o canal como processado. 
+          // A partir de agora, ignoramos qualquer outro vídeo desse canal nesta lista.
           processedChannels.add(channelName);
+
+          // Agora verificamos: O vídeo mais recente (este) já foi visto?
           const isSeen = seenStoryIds?.includes(video.id);
+
+          // Se NÃO foi visto, adiciona aos Stories.
+          // Se FOI visto, não fazemos nada (a bolinha desse canal não aparecerá).
           if (!isSeen) {
               stories.push({ ...video, hasNew: true });
           }
       });
+
       return stories;
   }, [safeVideos, seenStoryIds]);
 
-  // Ajustado para abrir externamente ao clicar no Story
   const handleWatchFromStory = (video) => {
       setActiveStory(null); 
-      handleVideoRedirect(video); // <-- Troquei para o Redirecionamento
+      onPlayVideo(video);   
   };
 
   const handleOpenStory = (story) => {
       setActiveStory(story);
+      // Marca como visto imediatamente ao abrir
       if (onMarkAsSeen) onMarkAsSeen(story.id);
   };
 
   return (
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
       
+      {/* Filtro Lateral */}
       <YouTubeVerticalFilter categories={YOUTUBE_CATEGORIES} active={category} onChange={setCategory} isDarkMode={isDarkMode} />
       
-      {/* ÁREA DE STORIES */}
+      {/* --- ÁREA DE STORIES --- */}
+      {/* Só mostra a barra se houver stories novos ou estiver carregando */}
       {(channelStories.length > 0 || isLoading) && (
         <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-hide snap-x items-center px-1 min-h-[120px]">
+            
             {isLoading && channelStories.length === 0 && (
                 [1,2,3,4].map(i => (
                     <div key={i} className="flex flex-col items-center space-y-2 snap-center min-w-[80px]">
@@ -1507,6 +1505,7 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
                 onClick={() => handleOpenStory(story)} 
                 className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0 animate-in zoom-in-50 duration-300"
             >
+                {/* Anel de Gradiente */}
                 <div className={`
                     relative w-[80px] h-[80px] rounded-full p-[3px] transition-transform duration-300 group-hover:scale-105
                     bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600 shadow-md
@@ -1519,6 +1518,7 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
                     />
                 </div>
                 </div>
+                
                 <span className={`text-[10px] font-bold max-w-[80px] truncate text-center transition-colors ${isDarkMode ? 'text-zinc-400 group-hover:text-white' : 'text-zinc-600 group-hover:text-black'}`}>
                     {story.channel || story.source}
                 </span>
@@ -1527,7 +1527,7 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
         </div>
       )}
 
-      {/* LISTA DE VÍDEOS (FEED) */}
+      {/* --- LISTA DE VÍDEOS (FEED) --- */}
       <div className="grid md:grid-cols-1 gap-10">
         {isLoading && safeVideos === YOUTUBE_FEED && (
           <div className="col-span-full flex flex-col items-center justify-center py-10 opacity-50">
@@ -1538,13 +1538,13 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
 
         {displayedVideos.map((video) => {
             const isSaved = savedItems?.some(i => i.id === video.id);
+            // Verifica se foi visto (para diminuir opacidade na lista)
             const isSeen = seenStoryIds?.includes(video.id);
 
             return (
                 <div 
                   key={video.id} 
-                  // --- MUDANÇA: onClick agora abre o link diretamente ---
-                  onClick={() => handleVideoRedirect(video)} 
+                  onClick={() => onPlayVideo(video)} 
                   className={`group relative md:w-[520px] rounded-3xl overflow-hidden border shadow-lg hover:shadow-xl transition-all cursor-pointer ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'} ${isSeen ? 'opacity-60 grayscale-[0.5]' : ''}`}
                 >
                     <div className={`flex items-center justify-between px-5 py-4 border-b ${isDarkMode ? 'border-white/5' : 'border-zinc-100'}`}>
@@ -1560,13 +1560,25 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
                             </div>
                             <div>
                                 <span className={`text-xs font-bold block ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                                    {video.channel || video.source}
-                                </span>
-                                <span className="text-[10px] uppercase font-bold text-zinc-500">
-                                    {new Date(video.rawDate).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                    <span className="mx-1 opacity-50">•</span>
-                                    {new Date(video.rawDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                </span>
+        {video.channel || video.source}
+    </span>
+    
+    <span className="text-[10px] uppercase font-bold text-zinc-500">
+        {/* Data (Ex: 20 de dez. de 2025) */}
+        {new Date(video.rawDate).toLocaleDateString('pt-BR', { 
+            day: 'numeric', 
+            month: 'short', 
+            year: 'numeric' 
+        })}
+        
+        {/* Separador e Hora (Ex: • 14:30) */}
+        <span className="mx-1 opacity-50">•</span>
+        
+        {new Date(video.rawDate).toLocaleTimeString('pt-BR', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        })}
+    </span>
                             </div>
                         </div>
                         <MoreHorizontal size={20} className="text-zinc-400" />
@@ -1578,19 +1590,13 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); if (onToggleSave) onToggleSave(video); }} className={`absolute bottom-3 right-3 z-20 p-2.5 rounded-full backdrop-blur-xl shadow-xl transition-all active:scale-90 ${isSaved ? 'bg-purple-600 text-white' : 'bg-black/50 text-white'}`}><Bookmark size={18} fill={isSaved ? "currentColor" : "none"} /></button>
                     </div>
-                    <div className="px-5 py-4">
-                        <h3 className={`text-lg font-bold leading-tight mb-2 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{video.title}</h3>
-                        {/* Indicador de abertura externa (opcional, para avisar o usuário) */}
-                        <div className="flex items-center gap-1.5 opacity-30 group-hover:opacity-100 transition-opacity">
-                            <Share size={10} />
-                            <span className="text-[9px] font-black uppercase tracking-widest">Abrir no YouTube</span>
-                        </div>
-                    </div>
+                    <div className="px-5 py-4"><h3 className={`text-lg font-bold leading-tight mb-2 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{video.title}</h3></div>
                 </div>
             )
         })}
       </div>
 
+      {/* --- RENDERIZA O STORY SE ESTIVER ATIVO --- */}
       {activeStory && (
           <YouTubeStoryModal 
               story={activeStory} 
@@ -1598,9 +1604,11 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
               onWatchVideo={handleWatchFromStory} 
           />
       )}
+
     </div>
   );
 }
+
 
 // ==========================================================
 // FUNÇÕES DE INTELIGÊNCIA ARTIFICIAL (V3.1 - 4 TÓPICOS)
@@ -2868,7 +2876,263 @@ const extractImageFromContent = (content, enclosure) => {
 };
 
 
+// --- COMPONENTE: MODAL DE VÍDEO/PODCAST COM MINI-PLAYER E PROGRESSO (V7 - FINAL) ---
+const VideoPlayerModal = ({ video, onClose }) => {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    
+    // --- O SEGREDO: Versão do Player ---
+    // Toda vez que esse número mudar, o React destrói o player antigo e cria um novo.
+    const [playerVersion, setPlayerVersion] = useState(1);
+    const [isAppVisible, setIsAppVisible] = useState(true);
 
+    const playerRef = useRef(null); 
+    const progressInterval = useRef(null);
+    // Usamos um ID fixo para o container, mas o React vai recriar o elemento pelo key
+    const containerId = "yt-player-container";
+
+    const isPodcastMode = video.category === 'Podcast' || video.isPodcast;
+    const finalId = video.videoId || getVideoId(video.link);
+
+    // 1. DETECTOR DE VISIBILIDADE (CORREÇÃO PARA O iOS "CONGELAR")
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                // Usuário minimizou o app: PAUSA E MARCA COMO INVISÍVEL
+                setIsAppVisible(false);
+                if (playerRef.current && typeof playerRef.current.pauseVideo === 'function') {
+                    playerRef.current.pauseVideo();
+                }
+            } else if (document.visibilityState === 'visible') {
+                // Usuário voltou: MARCA COMO VISÍVEL E FORÇA RE-RENDER
+                setIsAppVisible(true);
+                // Incrementa a versão para forçar o React a desmontar e montar de novo
+                setPlayerVersion(v => v + 1);
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, []);
+
+    // 2. CARREGAR API (Global)
+    useEffect(() => {
+        if (!window.YT) {
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            tag.async = true;
+            document.body.appendChild(tag);
+        }
+    }, []);
+
+    // 3. INICIALIZAR PLAYER (Executa toda vez que playerVersion muda)
+    useEffect(() => {
+        if (!finalId || !isAppVisible) return;
+
+        let isMounted = true;
+
+        const initPlayer = () => {
+            // Se o componente já desmontou, cancela
+            if (!isMounted) return;
+
+            // Se a API ainda não existe, tenta de novo em breve
+            if (!window.YT || !window.YT.Player) {
+                setTimeout(initPlayer, 100);
+                return;
+            }
+
+            // Destrói anterior se existir (Segurança)
+            if (playerRef.current) {
+                try { playerRef.current.destroy(); } catch(e) {}
+                playerRef.current = null;
+            }
+
+            const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+            try {
+                playerRef.current = new window.YT.Player(containerId, {
+                    videoId: finalId,
+                    height: '100%',
+                    width: '100%',
+                    host: 'https://www.youtube.com',
+                    playerVars: {
+                        autoplay: 1,
+                        controls: isPodcastMode ? 0 : 1,
+                        playsinline: 1, // CRUCIAL
+                        rel: 0,
+                        modestbranding: 1,
+                        origin: origin,
+                        enablejsapi: 1,
+                        widget_referrer: origin,
+                        fs: 1
+                    },
+                    events: {
+                        onReady: (event) => {
+                            if(!isMounted) return;
+                            try { event.target.playVideo(); } catch(e) {}
+                            setDuration(event.target.getDuration());
+                            setIsPlaying(true);
+                        },
+                        onStateChange: (event) => {
+                            if(!isMounted) return;
+                            if (event.data === 1) { // Playing
+                                setIsPlaying(true);
+                                startProgressTimer();
+                            } else {
+                                setIsPlaying(false);
+                                stopProgressTimer();
+                            }
+                        },
+                        onError: (e) => {
+                            console.error("Erro Player:", e);
+                            // Se der erro 100/150 (vídeo restrito), não trava o app
+                            stopProgressTimer();
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error("Erro fatal init:", err);
+            }
+        };
+
+        // Pequeno delay para garantir que o React pintou a div nova
+        const timer = setTimeout(initPlayer, 50);
+
+        return () => {
+            isMounted = false;
+            clearTimeout(timer);
+            stopProgressTimer();
+            if (playerRef.current) {
+                try { playerRef.current.destroy(); } catch(e) {}
+                playerRef.current = null;
+            }
+        };
+    }, [finalId, isPodcastMode, playerVersion, isAppVisible]); // Dependência crucial: playerVersion
+
+    // --- FUNÇÕES AUXILIARES ---
+    const startProgressTimer = () => {
+        stopProgressTimer();
+        progressInterval.current = setInterval(() => {
+            if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+                const curr = playerRef.current.getCurrentTime();
+                const dur = playerRef.current.getDuration();
+                if (dur > 0) {
+                    setCurrentTime(curr);
+                    setDuration(dur);
+                    setProgress((curr / dur) * 100);
+                }
+            }
+        }, 500); 
+    };
+    const stopProgressTimer = () => { if (progressInterval.current) clearInterval(progressInterval.current); };
+    
+    const togglePlay = (e) => {
+        e?.stopPropagation();
+        if (playerRef.current?.getPlayerState) {
+            const state = playerRef.current.getPlayerState();
+            state === 1 ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
+        }
+    };
+    const handleSeek = (e) => {
+        e?.stopPropagation();
+        const newVal = Number(e.target.value);
+        if (playerRef.current && duration) {
+            playerRef.current.seekTo((newVal / 100) * duration, true);
+            setProgress(newVal);
+        }
+    };
+    const skipTime = (seconds) => { if (playerRef.current) playerRef.current.seekTo(playerRef.current.getCurrentTime() + seconds, true); };
+    const formatTime = (t) => { if (!t || isNaN(t)) return "0:00"; const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = Math.floor(t%60); return h>0?`${h}:${m<10?'0'+m:m}:${s<10?'0'+s:s}`:`${m}:${s<10?'0'+s:s}`; };
+    const toggleMinimize = (e) => { e?.stopPropagation(); setIsMinimized(!isMinimized); };
+
+    if (!finalId) return null;
+
+    return (
+        <>
+            <div 
+                className={`
+                    fixed transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] z-[50000] overflow-hidden
+                    ${isMinimized 
+                        ? 'bottom-24 left-2 right-2 h-16 rounded-xl shadow-2xl bg-zinc-900 border border-white/10 flex items-center px-3 md:w-[500px] md:left-1/2 md:-translate-x-1/2' 
+                        : 'inset-0 w-screen h-[100dvh] bg-black/95 backdrop-blur-xl flex flex-col justify-center items-center touch-none'
+                    }
+                `}
+                onClick={() => isMinimized && setIsMinimized(false)}
+            >
+                {/* 1. MODO EXPANDIDO */}
+                <div className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-300 ${isMinimized ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                    
+                    <div className="absolute top-0 left-0 right-0 p-6 flex justify-between z-[60000] pointer-events-none">
+                        <button onClick={toggleMinimize} className="pointer-events-auto p-3 bg-black/50 hover:bg-zinc-800 backdrop-blur-md rounded-full text-white border border-white/10"><ChevronLeft size={24} className="-rotate-90" /></button>
+                        <button onClick={onClose} className="pointer-events-auto p-3 bg-black/50 hover:bg-red-900/50 backdrop-blur-md rounded-full text-white border border-white/10"><X size={24} /></button>
+                    </div>
+
+                    {isPodcastMode && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center z-20 p-8 w-full max-w-lg mx-auto">
+                             <div className="absolute inset-0 z-0 opacity-40" style={{ backgroundImage: `url(${video.cover || video.img})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(80px)' }} />
+                             <div className="relative z-10 w-64 h-64 md:w-80 md:h-80 rounded-3xl shadow-2xl overflow-hidden border border-white/10 mb-8">
+                                <img src={video.cover || video.img} className="w-full h-full object-cover" />
+                             </div>
+                             <div className="relative z-10 text-center mb-6 w-full">
+                                <h2 className="text-2xl font-black text-white mb-2 leading-tight drop-shadow-md line-clamp-2">{video.title}</h2>
+                                <p className="text-white/60 text-sm font-bold uppercase tracking-widest">{video.source || video.channel}</p>
+                             </div>
+                             <div className="relative z-10 w-full mb-8">
+                                <input type="range" min="0" max="100" value={progress} onChange={handleSeek} className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer" />
+                                <div className="flex justify-between text-xs font-mono text-white/50 mt-2"><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div>
+                             </div>
+                             <div className="relative z-10 flex items-center gap-8">
+                                 <button onClick={() => skipTime(-15)} className="p-4 rounded-full text-white/50 hover:text-white transition active:scale-90"><span className="text-xs font-bold">-15s</span></button>
+                                 <button onClick={togglePlay} className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black shadow-xl hover:scale-105 active:scale-95 transition-all">
+                                    {isPlaying ? <Pause size={32} fill="black" /> : <Play size={32} fill="black" className="ml-1" />}
+                                 </button>
+                                 <button onClick={() => skipTime(15)} className="p-4 rounded-full text-white/50 hover:text-white transition active:scale-90"><span className="text-xs font-bold">+15s</span></button>
+                             </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* 2. MODO MINIMIZADO */}
+                <div className={`flex items-center w-full gap-3 transition-opacity duration-300 ${isMinimized ? 'opacity-100 delay-150' : 'opacity-0 pointer-events-none absolute'}`}>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10"><div className="h-full bg-orange-500 transition-all duration-500 ease-linear" style={{ width: `${progress}%` }} /></div>
+                    <div className="h-10 w-10 bg-zinc-800 rounded-lg overflow-hidden shrink-0 relative"><img src={video.cover || video.img} className="w-full h-full object-cover" /></div>
+                    <div className="flex-1 min-w-0 flex flex-col justify-center py-1"><h4 className="text-white text-xs font-bold truncate leading-tight">{video.title}</h4><p className="text-zinc-400 text-[10px] truncate">{formatTime(currentTime)} / {formatTime(duration)}</p></div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={togglePlay} className="p-2 text-white hover:bg-white/10 rounded-full">{isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}</button>
+                        <button onClick={onClose} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-white/10 rounded-full"><X size={20} /></button>
+                    </div>
+                </div>
+
+                {/* 3. O MOTOR (Reset via KEY) */}
+                <div className={`absolute z-10 transition-all duration-300 ${isPodcastMode ? 'w-px h-px opacity-0 pointer-events-none bottom-0 right-0' : (isMinimized ? 'w-px h-px opacity-0 pointer-events-none' : 'w-full h-full flex items-center justify-center')}`}>
+                    
+                    {/* 
+                       AQUI ESTÁ A CORREÇÃO:
+                       O "key={playerVersion}" força o React a apagar completamente a div 
+                       e criar uma nova quando o usuário volta para o app.
+                       Isso limpa qualquer "conexão zumbi" do iOS.
+                    */}
+                    {isAppVisible && (
+                        <div key={playerVersion} id={containerId} className="w-full h-full"></div>
+                    )}
+
+                    {!isAppVisible && (
+                        <div className="w-full h-full bg-black flex items-center justify-center">
+                            <Loader2 className="animate-spin text-white/20" />
+                        </div>
+                    )}
+                </div>
+            </div>
+            
+            {!isMinimized && (<div className="fixed inset-0 bg-black/80 z-[49999] animate-in fade-in duration-500" onClick={toggleMinimize} />)}
+        </>
+    );
+};
 
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
@@ -3007,52 +3271,55 @@ export default function NewsOS_V12() {
   const [playingVideo, setPlayingVideo] = useState(null); 
   const [seenStoryIds, setSeenStoryIds] = useState([]);
   const [playingAudio, setPlayingAudio] = useState(null);
-  const [mounted, setMounted] = useState(false);
+  
+  // --- ESTADO NOVO: FILTRO DE FONTE (ELEVADO DA FEEDTAB) ---
   const [sourceFilter, setSourceFilter] = useState('all');
-
-  // --- FUNÇÃO MAESTRO: ABRE TUDO NO APP DO YOUTUBE (IPAD FIX) ---
-  const handleMediaClick = (item) => {
-      const videoId = item.videoId || getVideoId(item.link || item.url);
-      
-      // Se não for YouTube (ex: um link de site normal ou MP3)
-      if (!videoId) {
-          if (item.type === 'audio' && item.link) {
-              setPlayingAudio(item);
-          } else {
-              window.open(item.link || item.url, '_blank');
-          }
-          return;
-      }
-
-      // Se for YouTube (Vídeo ou Podcast): Abre o App Nativo
-      const directUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      
-      if (window.navigator.vibrate) window.navigator.vibrate(10);
-      
-      // Isso minimiza o PWA e abre o vídeo no Player oficial do iPad
-      window.location.href = directUrl;
-  };
-
-  // --- EFEITOS ---
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Chama o fetch apenas quando o componente estiver montado e tiver feeds
-  useEffect(() => {
-    if (mounted) {
-        fetchFeeds();
-    }
-  }, [mounted]);
 
   const markStoryAsSeen = (id) => {
     if (!seenStoryIds.includes(id)) {
       setSeenStoryIds(prev => [...prev, id]);
     }
   };
+  
+  const handleSaveToArchive = (article, note) => {
+      setSavedItems(prev => {
+          const filtered = prev.filter(i => i.id !== article.id);
+          return [{
+              ...article,
+              category: 'Arquivo', 
+              isArchived: true,
+              userNote: note,
+              date: 'Editado agora'
+          }, ...filtered];
+      });
+      alert("Artigo salvo no Arquivo!");
+  };
 
+  const [userFeeds, setUserFeeds] = useState([
+      { id: 1, name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', category: 'Tech', display: { feed: true } },
+      { id: 2, name: 'G1', url: 'https://g1.globo.com/dynamo/rss2.xml', category: 'Local', display: { feed: true } }
+  ]);
+  const [realNews, setRealNews] = useState([]); 
+  const [realVideos, setRealVideos] = useState([]);
+  const [isLoadingFeeds, setIsLoadingFeeds] = useState(false);
+  const [realPodcasts, setRealPodcasts] = useState([]);
+  const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
+  const [readHistory, setReadHistory] = useState([]);
+  const [likedItems, setLikedItems] = useState([]); 
+
+
+
+  // NOVA FUNÇÃO PARA ALTERNAR O LIKE
   const handleToggleLike = (article) => {
-    setLikedItems(prev => prev.includes(article.id) ? prev.filter(id => id !== article.id) : [...prev, article.id]);
+    setLikedItems(prev => {
+      if (prev.includes(article.id)) {
+        // Se já curtiu, remove (descurtir)
+        return prev.filter(id => id !== article.id);
+      } else {
+        // Se não curtiu, adiciona
+        return [...prev, article.id];
+      }
+    });
   };
 
 
@@ -3102,10 +3369,10 @@ export default function NewsOS_V12() {
             }
 
             // --- DEFINIÇÃO DO LIMITE DINÂMICO ---
-            let LIMIT = 20; // Padrão (Notícias)
+            let LIMIT = 12; // Padrão (Notícias)
             
             if (feed.type === 'podcast') {
-                LIMIT = 1; // Podcasts: Apenas os 5 mais recentes
+                LIMIT = 2; // Podcasts: Apenas os 5 mais recentes
             } else if (feed.type === 'youtube' || isFeedYoutube) {
                 LIMIT = 3; // Vídeos: Apenas os 10 mais recentes
             }
@@ -3243,7 +3510,6 @@ export default function NewsOS_V12() {
     }
   }, [activeTab]);
 
-  if (!mounted) return null; 
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       
@@ -3273,15 +3539,23 @@ export default function NewsOS_V12() {
             )}
 
             {activeTab === 'podcast' && (
-    <PodcastTab 
-        isDarkMode={isDarkMode} 
-        podcastsData={realPodcasts} 
-        isLoading={isLoadingFeeds}
-        onPlayAudio={handleMediaClick} // <--- Conectado
-        savedItems={savedItems}
-        onToggleSave={handleToggleSave}
-    />
-)}
+                <PodcastTab 
+                    isDarkMode={isDarkMode} 
+                    podcastsData={realPodcasts} 
+                    isLoading={isLoadingFeeds}
+                    onPlayAudio={(pod) => {
+                        if (pod.type === 'video') {
+                            setPlayingAudio(null); 
+                            setPlayingVideo(pod); 
+                        } else {
+                            setPlayingVideo(null);
+                            setPlayingAudio(pod);
+                        }
+                    }}
+                    savedItems={savedItems}
+                    onToggleSave={handleToggleSave}
+                />
+            )}
             
             {activeTab === 'feed' && (
                 <FeedTab 
@@ -3293,7 +3567,7 @@ export default function NewsOS_V12() {
                                         readHistory={readHistory}
                     newsData={realNews} 
                     isLoading={isLoadingFeeds}
-                    onPlayVideo={handleMediaClick}
+                    onPlayVideo={setPlayingVideo}
                     sourceFilter={sourceFilter}
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}       // A lista de IDs curtidos
@@ -3311,7 +3585,7 @@ export default function NewsOS_V12() {
                     isDarkMode={isDarkMode} 
                     realVideos={realVideos} 
                     isLoading={isLoadingFeeds} 
-                    onPlayVideo={handleMediaClick}
+                    onPlayVideo={setPlayingVideo}
                     seenStoryIds={seenStoryIds}
                     onMarkAsSeen={markStoryAsSeen}
                 />
@@ -3402,7 +3676,13 @@ export default function NewsOS_V12() {
       
       {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen}  />}
 
-      
+      {/* MODAL DE VÍDEO / PODCAST */}
+      {playingVideo && (
+          <VideoPlayerModal 
+              video={playingVideo} 
+              onClose={() => setPlayingVideo(null)} 
+          />
+      )}
 
       {/* PLAYER DE ÁUDIO GLOBAL */}
       {playingAudio && (
@@ -3728,7 +4008,7 @@ const resolveBrandColor = (sourceName, isDarkMode) => {
 };
 
 // 2. Componentes de Visualização MEMOIZADOS (evita re-render desnecessário)
-const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontSize }: any) => {
+const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontSize }) => {
     const data = readerContent || article;
     if (!data) return null;
 
@@ -3777,7 +4057,7 @@ const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontS
     );
 });
 
-const AppleReaderView = React.memo(({ article, readerContent, isDarkMode, fontSize }: any) => {
+const AppleReaderView = React.memo(({ article, readerContent, isDarkMode, fontSize }) => {
     const data = readerContent || article;
     if (!data) return null;
     return (
@@ -3791,7 +4071,7 @@ const AppleReaderView = React.memo(({ article, readerContent, isDarkMode, fontSi
     );
 });
 
-const AIAnalysisView = React.memo(({ article, isDarkMode }: any) => (
+const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
       <div className="max-w-2xl mx-auto p-8 pt-12 animate-in fade-in slide-in-from-bottom-4 transform-gpu">
           <div className={`p-6 rounded-3xl border mb-8 ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200 shadow-xl'}`}>
               <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center"><BrainCircuit size={20} className="text-white" /></div><div><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>NewsOS Intelligence</h3><p className="text-xs opacity-60">Análise IA</p></div></div>
@@ -3822,7 +4102,7 @@ const translateText = async (text, targetLang = 'pt') => {
 // Este componente gerencia seu próprio estado de arrasto (drag) para não
 // causar re-renderizações pesadas no ArticlePanel principal.
 
-const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkMode } : any) => {
+const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkMode }) => {
     // Se não tiver artigo, não exibe nada
     if (!article) return null;
 
@@ -3946,7 +4226,7 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
 });
 
 
-const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }: any) => {
+const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
   const [readerContent, setReaderContent] = useState(null); 
