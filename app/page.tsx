@@ -1440,58 +1440,58 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   const safeVideos = (realVideos && realVideos.length > 0) ? realVideos : YOUTUBE_FEED;
   const displayedVideos = category === 'Tudo' ? safeVideos : safeVideos.filter(v => v.category === category || v.source === category);
 
+  // --- NOVA FUNÇÃO: REDIRECIONAMENTO EXTERNO (FALHA ZERO) ---
+  const handleVideoRedirect = (video) => {
+      // 1. Tenta pegar o ID do vídeo
+      const videoId = video.videoId || getVideoId(video.link);
+      if (!videoId) return;
+
+      // 2. Feedback tátil (vibrar sutilmente se for iPad/iPhone)
+      if (window.navigator.vibrate) window.navigator.vibrate(10);
+
+      // 3. O SEGREDO: Usar o link direto. 
+      // No iPad PWA, isso forçará a saída para o App do YouTube ou Safari,
+      // que são os únicos locais onde o vídeo roda 100% sem travar.
+      const directUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      window.location.href = directUrl;
+  };
+
   // --- LÓGICA DE STORIES CORRIGIDA ---
   const channelStories = useMemo(() => {
-      const processedChannels = new Set(); // Para rastrear quais canais já verificamos
+      const processedChannels = new Set();
       const stories = [];
       
-      // O array safeVideos JÁ VEM ordenado por data (do mais novo pro mais velho)
       safeVideos.forEach(video => {
           const channelName = video.channel || video.source;
-          
-          // Se já processamos esse canal (ou seja, já passamos pelo vídeo mais recente dele),
-          // IGNORA qualquer outro vídeo mais antigo. Não queremos "voltar no tempo".
           if (processedChannels.has(channelName)) return;
-
-          // Marca o canal como processado. 
-          // A partir de agora, ignoramos qualquer outro vídeo desse canal nesta lista.
           processedChannels.add(channelName);
-
-          // Agora verificamos: O vídeo mais recente (este) já foi visto?
           const isSeen = seenStoryIds?.includes(video.id);
-
-          // Se NÃO foi visto, adiciona aos Stories.
-          // Se FOI visto, não fazemos nada (a bolinha desse canal não aparecerá).
           if (!isSeen) {
               stories.push({ ...video, hasNew: true });
           }
       });
-
       return stories;
   }, [safeVideos, seenStoryIds]);
 
+  // Ajustado para abrir externamente ao clicar no Story
   const handleWatchFromStory = (video) => {
       setActiveStory(null); 
-      onPlayVideo(video);   
+      handleVideoRedirect(video); // <-- Troquei para o Redirecionamento
   };
 
   const handleOpenStory = (story) => {
       setActiveStory(story);
-      // Marca como visto imediatamente ao abrir
       if (onMarkAsSeen) onMarkAsSeen(story.id);
   };
 
   return (
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
       
-      {/* Filtro Lateral */}
       <YouTubeVerticalFilter categories={YOUTUBE_CATEGORIES} active={category} onChange={setCategory} isDarkMode={isDarkMode} />
       
-      {/* --- ÁREA DE STORIES --- */}
-      {/* Só mostra a barra se houver stories novos ou estiver carregando */}
+      {/* ÁREA DE STORIES */}
       {(channelStories.length > 0 || isLoading) && (
         <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-hide snap-x items-center px-1 min-h-[120px]">
-            
             {isLoading && channelStories.length === 0 && (
                 [1,2,3,4].map(i => (
                     <div key={i} className="flex flex-col items-center space-y-2 snap-center min-w-[80px]">
@@ -1507,7 +1507,6 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
                 onClick={() => handleOpenStory(story)} 
                 className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0 animate-in zoom-in-50 duration-300"
             >
-                {/* Anel de Gradiente */}
                 <div className={`
                     relative w-[80px] h-[80px] rounded-full p-[3px] transition-transform duration-300 group-hover:scale-105
                     bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600 shadow-md
@@ -1520,7 +1519,6 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
                     />
                 </div>
                 </div>
-                
                 <span className={`text-[10px] font-bold max-w-[80px] truncate text-center transition-colors ${isDarkMode ? 'text-zinc-400 group-hover:text-white' : 'text-zinc-600 group-hover:text-black'}`}>
                     {story.channel || story.source}
                 </span>
@@ -1529,7 +1527,7 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
         </div>
       )}
 
-      {/* --- LISTA DE VÍDEOS (FEED) --- */}
+      {/* LISTA DE VÍDEOS (FEED) */}
       <div className="grid md:grid-cols-1 gap-10">
         {isLoading && safeVideos === YOUTUBE_FEED && (
           <div className="col-span-full flex flex-col items-center justify-center py-10 opacity-50">
@@ -1540,13 +1538,13 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
 
         {displayedVideos.map((video) => {
             const isSaved = savedItems?.some(i => i.id === video.id);
-            // Verifica se foi visto (para diminuir opacidade na lista)
             const isSeen = seenStoryIds?.includes(video.id);
 
             return (
                 <div 
                   key={video.id} 
-                  onClick={() => onPlayVideo(video)} 
+                  // --- MUDANÇA: onClick agora abre o link diretamente ---
+                  onClick={() => handleVideoRedirect(video)} 
                   className={`group relative md:w-[520px] rounded-3xl overflow-hidden border shadow-lg hover:shadow-xl transition-all cursor-pointer ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'} ${isSeen ? 'opacity-60 grayscale-[0.5]' : ''}`}
                 >
                     <div className={`flex items-center justify-between px-5 py-4 border-b ${isDarkMode ? 'border-white/5' : 'border-zinc-100'}`}>
@@ -1562,25 +1560,13 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
                             </div>
                             <div>
                                 <span className={`text-xs font-bold block ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-        {video.channel || video.source}
-    </span>
-    
-    <span className="text-[10px] uppercase font-bold text-zinc-500">
-        {/* Data (Ex: 20 de dez. de 2025) */}
-        {new Date(video.rawDate).toLocaleDateString('pt-BR', { 
-            day: 'numeric', 
-            month: 'short', 
-            year: 'numeric' 
-        })}
-        
-        {/* Separador e Hora (Ex: • 14:30) */}
-        <span className="mx-1 opacity-50">•</span>
-        
-        {new Date(video.rawDate).toLocaleTimeString('pt-BR', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        })}
-    </span>
+                                    {video.channel || video.source}
+                                </span>
+                                <span className="text-[10px] uppercase font-bold text-zinc-500">
+                                    {new Date(video.rawDate).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    <span className="mx-1 opacity-50">•</span>
+                                    {new Date(video.rawDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
                             </div>
                         </div>
                         <MoreHorizontal size={20} className="text-zinc-400" />
@@ -1592,13 +1578,19 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); if (onToggleSave) onToggleSave(video); }} className={`absolute bottom-3 right-3 z-20 p-2.5 rounded-full backdrop-blur-xl shadow-xl transition-all active:scale-90 ${isSaved ? 'bg-purple-600 text-white' : 'bg-black/50 text-white'}`}><Bookmark size={18} fill={isSaved ? "currentColor" : "none"} /></button>
                     </div>
-                    <div className="px-5 py-4"><h3 className={`text-lg font-bold leading-tight mb-2 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{video.title}</h3></div>
+                    <div className="px-5 py-4">
+                        <h3 className={`text-lg font-bold leading-tight mb-2 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{video.title}</h3>
+                        {/* Indicador de abertura externa (opcional, para avisar o usuário) */}
+                        <div className="flex items-center gap-1.5 opacity-30 group-hover:opacity-100 transition-opacity">
+                            <Share size={10} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">Abrir no YouTube</span>
+                        </div>
+                    </div>
                 </div>
             )
         })}
       </div>
 
-      {/* --- RENDERIZA O STORY SE ESTIVER ATIVO --- */}
       {activeStory && (
           <YouTubeStoryModal 
               story={activeStory} 
@@ -1606,11 +1598,9 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
               onWatchVideo={handleWatchFromStory} 
           />
       )}
-
     </div>
   );
 }
-
 
 // ==========================================================
 // FUNÇÕES DE INTELIGÊNCIA ARTIFICIAL (V3.1 - 4 TÓPICOS)
