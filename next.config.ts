@@ -2,29 +2,36 @@
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
   cacheOnFrontEndNav: true,
-  aggressiveFrontEndNavCaching: true,
+  aggressiveFrontEndNavCaching: false, // DESATIVE ISSO (Causa conflitos em iframes)
   reloadOnOnline: true,
   swcMinify: true,
   disable: process.env.NODE_ENV === "development",
+  
+  // --- O SEGREDO ESTÁ AQUI: BLOQUEAR CACHE DO YOUTUBE ---
   workboxOptions: {
     disableDevLogs: true,
+    // Impede o Service Worker de interceptar links do YouTube e Google
+    runtimeCaching: [
+      {
+        urlPattern: /^https:\/\/(www\.)?youtube\.com\/.*/i,
+        handler: 'NetworkOnly', // Força a buscar SEMPRE na internet, nunca no cache
+      },
+      {
+        urlPattern: /^https:\/\/(www\.)?youtube-nocookie\.com\/.*/i,
+        handler: 'NetworkOnly',
+      },
+      {
+        urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
+        handler: 'CacheFirst',
+      }
+    ],
   },
 });
 
 const nextConfig = {
-  // Força o Webpack e ignora avisos de pacotes
-  webpack: (config) => {
-    config.resolve.fallback = { fs: false, net: false, tls: false };
-    return config;
-  },
-  // IGNORA ERROS DE TYPESCRIPT
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  // IGNORA ERROS DE LINT (ESLINT)
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  reactStrictMode: true,
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
   images: {
     unoptimized: true,
     remotePatterns: [{ protocol: "https", hostname: "**" }],
