@@ -646,7 +646,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
               <button 
                 onClick={() => setIsSearchOpen(!isSearchOpen)}
                 className={`
-                    relative z-[60] p-2.5 rounded-xl transition-all duration-500 flex items-center gap-2 border -mr-6 pt-4
+                    relative z-[60] p-2.5 rounded-xl transition-all duration-500 flex items-center gap-2 border -mr-6 pt-50
                     ${isSearchOpen 
                         ? 'bg-white text-black border-white shadow-[0_0_30px_rgba(255,255,255,0.2)] scale-90' 
                         : 'bg-white/5 border-white/10 text-white hover:bg-white/10 active:scale-95'}
