@@ -2877,95 +2877,125 @@ const extractImageFromContent = (content, enclosure) => {
 };
 
 
-const VideoPlayerModal = ({ video, onClose }) => {
-    const [isPlayerReady, setIsPlayerReady] = useState(false);
-    const playerRef = useRef(null);
-    const containerId = useMemo(() => `player-${Math.random().toString(36).substr(2, 9)}`, []);
-
+const VideoPlayerModal = ({ video, onClose, isDarkMode }) => {
+    const [isActivated, setIsActivated] = useState(false);
+    const [loadError, setLoadError] = useState(false);
+    const containerRef = useRef(null);
+    
+    // Geramos um Token de sessão único para este vídeo
+    const sessionToken = useMemo(() => Math.random().toString(36).substring(7), [video.id]);
     const finalId = video.videoId || getVideoId(video.link);
 
+    // --- MOTOR DE INJEÇÃO (BURLA O CACHE DO IPAD) ---
     useEffect(() => {
-        if (!finalId) return;
+        if (isActivated && containerRef.current && finalId) {
+            // Limpamos o container fisicamente
+            containerRef.current.innerHTML = '';
 
-        // 1. Carrega o script da API do YouTube se não existir
-        if (!window.YT) {
-            const tag = document.createElement('script');
-            tag.src = "https://www.youtube.com/iframe_api";
-            const firstScriptTag = document.getElementsByTagName('script')[0];
-            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            const iframe = document.createElement('iframe');
+            const origin = window.location.origin;
+            
+            // Usamos o domínio nocookie + parâmetros de reset de cache (v=...)
+            const videoUrl = `https://www.youtube-nocookie.com/embed/${finalId}?` + 
+                             `autoplay=1&` +
+                             `playsinline=1&` +
+                             `enablejsapi=1&` +
+                             `origin=${origin}&` +
+                             `widget_referrer=${origin}&` +
+                             `rel=0&` +
+                             `v=${sessionToken}`; // Força o YouTube a tratar como nova requisição
+
+            iframe.setAttribute('src', videoUrl);
+            iframe.setAttribute('frameborder', '0');
+            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; compute-pressure');
+            iframe.setAttribute('allowfullscreen', 'true');
+            
+            // Isso impede que o iPad tente "ser esperto" e use o cache do Safari
+            iframe.setAttribute('referrerpolicy', 'no-referrer');
+            
+            iframe.style.width = '100%';
+            iframe.style.height = '100%';
+            iframe.style.position = 'absolute';
+            iframe.style.top = '0';
+            iframe.style.left = '0';
+            iframe.style.background = 'black';
+            iframe.style.borderRadius = '1.5rem';
+
+            containerRef.current.appendChild(iframe);
+
+            // Se após 10 segundos ainda estiver no loading, mostra o botão de escape
+            const timer = setTimeout(() => setLoadError(true), 10000);
+            return () => clearTimeout(timer);
         }
-
-        // 2. Função que a API chama quando está pronta
-        const onYouTubeIframeAPIReady = () => {
-            playerRef.current = new window.YT.Player(containerId, {
-                videoId: finalId,
-                host: 'https://www.youtube.com', // Força o domínio seguro
-                playerVars: {
-                    autoplay: 1,
-                    playsinline: 1,      // Vital para iOS
-                    origin: window.location.origin, // Identifica seu app para o Google
-                    enablejsapi: 1,
-                    rel: 0,
-                    modestbranding: 1
-                },
-                events: {
-                    onReady: (event) => {
-                        setIsPlayerReady(true);
-                        event.target.playVideo();
-                    },
-                    onError: (e) => {
-                        console.error("Erro na API do YouTube:", e.data);
-                    }
-                }
-            });
-        };
-
-        // Se o script já carregou anteriormente, inicializa direto
-        if (window.YT && window.YT.Player) {
-            onYouTubeIframeAPIReady();
-        } else {
-            window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
-        }
-
-        return () => {
-            if (playerRef.current) {
-                try { playerRef.current.destroy(); } catch(e) {}
-            }
-        };
-    }, [finalId, containerId]);
+    }, [isActivated, finalId, sessionToken]);
 
     if (!finalId) return null;
 
     return (
-        <div className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
-            {/* Header com o botão fechar */}
-            <div className="absolute top-0 left-0 right-0 p-6 flex justify-end z-[60002]">
-                <button onClick={onClose} className="p-4 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-md transition-all active:scale-90">
-                    <X size={28} />
-                </button>
+        <div className="fixed inset-0 z-[60000] bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+            
+            {/* Botão Fechar - Super Visível */}
+            <button 
+                onClick={onClose} 
+                className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-red-600 rounded-full text-white z-[60003] backdrop-blur-md transition-all active:scale-90"
+            >
+                <X size={32} />
+            </button>
+
+            <div className="w-full max-w-5xl aspect-video bg-zinc-900 rounded-[2rem] overflow-hidden relative shadow-[0_0_60px_rgba(0,0,0,0.8)] border border-white/5">
+                {!isActivated ? (
+                    /* CAPA DE ATIVAÇÃO */
+                    <div 
+                        className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
+                        onClick={() => setIsActivated(true)}
+                    >
+                        <img 
+                            src={video.img || video.cover} 
+                            className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" 
+                            alt="Capa" 
+                        />
+                        <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all duration-300">
+                            <Play size={48} fill="white" className="text-white ml-1" />
+                        </div>
+                        <div className="mt-8 text-center px-4">
+                            <p className="text-white font-black uppercase tracking-[0.3em] text-xs mb-2">Clique para Carregar</p>
+                            <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest leading-relaxed">
+                                A segurança do iPad exige ativação manual <br/> em modo standalone
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    /* ONDE O VÍDEO É INJETADO */
+                    <div ref={containerRef} className="w-full h-full relative bg-black" />
+                )}
             </div>
 
-            <div className="w-full max-w-5xl aspect-video bg-zinc-900 rounded-[2rem] overflow-hidden relative shadow-2xl border border-white/5">
-                {/* Loader enquanto a API faz o handshake com o Google */}
-                {!isPlayerReady && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950">
-                        <Loader2 className="animate-spin text-purple-500 mb-4" size={40} />
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Validando com Google Services</p>
-                    </div>
-                )}
-                
-                {/* DIV que a API do YouTube vai transformar em Iframe */}
-                <div id={containerId} className="w-full h-full"></div>
-            </div>
-            
-            <div className="mt-8 text-center px-8 max-w-3xl animate-in slide-in-from-bottom-4">
-                <h2 className="text-white text-xl md:text-3xl font-black leading-tight mb-2">
+            {/* BARRA DE TÍTULO E BOTÃO DE ESCAPE */}
+            <div className="mt-8 text-center px-8 max-w-3xl animate-in slide-in-from-bottom-4 duration-500">
+                <h2 className="text-white text-xl md:text-3xl font-black leading-tight mb-4">
                     {video.title}
                 </h2>
-                <div className="flex items-center justify-center gap-2 text-purple-400">
-                    <Sparkles size={14} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Conexão Oficial via API v3</span>
+                
+                <div className="flex flex-wrap justify-center gap-4">
+                    <div className="flex items-center gap-2 text-purple-400 bg-purple-400/10 px-4 py-2 rounded-full border border-purple-400/20">
+                        <Sparkles size={14} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Safe Stream Active</span>
+                    </div>
+
+                    {/* BOTÃO DE ESCAPE: Se o Iframe congelar, ele abre no Player Nativo */}
+                    <button 
+                        onClick={() => window.open(`https://www.youtube.com/watch?v=${finalId}`, '_blank')}
+                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white/60 px-4 py-2 rounded-full border border-white/10 transition-all text-[10px] font-black uppercase tracking-widest"
+                    >
+                        <Globe size={14} /> Abrir no Navegador
+                    </button>
                 </div>
+
+                {loadError && (
+                    <p className="mt-6 text-orange-400 text-xs font-bold animate-pulse">
+                        O vídeo está demorando? Tente "Abrir no Navegador" acima.
+                    </p>
+                )}
             </div>
         </div>
     );
