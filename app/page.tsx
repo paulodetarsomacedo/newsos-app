@@ -1544,7 +1544,7 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
                 <div 
                   key={video.id} 
                   // --- MUDANÇA: onClick agora abre o link diretamente ---
-                  onClick={() => onPlayVideo(video)} 
+                  onClick={() => handleVideoRedirect(video)} 
                   className={`group relative md:w-[520px] rounded-3xl overflow-hidden border shadow-lg hover:shadow-xl transition-all cursor-pointer ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'} ${isSeen ? 'opacity-60 grayscale-[0.5]' : ''}`}
                 >
                     <div className={`flex items-center justify-between px-5 py-4 border-b ${isDarkMode ? 'border-white/5' : 'border-zinc-100'}`}>
@@ -2869,115 +2869,87 @@ const extractImageFromContent = (content, enclosure) => {
 
 
 const VideoPlayerModal = ({ video, onClose }) => {
-    const [isActivated, setIsActivated] = useState(false);
-    const [isAppVisible, setIsAppVisible] = useState(true);
-    const [playerVersion, setPlayerVersion] = useState(0); // Chave para resetar o Iframe
-    const containerRef = useRef(null);
-    const finalId = video.videoId || getVideoId(video.link);
+  const [activated, setActivated] = useState(false);
+  const finalId = video.videoId || getVideoId(video.link);
 
-    // --- O "SORO DE RESSURREIÇÃO" (FIX PARA PWA IPAD) ---
-    useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                // Quando você volta para o app, o iPad "descongela" o processo.
-                // Nós forçamos o Iframe a recarregar do zero para não ficar girando.
-                setPlayerVersion(v => v + 1);
-                setIsAppVisible(true);
-            } else {
-                setIsAppVisible(false);
-            }
-        };
+  if (!finalId) return null;
 
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-        return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-    }, []);
+  // --- CONFIGURAÇÃO DE IDENTIDADE PARA O GOOGLE ---
+  // Pegamos a URL exata do seu app (ex: https://newsos.netlify.app)
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
-    // --- INJEÇÃO DO PLAYER ---
-    useEffect(() => {
-        if (isActivated && containerRef.current && finalId && isAppVisible) {
-            containerRef.current.innerHTML = '';
-            const iframe = document.createElement('iframe');
-            const origin = window.location.origin;
-            
-            // Usamos nocookie + timestamp (v=) para garantir que seja uma conexão virgem
-            const videoUrl = `https://www.youtube-nocookie.com/embed/${finalId}?autoplay=1&playsinline=1&enablejsapi=1&origin=${origin}&rel=0&v=${playerVersion}`;
+  // Montamos a URL oficial de embed
+  // 1. Voltamos para o domínio padrão do youtube.com (mais compatível com a sua Chave API)
+  // 2. Passamos o 'origin' e o 'widget_referrer' -> Isso mata o Erro 153
+  const embedUrl = `https://www.youtube.com/embed/${finalId}?` + 
+                   `autoplay=1&` +
+                   `playsinline=1&` +
+                   `enablejsapi=1&` +
+                   `widget_referrer=${encodeURIComponent(origin)}&` + 
+                   `origin=${encodeURIComponent(origin)}&` +
+                   `rel=0`;
 
-            iframe.setAttribute('src', videoUrl);
-            iframe.setAttribute('frameborder', '0');
-            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; compute-pressure');
-            
-            iframe.style.width = '100%';
-            iframe.style.height = '100%';
-            iframe.style.position = 'absolute';
-            iframe.style.background = 'black';
-            iframe.style.webkitTransform = 'translate3d(0,0,0)'; // Força GPU
+  return (
+    /* Usamos o finalId como key para garantir que o modal resete ao trocar de vídeo */
+    <div key={finalId} className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+      
+      {/* Botão Fechar */}
+      <button 
+        onClick={onClose} 
+        className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white z-[60002] backdrop-blur-md transition-all active:scale-90"
+      >
+        <X size={32} />
+      </button>
 
-            containerRef.current.appendChild(iframe);
-        }
-    }, [isActivated, finalId, playerVersion, isAppVisible]);
-
-    if (!finalId) return null;
-
-    return (
-        <div className="fixed inset-0 z-[60000] bg-zinc-950/98 backdrop-blur-3xl flex flex-col items-center justify-center p-6 animate-in fade-in duration-500">
-            
-            {/* Botão de Fechar Minimalista */}
-            <button onClick={onClose} className="absolute top-10 right-6 p-4 text-white/40 hover:text-white transition-all">
-                <X size={32} />
-            </button>
-
-            {/* --- UI DE PODCAST PREMIUM --- */}
-            <div className="w-full max-w-md flex flex-col items-center">
-                
-                {/* Capa do Álbum Arredondada */}
-                <div className="relative w-64 h-64 md:w-80 md:h-80 mb-10 group shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
-                    <div className="absolute inset-0 bg-purple-600 rounded-[3rem] blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
-                    <img 
-                        src={video.cover || video.img} 
-                        className="relative w-full h-full object-cover rounded-[3rem] border border-white/10"
-                        alt="Podcast Cover"
-                    />
-                    
-                    {!isActivated && (
-                        <button 
-                            onClick={() => setIsActivated(true)}
-                            className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-[3rem] backdrop-blur-sm transition-all hover:bg-black/20"
-                        >
-                            <div className="bg-white p-6 rounded-full text-black shadow-2xl scale-110 active:scale-95 transition-transform">
-                                <Play size={32} fill="black" className="ml-1" />
-                            </div>
-                        </button>
-                    )}
-                </div>
-
-                {/* Info do Episódio */}
-                <div className="text-center space-y-2 mb-10">
-                    <span className="text-purple-500 text-[10px] font-black uppercase tracking-[0.3em]">
-                        {video.source} • Episódio
-                    </span>
-                    <h2 className="text-white text-xl md:text-2xl font-bold leading-tight line-clamp-2">
-                        {video.title}
-                    </h2>
-                </div>
-
-                {/* Container do "Motor" do YouTube (Escondido ou pequeno) */}
-                <div className={`
-                    w-full aspect-video rounded-2xl overflow-hidden bg-black transition-all duration-700 border border-white/5
-                    ${isActivated ? 'opacity-100 scale-100 h-auto' : 'opacity-0 scale-95 h-0'}
-                `}>
-                    <div ref={containerRef} className="w-full h-full relative" />
-                </div>
-
-                {/* Status da Conexão */}
-                <div className="mt-8 flex items-center gap-2 opacity-30">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[9px] font-black uppercase tracking-widest text-white">
-                        Streaming In-App Ativo
-                    </span>
-                </div>
+      <div className="w-full max-w-5xl aspect-video bg-zinc-950 rounded-[2rem] overflow-hidden relative shadow-2xl border border-white/5">
+        
+        {!activated ? (
+          /* ESTADO 1: CAPA (O toque aqui autoriza o áudio e vídeo no iPad) */
+          <div 
+            className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
+            onClick={() => setActivated(true)}
+          >
+            <img 
+              src={video.img || video.cover} 
+              className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" 
+              alt="Capa"
+            />
+            <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all duration-300">
+              <Play size={48} fill="white" className="text-white ml-1" />
             </div>
-        </div>
-    );
+            <div className="mt-6 text-center">
+                <p className="text-white font-black uppercase tracking-[0.3em] text-xs">Toque para Assistir</p>
+                <p className="text-white/30 text-[9px] font-bold uppercase mt-2">Conexão Autenticada</p>
+            </div>
+          </div>
+        ) : (
+          /* ESTADO 2: IFRAME COM IDENTIDADE RECONHECIDA */
+          <iframe
+            src={embedUrl}
+            className="w-full h-full border-none"
+            /* IMPORTANTE: Removido o no-referrer que causou o Erro 153 */
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        )}
+      </div>
+      
+      <div className="mt-8 text-center px-8 max-w-3xl animate-in slide-in-from-bottom-4">
+        <h2 className="text-white text-xl md:text-3xl font-black leading-tight mb-2 line-clamp-2">
+            {video.title}
+        </h2>
+        <p className="text-white/40 text-xs font-bold uppercase tracking-widest">{video.source}</p>
+      </div>
+
+      {/* Força o hardware do iPad a processar o vídeo separadamente para não congelar */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        iframe {
+            -webkit-backface-visibility: hidden !important;
+            -webkit-transform: translate3d(0,0,0) !important;
+        }
+      `}} />
+    </div>
+  );
 };
 
 
@@ -3318,25 +3290,6 @@ useEffect(() => {
     setSelectedArticle(article);
     if (!readHistory.includes(article.id)) setReadHistory((prev) => [...prev, article.id]);
   };
-
-  // Dentro do componente NewsOS_V12
-
-const handleMediaClick = (item) => {
-    // 1. Identifica se é vídeo ou podcast
-    const isPodcast = item.category === 'Podcast' || item.type === 'audio' || item.isPodcast;
-    const videoId = item.videoId || getVideoId(item.link || item.url);
-
-    if (!videoId) return;
-
-    if (isPodcast) {
-        // --- PARA PODCAST: ABRE O PLAYER INTERNO ---
-        setPlayingVideo(item); // Isso vai abrir o nosso novo modal resiliente
-    } else {
-        // --- PARA VÍDEO: ABRE O APP EXTERNO ---
-        window.location.href = `https://www.youtube.com/watch?v=${videoId}`;
-    }
-};
-
 
   const closeArticle = () => setSelectedArticle(null);
   const closeOutlet = () => setSelectedOutlet(null);
