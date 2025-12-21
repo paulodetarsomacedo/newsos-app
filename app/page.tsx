@@ -625,7 +625,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
            </div>
 
            {/* LINHA 1: PERFIL + BOTÃO */}
-           <div className="flex justify-between items-center mt-4">
+           <div className="flex justify-between items-center mt-10">
               <div className="flex items-center gap-3">
                  <div onClick={onOpenSettings} className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] cursor-pointer hover:scale-105 transition-transform shadow-lg">
                     <img src="https://ui-avatars.com/api/?name=User&background=000&color=fff" className="rounded-full w-full h-full border-2 border-black" alt="User" />
@@ -646,7 +646,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
               <button 
                 onClick={() => setIsSearchOpen(!isSearchOpen)}
                 className={`
-                    relative z-[60] p-2.5 rounded-xl transition-all duration-500 flex items-center gap-2 border -mr-6 pt-50
+                    relative z-[60] p-2.5 rounded-xl transition-all duration-500 flex items-center gap-2 border -mr-6
                     ${isSearchOpen 
                         ? 'bg-white text-black border-white shadow-[0_0_30px_rgba(255,255,255,0.2)] scale-90' 
                         : 'bg-white/5 border-white/10 text-white hover:bg-white/10 active:scale-95'}
@@ -2906,6 +2906,7 @@ const VideoPlayerModal = ({ video, onClose }) => {
           <iframe
             src={`https://www.youtube.com/embed/${finalId}?autoplay=1&playsinline=1&enablejsapi=1`}
             className="w-full h-full border-none"
+            style={{ WebkitBackfaceVisibility: 'hidden', WebkitTransform: 'translate3d(0,0,0)' }}
             allow="autoplay; encrypted-media; picture-in-picture"
             allowFullScreen
           />
