@@ -3370,10 +3370,10 @@ export default function NewsOS_V12() {
             }
 
             // --- DEFINIÇÃO DO LIMITE DINÂMICO ---
-            let LIMIT = 12; // Padrão (Notícias)
+            let LIMIT = 20; // Padrão (Notícias)
             
             if (feed.type === 'podcast') {
-                LIMIT = 2; // Podcasts: Apenas os 5 mais recentes
+                LIMIT = 1; // Podcasts: Apenas os 5 mais recentes
             } else if (feed.type === 'youtube' || isFeedYoutube) {
                 LIMIT = 3; // Vídeos: Apenas os 10 mais recentes
             }
