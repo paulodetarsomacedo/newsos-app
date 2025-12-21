@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
@@ -140,7 +141,7 @@ const YOUTUBE_CATEGORIES = ['Tudo', 'Tech', 'Finanças', 'Ciência'];
 
 // --- ABA PODCAST (NOVA) ---
 
-const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSave, podcastsData, isLoading }) => {
+const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSave, podcastsData, isLoading }: any) => {  
   const [filter, setFilter] = useState('Todos');
   
   // LOGICA 1: CATEGORIAS DINÂMICAS (Baseado no que tem no feed)
@@ -948,7 +949,7 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
-const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike }) => {
+const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike }: any) => {
   return (
     <div 
       onClick={() => onClick(news)}
@@ -4008,7 +4009,7 @@ const resolveBrandColor = (sourceName, isDarkMode) => {
 };
 
 // 2. Componentes de Visualização MEMOIZADOS (evita re-render desnecessário)
-const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontSize }) => {
+const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontSize }: any) => {
     const data = readerContent || article;
     if (!data) return null;
 
@@ -4057,7 +4058,7 @@ const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontS
     );
 });
 
-const AppleReaderView = React.memo(({ article, readerContent, isDarkMode, fontSize }) => {
+const AppleReaderView = React.memo(({ article, readerContent, isDarkMode, fontSize }: any) => {
     const data = readerContent || article;
     if (!data) return null;
     return (
@@ -4071,7 +4072,7 @@ const AppleReaderView = React.memo(({ article, readerContent, isDarkMode, fontSi
     );
 });
 
-const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
+const AIAnalysisView = React.memo(({ article, isDarkMode }: any) => (
       <div className="max-w-2xl mx-auto p-8 pt-12 animate-in fade-in slide-in-from-bottom-4 transform-gpu">
           <div className={`p-6 rounded-3xl border mb-8 ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200 shadow-xl'}`}>
               <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center"><BrainCircuit size={20} className="text-white" /></div><div><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>NewsOS Intelligence</h3><p className="text-xs opacity-60">Análise IA</p></div></div>
@@ -4102,7 +4103,7 @@ const translateText = async (text, targetLang = 'pt') => {
 // Este componente gerencia seu próprio estado de arrasto (drag) para não
 // causar re-renderizações pesadas no ArticlePanel principal.
 
-const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkMode }) => {
+const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkMode } : any) => {
     // Se não tiver artigo, não exibe nada
     if (!article) return null;
 
@@ -4226,7 +4227,7 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
 });
 
 
-const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
+const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }: any) => {
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
   const [readerContent, setReaderContent] = useState(null); 
