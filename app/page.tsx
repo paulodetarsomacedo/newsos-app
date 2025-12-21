@@ -2880,18 +2880,39 @@ const extractImageFromContent = (content, enclosure) => {
 
 const VideoPlayerModal = ({ video, onClose }) => {
     const [isActivated, setIsActivated] = useState(false);
-    const iframeRef = useRef(null);
+    const containerRef = useRef(null);
     const finalId = video.videoId || getVideoId(video.link);
 
-    // Efeito para injetar a URL manualmente (Bypasses iPad cache)
+    // --- MÁGICA DE INJEÇÃO MANUAL (PRODUÇÃO) ---
     useEffect(() => {
-        if (isActivated && iframeRef.current) {
-            const origin = window.location.origin;
-            // Usamos youtube-nocookie + um número aleatório (t=...) para garantir que o iPad trate como novo
-            const cleanUrl = `https://www.youtube-nocookie.com/embed/${finalId}?autoplay=1&playsinline=1&enablejsapi=1&origin=${origin}&rel=0&modestbranding=1&t=${Date.now()}`;
+        if (isActivated && containerRef.current) {
+            // 1. Limpamos o container para garantir que não sobrou nada da última vez
+            containerRef.current.innerHTML = '';
+
+            // 2. Criamos o elemento iframe do zero via JS puro
+            const iframe = document.createElement('iframe');
             
-            // Injeção via location.replace é mais estável no Webkit Standalone
-            iframeRef.current.src = cleanUrl;
+            const origin = window.location.origin || "*";
+            const videoUrl = `https://www.youtube-nocookie.com/embed/${finalId}?autoplay=1&playsinline=1&enablejsapi=1&origin=${origin}&rel=0&modestbranding=1&widget_referrer=${origin}`;
+
+            // 3. Configuramos os atributos necessários para PWA iPad
+            iframe.setAttribute('src', videoUrl);
+            iframe.setAttribute('frameborder', '0');
+            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+            iframe.setAttribute('allowfullscreen', 'true');
+            iframe.setAttribute('referrerpolicy', 'no-referrer'); // Impede o envio de cache corrompido
+            
+            // Estilo para preencher o container
+            iframe.style.width = '100%';
+            iframe.style.height = '100%';
+            iframe.style.position = 'absolute';
+            iframe.style.top = '0';
+            iframe.style.left = '0';
+            iframe.style.background = 'black';
+            iframe.style.webkitTransform = 'translate3d(0,0,0)'; // Força GPU
+
+            // 4. Injetamos no DOM
+            containerRef.current.appendChild(iframe);
         }
     }, [isActivated, finalId]);
 
@@ -2900,32 +2921,48 @@ const VideoPlayerModal = ({ video, onClose }) => {
     return (
         <div className="fixed inset-0 z-[60000] bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
             {/* Botão Fechar */}
-            <button onClick={onClose} className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white z-[60001] backdrop-blur-md">
+            <button 
+                onClick={onClose} 
+                className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white z-[60002] backdrop-blur-md transition-transform active:scale-90"
+            >
                 <X size={32} />
             </button>
 
             <div className="w-full max-w-5xl aspect-video bg-zinc-900 rounded-[2rem] overflow-hidden relative shadow-2xl border border-white/5">
                 {!isActivated ? (
+                    /* CAPA INICIAL */
                     <div 
                         className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer group"
                         onClick={() => setIsActivated(true)}
                     >
-                        <img src={video.img || video.cover} className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" alt="Capa" />
+                        <img 
+                            src={video.img || video.cover} 
+                            className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" 
+                            alt="Capa" 
+                        />
                         <div className="relative bg-red-600 p-6 rounded-full shadow-2xl group-hover:scale-110 transition-all">
                             <Play size={48} fill="white" className="text-white ml-1" />
                         </div>
-                        <p className="mt-6 text-white font-black uppercase tracking-[0.3em] text-xs">Iniciar Transmissão</p>
+                        <div className="mt-6 text-center">
+                            <p className="text-white font-black uppercase tracking-[0.3em] text-xs">Toque para Assistir</p>
+                            <p className="text-white/30 text-[9px] font-bold uppercase mt-2">Versão 12.0 - Deploy Final</p>
+                        </div>
                     </div>
                 ) : (
-                    <iframe
-                        ref={iframeRef}
-                        className="w-full h-full border-none"
-                        style={{ WebkitBackfaceVisibility: 'hidden', WebkitTransform: 'translate3d(0,0,0)', background: 'black' }}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                    />
+                    /* CONTAINER ONDE O IFRAME SERÁ INJETADO PELO USEEFFECT */
+                    <div ref={containerRef} className="w-full h-full relative bg-black" />
                 )}
             </div>
+
+            {/* Caso o vídeo trave, oferecemos um botão de emergência para abrir fora do PWA */}
+            {isActivated && (
+                <button 
+                    onClick={() => window.open(`https://www.youtube.com/watch?v=${finalId}`, '_blank')}
+                    className="mt-6 text-white/30 text-[10px] font-bold uppercase tracking-widest hover:text-white transition-colors"
+                >
+                    Problemas no carregamento? Toque aqui.
+                </button>
+            )}
             
             <div className="mt-8 text-center px-8 max-w-3xl">
                 <h2 className="text-white text-xl md:text-3xl font-black leading-tight mb-2">{video.title}</h2>
