@@ -2877,7 +2877,6 @@ const extractImageFromContent = (content, enclosure) => {
 };
 
 
-// --- COMPONENTE: MODAL DE VÍDEO/PODCAST COM MINI-PLAYER E PROGRESSO (V7 - FINAL) ---
 const VideoPlayerModal = ({ video, onClose }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
@@ -2885,78 +2884,44 @@ const VideoPlayerModal = ({ video, onClose }) => {
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     
-    // --- O SEGREDO: Versão do Player ---
-    // Toda vez que esse número mudar, o React destrói o player antigo e cria um novo.
-    const [playerVersion, setPlayerVersion] = useState(1);
-    const [isAppVisible, setIsAppVisible] = useState(true);
-
     const playerRef = useRef(null); 
     const progressInterval = useRef(null);
-    // Usamos um ID fixo para o container, mas o React vai recriar o elemento pelo key
-    const containerId = "yt-player-container";
+
+    // --- MUDANÇA 1: ID TOTALMENTE ÚNICO POR INSTÂNCIA ---
+    // Isso evita que o iPad tente "reaproveitar" um player quebrado em cache.
+    const playerUniqueId = useMemo(() => `yt-player-${Math.random().toString(36).substr(2, 9)}`, []);
 
     const isPodcastMode = video.category === 'Podcast' || video.isPodcast;
     const finalId = video.videoId || getVideoId(video.link);
 
-    // 1. DETECTOR DE VISIBILIDADE (CORREÇÃO PARA O iOS "CONGELAR")
+    // --- MUDANÇA 2: INICIALIZAÇÃO BLINDADA ---
     useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') {
-                // Usuário minimizou o app: PAUSA E MARCA COMO INVISÍVEL
-                setIsAppVisible(false);
-                if (playerRef.current && typeof playerRef.current.pauseVideo === 'function') {
-                    playerRef.current.pauseVideo();
-                }
-            } else if (document.visibilityState === 'visible') {
-                // Usuário voltou: MARCA COMO VISÍVEL E FORÇA RE-RENDER
-                setIsAppVisible(true);
-                // Incrementa a versão para forçar o React a desmontar e montar de novo
-                setPlayerVersion(v => v + 1);
-            }
-        };
-
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-        return () => {
-            document.removeEventListener("visibilitychange", handleVisibilityChange);
-        };
-    }, []);
-
-    // 2. CARREGAR API (Global)
-    useEffect(() => {
-        if (!window.YT) {
-            const tag = document.createElement('script');
-            tag.src = "https://www.youtube.com/iframe_api";
-            tag.async = true;
-            document.body.appendChild(tag);
-        }
-    }, []);
-
-    // 3. INICIALIZAR PLAYER (Executa toda vez que playerVersion muda)
-    useEffect(() => {
-        if (!finalId || !isAppVisible) return;
+        if (!finalId) return;
 
         let isMounted = true;
+        let retryCount = 0;
 
         const initPlayer = () => {
-            // Se o componente já desmontou, cancela
             if (!isMounted) return;
 
-            // Se a API ainda não existe, tenta de novo em breve
+            // Se a API ainda não estiver pronta, tentamos 10 vezes.
             if (!window.YT || !window.YT.Player) {
-                setTimeout(initPlayer, 100);
+                if (retryCount < 10) {
+                    retryCount++;
+                    setTimeout(initPlayer, 200);
+                }
                 return;
             }
 
-            // Destrói anterior se existir (Segurança)
+            // Destruição total de qualquer rastro anterior
             if (playerRef.current) {
                 try { playerRef.current.destroy(); } catch(e) {}
-                playerRef.current = null;
             }
 
             const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
             try {
-                playerRef.current = new window.YT.Player(containerId, {
+                playerRef.current = new window.YT.Player(playerUniqueId, {
                     videoId: finalId,
                     height: '100%',
                     width: '100%',
@@ -2964,24 +2929,24 @@ const VideoPlayerModal = ({ video, onClose }) => {
                     playerVars: {
                         autoplay: 1,
                         controls: isPodcastMode ? 0 : 1,
-                        playsinline: 1, // CRUCIAL
+                        playsinline: 1, // OBRIGATÓRIO PARA IPAD PWA
                         rel: 0,
                         modestbranding: 1,
-                        origin: origin,
+                        origin: origin, // OBRIGATÓRIO PARA SEGURANÇA NO PWA
                         enablejsapi: 1,
-                        widget_referrer: origin,
-                        fs: 1
+                        widget_referrer: origin
                     },
                     events: {
                         onReady: (event) => {
-                            if(!isMounted) return;
-                            try { event.target.playVideo(); } catch(e) {}
+                            if (!isMounted) return;
+                            // No iPad PWA, o play as vezes falha. Tentamos um play forçado:
+                            event.target.playVideo();
                             setDuration(event.target.getDuration());
                             setIsPlaying(true);
                         },
                         onStateChange: (event) => {
-                            if(!isMounted) return;
-                            if (event.data === 1) { // Playing
+                            if (!isMounted) return;
+                            if (event.data === window.YT.PlayerState.PLAYING) {
                                 setIsPlaying(true);
                                 startProgressTimer();
                             } else {
@@ -2989,31 +2954,37 @@ const VideoPlayerModal = ({ video, onClose }) => {
                                 stopProgressTimer();
                             }
                         },
-                        onError: (e) => {
-                            console.error("Erro Player:", e);
-                            // Se der erro 100/150 (vídeo restrito), não trava o app
-                            stopProgressTimer();
+                        onError: () => {
+                            // Se der erro de carregamento (círculo infinito), tentamos resetar
+                            console.error("Erro no player do YouTube");
                         }
                     }
                 });
             } catch (err) {
-                console.error("Erro fatal init:", err);
+                console.error("Falha ao criar instância do player:", err);
             }
         };
 
-        // Pequeno delay para garantir que o React pintou a div nova
-        const timer = setTimeout(initPlayer, 50);
+        // Garante que o script da API existe
+        if (!window.YT) {
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            tag.async = true;
+            document.body.appendChild(tag);
+            window.onYouTubeIframeAPIReady = initPlayer;
+        } else {
+            // Se já existe, damos um tempo para o React renderizar a div antes de chamar o YouTube
+            setTimeout(initPlayer, 150);
+        }
 
         return () => {
             isMounted = false;
-            clearTimeout(timer);
             stopProgressTimer();
             if (playerRef.current) {
                 try { playerRef.current.destroy(); } catch(e) {}
-                playerRef.current = null;
             }
         };
-    }, [finalId, isPodcastMode, playerVersion, isAppVisible]); // Dependência crucial: playerVersion
+    }, [finalId, isPodcastMode, playerUniqueId]);
 
     // --- FUNÇÕES AUXILIARES ---
     const startProgressTimer = () => {
@@ -3030,6 +3001,7 @@ const VideoPlayerModal = ({ video, onClose }) => {
             }
         }, 500); 
     };
+
     const stopProgressTimer = () => { if (progressInterval.current) clearInterval(progressInterval.current); };
     
     const togglePlay = (e) => {
@@ -3039,6 +3011,7 @@ const VideoPlayerModal = ({ video, onClose }) => {
             state === 1 ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
         }
     };
+
     const handleSeek = (e) => {
         e?.stopPropagation();
         const newVal = Number(e.target.value);
@@ -3047,6 +3020,7 @@ const VideoPlayerModal = ({ video, onClose }) => {
             setProgress(newVal);
         }
     };
+    
     const skipTime = (seconds) => { if (playerRef.current) playerRef.current.seekTo(playerRef.current.getCurrentTime() + seconds, true); };
     const formatTime = (t) => { if (!t || isNaN(t)) return "0:00"; const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = Math.floor(t%60); return h>0?`${h}:${m<10?'0'+m:m}:${s<10?'0'+s:s}`:`${m}:${s<10?'0'+s:s}`; };
     const toggleMinimize = (e) => { e?.stopPropagation(); setIsMinimized(!isMinimized); };
@@ -3065,9 +3039,8 @@ const VideoPlayerModal = ({ video, onClose }) => {
                 `}
                 onClick={() => isMinimized && setIsMinimized(false)}
             >
-                {/* 1. MODO EXPANDIDO */}
+                {/* 1. MODO EXPANDIDO (UI) */}
                 <div className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-300 ${isMinimized ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                    
                     <div className="absolute top-0 left-0 right-0 p-6 flex justify-between z-[60000] pointer-events-none">
                         <button onClick={toggleMinimize} className="pointer-events-auto p-3 bg-black/50 hover:bg-zinc-800 backdrop-blur-md rounded-full text-white border border-white/10"><ChevronLeft size={24} className="-rotate-90" /></button>
                         <button onClick={onClose} className="pointer-events-auto p-3 bg-black/50 hover:bg-red-900/50 backdrop-blur-md rounded-full text-white border border-white/10"><X size={24} /></button>
@@ -3098,7 +3071,7 @@ const VideoPlayerModal = ({ video, onClose }) => {
                     )}
                 </div>
 
-                {/* 2. MODO MINIMIZADO */}
+                {/* 2. MODO MINIMIZADO (UI) */}
                 <div className={`flex items-center w-full gap-3 transition-opacity duration-300 ${isMinimized ? 'opacity-100 delay-150' : 'opacity-0 pointer-events-none absolute'}`}>
                     <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10"><div className="h-full bg-orange-500 transition-all duration-500 ease-linear" style={{ width: `${progress}%` }} /></div>
                     <div className="h-10 w-10 bg-zinc-800 rounded-lg overflow-hidden shrink-0 relative"><img src={video.cover || video.img} className="w-full h-full object-cover" /></div>
@@ -3109,24 +3082,10 @@ const VideoPlayerModal = ({ video, onClose }) => {
                     </div>
                 </div>
 
-                {/* 3. O MOTOR (Reset via KEY) */}
+                {/* 3. O MOTOR (Reset via ID Dinâmico) */}
                 <div className={`absolute z-10 transition-all duration-300 ${isPodcastMode ? 'w-px h-px opacity-0 pointer-events-none bottom-0 right-0' : (isMinimized ? 'w-px h-px opacity-0 pointer-events-none' : 'w-full h-full flex items-center justify-center')}`}>
-                    
-                    {/* 
-                       AQUI ESTÁ A CORREÇÃO:
-                       O "key={playerVersion}" força o React a apagar completamente a div 
-                       e criar uma nova quando o usuário volta para o app.
-                       Isso limpa qualquer "conexão zumbi" do iOS.
-                    */}
-                    {isAppVisible && (
-                        <div key={playerVersion} id={containerId} className="w-full h-full"></div>
-                    )}
-
-                    {!isAppVisible && (
-                        <div className="w-full h-full bg-black flex items-center justify-center">
-                            <Loader2 className="animate-spin text-white/20" />
-                        </div>
-                    )}
+                    {/* AQUI ESTÁ O SEGREDO: O id é playerUniqueId, que muda sempre que o componente monta */}
+                    <div id={playerUniqueId} className="w-full h-full"></div>
                 </div>
             </div>
             
