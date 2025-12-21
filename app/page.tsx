@@ -3092,6 +3092,48 @@ export default function NewsOS_V12() {
   const [playingAudio, setPlayingAudio] = useState(null);
   const [mounted, setMounted] = useState(false);
   
+const handleMediaClick = (item) => {
+    // 1. Extrai o ID do vídeo (funciona para links de vídeo e podcast do YT)
+    const videoId = item.videoId || getVideoId(item.link || item.url);
+    
+    // 2. Se não for um link do YouTube (ex: um MP3 direto de um RSS)
+    if (!videoId) {
+        // Se for um áudio puro (MP3), você pode ainda tentar o GlobalAudioPlayer
+        // ou simplesmente abrir o link original
+        if (item.type === 'audio' && item.link) {
+            setPlayingAudio(item);
+        } else {
+            window.open(item.link || item.url, '_blank');
+        }
+        return;
+    }
+
+    // --- ESTRATÉGIA UNIFICADA: DEEP LINK ---
+    // Este comando diz ao iPad: "Abra isso no aplicativo do YouTube"
+    // Se o usuário não tiver o app, o iPad abre no Safari automaticamente.
+    const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    
+    // Feedback tátil antes de sair
+    if (window.navigator.vibrate) window.navigator.vibrate(15);
+
+    // Redirecionamento instantâneo
+    window.location.href = youtubeUrl;
+};
+
+
+
+const [isRedirecting, setIsRedirecting] = useState(false);
+
+const handleMediaClick = (item) => {
+    // ... lógica anterior ...
+    setIsRedirecting(true);
+    setAiStatus("Handoff: Sintonizando YouTube..."); // Se o status for controlado por estado
+    
+    setTimeout(() => {
+        window.location.href = youtubeUrl;
+        setIsRedirecting(false);
+    }, 500);
+};
   // --- ESTADO NOVO: FILTRO DE FONTE (ELEVADO DA FEEDTAB) ---
   const [sourceFilter, setSourceFilter] = useState('all');
 
@@ -3366,15 +3408,7 @@ useEffect(() => {
                     isDarkMode={isDarkMode} 
                     podcastsData={realPodcasts} 
                     isLoading={isLoadingFeeds}
-                    onPlayAudio={(pod) => {
-                        if (pod.type === 'video') {
-                            setPlayingAudio(null); 
-                            setPlayingVideo(pod); 
-                        } else {
-                            setPlayingVideo(null);
-                            setPlayingAudio(pod);
-                        }
-                    }}
+                    onPlayAudio={handleMediaClick} // <--- Mude para handleMediaClick
                     savedItems={savedItems}
                     onToggleSave={handleToggleSave}
                 />
@@ -3408,7 +3442,7 @@ useEffect(() => {
                     isDarkMode={isDarkMode} 
                     realVideos={realVideos} 
                     isLoading={isLoadingFeeds} 
-                    onPlayVideo={setPlayingVideo}
+                    onPlayVideo={handleMediaClick}
                     seenStoryIds={seenStoryIds}
                     onMarkAsSeen={markStoryAsSeen}
                 />
