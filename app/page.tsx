@@ -4747,10 +4747,15 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
   // --- FUNÇÕES DE AUTH ---
   const handleLogin = async () => {
       setLoadingAuth(true);
+      
+      // COLOQUE SEU IP AQUI (Substitua 192.168.1.15 pelo seu real)
+      const MEU_IP_LOCAL = 'http://192.168.0.52:3000'; 
+
       const { error } = await supabase.auth.signInWithOtp({
           email: email,
           options: {
-              emailRedirectTo: window.location.origin, 
+              // Forçamos o redirecionamento para o IP, não importa onde vc esteja clicando
+              emailRedirectTo: MEU_IP_LOCAL, 
           }
       });
       setLoadingAuth(false);
