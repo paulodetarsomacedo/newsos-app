@@ -865,7 +865,7 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
   }, [videos]);
 
   return (
-    <div className="absolute left-0 top-2 z-[1001]">
+    <div className="absolute left-220 top-2 z-[1001]">
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-2 h-[42px] px-3 rounded-r-2xl border-y border-r border-l-0 backdrop-blur-xl shadow-sm transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
@@ -3465,52 +3465,36 @@ const SplashScreen = ({ onFinish }) => {
       {/* CONTAINER CENTRAL (LOGO + TEXTO) */}
       <div className="flex flex-col items-center justify-center z-20">
         
-        {/* ÁREA DO LOGO */}
-        <div className="relative w-40 h-40 flex items-center justify-center mb-2">
-            {/* Ícones Orbitando */}
-            {icons.map((item, i) => (
-            <div
-                key={i}
-                className={`
-                absolute transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-                ${step >= 2 ? 'translate-x-0 translate-y-0 opacity-0 scale-0' : ''} 
-                ${step === 0 ? 'opacity-0 scale-50' : 'opacity-100 scale-100'}
-                ${step === 1 ? item.pos : ''}
-                `}
-            >
-                <div className={`p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-xl ${item.color}`}>
-                <item.Icon size={24} />
-                </div>
-            </div>
-            ))}
-
-            {/* O LOGO "N" */}
-            <div 
-            className={`
-                relative z-20 flex items-center justify-center
-                transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
-                ${step >= 2 ? 'scale-100 opacity-100 rotate-0' : 'scale-0 opacity-0 -rotate-180'}
-            `}
-            >
-            <div className={`absolute inset-0 bg-white/30 blur-2xl rounded-full ${step >= 2 ? 'animate-ping' : ''}`} />
-            
-            <div className="w-24 h-24 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-3xl flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.3)] border border-white/20">
-                <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800 tracking-tighter" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    N
-                </span>
-            </div>
-            </div>
+        {/* ÁREA DO LOGO - Aumentado de w-40 para w-60 */}
+<div className="relative w-60 h-60 flex items-center justify-center mb-4">
+    {icons.map((item, i) => (
+    <div
+        key={i}
+        className={`absolute transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)]
+        ${step >= 2 ? 'translate-x-0 translate-y-0 opacity-0 scale-0' : ''} 
+        ${step === 0 ? 'opacity-0 scale-50' : 'opacity-100 scale-100'}
+        ${step === 1 ? item.pos.replace('12', '20') : '' /* Aumenta órbita */}
+        `}
+    >
+        <div className={`p-4 rounded-3xl bg-white/10 backdrop-blur-md border border-white/10 shadow-xl ${item.color}`}>
+          <item.Icon size={32} />
         </div>
+    </div>
+    ))}
 
-        {/* --- O NOME "NewsOS" (NOVO CÓDIGO) --- */}
-        <div className={`
-            transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
-            ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
-        `}>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
-                NewsOS
-            </h1>
-        </div>
+    <div className={`relative z-20 flex items-center justify-center transition-all duration-1000 ${step >= 2 ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}`}>
+      <div className="w-36 h-36 bg-gradient-to-br from-white to-zinc-500 rounded-[2.5rem] flex items-center justify-center shadow-2xl border border-white/20">
+          <span className="text-7xl font-black text-black tracking-tighter">N</span>
+      </div>
+    </div>
+</div>
+
+{/* NOME NewsOS - Aumentado de text-4xl para text-6xl */}
+<div className={`transition-all duration-1000 delay-100 ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+    <h1 className="text-6xl md:text-7xl font-black tracking-tighter text-white drop-shadow-2xl">
+        NewsOS
+    </h1>
+</div>
 
       </div>
     </div>
@@ -4822,41 +4806,25 @@ if (header.includes('RIFF') || header.includes('WEBP') || (data.html.charCodeAt(
                             */}
                             
                             <iframe 
-                                src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
-                                className={`w-full h-full absolute inset-0 
-                                    ${article.forceAudioMode 
-                                        ? 'opacity-[0.01] z-20' // Invisível mas CLICÁVEL no topo
-                                        : 'z-0' // Normal
-                                    }
-                                `}
-                                frameBorder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                                title="YouTube Video"
-                                // Detecta que o usuário clicou (para mudar visual da capa)
-                                onLoad={() => {
-                                    // Truque: Em iframes cross-origin não detectamos click real, 
-                                    // então assumimos que se o iframe carregou e o usuário interagir, ok.
-                                }}
-                            />
+    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=${article.forceAudioMode ? 1 : 0}&controls=1&modestbranding=1&enablejsapi=1`}
+    className="w-full h-full absolute inset-0 z-10 opacity-100"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+    title="YouTube Video"
+/>
 
-                            {/* CAPA (Abaixo do Iframe se áudio, Acima se Vídeo esperando play) */}
-                            {/* A div abaixo captura o clique visual apenas para feedback */}
-                            <div 
-                                className={`absolute inset-0 w-full h-[50%] 
-                                    ${article.forceAudioMode ? 'z-10' : (isPlayingAudio ? 'hidden' : 'z-10')}
-                                `}
-                                // Se for áudio, o clique VAZA para o iframe (pointer-events-none no container visual?)
-                                // NÃO! Se forceAudioMode, o iframe está por cima (z-20), então ele rouba o clique.
-                                // A capa fica apenas visual (z-10).
-                            >
-                                <img 
-                                    src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
-                                    className={`w-full h-full object-cover transition-opacity ${isPlayingAudio ? 'opacity-40' : 'opacity-80'}`}
-                                    alt="Video Thumbnail"
-                                />
-                                
+{/* CAPA (Thumb) - Agora com z-20 para ficar na frente e pointer-events-none para o clique passar para o vídeo */}
+<div 
+    className={`absolute inset-0 w-full h-[85%] z-20 pointer-events-none transition-opacity ${article.forceAudioMode ? 'opacity-100' : (isPlayingAudio ? 'opacity-0' : 'opacity-100')}`}
+>
+    <img 
+        src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
+        className="w-full h-full object-cover"
+        alt="Video Thumbnail"
+    />
                                 {/* Overlay Visual (O que o usuário VÊ) */}
+                                
                                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
                                     {article.forceAudioMode ? (
                                         <>
