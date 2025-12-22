@@ -1157,34 +1157,49 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
       }
   }, [newsData, stableData.length]);
 
-// 1. Garante uma lista plana e válida
-  const allSafeNews = (newsData && newsData.length > 0) ? newsData : [];
+// 1. DEFINIÇÃO OBRIGATÓRIA (Correção do Erro ReferenceError)
+  // Definimos 'safeNews' aqui para que o SourceSelector lá embaixo consiga ler.
+  const safeNews = (newsData && newsData.length > 0) ? newsData : [];
 
-  // 2. Filtros
-  const filteredCat = category === 'Tudo' ? allSafeNews : allSafeNews.filter(n => n.category === category);
-  const filteredSource = sourceFilter === 'all' ? filteredCat : filteredCat.filter(n => n.source === sourceFilter);
-
-  // 3. ORDENAÇÃO EXPLÍCITA (MUITO IMPORTANTE)
-  // Fazemos o sort aqui, na hora de renderizar, para garantir que misture as fontes
-  const sortedFeed = useMemo(() => {
-      return [...filteredSource].sort((a, b) => {
-          // Usa getTime() para precisão numérica
-          return new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
+  // 2. ORDENAÇÃO CRONOLÓGICA (Correção da Ordem dos Cards)
+  // Ordenamos 'safeNews' imediatamente para garantir que tudo o que for derivado dele
+  // já esteja na ordem correta (mais recente para mais antigo).
+  const sortedNews = useMemo(() => {
+      return [...safeNews].sort((a, b) => {
+          // Usa timestamp seguro. Se der erro, assume 0.
+          const tA = new Date(a.rawDate).getTime() || 0;
+          const tB = new Date(b.rawDate).getTime() || 0;
+          return tB - tA; 
       });
-  }, [filteredSource]);
+  }, [safeNews]);
 
-  // 4. Remoção de Duplicatas (Mantendo a ordem do sort)
+  // 3. FILTRAGEM (Categoria e Fonte)
+  const filteredNews = useMemo(() => {
+      let data = sortedNews;
+
+      // Filtro de Categoria (LiquidFilterBar)
+      if (category !== 'Tudo') {
+          data = data.filter(n => n.category === category);
+      }
+
+      // Filtro de Fonte (SourceSelector)
+      if (sourceFilter !== 'all') {
+          data = data.filter(n => n.source === sourceFilter);
+      }
+
+      return data;
+  }, [sortedNews, category, sourceFilter]);
+
+  // 4. DEDUPLICAÇÃO FINAL (Remove IDs repetidos mantendo a ordem)
   const uniqueNews = useMemo(() => {
       const seen = new Set();
-      const result = [];
-      for (const item of sortedFeed) {
-          if (!seen.has(item.id)) {
-              seen.add(item.id);
-              result.push(item);
-          }
-      }
-      return result;
-  }, [sortedFeed]);
+      // Como 'filteredNews' já vem de 'sortedNews', a ordem está preservada
+      return filteredNews.filter(item => {
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
+      });
+  }, [filteredNews]);
 
   // Funções de Toque
   const handleTouchStart = (e) => {
