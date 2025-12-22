@@ -1535,7 +1535,7 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   return (
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
     
-    <div className="absolute top-0 rigth-0 z-30">
+    <div className="absolute top-0 left-200 z-9999">
        <SourceSelector 
           news={safeVideos} // Passa os vídeos para ele extrair os logos
           selectedSource={channelFilter} 
@@ -3381,14 +3381,14 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 };
 
 
-// --- COMPONENTE: SPLASH SCREEN (LOGO ANIMADO) ---
+// --- COMPONENTE: SPLASH SCREEN (LOGO + NOME COM AURA) ---
 const SplashScreen = ({ onFinish }) => {
-  const [step, setStep] = useState(0); // 0: Init, 1: Converge, 2: Explode N, 3: FadeOut
+  const [step, setStep] = useState(0); // 0: Init, 1: Converge, 2: Explode N + Texto, 3: FadeOut
 
   useEffect(() => {
     // Sequência de Animação
     const t1 = setTimeout(() => setStep(1), 100);  // Entrar ícones
-    const t2 = setTimeout(() => setStep(2), 1200); // Convergir e Revelar N
+    const t2 = setTimeout(() => setStep(2), 1200); // Convergir, Revelar N e Texto
     const t3 = setTimeout(() => setStep(3), 2500); // Fade Out da tela
     const t4 = setTimeout(onFinish, 3000);         // Desmontar
 
@@ -3397,12 +3397,11 @@ const SplashScreen = ({ onFinish }) => {
     };
   }, [onFinish]);
 
-  // Ícones que representam as funções do App
   const icons = [
-    { Icon: Rss, color: 'text-blue-500', pos: '-translate-x-12 -translate-y-12' },     // Top Left
-    { Icon: Youtube, color: 'text-red-500', pos: 'translate-x-12 -translate-y-12' },   // Top Right
-    { Icon: Mic, color: 'text-orange-500', pos: '-translate-x-12 translate-y-12' },    // Bottom Left
-    { Icon: Mail, color: 'text-purple-500', pos: 'translate-x-12 translate-y-12' },    // Bottom Right
+    { Icon: Rss, color: 'text-blue-500', pos: '-translate-x-12 -translate-y-12' },
+    { Icon: Youtube, color: 'text-red-500', pos: 'translate-x-12 -translate-y-12' },
+    { Icon: Mic, color: 'text-orange-500', pos: '-translate-x-12 translate-y-12' },
+    { Icon: Mail, color: 'text-purple-500', pos: 'translate-x-12 translate-y-12' },
   ];
 
   return (
@@ -3411,62 +3410,66 @@ const SplashScreen = ({ onFinish }) => {
       transition-opacity duration-700 ease-out
       ${step === 3 ? 'opacity-0 pointer-events-none' : 'opacity-100'}
     `}>
-      {/* BACKGROUND AURA (Sutil e profundo) */}
-      <div className="absolute inset-0 overflow-hidden">
+      {/* BACKGROUND AURA */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-600/20 rounded-full blur-[100px] animate-pulse" />
          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-600/20 rounded-full blur-[80px] animate-pulse delay-75" />
       </div>
 
-      <div className="relative w-40 h-40 flex items-center justify-center">
+      {/* CONTAINER CENTRAL (LOGO + TEXTO) */}
+      <div className="flex flex-col items-center justify-center z-20">
         
-        {/* --- OS ÍCONES ORBITANDO (Convergência) --- */}
-        {icons.map((item, i) => (
-          <div
-            key={i}
-            className={`
-              absolute transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-              ${step >= 2 ? 'translate-x-0 translate-y-0 opacity-0 scale-0' : ''} 
-              ${step === 0 ? 'opacity-0 scale-50' : 'opacity-100 scale-100'}
-              ${step === 1 ? item.pos : ''}
-            `}
-          >
-            <div className={`p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-xl ${item.color}`}>
-              <item.Icon size={24} />
+        {/* ÁREA DO LOGO */}
+        <div className="relative w-40 h-40 flex items-center justify-center mb-2">
+            {/* Ícones Orbitando */}
+            {icons.map((item, i) => (
+            <div
+                key={i}
+                className={`
+                absolute transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)]
+                ${step >= 2 ? 'translate-x-0 translate-y-0 opacity-0 scale-0' : ''} 
+                ${step === 0 ? 'opacity-0 scale-50' : 'opacity-100 scale-100'}
+                ${step === 1 ? item.pos : ''}
+                `}
+            >
+                <div className={`p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-xl ${item.color}`}>
+                <item.Icon size={24} />
+                </div>
             </div>
-          </div>
-        ))}
+            ))}
 
-        {/* --- O LOGO "N" (Explosão Central) --- */}
-        <div 
-          className={`
-            relative z-20 flex items-center justify-center
-            transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
-            ${step >= 2 ? 'scale-100 opacity-100 rotate-0' : 'scale-0 opacity-0 -rotate-180'}
-          `}
-        >
-           {/* Glow atrás do N */}
-           <div className={`absolute inset-0 bg-white/20 blur-xl rounded-full ${step >= 2 ? 'animate-ping' : ''}`} />
-           
-           {/* O N Desenhado */}
-           <div className="w-24 h-24 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-3xl flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.3)] border border-white/20">
-              <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800 tracking-tighter" style={{ fontFamily: 'Inter, sans-serif' }}>
-                N
-              </span>
-           </div>
+            {/* O LOGO "N" */}
+            <div 
+            className={`
+                relative z-20 flex items-center justify-center
+                transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                ${step >= 2 ? 'scale-100 opacity-100 rotate-0' : 'scale-0 opacity-0 -rotate-180'}
+            `}
+            >
+            <div className={`absolute inset-0 bg-white/30 blur-2xl rounded-full ${step >= 2 ? 'animate-ping' : ''}`} />
+            
+            <div className="w-24 h-24 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-3xl flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.3)] border border-white/20">
+                <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800 tracking-tighter" style={{ fontFamily: 'Inter, sans-serif' }}>
+                    N
+                </span>
+            </div>
+            </div>
         </div>
 
-      </div>
-      
-      {/* Texto de Loading inferior (Opcional) */}
-      <div className={`absolute bottom-12 text-center transition-opacity duration-500 ${step >= 2 ? 'opacity-100' : 'opacity-0'}`}>
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500 animate-pulse">
-              NewsOS AI
-          </p>
+        {/* --- O NOME "NewsOS" (NOVO CÓDIGO) --- */}
+        <div className={`
+            transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
+            ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
+        `}>
+            <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                NewsOS
+            </h1>
+        </div>
+
       </div>
     </div>
   );
 };
-
 
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
 export default function NewsOS_V12() {
