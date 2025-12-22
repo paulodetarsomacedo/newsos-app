@@ -751,47 +751,43 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode, accentColor
 }
 
 
-// --- COMPONENTE: SOURCE SELECTOR (VERSÃO COM SUPORTE A NOMES) ---
 function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'left', showName = false }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const uniqueItems = useMemo(() => {
-      if (!news || !Array.isArray(news)) return [];
-      const map = new Map();
-      news.forEach(item => {
-          if (!item) return;
-          const name = item.source || item.channel;
-          if (name && !map.has(name)) {
-              map.set(name, { name: name, logo: item.logo || item.img });
-          }
-      });
-      return Array.from(map.values());
+  const uniqueSources = useMemo(() => {
+    if (!news) return [];
+    const map = new Map();
+    news.forEach(n => {
+      const name = n.source || n.channel; 
+      if (name && !map.has(name)) {
+        map.set(name, { name, logo: n.logo || n.img });
+      }
+    });
+    return Array.from(map.values());
   }, [news]);
 
   const isRight = align === 'right';
-  const activeItem = uniqueItems.find(i => i.name === selectedSource);
+  const activeItem = uniqueSources.find(s => s.name === selectedSource);
 
   return (
     <div className={`absolute top-2 z-[1001] ${isRight ? 'right-0' : 'left-0'}`}>
       <button 
-        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center justify-center h-[42px] transition-all duration-300
-          backdrop-blur-xl shadow-sm border-y 
-          ${showName ? 'w-auto px-3 gap-2' : 'w-12'} 
-          ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white hover:bg-zinc-800' : 'bg-white/80 border-zinc-200 text-zinc-600 hover:bg-white'}
-          ${isOpen ? 'border-purple-500/50' : ''}
-          ${isRight ? 'rounded-l-2xl rounded-r-none border-l border-r-0' : 'rounded-r-2xl rounded-l-none border-r border-l-0'}
+          flex items-center justify-center h-[42px] transition-all duration-300 backdrop-blur-xl shadow-sm border-y
+          ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}
+          ${isRight ? 'rounded-l-2xl border-l border-r-0' : 'rounded-r-2xl border-r border-l-0'}
+          ${showName && selectedSource !== 'all' ? 'px-3 gap-2 w-auto' : 'w-12'}
         `}
       >
         {selectedSource === 'all' || !activeItem ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
-           <div className="flex items-center gap-2">
+           <div className="flex items-center gap-2 pointer-events-none">
               <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20 shrink-0">
                 <img src={activeItem.logo} className="w-full h-full object-cover" alt="" />
               </div>
-              {showName && <span className="text-[10px] font-bold truncate max-w-[80px] uppercase">{activeItem.name}</span>}
+              {showName && <span className="text-[10px] font-bold uppercase truncate max-w-[80px]">{activeItem.name}</span>}
            </div>
         )}
       </button>
@@ -803,17 +799,24 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'l
              absolute top-[50px] z-[101] flex flex-col gap-2 p-2 rounded-2xl border shadow-xl backdrop-blur-xl animate-in duration-200
              ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
              ${isRight ? 'right-2 origin-top-right' : 'left-2 origin-top-left'}
-             ${showName ? 'min-w-[140px]' : ''}
+             min-w-[150px]
           `}>
-             <button onClick={() => { onSelect('all'); setIsOpen(false); }} className={`flex items-center gap-2 p-2 rounded-xl transition-all ${selectedSource === 'all' ? 'bg-purple-600 text-white' : 'hover:bg-zinc-500/10'}`}>
+             <button 
+                onClick={() => { onSelect('all'); setIsOpen(false); }} 
+                className={`flex items-center gap-3 w-full p-2 rounded-xl transition-all ${selectedSource === 'all' ? 'bg-purple-600 text-white shadow-lg' : 'hover:bg-zinc-500/10'}`}
+             >
                 <LayoutGrid size={18} />
-                {showName && <span className="text-[10px] font-bold uppercase">Todas</span>}
+                <span className="text-[10px] font-black uppercase">Todas as Fontes</span>
              </button>
              <div className={`h-[1px] w-full ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
-             {uniqueItems.map((item) => (
-               <button key={item.name} onClick={() => { onSelect(item.name); setIsOpen(false); }} className={`flex items-center gap-2 p-1.5 rounded-xl transition-all ${selectedSource === item.name ? 'bg-zinc-500/20 ring-1 ring-purple-500' : 'hover:bg-zinc-500/10'}`}>
-                 <img src={item.logo} className="w-8 h-8 rounded-full object-cover border border-black/10" alt="" />
-                 {showName && <span className="text-[10px] font-bold truncate max-w-[100px] uppercase text-left">{item.name}</span>}
+             {uniqueSources.map((item) => (
+               <button 
+                  key={item.name} 
+                  onClick={() => { onSelect(item.name); setIsOpen(false); }} 
+                  className={`flex items-center gap-3 w-full p-2 rounded-xl transition-all ${selectedSource === item.name ? 'bg-purple-600/20 ring-1 ring-purple-500' : 'hover:bg-zinc-500/10'}`}
+               >
+                 <img src={item.logo} className="w-6 h-6 rounded-full object-cover border border-black/10" alt="" />
+                 <span className="text-[10px] font-bold truncate uppercase text-left flex-1">{item.name}</span>
                </button>
              ))}
           </div>
@@ -1162,7 +1165,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
       {/* CABEÇALHO */}
       <div className="sticky top-0 z-[1000] w-full flex justify-center py-2 pointer-events-none">
           <div className="pointer-events-auto">
-             <SourceSelector news={safeNews} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} />
+             <SourceSelector news={safeNews} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} showName={false} align='left'/>
           </div>
           <LiquidFilterBar 
             categories={FEED_CATEGORIES} 
@@ -1505,13 +1508,15 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   return (
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
     
-    <div className="absolute top-0 left-220 z-30">
+    
        <SourceSelector 
           news={safeVideos} // Passa os vídeos para ele extrair os logos
           selectedSource={channelFilter} 
           onSelect={setChannelFilter} 
           isDarkMode={isDarkMode} 
-       
+          showName={true}
+          align="right" 
+        showName={true} 
        />
     </div>
 
