@@ -2587,19 +2587,16 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   );
 };
 
-function HappeningTab({ openArticle, openStory, isDarkMode, onRefresh, storiesToDisplay, apiKey }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, apiKey }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
   
-  // Estado para sinalizar o reset dos Widgets Inteligentes
+  // O refreshTrigger para os widgets de IA precisa ser gerenciado aqui
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // --- ESTADOS DO PULL-TO-REFRESH ---
   const [startY, setStartY] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-
-
 
   // --- FUNÇÕES DE GESTO ---
   const handleTouchStart = (e) => {
@@ -2625,8 +2622,10 @@ function HappeningTab({ openArticle, openStory, isDarkMode, onRefresh, storiesTo
         setIsRefreshing(true);
         setPullDistance(120); 
         
+        // Aciona o gatilho para os widgets de IA recarregarem
         setRefreshTrigger(prev => prev + 1);
         
+        // Chama a função de refresh principal (que limpa os seenStoryIds e busca dados)
         if (onRefresh) {
             await onRefresh();
         }
@@ -2702,10 +2701,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, onRefresh, storiesTo
                 <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
                     <div className={`
                         relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500
-                        bg-gradient-to-tr 
-                        ${story.isSeen 
-                            ? 'from-blue-500 to-cyan-400 opacity-50' 
-                            : 'from-rose-600 via-pink-500 to-orange-400 shadow-lg shadow-rose-500/20'}
+                        bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-lg shadow-rose-500/20
                     `}>
                         <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
                             <img src={story.avatar} className="w-full h-full object-cover" alt="" />
