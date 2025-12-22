@@ -2602,30 +2602,28 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const storiesToDisplay = useMemo(() => {
     if (!newsData || newsData.length === 0) return [];
 
-    // 1. FORÇA BRUTA: Reordena tudo por data de novo para garantir
-    // Isso coloca a notícia de 10:05 antes da de 10:00, independente da fonte
     const sortedEverything = [...newsData].sort((a, b) => {
         const timeA = new Date(a.rawDate).getTime() || 0;
         const timeB = new Date(b.rawDate).getTime() || 0;
-        return timeB - timeA; // Decrescente (Mais novo primeiro)
+        return timeB - timeA;
     });
 
     const uniqueStories = [];
-    const seenSources = new Set(); // Set para garantir unicidade da fonte
+    const seenSources = new Set();
     
-    // 2. Itera na lista JÁ ORDENADA.
-    // A primeira vez que o loop encontra "G1", é a notícia mais recente do G1.
-    // A primeira vez que encontra "Folha", é a mais recente da Folha.
-    // Como sortedEverything está por tempo, as bolinhas ficarão na ordem do tempo.
     for (const item of sortedEverything) {
-        // Normaliza o nome da fonte para evitar "Folha" e "Folha de S.Paulo" duplicados se vierem sujos
         const sourceName = (item.source || "Fonte").trim();
         
         if (!seenSources.has(sourceName)) {
-            seenSources.add(sourceName); // Marca como vista, ignora as próximas desse jornal
+            seenSources.add(sourceName);
 
-            // Lógica de "Visto"
-            const isSeen = seenStoryIds.includes(item.id);
+            // --- CORREÇÃO APLICADA AQUI ---
+            // Se o ID da notícia mais recente desta fonte já estiver na
+            // lista de stories vistos, nós pulamos para a próxima fonte.
+            if (seenStoryIds.includes(item.id)) {
+                continue;
+            }
+            // --- FIM DA CORREÇÃO ---
 
             const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
             const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
@@ -2634,7 +2632,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                 id: item.id,
                 name: sourceName,
                 avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
-                isSeen: isSeen,
+                // A propriedade isSeen não é mais necessária, pois o story some
                 items: [{
                     ...item,
                     img: finalImg,
@@ -2646,6 +2644,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
     return uniqueStories;
   }, [newsData, seenStoryIds]);
+
 
   // --- FUNÇÕES DE GESTO ---
   const handleTouchStart = (e) => {
@@ -3205,28 +3204,24 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlText, "text/xml");
       
-      // Verifica se houve erro no parse do XML
       const parserError = xmlDoc.querySelector("parsererror");
       if (parserError) {
           console.warn("Erro ao ler XML de:", feedSource);
           return { items: [], realTitle: feedSource, realLogo: null };
       }
 
-      // Tenta descobrir título
       let detectedTitle = feedSource;
       const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
       if (channelTitle && channelTitle.textContent) {
           detectedTitle = channelTitle.textContent.trim();
       }
 
-      // Tenta descobrir link para logo
       let siteLink = "";
       const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("link");
       if (channelLink) {
           siteLink = channelLink.textContent || channelLink.getAttribute("href") || "";
       }
 
-      // Logo automática baseada no site descoberto
       let autoLogo = `https://ui-avatars.com/api/?name=${detectedTitle}&background=random`;
       if (siteLink) {
           try {
@@ -3238,7 +3233,6 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
       
       const parsedItems = items.map((node, index) => {
-        // Função segura para pegar texto de tags (suporta namespaces como yt:videoId)
         const getTxt = (tag) => {
             if (tag.includes(':')) {
                 const els = node.getElementsByTagName(tag);
@@ -3247,39 +3241,35 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
             return node.querySelector(tag)?.textContent || "";
         };
 
-        // Links
         const linkNode = node.querySelector("link");
         let link = linkNode?.getAttribute("href") || linkNode?.textContent || "";
 
-        // Suporte YouTube
         const ytId = getTxt("yt:videoId") || getTxt("videoId");
         if (ytId) link = `https://www.youtube.com/watch?v=${ytId}`;
 
-        // Datas e Conteúdo
-        const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated") || new Date().toISOString();
+        // --- CORREÇÃO APLICADA AQUI ---
+        // Buscamos a data. Se não existir, 'pubDate' será nulo.
+        const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated");
+        // Criamos um objeto Date apenas se a data for válida, senão, 'rawDateValue' será null.
+        const rawDateValue = pubDate ? new Date(pubDate) : null;
+        // --- FIM DA CORREÇÃO ---
+        
         const description = getTxt("description") || getTxt("summary");
         const contentEncoded = getTxt("content:encoded") || getTxt("content");
 
-        // --- BUSCA DE IMAGEM EM CASCATA ---
         let img = null;
-        
-        // 1. Tags de Media (Padrão moderno)
         const mediaContent = node.getElementsByTagName("media:content");
         if (mediaContent.length > 0) img = mediaContent[0].getAttribute("url");
         if (!img) {
             const mediaThumb = node.getElementsByTagName("media:thumbnail")[0];
             if (mediaThumb) img = mediaThumb.getAttribute("url");
         }
-
-        // 2. Enclosure (Padrão RSS clássico)
         if (!img) {
             const enclosure = node.querySelector("enclosure");
             if (enclosure && enclosure.getAttribute("type")?.includes("image")) {
                 img = enclosure.getAttribute("url");
             }
         }
-
-        // 3. HTML do Conteúdo (Padrão Wordpress/Folha)
         if (!img) img = extractImageFromContent(contentEncoded);
         if (!img) img = extractImageFromContent(description);
 
@@ -3287,8 +3277,10 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           id: `${feedId}-${index}-${Math.random().toString(36).substr(2, 5)}`,
           source: detectedTitle,
           logo: autoLogo,
-          time: new Date(pubDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          rawDate: new Date(pubDate),
+          // Se a data for válida, formata a hora. Senão, mostra 'N/A'.
+          time: rawDateValue ? rawDateValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+          // Passa o objeto Date (ou null) para ordenação.
+          rawDate: rawDateValue,
           title: getTxt("title"),
           summary: description.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
           category: 'Geral',
@@ -3307,7 +3299,6 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       return { items: [], realTitle: feedSource, realLogo: null };
   }
 };
-
 
 
 
@@ -3563,6 +3554,13 @@ export default function NewsOS_V12() {
   // --- AUTENTICAÇÃO E SYNC ---
   const [user, setUser] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false); 
+
+const handleHappeningRefresh = () => {
+    // Limpa a lista de IDs de stories vistos
+    setSeenStoryIds([]);
+    // Chama a função original para buscar novas notícias
+    fetchFeeds();
+  };
 
   // 1. Verificar usuário ao carregar
   useEffect(() => {
@@ -3929,6 +3927,7 @@ export default function NewsOS_V12() {
                     newsData={realNews} 
                     onRefresh={fetchFeeds}
                     seenStoryIds={seenStoryIds} 
+                    onRefresh={handleHappeningRefresh}
                     onMarkAsSeen={markStoryAsSeen}
                     apiKey={apiKey}
                 />
