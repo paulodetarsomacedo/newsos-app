@@ -4923,12 +4923,11 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                                     <div className="text-left text-xs font-bold opacity-50 mb-1 pl-1">Código enviado para {email}</div>
                                     <input 
                                         type="text" 
-                                        placeholder="123456"
-                                        maxLength={6}
-                                        value={otp}
-                                        onChange={(e) => setOtp(e.target.value)}
-                                        className={`w-full px-4 py-3 rounded-xl outline-none border text-center text-2xl tracking-widest font-mono transition-all ${isDarkMode ? 'bg-black/30 border-blue-500/50 focus:border-blue-500' : 'bg-zinc-50 border-blue-200 focus:border-blue-500'}`}
-                                    />
+    placeholder="Cole o código aqui"
+    value={otp}
+    onChange={(e) => setOtp(e.target.value)}
+    className={`w-full px-4 py-3 rounded-xl outline-none border text-center text-xl font-mono transition-all ${isDarkMode ? 'bg-black/30 border-blue-500/50 focus:border-blue-500' : 'bg-zinc-50 border-blue-200 focus:border-blue-500'}`}
+/>
                                     <button 
                                         onClick={handleVerifyCode} 
                                         disabled={loadingAuth || otp.length < 6}
