@@ -1159,27 +1159,29 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
 
   const safeNews = (stableData && stableData.length > 0) ? stableData : []; // Removi FEED_NEWS mockado para evitar mistura
 
-// 1. Filtra por Categoria e Fonte
+// 1. Filtra categorias e fonte selecionada
   const filteredByCategory = category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category);
-  
-  // Cria a lista filtrada por fonte
-  let displayedNewsRaw = sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter);
+  const filteredBySource = sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter);
 
-  // --- CORREÇÃO DA ORDEM DOS CARDS ---
-  // Força a ordenação por data (timestamp) para garantir que fiquem intercalados corretamente
-  displayedNewsRaw = displayedNewsRaw.sort((a, b) => {
-      return new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
-  });
+  // 2. CORREÇÃO DA ORDEM NO FEED:
+  // Cria uma nova lista e força o sort por timestamp seguro
+  const sortedFeed = useMemo(() => {
+      return [...filteredBySource].sort((a, b) => {
+          const tA = new Date(a.rawDate).getTime() || 0;
+          const tB = new Date(b.rawDate).getTime() || 0;
+          return tB - tA; // Mais recente no topo
+      });
+  }, [filteredBySource]);
 
-  // 2. Remove duplicatas baseado no ID antes de renderizar (Mantém a ordem do sort acima)
+  // 3. Remove duplicatas (mantendo a ordem do sort acima)
   const uniqueNews = useMemo(() => {
       const seen = new Set();
-      return displayedNewsRaw.filter(item => {
-          const duplicate = seen.has(item.id);
+      return sortedFeed.filter(item => {
+          if (seen.has(item.id)) return false;
           seen.add(item.id);
-          return !duplicate;
+          return true;
       });
-  }, [displayedNewsRaw]);
+  }, [sortedFeed]);
 
   // Funções de Toque
   const handleTouchStart = (e) => {
@@ -2596,32 +2598,34 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // --- LÓGICA DE STORIES ---
-const storiesToDisplay = useMemo(() => {
+// --- LÓGICA DE STORIES: ORDEM DE PUBLICAÇÃO ---
+  const storiesToDisplay = useMemo(() => {
     if (!newsData || newsData.length === 0) return [];
 
-    // 1. PASSO CRUCIAL: Cria uma cópia e ordena TUDO pela data (do mais recente para o mais antigo)
-    // Usamos .getTime() para garantir a comparação numérica correta
-    const sortedInput = [...newsData].sort((a, b) => {
-        return new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
+    // 1. FORÇA BRUTA: Reordena tudo por data de novo para garantir
+    // Isso coloca a notícia de 10:05 antes da de 10:00, independente da fonte
+    const sortedEverything = [...newsData].sort((a, b) => {
+        const timeA = new Date(a.rawDate).getTime() || 0;
+        const timeB = new Date(b.rawDate).getTime() || 0;
+        return timeB - timeA; // Decrescente (Mais novo primeiro)
     });
 
     const uniqueStories = [];
-    const seenSources = new Set(); 
+    const seenSources = new Set(); // Set para garantir unicidade da fonte
     
-    // 2. Itera sobre a lista JÁ ORDENADA. 
-    // A primeira vez que uma fonte aparece, é a sua notícia mais recente.
-    // Como a lista está ordenada por tempo, a ordem de inserção em uniqueStories será a ordem correta.
-    for (const item of sortedInput) {
-        const sourceName = item.source || "Fonte"; 
+    // 2. Itera na lista JÁ ORDENADA.
+    // A primeira vez que o loop encontra "G1", é a notícia mais recente do G1.
+    // A primeira vez que encontra "Folha", é a mais recente da Folha.
+    // Como sortedEverything está por tempo, as bolinhas ficarão na ordem do tempo.
+    for (const item of sortedEverything) {
+        // Normaliza o nome da fonte para evitar "Folha" e "Folha de S.Paulo" duplicados se vierem sujos
+        const sourceName = (item.source || "Fonte").trim();
         
-        // Se ainda não adicionamos esta fonte aos stories...
         if (!seenSources.has(sourceName)) {
-            seenSources.add(sourceName);
+            seenSources.add(sourceName); // Marca como vista, ignora as próximas desse jornal
 
+            // Lógica de "Visto"
             const isSeen = seenStoryIds.includes(item.id);
-            // Opcional: Se quiser esconder stories já vistos, descomente a linha abaixo
-            // if (isSeen) continue; 
 
             const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
             const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
@@ -2631,7 +2635,6 @@ const storiesToDisplay = useMemo(() => {
                 name: sourceName,
                 avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
                 isSeen: isSeen,
-                sortTime: new Date(item.rawDate).getTime(), 
                 items: [{
                     ...item,
                     img: finalImg,
@@ -2641,9 +2644,7 @@ const storiesToDisplay = useMemo(() => {
         }
     }
 
-    // Não precisamos de .sort() final aqui, pois o loop for já respeitou a ordem cronológica do sortedInput
     return uniqueStories;
-
   }, [newsData, seenStoryIds]);
 
   // --- FUNÇÕES DE GESTO ---
@@ -3821,18 +3822,28 @@ export default function NewsOS_V12() {
 
     await Promise.all(promises);
 
-    if (feedsThatNeedUpdate.length > 0) {
+   if (feedsThatNeedUpdate.length > 0) {
         setUserFeeds(prev => prev.map(f => {
             const update = feedsThatNeedUpdate.find(u => u.id === f.id);
             return update ? { ...f, name: update.name } : f;
         }));
     }
 
-    const sortFn = (a, b) => new Date(b.rawDate) - new Date(a.rawDate);
+    // --- CORREÇÃO DE ORDENAÇÃO: FUNÇÃO SEGURA ---
+    // Converte qualquer formato de data para Timestamp numérico. 
+    // Se der erro, joga para o final (0)
+    const getSafeTime = (dateInput) => {
+        if (!dateInput) return 0;
+        const time = new Date(dateInput).getTime();
+        return isNaN(time) ? 0 : time;
+    };
+
+    const sortFn = (a, b) => getSafeTime(b.rawDate) - getSafeTime(a.rawDate);
     
-    setRealNews(allNewsItems.sort(sortFn));
-    setRealVideos(allVideoItems.sort(sortFn));
-    setRealPodcasts(allPodcastItems.sort(sortFn));
+    // Força a ordenação aqui para garantir que o estado já entre misturado
+    setRealNews([...allNewsItems].sort(sortFn));
+    setRealVideos([...allVideoItems].sort(sortFn));
+    setRealPodcasts([...allPodcastItems].sort(sortFn));
     
     setIsLoadingFeeds(false);
   };
