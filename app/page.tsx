@@ -1165,7 +1165,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
       {/* CABEÇALHO */}
       <div className="sticky top-0 z-[1000] w-full flex justify-center py-2 pointer-events-none">
           <div className="pointer-events-auto">
-             <SourceSelector news={safeNews} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} showName={false} align='left'/>
+             <SourceSelector news={safeNews} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} showName={false} align='left' />
           </div>
           <LiquidFilterBar 
             categories={FEED_CATEGORIES} 
@@ -1508,15 +1508,14 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   return (
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
     
-    
+    <div className="absolute top-0 left-50 z-30">
        <SourceSelector 
           news={safeVideos} // Passa os vídeos para ele extrair os logos
           selectedSource={channelFilter} 
           onSelect={setChannelFilter} 
           isDarkMode={isDarkMode} 
           showName={true}
-          align="right" 
-        showName={true} 
+          align='right'
        />
     </div>
 
