@@ -754,6 +754,8 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode, accentColor
 function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
 
+  // 1. Extrai fontes únicas das notícias para montar o menu
+  // (Num app real, viria do seu userFeeds, mas aqui extraímos do que temos na tela)
   const uniqueSources = Array.from(new Set(news.map(n => n.source)))
     .map(sourceName => {
       return news.find(n => n.source === sourceName);
@@ -762,33 +764,106 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
   return (
     <div className="absolute left-0 top-2 z-[1001]">
       
+      {/* --- O BOTÃO "CORTADO" (TRIGGER) --- */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center justify-center gap-2
-          h-[42px] px-3
-          rounded-r-2xl rounded-l-none 
+          flex items-center justify-center
+          h-[42px] w-12 pl-1
+          rounded-r-2xl rounded-l-none /* Arredonda só a direita */
           border-y border-r border-l-0
           backdrop-blur-xl shadow-sm transition-all duration-300
           ${isDarkMode 
             ? 'bg-zinc-900/80 border-white/10 text-white hover:bg-zinc-800' 
             : 'bg-white/80 border-zinc-200 text-zinc-600 hover:bg-white'}
-          ${isOpen ? 'border-purple-500/50' : ''}
+          ${isOpen ? 'w-14 border-purple-500/50' : ''}
         `}
       >
         {selectedSource === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
+           // Se tiver uma fonte selecionada, tenta mostrar o logo pequeno
+           <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
+              <img 
+                src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
+                className="w-full h-full object-cover"
+              />
+           </div>
+        )}
+      </button>
+
+      {/* --- MENU SUSPENSO (ICONES) --- */}
+      {isOpen && (
+        <>
+          {/* Backdrop invisível para fechar ao clicar fora */}
+          <div className="fixed inset-0 z-[1000" onClick={() => setIsOpen(false)} />
+
+          <div className={`
+             absolute top-[50px] left-2 z-[101]
+             flex flex-col gap-2 p-2
+             rounded-2xl border shadow-xl backdrop-blur-xl
+             animate-in slide-in-from-left-2 duration-200
+             ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
+          `}>
+             
+             {/* Opção "Todas" */}
+             <button
+               onClick={() => { onSelect('all'); setIsOpen(false); }}
+               className={`
+                 w-10 h-10 rounded-full flex items-center justify-center transition-all
+                 ${selectedSource === 'all' 
+                    ? 'bg-purple-600 text-white shadow-lg' 
+                    : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}
+               `}
+               title="Todas as Fontes"
+             >
+                <LayoutGrid size={20} />
+             </button>
+
+             <div className={`h-[1px] w-full ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
+
+             {/* Lista de Logos */}
+             {uniqueSources.map((item) => (
+               <button
+                 key={item.source}
+                 onClick={() => { onSelect(item.source); setIsOpen(false); }}
+                 className={`
+                   relative w-10 h-10 rounded-full p-[2px] transition-transform hover:scale-110
+                   ${selectedSource === item.source ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
+                 `}
+                 title={item.source}
+               >
+                 <img 
+                   src={item.logo} 
+                   alt={item.source} 
+                   className="w-full h-full rounded-full object-cover border border-black/10"
+                 />
+               </button>
+             ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const uniqueChannels = Array.from(new Set(videos.map(v => v.source || v.channel)))
+    .map(name => videos.find(v => (v.source === name || v.channel === name)));
+
+  return (
+    <div className="absolute left-0 top-2 z-[1001]">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center justify-center gap-2 h-[42px] px-3 rounded-r-2xl border-y border-r border-l-0 backdrop-blur-xl shadow-sm transition-all duration-300 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white hover:bg-zinc-800' : 'bg-white/80 border-zinc-200 text-zinc-600 hover:bg-white'}`}
+      >
+        {selectedChannel === 'all' ? <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} /> : (
            <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
-                 <img 
-                   src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
-                   className="w-full h-full object-cover"
-                 />
+                 <img src={uniqueChannels.find(c => (c.source === selectedChannel || c.channel === selectedChannel))?.logo} className="w-full h-full object-cover" />
               </div>
-              <span className="text-[10px] font-bold uppercase truncate max-w-[80px]">
-                {selectedSource}
-              </span>
+              <span className="text-[10px] font-bold uppercase truncate max-w-[80px]">{selectedChannel}</span>
            </div>
         )}
       </button>
@@ -796,51 +871,17 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-[1000]" onClick={() => setIsOpen(false)} />
-
-          <div className={`
-             absolute top-[50px] left-2 z-[101]
-             flex flex-col gap-1 p-2 min-w-[180px]
-             rounded-2xl border shadow-xl backdrop-blur-xl
-             animate-in slide-in-from-left-2 duration-200
-             ${isDarkMode ? 'bg-zinc-900/95 border-white/10' : 'bg-white/95 border-zinc-200'}
-          `}>
-             
-             <button
-               onClick={() => { onSelect('all'); setIsOpen(false); }}
-               className={`
-                 w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all
-                 ${selectedSource === 'all' 
-                    ? 'bg-purple-600 text-white shadow-lg' 
-                    : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}
-               `}
-             >
-                <LayoutGrid size={18} />
-                <span className="text-xs font-bold uppercase">Todas as Fontes</span>
+          <div className={`absolute top-[50px] left-2 z-[101] flex flex-col gap-1 p-2 min-w-[180px] rounded-2xl border shadow-xl backdrop-blur-xl animate-in slide-in-from-left-2 duration-200 ${isDarkMode ? 'bg-zinc-900/95 border-white/10' : 'bg-white/95 border-zinc-200'}`}>
+             <button onClick={() => { onSelect('all'); setIsOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${selectedChannel === 'all' ? 'bg-purple-600 text-white shadow-lg' : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}`}>
+                <LayoutGrid size={18} /> <span className="text-xs font-bold uppercase">Todos os Canais</span>
              </button>
-
              <div className={`h-[1px] w-full my-1 ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
-
-             {uniqueSources.map((item) => (
-               <button
-                 key={item.source}
-                 onClick={() => { onSelect(item.source); setIsOpen(false); }}
-                 className={`
-                   flex items-center gap-3 px-3 py-2 rounded-xl transition-all w-full
-                   ${selectedSource === item.source 
-                      ? 'bg-purple-500/20 ring-1 ring-purple-500/50' 
-                      : (isDarkMode ? 'hover:bg-white/5' : 'hover:bg-black/5')}
-                 `}
-               >
+             {uniqueChannels.map((ch) => (
+               <button key={ch.id} onClick={() => { onSelect(ch.source || ch.channel); setIsOpen(false); }} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all w-full ${selectedChannel === (ch.source || ch.channel) ? 'bg-purple-500/20 ring-1 ring-purple-500/50' : (isDarkMode ? 'hover:bg-white/5' : 'hover:bg-black/5')}`}>
                  <div className="w-7 h-7 rounded-full overflow-hidden border border-black/10 shrink-0">
-                    <img 
-                      src={item.logo} 
-                      alt={item.source} 
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={ch.logo} className="w-full h-full object-cover" />
                  </div>
-                 <span className={`text-xs font-bold whitespace-nowrap truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
-                    {item.source}
-                 </span>
+                 <span className={`text-xs font-bold whitespace-nowrap truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>{ch.source || ch.channel}</span>
                </button>
              ))}
           </div>
@@ -1534,12 +1575,12 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
     
     <div className="absolute top-0 left-210 z-30">
-       <SourceSelector 
-          news={safeVideos} // Passa os vídeos para ele extrair os logos
-          selectedSource={channelFilter} 
-          onSelect={setChannelFilter} 
-          isDarkMode={isDarkMode} 
-       />
+ <YouTubeChannelSelector 
+  videos={safeVideos} 
+  selectedChannel={channelFilter} 
+  onSelect={setChannelFilter} 
+  isDarkMode={isDarkMode} 
+/>
     </div>
 
    
