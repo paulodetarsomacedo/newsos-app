@@ -2063,10 +2063,14 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
 
 // --- WIDGET: ENQUANTO VOCÊ ESTAVA FORA (VERSÃO IA GENERATIVA) ---
 
-// --- WIDGET: CONTEXTO GLOBAL (V3 - DESIGN AURA FUTURISTA) ---
+// --- WIDGET: CONTEXTO GLOBAL (V4 - ATUALIZAÇÃO ESTRITA: APENAS PUSH OU START) ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refreshTrigger }) => {
   const [clusters, setClusters] = useState(null);
   const [loading, setLoading] = useState(false);
+  
+  // TRAVAS LÓGICAS
+  const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
+  const prevRefreshTrigger = useRef(refreshTrigger);
 
   const shuffleArray = (array) => {
       const newArr = [...array];
@@ -2078,13 +2082,32 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
   };
 
   useEffect(() => {
+    // 1. Validações Básicas
     if (!news || news.length === 0 || !apiKey) return;
+
+    // 2. Verifica se é um comando de Refresh do Usuário
+    const isUserRefresh = refreshTrigger !== prevRefreshTrigger.current;
+
+    // 3. A REGRA DE OURO:
+    // Se JÁ carregou a primeira vez (hasLoadedInitial) E NÃO foi um refresh do usuário...
+    // ENTÃO PARE AGORA. (Ignora atualizações passivas do banco de dados)
+    if (hasLoadedInitial && !isUserRefresh) {
+        return;
+    }
+
+    // Se passou daqui, atualizamos as referências para o próximo ciclo
+    prevRefreshTrigger.current = refreshTrigger;
+    if (!hasLoadedInitial) setHasLoadedInitial(true);
 
     const runAI = async () => {
         setLoading(true);
-        setClusters(null); 
-        await new Promise(r => setTimeout(r, 1000)); 
+        // Limpa clusters apenas se for refresh manual para dar feedback visual
+        if (isUserRefresh) setClusters(null); 
         
+        // Pequeno delay para UI
+        await new Promise(r => setTimeout(r, isUserRefresh ? 1000 : 100)); 
+        
+        // Lógica de Embaralhamento (Shuffle)
         const topNews = news.slice(0, 5);
         const otherNews = news.slice(5, 55);
         const shuffledOthers = shuffleArray(otherNews);
@@ -2095,6 +2118,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
         if (result) {
             setClusters(result);
         } else {
+            // Fallback sem shuffle se a IA falhar
             const retry = await generateSmartClustering(news.slice(0, 40), apiKey);
             setClusters(retry);
         }
@@ -2102,11 +2126,13 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
     };
 
     runAI();
-  }, [news, apiKey, refreshTrigger]);
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [news, apiKey, refreshTrigger]); // Mantemos as dependências, mas a lógica interna bloqueia execuções indesejadas
 
   if (!apiKey) return null; 
   
-  // Skeleton com visual Aura
+  // Skeleton
   if (loading || !clusters) {
       return (
         <div className="px-1 mt-6 animate-pulse">
@@ -2132,21 +2158,11 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
                 ? 'bg-zinc-950 border-white/10' 
                 : 'bg-white border-white/40 shadow-purple-500/5'}
         `}>
-            {/* --- O SEGREDO DO EFEITO AURA ESTÁ AQUI --- */}
-            
-            {/* 1. Orbe Principal (Indigo/Azul) - Topo Direito */}
+            {/* Visual Aura */}
             <div className={`absolute -top-20 -right-20 w-80 h-80 rounded-full blur-[90px] opacity-40 animate-pulse ${isDarkMode ? 'bg-indigo-600' : 'bg-blue-400'}`} />
-            
-            {/* 2. Orbe Secundário (Roxo/Rosa) - Base Esquerda */}
             <div className={`absolute -bottom-20 -left-20 w-80 h-80 rounded-full blur-[90px] opacity-30 animate-pulse delay-1000 ${isDarkMode ? 'bg-purple-600' : 'bg-purple-300'}`} />
-            
-            {/* 3. Textura de Ruído (Noise) - Dá o toque "Futurista/Físico" */}
             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light pointer-events-none"></div>
-            
-            {/* 4. Vidro Fosco (Backdrop Blur) - Para legibilidade */}
             <div className="absolute inset-0 backdrop-blur-[1px]" />
-
-            {/* ------------------------------------------- */}
 
             {/* Header */}
             <div className="relative z-10 flex items-center gap-3 mb-6">
@@ -2163,7 +2179,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                         </span>
                         <p className={`text-[10px] font-medium ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                            IA processou {news.length} fontes agora
+                            IA processou {news.length} fontes
                         </p>
                     </div>
                 </div>
@@ -2173,20 +2189,16 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
             <div className="relative z-10 flex flex-col gap-6">
                 {clusters.map((group, idx) => (
                     <div key={idx} className="flex flex-col gap-3">
-                        
-                        {/* Texto Narrativo (Estilo Chat) */}
                         <div className={`p-0 rounded-2xl ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
                             <p className="text-sm font-medium leading-relaxed font-sans">
                                 {group.narrative}
                             </p>
                         </div>
 
-                        {/* Botões de Fontes (Glassmorphism) */}
                         <div className="flex flex-wrap gap-2 mt-1">
-    {/* O [...new Set()] remove IDs duplicados que a IA possa ter enviado */}
-    {[...new Set(group.related_ids)].map(id => {
-        const article = news.find(n => n.id === id);
-        if (!article) return null;
+                            {[...new Set(group.related_ids)].map(id => {
+                                const article = news.find(n => n.id === id);
+                                if (!article) return null;
 
                                 return (
                                     <button
@@ -2213,7 +2225,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
                             })}
                         </div>
                         
-                        {/* Linha Divisória Suave */}
                         {idx < clusters.length - 1 && (
                             <div className={`h-px w-full my-2 bg-gradient-to-r from-transparent via-current to-transparent opacity-10 ${isDarkMode ? 'text-white' : 'text-black'}`} />
                         )}
@@ -2224,7 +2235,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
     </div>
   );
 };
-
 
 // --- COMPONENTE TREND RADAR (COM ANIMAÇÃO SHIMMER) ---
 // --- COMPONENTE TREND RADAR (CORREÇÃO DE CLIP/Z-INDEX) ---
