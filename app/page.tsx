@@ -4330,7 +4330,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL (V25 - LAZY MOUNT / INICIALIZAÇÃO SUAVE)
+// COMPONENTE ARTICLE PANEL (V26 - PADRÃO FACADE / CLIQUE PARA CARREGAR)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
@@ -4340,15 +4340,15 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // --- ALTERAÇÃO 1: Começa FALSE para não travar na abertura ---
-  const [isPlayerMounted, setIsPlayerMounted] = useState(false);
+  // --- ESTADO NOVO: O USUÁRIO DEU PLAY? ---
+  // Começa false. Só vira true quando o usuário toca.
+  const [userHasClickedPlay, setUserHasClickedPlay] = useState(false);
 
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedData, setTranslatedData] = useState(null);
 
-  // --- DETECÇÃO DE VIDEO ---
   const videoId = useMemo(() => {
       if (!article) return null;
       return article.videoId || getVideoId(article.link);
@@ -4358,47 +4358,17 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
-          
-          // --- ALTERAÇÃO 2: Montagem Tardia (Delay) ---
-          // Reseta primeiro para garantir limpeza
-          setIsPlayerMounted(false);
-          
-          // Espera 300ms antes de carregar o iframe.
-          // Isso dá tempo da animação de slide terminar e do app "acordar" totalmente.
-          const timer = setTimeout(() => {
-              setIsPlayerMounted(true);
-          }, 300);
-
-          return () => clearTimeout(timer);
+          // RESETA O ESTADO AO ABRIR NOVO VÍDEO
+          // Começamos sempre mostrando a capa para garantir performance
+          setUserHasClickedPlay(false); 
       } else {
           setViewMode('web');
           setIframeUrl(null);
           setReaderContent(null);
           setTranslatedData(null);
           setIsTranslated(false);
-          setIsPlayerMounted(false);
       }
   }, [article?.id, videoId]);
-
-  // --- LÓGICA DE VISIBILIDADE (Mantida para minimizar/restaurar) ---
-  useEffect(() => {
-      const handleVisibilityChange = () => {
-          if (document.visibilityState === 'hidden') {
-              setIsPlayerMounted(false);
-          } 
-          else if (document.visibilityState === 'visible' && videoId) {
-              // Se voltou e tem vídeo, espera um pouco e remonta
-              setTimeout(() => {
-                  setIsPlayerMounted(true);
-              }, 300);
-          }
-      };
-
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-      return () => {
-          document.removeEventListener("visibilitychange", handleVisibilityChange);
-      };
-  }, [videoId]);
 
   const scrollContainerRef = useRef(null); 
 
@@ -4440,7 +4410,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setReaderContent(null);
         setViewMode('web');
         setIsTranslated(false); 
-        setIsPlayerMounted(false); // Limpa player ao fechar
+        setUserHasClickedPlay(false); // Reseta ao fechar
       }, 400); 
   }, [onClose, iframeUrl]);
 
@@ -4546,24 +4516,35 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
 
             <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain transform-gpu ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
                 
+                {/* --- MODO VÍDEO COM FACADE (CAPA -> VÍDEO) --- */}
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
-                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative">
-                            {/* ESTADO DE LOADING / DELAYED MOUNT */}
-                            {isPlayerMounted ? (
+                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative group cursor-pointer">
+                            {userHasClickedPlay ? (
+                                // FASE 2: Iframe Real (Carrega com autoplay após o clique)
                                 <iframe 
-                                    src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
-                                    className="w-full h-full animate-in fade-in duration-700"
+                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&modestbranding=1&rel=0&controls=1`}
+                                    className="w-full h-full animate-in fade-in duration-300"
                                     frameBorder="0"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
                                     title="YouTube Video"
                                 />
                             ) : (
-                                <div className="w-full h-full bg-black flex items-center justify-center">
-                                    <div className="flex flex-col items-center gap-2 opacity-50">
-                                        <Loader2 className="animate-spin text-red-600" />
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-white">Carregando Player...</span>
+                                // FASE 1: Capa Estática (Leve e não trava)
+                                <div onClick={() => setUserHasClickedPlay(true)} className="absolute inset-0 w-full h-full relative">
+                                    <img 
+                                        src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
+                                        className="w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity"
+                                        alt="Video Thumbnail"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110 group-active:scale-95">
+                                            <Play size={32} fill="white" className="text-white ml-1" />
+                                        </div>
+                                    </div>
+                                    <div className="absolute bottom-4 right-4 bg-black/80 px-2 py-1 rounded text-xs font-bold text-white">
+                                        Toque para assistir
                                     </div>
                                 </div>
                             )}
@@ -4598,6 +4579,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                         </div>
                     </div>
                 ) : (
+                    // --- MODO WEB/TEXTO ---
                     <>
                         {isLoading && (<div className="absolute inset-0 flex flex-col items-center justify-center bg-inherit z-50"><Loader2 size={48} className="animate-spin text-purple-600 mb-4" /><p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40 animate-pulse">Carregando...</p></div>)}
                         
@@ -4646,6 +4628,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     </div>
   );
 });
+
 
 function PodNewsModal({ onClose, isDarkMode }) {
   const [status, setStatus] = useState('generating'); // 'generating' | 'playing'
