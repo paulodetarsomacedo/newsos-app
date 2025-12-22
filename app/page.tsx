@@ -751,72 +751,93 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode, accentColor
 }
 
 
-function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'left', showName = false }) {
+function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const uniqueSources = useMemo(() => {
-    if (!news) return [];
-    const map = new Map();
-    news.forEach(n => {
-      const name = n.source || n.channel; 
-      if (name && !map.has(name)) {
-        map.set(name, { name, logo: n.logo || n.img });
-      }
+  // 1. Extrai fontes únicas das notícias para montar o menu
+  // (Num app real, viria do seu userFeeds, mas aqui extraímos do que temos na tela)
+  const uniqueSources = Array.from(new Set(news.map(n => n.source)))
+    .map(sourceName => {
+      return news.find(n => n.source === sourceName);
     });
-    return Array.from(map.values());
-  }, [news]);
-
-  const isRight = align === 'right';
-  const activeItem = uniqueSources.find(s => s.name === selectedSource);
 
   return (
-    <div className={`absolute top-2 z-[1001] ${isRight ? 'right-0' : 'left-0'}`}>
+    <div className="absolute left-0 top-2 z-[1001]">
+      
+      {/* --- O BOTÃO "CORTADO" (TRIGGER) --- */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center justify-center h-[42px] transition-all duration-300 backdrop-blur-xl shadow-sm border-y
-          ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}
-          ${isRight ? 'rounded-l-2xl border-l border-r-0' : 'rounded-r-2xl border-r border-l-0'}
-          ${showName && selectedSource !== 'all' ? 'px-3 gap-2 w-auto' : 'w-12'}
+          flex items-center justify-center
+          h-[42px] w-12 pl-1
+          rounded-r-2xl rounded-l-none /* Arredonda só a direita */
+          border-y border-r border-l-0
+          backdrop-blur-xl shadow-sm transition-all duration-300
+          ${isDarkMode 
+            ? 'bg-zinc-900/80 border-white/10 text-white hover:bg-zinc-800' 
+            : 'bg-white/80 border-zinc-200 text-zinc-600 hover:bg-white'}
+          ${isOpen ? 'w-14 border-purple-500/50' : ''}
         `}
       >
-        {selectedSource === 'all' || !activeItem ? (
+        {selectedSource === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
-           <div className="flex items-center gap-2 pointer-events-none">
-              <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20 shrink-0">
-                <img src={activeItem.logo} className="w-full h-full object-cover" alt="" />
-              </div>
-              {showName && <span className="text-[10px] font-bold uppercase truncate max-w-[80px]">{activeItem.name}</span>}
+           // Se tiver uma fonte selecionada, tenta mostrar o logo pequeno
+           <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
+              <img 
+                src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
+                className="w-full h-full object-cover"
+              />
            </div>
         )}
       </button>
 
+      {/* --- MENU SUSPENSO (ICONES) --- */}
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-[1000]" onClick={() => setIsOpen(false)} />
+          {/* Backdrop invisível para fechar ao clicar fora */}
+          <div className="fixed inset-0 z-[1000" onClick={() => setIsOpen(false)} />
+
           <div className={`
-             absolute top-[50px] z-[101] flex flex-col gap-2 p-2 rounded-2xl border shadow-xl backdrop-blur-xl animate-in duration-200
+             absolute top-[50px] left-2 z-[101]
+             flex flex-col gap-2 p-2
+             rounded-2xl border shadow-xl backdrop-blur-xl
+             animate-in slide-in-from-left-2 duration-200
              ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
-             ${isRight ? 'right-2 origin-top-right' : 'left-2 origin-top-left'}
-             min-w-[150px]
           `}>
-             <button 
-                onClick={() => { onSelect('all'); setIsOpen(false); }} 
-                className={`flex items-center gap-3 w-full p-2 rounded-xl transition-all ${selectedSource === 'all' ? 'bg-purple-600 text-white shadow-lg' : 'hover:bg-zinc-500/10'}`}
+             
+             {/* Opção "Todas" */}
+             <button
+               onClick={() => { onSelect('all'); setIsOpen(false); }}
+               className={`
+                 w-10 h-10 rounded-full flex items-center justify-center transition-all
+                 ${selectedSource === 'all' 
+                    ? 'bg-purple-600 text-white shadow-lg' 
+                    : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}
+               `}
+               title="Todas as Fontes"
              >
-                <LayoutGrid size={18} />
-                <span className="text-[10px] font-black uppercase">Todas as Fontes</span>
+                <LayoutGrid size={20} />
              </button>
+
              <div className={`h-[1px] w-full ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
+
+             {/* Lista de Logos */}
              {uniqueSources.map((item) => (
-               <button 
-                  key={item.name} 
-                  onClick={() => { onSelect(item.name); setIsOpen(false); }} 
-                  className={`flex items-center gap-3 w-full p-2 rounded-xl transition-all ${selectedSource === item.name ? 'bg-purple-600/20 ring-1 ring-purple-500' : 'hover:bg-zinc-500/10'}`}
+               <button
+                 key={item.source}
+                 onClick={() => { onSelect(item.source); setIsOpen(false); }}
+                 className={`
+                   relative w-10 h-10 rounded-full p-[2px] transition-transform hover:scale-110
+                   ${selectedSource === item.source ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
+                 `}
+                 title={item.source}
                >
-                 <img src={item.logo} className="w-6 h-6 rounded-full object-cover border border-black/10" alt="" />
-                 <span className="text-[10px] font-bold truncate uppercase text-left flex-1">{item.name}</span>
+                 <img 
+                   src={item.logo} 
+                   alt={item.source} 
+                   className="w-full h-full rounded-full object-cover border border-black/10"
+                 />
                </button>
              ))}
           </div>
@@ -825,6 +846,7 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'l
     </div>
   );
 }
+
 
 // --- COMPONENTE INTELIGENTE DE IMAGEM (NOVO) ---
 
@@ -1165,7 +1187,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
       {/* CABEÇALHO */}
       <div className="sticky top-0 z-[1000] w-full flex justify-center py-2 pointer-events-none">
           <div className="pointer-events-auto">
-             <SourceSelector news={safeNews} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} showName={false} align='left' />
+             <SourceSelector news={safeNews} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} />
           </div>
           <LiquidFilterBar 
             categories={FEED_CATEGORIES} 
@@ -1508,14 +1530,12 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   return (
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
     
-    <div className="absolute top-0 left-50 z-30">
+    <div className="absolute top-0 left-220 z-30">
        <SourceSelector 
           news={safeVideos} // Passa os vídeos para ele extrair os logos
           selectedSource={channelFilter} 
           onSelect={setChannelFilter} 
           isDarkMode={isDarkMode} 
-          showName={true}
-          align='right'
        />
     </div>
 
