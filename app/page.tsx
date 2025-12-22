@@ -4726,10 +4726,14 @@ function PodNewsModal({ onClose, isDarkMode }) {
   );
 }
 
-// --- MODAL DE CONFIGURAÇÕES (V2 - COM LOGIN E EDIÇÃO) ---
+// --- MODAL DE CONFIGURAÇÕES (V3 - FINAL - COM LOGIN VIA CÓDIGO/OTP) ---
 function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey, user }) {
   const [activeTab, setActiveTab] = useState(user ? 'sources' : 'account'); 
+  
+  // Auth States
   const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState(''); // O código de 6 dígitos
+  const [showOtpInput, setShowOtpInput] = useState(false); // Controla se mostra o campo de código
   const [loadingAuth, setLoadingAuth] = useState(false);
   
   // Estados para adicionar nova fonte
@@ -4740,88 +4744,74 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
   const [isDiscovering, setIsDiscovering] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Estados para Edição de Nome
+  // Estados para Edição
   const [editingId, setEditingId] = useState(null);
   const [tempName, setTempName] = useState('');
 
-  // --- FUNÇÕES DE AUTH ---
-  const handleLogin = async () => {
+  // --- 1. ENVIAR O CÓDIGO ---
+  const handleSendCode = async () => {
       setLoadingAuth(true);
-      
-      // COLOQUE SEU IP AQUI (Substitua 192.168.1.15 pelo seu real)
-      const MEU_IP_LOCAL = 'http://192.168.0.52:3000'; 
-
       const { error } = await supabase.auth.signInWithOtp({
           email: email,
-          options: {
-              // Forçamos o redirecionamento para o IP, não importa onde vc esteja clicando
-              emailRedirectTo: MEU_IP_LOCAL, 
-          }
+          // NÃO passamos redirectTo. Isso força o envio do código, não do link.
       });
       setLoadingAuth(false);
-      if (error) alert("Erro: " + error.message);
-      else alert("Link de login enviado para seu e-mail! Verifique sua caixa de entrada.");
+      
+      if (error) {
+          alert("Erro: " + error.message);
+      } else {
+          setShowOtpInput(true); // Mostra o campo para digitar o código
+          alert("Código enviado! Verifique seu e-mail.");
+      }
+  };
+
+  // --- 2. VERIFICAR O CÓDIGO ---
+  const handleVerifyCode = async () => {
+      setLoadingAuth(true);
+      const { data, error } = await supabase.auth.verifyOtp({
+          email: email,
+          token: otp,
+          type: 'email',
+      });
+      setLoadingAuth(false);
+
+      if (error) {
+          alert("Código inválido ou expirado.");
+      } else {
+          // Sucesso! O useEffect do componente principal vai detectar o user e baixar os dados.
+          alert("Login realizado com sucesso!");
+          onClose();
+      }
   };
 
   const handleLogout = async () => {
       await supabase.auth.signOut();
+      setShowOtpInput(false);
+      setOtp('');
       onClose(); 
   };
 
-  // --- FUNÇÕES DE GERENCIAMENTO DE FONTES ---
-  const startEditing = (feed) => {
-    setEditingId(feed.id);
-    setTempName(feed.name);
-  };
-
-  const cancelEditing = () => {
-    setEditingId(null);
-    setTempName('');
-  };
-
-  const saveName = (id) => {
-    if (tempName.trim()) {
-      setFeeds(prev => prev.map(f => f.id === id ? { ...f, name: tempName } : f));
-    }
-    setEditingId(null);
-  };
-
-  const removeFeed = (id) => {
-      setFeeds(feeds.filter(f => f.id !== id));
-  };
-
+  // ... (Funções de Fontes - Mantidas iguais) ...
+  const startEditing = (feed) => { setEditingId(feed.id); setTempName(feed.name); };
+  const cancelEditing = () => { setEditingId(null); setTempName(''); };
+  const saveName = (id) => { if (tempName.trim()) { setFeeds(prev => prev.map(f => f.id === id ? { ...f, name: tempName } : f)); } setEditingId(null); };
+  const removeFeed = (id) => { setFeeds(feeds.filter(f => f.id !== id)); };
+  
   const handleAutoDiscover = async () => {
       if (!newUrl) return;
       setIsDiscovering(true);
       let urlToCheck = newUrl.trim();
       if (!urlToCheck.startsWith('http')) urlToCheck = 'https://' + urlToCheck;
-
       try {
-          const { data, error } = await supabase.functions.invoke('parse-feed', {
-              body: { url: urlToCheck, type: 'discover' }
-          });
-
+          const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: urlToCheck, type: 'discover' } });
           if (error || !data || !data.url) throw new Error("Feed não encontrado");
-
           setNewUrl(data.url);
-          
-          if (data.url.includes('youtube') || data.url.includes('youtu.be')) {
-              setFeedType('youtube');
-          } else if (data.url.includes('pod') || data.url.includes('cast')) {
-              setFeedType('podcast');
-          }
-          
+          if (data.url.includes('youtube') || data.url.includes('youtu.be')) { setFeedType('youtube'); } else if (data.url.includes('pod') || data.url.includes('cast')) { setFeedType('podcast'); }
           alert(`Sucesso! Feed encontrado: ${data.url}`);
-      } catch (err) {
-          console.error(err);
-          alert("Não foi possível encontrar um feed RSS automático. Tente o link direto do XML.");
-      } finally {
-          setIsDiscovering(false);
-      }
+      } catch (err) { alert("Não foi possível encontrar um feed RSS automático."); } finally { setIsDiscovering(false); }
   };
 
   const handleImportClick = () => fileInputRef.current?.click();
-  
   const handleImportOPML = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -4853,30 +4843,12 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
 
   const handleAddFeed = () => {
     if (!newUrl.trim()) return; 
-    
-    if (!targetFeed && !targetBanca) {
-        alert("Selecione onde exibir (Feed ou Banca).");
-        return;
-    }
-
+    if (!targetFeed && !targetBanca) { alert("Selecione onde exibir."); return; }
     let formattedUrl = newUrl.trim();
     if (!formattedUrl.startsWith('http')) formattedUrl = 'https://' + formattedUrl;
-
-    const newFeed = { 
-        id: Date.now(), 
-        name: 'Nova Fonte', 
-        url: formattedUrl,
-        type: feedType, 
-        category: feedType === 'podcast' ? 'Podcast' : 'Geral',
-        display: { feed: targetFeed, banca: targetBanca }
-    };
-    
+    const newFeed = { id: Date.now(), name: 'Nova Fonte', url: formattedUrl, type: feedType, category: feedType === 'podcast' ? 'Podcast' : 'Geral', display: { feed: targetFeed, banca: targetBanca } };
     setFeeds(prev => [...prev, newFeed]);
-    setNewUrl('');
-    // Reseta para padrões
-    setTargetFeed(true);
-    setTargetBanca(false);
-    setFeedType('news');
+    setNewUrl(''); setTargetFeed(true); setTargetBanca(false); setFeedType('news');
   };
 
   return (
@@ -4889,32 +4861,15 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
             <button onClick={onClose}><X size={20} /></button>
         </div>
 
-        {/* ABAS DE NAVEGAÇÃO */}
         <div className="flex p-2 gap-2 border-b border-white/5 bg-black/5 dark:bg-white/5 overflow-x-auto">
-            <button 
-                onClick={() => setActiveTab('account')} 
-                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${activeTab === 'account' ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : 'opacity-50 hover:opacity-100'}`}
-            >
-                <div className={`w-2 h-2 rounded-full ${user ? 'bg-green-500' : 'bg-red-500'}`} />
-                Conta
-            </button>
-            <button 
-                onClick={() => setActiveTab('sources')} 
-                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'sources' ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : 'opacity-50 hover:opacity-100'}`}
-            >
-                Fontes
-            </button>
-            <button 
-                onClick={() => setActiveTab('api')} 
-                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'api' ? 'bg-purple-600 text-white' : 'opacity-50 hover:opacity-100'}`}
-            >
-                IA
-            </button>
+            <button onClick={() => setActiveTab('account')} className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${activeTab === 'account' ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : 'opacity-50 hover:opacity-100'}`}><div className={`w-2 h-2 rounded-full ${user ? 'bg-green-500' : 'bg-red-500'}`} />Conta</button>
+            <button onClick={() => setActiveTab('sources')} className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'sources' ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : 'opacity-50 hover:opacity-100'}`}>Fontes</button>
+            <button onClick={() => setActiveTab('api')} className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'api' ? 'bg-purple-600 text-white' : 'opacity-50 hover:opacity-100'}`}>IA</button>
         </div>
 
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
             
-            {/* --- ABA CONTA --- */}
+            {/* --- ABA CONTA (MODO CÓDIGO) --- */}
             {activeTab === 'account' && (
                 <div className="space-y-6 text-center">
                     {user ? (
@@ -4928,7 +4883,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                             </div>
                             <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-xs font-bold w-full">
                                 <CheckCircle size={16} className="inline mr-2 mb-0.5"/>
-                                Sincronização em nuvem ativa
+                                Sincronização Ativa
                             </div>
                             <button onClick={handleLogout} className="w-full py-3 rounded-xl border border-red-500/50 text-red-500 font-bold hover:bg-red-500/10 transition">
                                 Desconectar
@@ -4939,138 +4894,103 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                             <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-white/5 flex items-center justify-center mb-2">
                                 <CloudSun size={32} className="opacity-50"/>
                             </div>
-                            <h3 className="font-bold text-xl">Sincronize seu NewsOS</h3>
+                            <h3 className="font-bold text-xl">Login via Código</h3>
                             <p className="text-sm opacity-60 leading-relaxed max-w-xs">
-                                Faça login para salvar suas fontes, artigos e preferências em todos os seus dispositivos.
+                                Digite seu e-mail para receber um código de acesso rápido. Funciona em qualquer dispositivo.
                             </p>
                             
-                            <div className="w-full mt-4 space-y-3">
-                                <input 
-                                    type="email" 
-                                    placeholder="seu@email.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className={`w-full px-4 py-3 rounded-xl outline-none border transition-all ${isDarkMode ? 'bg-black/30 border-white/10 focus:border-white/30' : 'bg-zinc-50 border-zinc-200 focus:border-zinc-400'}`}
-                                />
-                                <button 
-                                    onClick={handleLogin} 
-                                    disabled={loadingAuth || !email}
-                                    className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                    {loadingAuth ? <Loader2 size={18} className="animate-spin"/> : 'Enviar Link de Acesso'}
-                                </button>
-                            </div>
-                            <p className="text-[10px] opacity-40 mt-2">Enviaremos um link mágico (Magic Link) para seu email.</p>
+                            {!showOtpInput ? (
+                                /* PASSO 1: DIGITAR EMAIL */
+                                <div className="w-full mt-4 space-y-3">
+                                    <input 
+                                        type="email" 
+                                        placeholder="seu@email.com"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className={`w-full px-4 py-3 rounded-xl outline-none border transition-all ${isDarkMode ? 'bg-black/30 border-white/10 focus:border-white/30' : 'bg-zinc-50 border-zinc-200 focus:border-zinc-400'}`}
+                                    />
+                                    <button 
+                                        onClick={handleSendCode} 
+                                        disabled={loadingAuth || !email}
+                                        className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        {loadingAuth ? <Loader2 size={18} className="animate-spin"/> : 'Enviar Código'}
+                                    </button>
+                                </div>
+                            ) : (
+                                /* PASSO 2: DIGITAR CÓDIGO */
+                                <div className="w-full mt-4 space-y-3 animate-in fade-in slide-in-from-right-4">
+                                    <div className="text-left text-xs font-bold opacity-50 mb-1 pl-1">Código enviado para {email}</div>
+                                    <input 
+                                        type="text" 
+                                        placeholder="123456"
+                                        maxLength={6}
+                                        value={otp}
+                                        onChange={(e) => setOtp(e.target.value)}
+                                        className={`w-full px-4 py-3 rounded-xl outline-none border text-center text-2xl tracking-widest font-mono transition-all ${isDarkMode ? 'bg-black/30 border-blue-500/50 focus:border-blue-500' : 'bg-zinc-50 border-blue-200 focus:border-blue-500'}`}
+                                    />
+                                    <button 
+                                        onClick={handleVerifyCode} 
+                                        disabled={loadingAuth || otp.length < 6}
+                                        className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        {loadingAuth ? <Loader2 size={18} className="animate-spin"/> : 'Entrar'}
+                                    </button>
+                                    <button onClick={() => setShowOtpInput(false)} className="text-xs opacity-50 hover:opacity-100 underline">Voltar / Corrigir E-mail</button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
             )}
 
-            {/* --- ABA FONTES --- */}
+            {/* ABA FONTES (Mantida idêntica) */}
             {activeTab === 'sources' && (
                 <div className="space-y-6">
-                    
-                    {/* Botão de Importar */}
                     <div className="flex gap-2 mb-2">
                         <input type="file" accept=".opml,.xml" ref={fileInputRef} onChange={handleImportOPML} className="hidden" />
                         <button onClick={handleImportClick} className="flex-1 py-3 bg-zinc-200 dark:bg-zinc-800 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-zinc-300 dark:hover:bg-zinc-700 transition flex items-center justify-center gap-2">
                             <Layers size={14}/> Importar OPML
                         </button>
                     </div>
-
-                    {/* Card de Adicionar */}
                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
                         <label className="text-xs font-bold uppercase tracking-wider opacity-60 mb-3 block">Adicionar Fonte</label>
-                        
                         <div className="flex gap-2 mb-4">
-                            <input 
-                                type="text" 
-                                value={newUrl} 
-                                onChange={(e) => setNewUrl(e.target.value)} 
-                                placeholder="Link RSS (Site ou YouTube)" 
-                                className={`flex-1 px-3 py-2 rounded-lg text-sm outline-none border transition-all ${isDarkMode ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-300'}`} 
-                            />
-                            <button onClick={handleAutoDiscover} disabled={isDiscovering || !newUrl} className={`p-2 rounded-lg border w-10 flex items-center justify-center ${isDarkMode ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-indigo-100 text-indigo-700'}`}>
-                                {isDiscovering ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18} />}
-                            </button>
+                            <input type="text" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="Link RSS" className={`flex-1 px-3 py-2 rounded-lg text-sm outline-none border transition-all ${isDarkMode ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-300'}`} />
+                            <button onClick={handleAutoDiscover} disabled={isDiscovering || !newUrl} className={`p-2 rounded-lg border w-10 flex items-center justify-center ${isDarkMode ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-indigo-100 text-indigo-700'}`}>{isDiscovering ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18} />}</button>
                         </div>
-
-                        {/* Tipos */}
                         <div className="mb-4">
-                            <label className="text-[10px] font-bold uppercase opacity-50 mb-1.5 block">Tipo de Conteúdo</label>
+                            <label className="text-[10px] font-bold uppercase opacity-50 mb-1.5 block">Tipo</label>
                             <div className="grid grid-cols-3 gap-2">
-                                <button onClick={() => setFeedType('news')} className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${feedType === 'news' ? 'bg-blue-600 border-blue-500 text-white' : 'opacity-50 hover:opacity-100'}`}>
-                                    <FileText size={16}/> Notícia
-                                </button>
-                                <button onClick={() => setFeedType('youtube')} className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${feedType === 'youtube' ? 'bg-red-600 border-red-500 text-white' : 'opacity-50 hover:opacity-100'}`}>
-                                    <Youtube size={16}/> Vídeo
-                                </button>
-                                <button onClick={() => setFeedType('podcast')} className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${feedType === 'podcast' ? 'bg-orange-500 border-orange-400 text-white' : 'opacity-50 hover:opacity-100'}`}>
-                                    <Mic size={16}/> Podcast
-                                </button>
+                                <button onClick={() => setFeedType('news')} className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${feedType === 'news' ? 'bg-blue-600 border-blue-500 text-white' : 'opacity-50 hover:opacity-100'}`}><FileText size={16}/> Notícia</button>
+                                <button onClick={() => setFeedType('youtube')} className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${feedType === 'youtube' ? 'bg-red-600 border-red-500 text-white' : 'opacity-50 hover:opacity-100'}`}><Youtube size={16}/> Vídeo</button>
+                                <button onClick={() => setFeedType('podcast')} className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${feedType === 'podcast' ? 'bg-orange-500 border-orange-400 text-white' : 'opacity-50 hover:opacity-100'}`}><Mic size={16}/> Podcast</button>
                             </div>
                         </div>
-                        
-                        {/* Destino */}
                         <div className="mb-4">
-                            <label className="text-[10px] font-bold uppercase opacity-50 mb-1.5 block">Onde Exibir?</label>
+                            <label className="text-[10px] font-bold uppercase opacity-50 mb-1.5 block">Exibir em:</label>
                             <div className="grid grid-cols-2 gap-3">
-                                <div onClick={() => setTargetFeed(!targetFeed)} className={`cursor-pointer p-3 rounded-lg border flex items-center gap-3 transition-all select-none ${targetFeed ? 'bg-zinc-800 border-zinc-600 text-white shadow-inner' : (isDarkMode ? 'bg-zinc-900 border-zinc-700 text-zinc-500' : 'bg-white border-zinc-200 text-zinc-400')}`}>
-                                    <Rss size={16} /> <span className="font-bold text-sm">No Feed</span> {targetFeed && <CheckCircle size={16} className="ml-auto text-green-500" />}
-                                </div>
-                                <div onClick={() => setTargetBanca(!targetBanca)} className={`cursor-pointer p-3 rounded-lg border flex items-center gap-3 transition-all select-none ${targetBanca ? 'bg-zinc-800 border-zinc-600 text-white shadow-inner' : (isDarkMode ? 'bg-zinc-900 border-zinc-700 text-zinc-500' : 'bg-white border-zinc-200 text-zinc-400')}`}>
-                                    <LayoutGrid size={16} /> <span className="font-bold text-sm">Na Banca</span> {targetBanca && <CheckCircle size={16} className="ml-auto text-green-500" />}
-                                </div>
+                                <div onClick={() => setTargetFeed(!targetFeed)} className={`cursor-pointer p-3 rounded-lg border flex items-center gap-3 transition-all select-none ${targetFeed ? 'bg-zinc-800 border-zinc-600 text-white shadow-inner' : (isDarkMode ? 'bg-zinc-900 border-zinc-700 text-zinc-500' : 'bg-white border-zinc-200 text-zinc-400')}`}><Rss size={16} /> <span className="font-bold text-sm">No Feed</span> {targetFeed && <CheckCircle size={16} className="ml-auto text-green-500" />}</div>
+                                <div onClick={() => setTargetBanca(!targetBanca)} className={`cursor-pointer p-3 rounded-lg border flex items-center gap-3 transition-all select-none ${targetBanca ? 'bg-zinc-800 border-zinc-600 text-white shadow-inner' : (isDarkMode ? 'bg-zinc-900 border-zinc-700 text-zinc-500' : 'bg-white border-zinc-200 text-zinc-400')}`}><LayoutGrid size={16} /> <span className="font-bold text-sm">Na Banca</span> {targetBanca && <CheckCircle size={16} className="ml-auto text-green-500" />}</div>
                             </div>
                         </div>
-
                         <button onClick={handleAddFeed} disabled={!newUrl || (!targetFeed && !targetBanca)} className="w-full py-3 bg-purple-600 text-white rounded-lg font-bold text-sm transition hover:bg-purple-500 disabled:opacity-50">Adicionar Fonte</button>
                     </div>
-
-                    {/* Lista de Fontes Ativas */}
                     <div>
                         <label className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2 block">Fontes Ativas</label>
                         <div className="space-y-2">
                             {feeds.map(feed => (
                                 <div key={feed.id} className={`flex justify-between items-center p-3 rounded-lg border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
                                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        
-                                        {/* Ícone fixo na esquerda */}
                                         {feed.type === 'podcast' ? <Mic size={14} className="text-orange-500 shrink-0"/> : feed.type === 'youtube' ? <Youtube size={14} className="text-red-500 shrink-0"/> : <Rss size={14} className="text-blue-500 shrink-0"/>}
-                                        
-                                        {/* Lógica de Edição */}
                                         {editingId === feed.id ? (
-                                            <div className="flex items-center gap-2 w-full pr-2 animate-in fade-in duration-200">
-                                                <input 
-                                                    type="text" 
-                                                    autoFocus
-                                                    value={tempName}
-                                                    onChange={(e) => setTempName(e.target.value)}
-                                                    onKeyDown={(e) => e.key === 'Enter' && saveName(feed.id)}
-                                                    className={`w-full text-sm bg-transparent border-b outline-none pb-1 ${isDarkMode ? 'border-white/20 text-white focus:border-purple-500' : 'border-black/20 text-black focus:border-purple-500'}`}
-                                                />
-                                            </div>
+                                            <div className="flex items-center gap-2 w-full pr-2 animate-in fade-in duration-200"><input type="text" autoFocus value={tempName} onChange={(e) => setTempName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveName(feed.id)} className={`w-full text-sm bg-transparent border-b outline-none pb-1 ${isDarkMode ? 'border-white/20 text-white focus:border-purple-500' : 'border-black/20 text-black focus:border-purple-500'}`} /></div>
                                         ) : (
-                                            <div className="min-w-0 flex-1">
-                                                <p className={`font-bold text-sm truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{feed.name}</p>
-                                                <div className="flex gap-2 text-[9px] opacity-60"><span>{feed.type === 'podcast' ? 'Podcast' : feed.type === 'youtube' ? 'Canal' : 'Site'}</span></div>
-                                            </div>
+                                            <div className="min-w-0 flex-1"><p className={`font-bold text-sm truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{feed.name}</p></div>
                                         )}
                                     </div>
-
-                                    {/* Botões de Ação (Editar e Excluir) */}
                                     <div className="flex items-center gap-1">
-                                        {editingId === feed.id ? (
-                                            <>
-                                                <button onClick={() => saveName(feed.id)} className="text-green-500 hover:bg-green-500/10 p-2 rounded-full transition"><Check size={16} /></button>
-                                                <button onClick={cancelEditing} className="text-zinc-500 hover:bg-zinc-500/10 p-2 rounded-full transition"><X size={16} /></button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <button onClick={() => startEditing(feed)} className="text-zinc-400 hover:text-blue-500 hover:bg-blue-500/10 p-2 rounded-full transition"><Pencil size={16} /></button>
-                                                <button onClick={() => removeFeed(feed.id)} className="text-zinc-400 hover:text-red-500 hover:bg-red-500/10 p-2 rounded-full transition"><Trash2 size={16} /></button>
-                                            </>
-                                        )}
+                                        {editingId === feed.id ? (<><button onClick={() => saveName(feed.id)} className="text-green-500 p-2"><Check size={16} /></button><button onClick={cancelEditing} className="text-zinc-500 p-2"><X size={16} /></button></>) : (<><button onClick={() => startEditing(feed)} className="text-zinc-400 hover:text-blue-500 p-2"><Pencil size={16} /></button><button onClick={() => removeFeed(feed.id)} className="text-zinc-400 hover:text-red-500 p-2"><Trash2 size={16} /></button></>)}
                                     </div>
                                 </div>
                             ))}
@@ -5079,7 +4999,7 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                 </div>
             )}
             
-            {/* --- ABA API --- */}
+            {/* ABA API */}
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                      <div className={`p-6 rounded-3xl text-center ${isDarkMode ? 'bg-gradient-to-b from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-b from-purple-50 to-white border border-purple-100'}`}>
@@ -5090,24 +5010,14 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                         <p className="text-sm opacity-70 mb-6 leading-relaxed">
                             Para ativar o <strong>Smart Digest</strong> e a <strong>Análise de Notícias</strong>, você precisa de uma chave gratuita do Google AI Studio.
                         </p>
-                        
                         <div className="text-left mb-2">
                             <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 ml-1">Sua API Key</label>
                             <div className="relative mt-1">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50"><BrainCircuit size={16}/></div>
-                                <input 
-                                    type="text" 
-                                    value={apiKey} 
-                                    onChange={(e) => setApiKey(e.target.value)} 
-                                    placeholder="Cole sua chave aqui (AIza...)" 
-                                    className={`w-full pl-10 pr-4 py-3 rounded-xl border font-mono text-sm outline-none transition-all ${isDarkMode ? 'bg-black/50 border-purple-500/30 focus:border-purple-500 text-purple-300' : 'bg-white border-purple-200 focus:border-purple-500 text-purple-700 shadow-inner'}`} 
-                                />
+                                <input type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Cole sua chave aqui (AIza...)" className={`w-full pl-10 pr-4 py-3 rounded-xl border font-mono text-sm outline-none transition-all ${isDarkMode ? 'bg-black/50 border-purple-500/30 focus:border-purple-500 text-purple-300' : 'bg-white border-purple-200 focus:border-purple-500 text-purple-700 shadow-inner'}`} />
                             </div>
                         </div>
-
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-purple-500 hover:underline">
-                            Obter chave no Google AI Studio <ArrowRight size={12}/>
-                        </a>
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-purple-500 hover:underline">Obter chave no Google AI Studio <ArrowRight size={12}/></a>
                      </div>
                 </div>
             )}
@@ -5116,7 +5026,6 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
     </div>
   );
 }
-
 
 function NewsletterTab({ openArticle, isDarkMode, newsData }) {
   const [copied, setCopied] = useState(false);
