@@ -3467,7 +3467,7 @@ const SplashScreen = ({ onFinish }) => {
       <div className="flex flex-col items-center justify-center z-20">
         
         {/* ÁREA DO LOGO */}
-        <div className="relative w-40 h-40 flex items-center justify-center mb-2">
+        <div className="relative w-60 h-60 flex items-center justify-center mb-2">
             {/* Ícones Orbitando */}
             {icons.map((item, i) => (
             <div
@@ -3508,7 +3508,7 @@ const SplashScreen = ({ onFinish }) => {
             transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
             ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
         `}>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <h1 className="text-6xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
                 NewsOS
             </h1>
         </div>
