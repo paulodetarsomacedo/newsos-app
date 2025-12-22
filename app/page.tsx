@@ -850,25 +850,24 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
 function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Extrai canais únicos garantindo que o nome seja o mesmo usado no filtro
+  // Extrai canais únicos e garante que o nome seja idêntico ao usado no filtro
   const uniqueChannels = useMemo(() => {
     const seen = new Set();
-    const channels = [];
-    videos.forEach(v => {
-      const name = v.source || v.channel;
+    return videos.reduce((acc, v) => {
+      const name = v.channel || v.source;
       if (name && !seen.has(name)) {
         seen.add(name);
-        channels.push({ name, logo: v.logo });
+        acc.push({ name, logo: v.logo });
       }
-    });
-    return channels;
+      return acc;
+    }, []);
   }, [videos]);
 
   return (
-    <div className="absolute left-160 top-2 z-[1001]">
+    <div className="absolute left-0 top-2 z-[1001]">
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 h-[42px] px-3 rounded-r-2xl border-y border-r border-l-0 backdrop-blur-xl shadow-sm transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
+        className={`flex items-center gap-2 h-[42px] px-3 rounded-r-2xl border-y border-r border-l-0 backdrop-blur-xl shadow-sm transition-all ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
       >
         {selectedChannel === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
@@ -883,7 +882,7 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-[1000]" onClick={() => setIsOpen(false)} />
-          <div className={`absolute top-[50px] left-2 z-[1001] flex flex-col gap-1 p-2 min-w-[200px] rounded-2xl border shadow-2xl backdrop-blur-xl animate-in slide-in-from-left-2 duration-200 ${isDarkMode ? 'bg-zinc-900/95 border-white/10' : 'bg-white/95 border-zinc-200'}`}>
+          <div className={`absolute top-[50px] left-2 z-[101] flex flex-col gap-1 p-2 min-w-[200px] rounded-2xl border shadow-2xl backdrop-blur-xl animate-in slide-in-from-left-2 duration-200 ${isDarkMode ? 'bg-zinc-900/95 border-white/10' : 'bg-white/95 border-zinc-200'}`}>
              <button onClick={() => { onSelect('all'); setIsOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${selectedChannel === 'all' ? 'bg-purple-600 text-white' : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}`}>
                 <LayoutGrid size={18} /> <span className="text-xs font-bold uppercase">Todos os Canais</span>
              </button>
@@ -900,6 +899,7 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
     </div>
   );
 }
+
 // --- COMPONENTE INTELIGENTE DE IMAGEM (NOVO) ---
 
 const SmartImage = ({ src, title, logo, isDarkMode, className, sourceName }) => {
@@ -3466,7 +3466,7 @@ const SplashScreen = ({ onFinish }) => {
       <div className="flex flex-col items-center justify-center z-20">
         
         {/* ÁREA DO LOGO */}
-        <div className="relative w-60 h-60 flex items-center justify-center mb-2">
+        <div className="relative w-40 h-40 flex items-center justify-center mb-2">
             {/* Ícones Orbitando */}
             {icons.map((item, i) => (
             <div
@@ -3507,7 +3507,7 @@ const SplashScreen = ({ onFinish }) => {
             transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
             ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
         `}>
-            <h1 className="text-6xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
                 NewsOS
             </h1>
         </div>
@@ -3889,8 +3889,8 @@ export default function NewsOS_V12() {
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       {/* --- SPLASH SCREEN --- */}
-{showSplash && <SplashScreen onFinish={useCallback(() => setShowSplash(false), [])} />}
-        <div className={`transition-all duration-500 transform h-[100dvh] flex flex-col ${isMainViewReceded ? `scale-[0.9] pointer-events-none` : 'scale-100 opacity-100'}`}>
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+      <div className={`transition-all duration-500 transform h-[100dvh] flex flex-col ${isMainViewReceded ? `scale-[0.9] pointer-events-none` : 'scale-100 opacity-100'}`}>
          
           <HeaderDashboard 
              isDarkMode={isDarkMode} 
