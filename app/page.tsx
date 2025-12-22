@@ -850,24 +850,25 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
 function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Extrai canais únicos e garante que o nome seja idêntico ao usado no filtro
+  // Extrai canais únicos garantindo que o nome seja o mesmo usado no filtro
   const uniqueChannels = useMemo(() => {
     const seen = new Set();
-    return videos.reduce((acc, v) => {
-      const name = v.channel || v.source;
+    const channels = [];
+    videos.forEach(v => {
+      const name = v.source || v.channel;
       if (name && !seen.has(name)) {
         seen.add(name);
-        acc.push({ name, logo: v.logo });
+        channels.push({ name, logo: v.logo });
       }
-      return acc;
-    }, []);
+    });
+    return channels;
   }, [videos]);
 
   return (
     <div className="absolute left-0 top-2 z-[1001]">
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 h-[42px] px-3 rounded-r-2xl border-y border-r border-l-0 backdrop-blur-xl shadow-sm transition-all ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
+        className={`flex items-center gap-2 h-[42px] px-3 rounded-r-2xl border-y border-r border-l-0 backdrop-blur-xl shadow-sm transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
       >
         {selectedChannel === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
@@ -882,7 +883,7 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-[1000]" onClick={() => setIsOpen(false)} />
-          <div className={`absolute top-[50px] left-2 z-[101] flex flex-col gap-1 p-2 min-w-[200px] rounded-2xl border shadow-2xl backdrop-blur-xl animate-in slide-in-from-left-2 duration-200 ${isDarkMode ? 'bg-zinc-900/95 border-white/10' : 'bg-white/95 border-zinc-200'}`}>
+          <div className={`absolute top-[50px] left-2 z-[1001] flex flex-col gap-1 p-2 min-w-[200px] rounded-2xl border shadow-2xl backdrop-blur-xl animate-in slide-in-from-left-2 duration-200 ${isDarkMode ? 'bg-zinc-900/95 border-white/10' : 'bg-white/95 border-zinc-200'}`}>
              <button onClick={() => { onSelect('all'); setIsOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${selectedChannel === 'all' ? 'bg-purple-600 text-white' : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}`}>
                 <LayoutGrid size={18} /> <span className="text-xs font-bold uppercase">Todos os Canais</span>
              </button>
@@ -899,7 +900,6 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
     </div>
   );
 }
-
 // --- COMPONENTE INTELIGENTE DE IMAGEM (NOVO) ---
 
 const SmartImage = ({ src, title, logo, isDarkMode, className, sourceName }) => {
