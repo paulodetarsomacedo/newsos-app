@@ -2587,7 +2587,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   );
 };
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, seenStoryIds = [], apiKey }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, onRefresh, storiesToDisplay, apiKey }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
   
   // Estado para sinalizar o reset dos Widgets Inteligentes
@@ -3555,6 +3555,31 @@ export default function NewsOS_V12() {
   const [user, setUser] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false); 
 
+  const handleStoryNavigation = (direction) => {
+    if (!selectedStory || !storiesToDisplay) return;
+
+    const currentIndex = storiesToDisplay.findIndex(s => s.id === selectedStory.id);
+    if (currentIndex === -1) return;
+
+    if (direction === 'next') {
+        const nextIndex = currentIndex + 1;
+        // Se houver um próximo story na lista, atualiza o estado para exibi-lo
+        if (nextIndex < storiesToDisplay.length) {
+            setSelectedStory(storiesToDisplay[nextIndex]);
+        } else {
+            // Se for o último, fecha a visualização de stories
+            closeStory();
+        }
+    } else if (direction === 'prev') {
+        const prevIndex = currentIndex - 1;
+        // Se houver um story anterior, atualiza o estado
+        if (prevIndex >= 0) {
+            setSelectedStory(storiesToDisplay[prevIndex]);
+        }
+    }
+};
+
+
 const handleHappeningRefresh = () => {
     // Limpa a lista de IDs de stories vistos
     setSeenStoryIds([]);
@@ -3930,6 +3955,7 @@ const handleHappeningRefresh = () => {
                     onRefresh={handleHappeningRefresh}
                     onMarkAsSeen={markStoryAsSeen}
                     apiKey={apiKey}
+                    storiesToDisplay={storiesToDisplay}
                 />
             )}
 
@@ -4079,7 +4105,7 @@ feedItems={[...realNews, ...realVideos, ...realPodcasts]}          isOpen={!!sel
       
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
-      {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen}  />}
+      {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen} allStories={storiesToDisplay} onNavigate={handleStoryNavigation}/>}
 
       {playingAudio && (
           <GlobalAudioPlayer 
@@ -4208,53 +4234,37 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
   );
 }
 
-function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  // Reinicia o índice se mudar de story
-  useEffect(() => { setCurrentIndex(0); }, [story]);
-
-  // EFEITO: Marcar como visto assim que abrir o Story
+function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, onNavigate }) {
+  // O estado interno de currentIndex não é mais necessário para a navegação principal
+  
   useEffect(() => {
     if (story && story.id && onMarkAsSeen) {
-        // Disparamos o "visto" imediatamente para o ID da notícia atual
         onMarkAsSeen(story.id); 
     }
   }, [story, onMarkAsSeen]);
 
+  // Lógica para saber se existem stories antes ou depois do atual
+  const currentIndex = allStories.findIndex(s => s.id === story.id);
+  const hasPrevStory = currentIndex > 0;
+  const hasNextStory = currentIndex >= 0 && currentIndex < allStories.length - 1;
+
   if (!story || !story.items || story.items.length === 0) return null;
 
-  const handleNext = () => { 
-    if (currentIndex < story.items.length - 1) setCurrentIndex(prev => prev + 1); 
-    else onClose(); 
-  };
-  
-  const handlePrev = () => { 
-    if (currentIndex > 0) setCurrentIndex(prev => prev - 1); 
-  };
-
-  const currentItem = story.items[currentIndex];
+  const currentItem = story.items[0]; // Sempre pegamos o primeiro item do story atual
 
   const handleOpenFullArticle = () => {
-      onClose(); // Fecha o overlay de story
-      
-      // Abre o painel de artigo completo
+      onClose();
       openArticle({ 
         ...currentItem, 
         source: story.name, 
         category: 'Story',
-        // Mudamos para 'rss' para garantir que o leitor carregue o site real
         origin: 'rss' 
       });
   };
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black flex flex-col animate-in zoom-in-95 duration-300">
-       
-       {/* Container Central - TAMANHO MD:MAX-W-[60VH] RESTAURADO */}
        <div className="relative w-full h-full md:max-w-[60vh] md:aspect-[9/16] md:mx-auto md:my-auto md:rounded-3xl overflow-hidden bg-zinc-900 shadow-2xl border border-white/5">
-        
-        {/* Imagem de Fundo em tela cheia */}
         <div className="absolute inset-0">
             <img 
                 src={currentItem.img} 
@@ -4262,26 +4272,17 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen }) {
                 alt="Fundo do Story" 
                 onError={(e) => { e.target.style.display = 'none'; }}
             />
-            {/* Gradientes para melhorar legibilidade */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/90" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60" />
         </div>
 
-        {/* Barra de Progresso Superior e Cabeçalho */}
         <div className="absolute top-0 left-0 right-0 p-4 pt-10 md:pt-8 z-30 space-y-4">
-          
-          {/* Indicador de "slides" */}
           <div className="flex gap-1.5 h-1">
-              {story.items.map((item, idx) => (
-                  <div key={idx} className="flex-1 bg-white/20 rounded-full overflow-hidden h-full">
-                      <div 
-                        className={`h-full bg-white transition-all duration-300 ${idx < currentIndex ? 'w-full' : idx === currentIndex ? 'w-full animate-[progress_5s_linear]' : 'w-0'}`} 
-                      />
-                  </div>
+              {/* Barra de progresso agora reflete a lista total de stories */}
+              {allStories.map((s, idx) => (
+                  <div key={s.id} className={`flex-1 rounded-full h-full ${idx <= currentIndex ? 'bg-white' : 'bg-white/20'}`} />
               ))}
           </div>
-
-          {/* Info do Canal e Botão Fechar */}
           <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full border-2 border-white/30 p-[2px] bg-black/20 backdrop-blur-md">
@@ -4292,10 +4293,7 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen }) {
                       <span className="text-zinc-300 text-[10px] font-bold drop-shadow-md opacity-90">{currentItem.time}</span>
                   </div>
               </div>
-              <button 
-                onClick={onClose} 
-                className="p-2.5 text-white/80 hover:text-white backdrop-blur-xl rounded-full bg-white/10 border border-white/10 transition-transform active:scale-90"
-              >
+              <button onClick={onClose} className="p-2.5 text-white/80 hover:text-white backdrop-blur-xl rounded-full bg-white/10 border border-white/10 transition-transform active:scale-90">
                   <X size={26} />
               </button>
           </div>
@@ -4303,39 +4301,36 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen }) {
 
         {/* Áreas de Toque Invisíveis para Navegação */}
         <div className="absolute inset-0 z-20 flex">
-            <div className="w-[30%] h-full" onClick={handlePrev} />
-            <div className="w-[70%] h-full" onClick={handleNext} />
+            {/* O clique na esquerda navega para o anterior, na direita para o próximo */}
+            <div className="w-[30%] h-full" onClick={() => onNavigate('prev')} />
+            <div className="w-[70%] h-full" onClick={() => onNavigate('next')} />
         </div>
 
-        {/* Setas de Apoio (Estilo Instagram) */}
-        {currentIndex > 0 && (
+        {/* --- BOTÕES DE SETA CORRIGIDOS --- */}
+        {hasPrevStory && (
           <button 
-            onClick={(e) => { e.stopPropagation(); handlePrev(); }}
+            onClick={(e) => { e.stopPropagation(); onNavigate('prev'); }}
             className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"
           >
             <ChevronLeft size={28} />
           </button>
         )}
-        <button 
-          onClick={(e) => { e.stopPropagation(); handleNext(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"
-        >
-          <ChevronRight size={28} />
-        </button>
+        {hasNextStory && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onNavigate('next'); }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"
+          >
+            <ChevronRight size={28} />
+          </button>
+        )}
 
-        {/* Rodapé: Título e Botão de Ação */}
         <div className="absolute bottom-0 left-0 right-0 p-8 z-30 pb-12 md:pb-10 pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-center">
-                
                 <h2 className="text-white text-2xl md:text-3xl font-black leading-tight mb-8 drop-shadow-2xl font-serif text-center line-clamp-5">
                     {currentItem.title}
                 </h2>
-                
                 <button 
-                    onClick={(e) => { 
-                        e.stopPropagation(); 
-                        handleOpenFullArticle(); 
-                    }} 
+                    onClick={(e) => { e.stopPropagation(); handleOpenFullArticle(); }} 
                     className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100"
                 >
                     <span className="text-sm uppercase tracking-widest">Ler Notícia Completa</span>
@@ -4345,15 +4340,9 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen }) {
         </div>
        </div>
 
-       {/* Fundo desfocado para telas grandes (Desktop) */}
        <div className="fixed inset-0 -z-10 bg-zinc-950/95 backdrop-blur-3xl md:block hidden" onClick={onClose} />
        
-       <style jsx="true">{`
-          @keyframes progress {
-            0% { width: 0%; }
-            100% { width: 100%; }
-          }
-       `}</style>
+       {/* A animação de progresso interna não é mais necessária aqui */}
     </div>
   );
 }
