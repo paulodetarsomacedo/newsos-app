@@ -4330,7 +4330,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL (V24 - RECONSTRUÇÃO TOTAL DO PLAYER)
+// COMPONENTE ARTICLE PANEL (V25 - LAZY MOUNT / INICIALIZAÇÃO SUAVE)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
@@ -4340,8 +4340,8 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // --- ESTADO NOVO: CONTROLE TOTAL DE MONTAGEM ---
-  const [isPlayerMounted, setIsPlayerMounted] = useState(true);
+  // --- ALTERAÇÃO 1: Começa FALSE para não travar na abertura ---
+  const [isPlayerMounted, setIsPlayerMounted] = useState(false);
 
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
@@ -4358,30 +4358,39 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
-          setIsPlayerMounted(true); // Garante que monta ao abrir
+          
+          // --- ALTERAÇÃO 2: Montagem Tardia (Delay) ---
+          // Reseta primeiro para garantir limpeza
+          setIsPlayerMounted(false);
+          
+          // Espera 300ms antes de carregar o iframe.
+          // Isso dá tempo da animação de slide terminar e do app "acordar" totalmente.
+          const timer = setTimeout(() => {
+              setIsPlayerMounted(true);
+          }, 300);
+
+          return () => clearTimeout(timer);
       } else {
           setViewMode('web');
           setIframeUrl(null);
           setReaderContent(null);
           setTranslatedData(null);
           setIsTranslated(false);
+          setIsPlayerMounted(false);
       }
   }, [article?.id, videoId]);
 
-  // --- LÓGICA "NUCLEAR" ANTI-FREEZE (IOS PWA) ---
+  // --- LÓGICA DE VISIBILIDADE (Mantida para minimizar/restaurar) ---
   useEffect(() => {
       const handleVisibilityChange = () => {
           if (document.visibilityState === 'hidden') {
-              // 1. SAIU DO APP: Destrói o player imediatamente.
-              // Isso evita que o iOS tente manter conexão zumbi.
               setIsPlayerMounted(false);
           } 
-          else if (document.visibilityState === 'visible') {
-              // 2. VOLTOU AO APP: Espera um pouquinho e recria.
-              // O timeout de 100ms dá tempo do iOS reconectar o Wi-Fi do processo.
+          else if (document.visibilityState === 'visible' && videoId) {
+              // Se voltou e tem vídeo, espera um pouco e remonta
               setTimeout(() => {
                   setIsPlayerMounted(true);
-              }, 100);
+              }, 300);
           }
       };
 
@@ -4389,7 +4398,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       return () => {
           document.removeEventListener("visibilitychange", handleVisibilityChange);
       };
-  }, []);
+  }, [videoId]);
 
   const scrollContainerRef = useRef(null); 
 
@@ -4431,6 +4440,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setReaderContent(null);
         setViewMode('web');
         setIsTranslated(false); 
+        setIsPlayerMounted(false); // Limpa player ao fechar
       }, 400); 
   }, [onClose, iframeUrl]);
 
@@ -4499,7 +4509,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     <div className={`fixed inset-0 z-[5000] flex flex-col transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) will-change-transform transform-gpu backface-hidden ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
-            {/* NAV BAR */}
             <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b backdrop-blur-xl z-50 
                 ${videoId 
                     ? 'bg-black/90 border-white/10 text-white' 
@@ -4540,20 +4549,22 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
                         <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative">
-                            {/* AQUI ESTÁ A LÓGICA DE MONTAGEM */}
+                            {/* ESTADO DE LOADING / DELAYED MOUNT */}
                             {isPlayerMounted ? (
                                 <iframe 
                                     src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
-                                    className="w-full h-full animate-in fade-in duration-500"
+                                    className="w-full h-full animate-in fade-in duration-700"
                                     frameBorder="0"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
                                     title="YouTube Video"
                                 />
                             ) : (
-                                // Placeholder preto enquanto recarrega para não piscar branco
                                 <div className="w-full h-full bg-black flex items-center justify-center">
-                                    <Loader2 className="text-white/20 animate-spin" />
+                                    <div className="flex flex-col items-center gap-2 opacity-50">
+                                        <Loader2 className="animate-spin text-red-600" />
+                                        <span className="text-[10px] font-bold uppercase tracking-widest text-white">Carregando Player...</span>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -4635,7 +4646,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     </div>
   );
 });
-
 
 function PodNewsModal({ onClose, isDarkMode }) {
   const [status, setStatus] = useState('generating'); // 'generating' | 'playing'
