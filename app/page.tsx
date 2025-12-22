@@ -751,26 +751,25 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode, accentColor
 }
 
 
-// --- COMPONENTE: SOURCE SELECTOR (CORRIGIDO PARA FEED E YOUTUBE) ---
+// --- COMPONENTE: SOURCE SELECTOR (CORRIGIDO E SIMPLIFICADO) ---
 function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'left' }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // --- CORREÇÃO AQUI ---
-  // Usa useMemo para performance e verifica 'source' OU 'channel'
-  const uniqueSources = useMemo(() => {
-      if (!news) return [];
+  // 1. Extração segura das fontes únicas
+  const uniqueItems = useMemo(() => {
+      if (!news || !Array.isArray(news)) return [];
+      
       const map = new Map();
       
-      news.forEach(n => {
-          // Pega o nome da fonte (seja feed ou canal do youtube)
-          const name = n.source || n.channel; 
+      news.forEach(item => {
+          if (!item) return;
+          // Pega o nome: tenta 'source', se não tiver tenta 'channel'
+          const name = item.source || item.channel;
           
-          // Se tiver nome e ainda não estiver no mapa, adiciona
           if (name && !map.has(name)) {
               map.set(name, {
-                  ...n,
-                  // Garante que o objeto tenha uma propriedade 'name' unificada para exibição
-                  displayName: name 
+                  name: name, // Nome para filtrar
+                  logo: item.logo || item.img // Logo para exibir
               });
           }
       });
@@ -779,15 +778,21 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'l
   }, [news]);
 
   const isRight = align === 'right';
+  
+  // Item ativo para mostrar no botão fechado
+  const activeItem = uniqueItems.find(i => i.name === selectedSource);
 
-  // Encontra o item selecionado para mostrar o logo no botão fechado
-  const activeItem = uniqueSources.find(s => s.displayName === selectedSource);
+  const handleSelect = (name) => {
+      onSelect(name);
+      setIsOpen(false);
+  };
 
   return (
     <div className={`absolute top-2 z-[1001] ${isRight ? 'right-0' : 'left-0'}`}>
       
+      {/* Botão Principal */}
       <button 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
         className={`
           flex items-center justify-center h-[42px] w-12 
           backdrop-blur-xl shadow-sm transition-all duration-300
@@ -796,7 +801,6 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'l
             ? 'bg-zinc-900/80 border-white/10 text-white hover:bg-zinc-800' 
             : 'bg-white/80 border-zinc-200 text-zinc-600 hover:bg-white'}
           ${isOpen ? 'w-14 border-purple-500/50' : ''}
-          
           ${isRight 
               ? 'rounded-l-2xl rounded-r-none border-l border-r-0 pr-1' 
               : 'rounded-r-2xl rounded-l-none border-r border-l-0 pl-1'
@@ -811,11 +815,13 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'l
                 src={activeItem.logo} 
                 className="w-full h-full object-cover"
                 onError={(e) => e.target.style.display = 'none'}
+                alt=""
               />
            </div>
         )}
       </button>
 
+      {/* Menu Suspenso */}
       {isOpen && (
         <>
           <div className="fixed inset-0 z-[1000]" onClick={() => setIsOpen(false)} />
@@ -826,40 +832,39 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'l
              rounded-2xl border shadow-xl backdrop-blur-xl
              animate-in duration-200
              ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
-             
              ${isRight 
                 ? 'right-2 slide-in-from-right-2 origin-top-right' 
                 : 'left-2 slide-in-from-left-2 origin-top-left'
              }
           `}>
              <button
-               onClick={() => { onSelect('all'); setIsOpen(false); }}
+               onClick={() => handleSelect('all')}
                className={`
                  w-10 h-10 rounded-full flex items-center justify-center transition-all
                  ${selectedSource === 'all' 
                     ? 'bg-purple-600 text-white shadow-lg' 
                     : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}
                `}
-               title="Todas as Fontes"
+               title="Todas"
              >
                 <LayoutGrid size={20} />
              </button>
 
              <div className={`h-[1px] w-full ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
 
-             {uniqueSources.map((item) => (
+             {uniqueItems.map((item) => (
                <button
-                 key={item.displayName}
-                 onClick={() => { onSelect(item.displayName); setIsOpen(false); }}
+                 key={item.name}
+                 onClick={() => handleSelect(item.name)}
                  className={`
                    relative w-10 h-10 rounded-full p-[2px] transition-transform hover:scale-110
-                   ${selectedSource === item.displayName ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
+                   ${selectedSource === item.name ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
                  `}
-                 title={item.displayName}
+                 title={item.name}
                >
                  <img 
                    src={item.logo} 
-                   alt={item.displayName} 
+                   alt={item.name} 
                    className="w-full h-full rounded-full object-cover border border-black/10"
                    onError={(e) => e.target.style.display = 'none'}
                  />
@@ -1499,17 +1504,18 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   
   const safeVideos = (realVideos && realVideos.length > 0) ? realVideos : YOUTUBE_FEED;
   const displayedVideos = useMemo(() => {
-    return safeVideos.filter(v => {
-        // 1. Filtra por Categoria Lateral (Mantém o que já existia)
-        const matchesCategory = category === 'Tudo' || v.category === category || v.source === category;
-        
-        // 2. ADICIONE ISSO: Filtra por Canal (SourceSelector)
-        const matchesChannel = channelFilter === 'all' || (v.source === channelFilter) || (v.channel === channelFilter);
-        
-        return matchesCategory && matchesChannel;
-    });
-}, [safeVideos, category, channelFilter]); // Não esqueça de adicionar channelFilter nas dependências
+      return safeVideos.filter(v => {
+          const matchesCategory = category === 'Tudo' || v.category === category || v.source === category;
+          
+          // CORREÇÃO: Verifica source OU channel contra o filtro
+          const matchesChannel = channelFilter === 'all' || v.source === channelFilter || v.channel === channelFilter;
+          
+          return matchesCategory && matchesChannel;
+      });
+  }, [safeVideos, category, channelFilter]);
 
+
+  
   // --- LÓGICA DE STORIES CORRIGIDA ---
   const channelStories = useMemo(() => {
       const processedChannels = new Set(); // Para rastrear quais canais já verificamos
