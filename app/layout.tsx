@@ -12,18 +12,23 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "NewsOS AI",
-  description: "Jornalismo Inteligente",
-  manifest: "/manifest.json", // Linka o manifesto
+export const metadata = {
+  title: 'NewsOS',
+  description: 'Sua central de inteligência.',
+  manifest: '/manifest.json', // Link para o arquivo que criamos
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'NewsOS',
+  },
 };
 
-export const viewport: Viewport = {
-  themeColor: "#09090b",
-  width: "device-width",
+export const viewport = {
+  width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false, // Impede zoom (sensação de app nativo)
+  userScalable: false, // Impede zoom acidental, parece app nativo
+  themeColor: '#000000',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
