@@ -1157,30 +1157,33 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
       }
   }, [newsData, stableData.length]);
 
-  const safeNews = (stableData && stableData.length > 0) ? stableData : []; // Removi FEED_NEWS mockado para evitar mistura
+// 1. Garante uma lista plana e válida
+  const allSafeNews = (newsData && newsData.length > 0) ? newsData : [];
 
-// 1. Filtra categorias e fonte selecionada
-  const filteredByCategory = category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category);
-  const filteredBySource = sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter);
+  // 2. Filtros
+  const filteredCat = category === 'Tudo' ? allSafeNews : allSafeNews.filter(n => n.category === category);
+  const filteredSource = sourceFilter === 'all' ? filteredCat : filteredCat.filter(n => n.source === sourceFilter);
 
-  // 2. CORREÇÃO DA ORDEM NO FEED:
-  // Cria uma nova lista e força o sort por timestamp seguro
+  // 3. ORDENAÇÃO EXPLÍCITA (MUITO IMPORTANTE)
+  // Fazemos o sort aqui, na hora de renderizar, para garantir que misture as fontes
   const sortedFeed = useMemo(() => {
-      return [...filteredBySource].sort((a, b) => {
-          const tA = new Date(a.rawDate).getTime() || 0;
-          const tB = new Date(b.rawDate).getTime() || 0;
-          return tB - tA; // Mais recente no topo
+      return [...filteredSource].sort((a, b) => {
+          // Usa getTime() para precisão numérica
+          return new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
       });
-  }, [filteredBySource]);
+  }, [filteredSource]);
 
-  // 3. Remove duplicatas (mantendo a ordem do sort acima)
+  // 4. Remoção de Duplicatas (Mantendo a ordem do sort)
   const uniqueNews = useMemo(() => {
       const seen = new Set();
-      return sortedFeed.filter(item => {
-          if (seen.has(item.id)) return false;
-          seen.add(item.id);
-          return true;
-      });
+      const result = [];
+      for (const item of sortedFeed) {
+          if (!seen.has(item.id)) {
+              seen.add(item.id);
+              result.push(item);
+          }
+      }
+      return result;
   }, [sortedFeed]);
 
   // Funções de Toque
@@ -2598,48 +2601,41 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-// --- LÓGICA DE STORIES: ORDEM DE PUBLICAÇÃO ---
+// --- LÓGICA DE STORIES: FILA REAL (SOME DEPOIS DE LIDO) ---
   const storiesToDisplay = useMemo(() => {
     if (!newsData || newsData.length === 0) return [];
 
-    // 1. FORÇA BRUTA: Reordena tudo por data de novo para garantir
-    // Isso coloca a notícia de 10:05 antes da de 10:00, independente da fonte
-    const sortedEverything = [...newsData].sort((a, b) => {
-        const timeA = new Date(a.rawDate).getTime() || 0;
-        const timeB = new Date(b.rawDate).getTime() || 0;
-        return timeB - timeA; // Decrescente (Mais novo primeiro)
+    // 1. FILTRAGEM INICIAL: Remove qualquer notícia que JÁ FOI VISTA.
+    // Isso garante que o card "suma" da lista.
+    const unseenNews = newsData.filter(item => !seenStoryIds.includes(item.id));
+
+    // 2. ORDENAÇÃO ABSOLUTA POR DATA
+    // Garante que as notícias mais novas (independente da fonte) fiquem no topo
+    unseenNews.sort((a, b) => {
+        return new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
     });
 
     const uniqueStories = [];
-    const seenSources = new Set(); // Set para garantir unicidade da fonte
+    const seenSources = new Set(); 
     
-    // 2. Itera na lista JÁ ORDENADA.
-    // A primeira vez que o loop encontra "G1", é a notícia mais recente do G1.
-    // A primeira vez que encontra "Folha", é a mais recente da Folha.
-    // Como sortedEverything está por tempo, as bolinhas ficarão na ordem do tempo.
-    for (const item of sortedEverything) {
-        // Normaliza o nome da fonte para evitar "Folha" e "Folha de S.Paulo" duplicados se vierem sujos
+    // 3. AGRUPAMENTO POR FONTE
+    // Pega apenas a primeira (mais recente) notícia não lida de cada fonte.
+    for (const item of unseenNews) {
         const sourceName = (item.source || "Fonte").trim();
         
         if (!seenSources.has(sourceName)) {
-            seenSources.add(sourceName); // Marca como vista, ignora as próximas desse jornal
-
-            // Lógica de "Visto"
-            const isSeen = seenStoryIds.includes(item.id);
+            seenSources.add(sourceName);
 
             const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
             const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
 
             uniqueStories.push({
-                id: item.id,
+                id: item.id, // O ID da notícia atual
                 name: sourceName,
                 avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
-                isSeen: isSeen,
-                items: [{
-                    ...item,
-                    img: finalImg,
-                    origin: 'story'
-                }]
+                isSeen: false, // Sempre false, pois filtramos os vistos antes
+                sortTime: new Date(item.rawDate).getTime(), 
+                items: [{ ...item, img: finalImg, origin: 'story' }]
             });
         }
     }
@@ -3205,40 +3201,28 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlText, "text/xml");
       
-      // Verifica se houve erro no parse do XML
-      const parserError = xmlDoc.querySelector("parsererror");
-      if (parserError) {
-          console.warn("Erro ao ler XML de:", feedSource);
-          return { items: [], realTitle: feedSource, realLogo: null };
-      }
+      const channelTitleNode = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
+      let detectedTitle = channelTitleNode ? channelTitleNode.textContent.trim() : feedSource;
 
-      // Tenta descobrir título
-      let detectedTitle = feedSource;
-      const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
-      if (channelTitle && channelTitle.textContent) {
-          detectedTitle = channelTitle.textContent.trim();
-      }
-
-      // Tenta descobrir link para logo
+      // Logica de Logo (mantida)
       let siteLink = "";
       const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("link");
-      if (channelLink) {
-          siteLink = channelLink.textContent || channelLink.getAttribute("href") || "";
-      }
-
-      // Logo automática baseada no site descoberto
+      if (channelLink) siteLink = channelLink.textContent || channelLink.getAttribute("href") || "";
+      
       let autoLogo = `https://ui-avatars.com/api/?name=${detectedTitle}&background=random`;
       if (siteLink) {
           try {
               const domain = new URL(siteLink).hostname;
               autoLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-          } catch (e) { /* ignora */ }
+          } catch (e) {}
       }
 
       const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
       
+      // Data de referência para fallback (agora)
+      const now = new Date();
+
       const parsedItems = items.map((node, index) => {
-        // Função segura para pegar texto de tags (suporta namespaces como yt:videoId)
         const getTxt = (tag) => {
             if (tag.includes(':')) {
                 const els = node.getElementsByTagName(tag);
@@ -3247,39 +3231,36 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
             return node.querySelector(tag)?.textContent || "";
         };
 
-        // Links
+        // Extração de Link
         const linkNode = node.querySelector("link");
         let link = linkNode?.getAttribute("href") || linkNode?.textContent || "";
-
-        // Suporte YouTube
         const ytId = getTxt("yt:videoId") || getTxt("videoId");
         if (ytId) link = `https://www.youtube.com/watch?v=${ytId}`;
 
-        // Datas e Conteúdo
-        const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated") || new Date().toISOString();
+        // --- CORREÇÃO CRÍTICA DAS DATAS ---
+        const pubDateRaw = getTxt("pubDate") || getTxt("published") || getTxt("updated") || getTxt("dc:date");
+        let parsedDate = new Date(pubDateRaw);
+
+        // Se a data for inválida (NaN), usamos "Agora" menos os minutos do índice.
+        // Isso garante que o item[0] seja mais recente que o item[1], evitando o agrupamento visual.
+        if (isNaN(parsedDate.getTime())) {
+            parsedDate = new Date(now.getTime() - (index * 60000)); // Subtrai 1 min por item
+        }
+
+        // Extração de Imagem (Mantida)
         const description = getTxt("description") || getTxt("summary");
         const contentEncoded = getTxt("content:encoded") || getTxt("content");
-
-        // --- BUSCA DE IMAGEM EM CASCATA ---
         let img = null;
-        
-        // 1. Tags de Media (Padrão moderno)
         const mediaContent = node.getElementsByTagName("media:content");
         if (mediaContent.length > 0) img = mediaContent[0].getAttribute("url");
         if (!img) {
             const mediaThumb = node.getElementsByTagName("media:thumbnail")[0];
             if (mediaThumb) img = mediaThumb.getAttribute("url");
         }
-
-        // 2. Enclosure (Padrão RSS clássico)
         if (!img) {
             const enclosure = node.querySelector("enclosure");
-            if (enclosure && enclosure.getAttribute("type")?.includes("image")) {
-                img = enclosure.getAttribute("url");
-            }
+            if (enclosure && enclosure.getAttribute("type")?.includes("image")) img = enclosure.getAttribute("url");
         }
-
-        // 3. HTML do Conteúdo (Padrão Wordpress/Folha)
         if (!img) img = extractImageFromContent(contentEncoded);
         if (!img) img = extractImageFromContent(description);
 
@@ -3287,8 +3268,8 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           id: `${feedId}-${index}-${Math.random().toString(36).substr(2, 5)}`,
           source: detectedTitle,
           logo: autoLogo,
-          time: new Date(pubDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          rawDate: new Date(pubDate),
+          time: parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          rawDate: parsedDate, // OBJETO DATE REAL
           title: getTxt("title"),
           summary: description.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
           category: 'Geral',
@@ -3303,11 +3284,10 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       return { items: parsedItems, realTitle: detectedTitle, realLogo: autoLogo };
 
   } catch (err) {
-      console.error("Erro fatal no parser:", err);
+      console.error("Erro parser:", err);
       return { items: [], realTitle: feedSource, realLogo: null };
   }
 };
-
 
 
 
