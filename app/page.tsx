@@ -4100,10 +4100,28 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
     const [position, setPosition] = useState({ x: 20, y: typeof window !== 'undefined' ? window.innerHeight - 140 : 500 });
     const [isBtnDragging, setIsBtnDragging] = useState(false);
     
-    // Refs para lógica de arrasto sem re-render desnecessário durante o cálculo
+    // Refs para lógica de arrasto
     const dragRef = useRef({ startX: 0, startY: 0, initialLeft: 0, initialTop: 0, hasMoved: false });
 
-    const relatedNews = feedItems || [];
+    // --- 1. LÓGICA DE CONTEXTO (NOVO) ---
+    const isVideo = article.videoId || (article.link && (article.link.includes('youtube') || article.link.includes('youtu.be')));
+    const isAudio = article.type === 'audio' || article.category === 'Podcast';
+
+    // Define o rótulo baseado no tipo
+    let statusLabel = 'LENDO';
+    if (isVideo) statusLabel = 'ASSISTINDO';
+    else if (isAudio) statusLabel = 'OUVINDO';
+
+    // --- 2. FILTRAGEM DA LISTA (NOVO) ---
+    // Se estiver vendo vídeo, mostra só vídeos na lista. Caso contrário, mostra o feed normal.
+    const relatedNews = useMemo(() => {
+        if (!feedItems) return [];
+        if (isVideo) {
+            return feedItems.filter(item => item.videoId || (item.link && item.link.includes('youtu')));
+        }
+        return feedItems;
+    }, [feedItems, isVideo]);
+
     const currentIndex = relatedNews.findIndex(item => item && item.id === article.id);
     const hasPrev = currentIndex > 0;
     const hasNext = currentIndex > -1 && currentIndex < relatedNews.length - 1;
@@ -4123,10 +4141,10 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
         }
     }, [isFeedListOpen, article?.id]);
 
-    // Lógica de Arrasto (Pointer Events para funcionar bem em Touch e Mouse)
+    // Lógica de Arrasto
     const handlePointerDown = (e) => { 
         if (e.target.closest('.no-drag')) return; 
-        e.preventDefault(); // Impede scroll da página enquanto arrasta
+        e.preventDefault(); 
         dragRef.current = { startX: e.clientX, startY: e.clientY, initialLeft: position.x, initialTop: position.y, hasMoved: false }; 
         setIsBtnDragging(true); 
         window.addEventListener('pointermove', handlePointerMoveDrag); 
@@ -4136,7 +4154,6 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
     const handlePointerMoveDrag = (e) => { 
         const dx = e.clientX - dragRef.current.startX; 
         const dy = e.clientY - dragRef.current.startY; 
-        // Pequena tolerância para diferenciar clique de arrasto
         if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragRef.current.hasMoved = true; 
         setPosition({ x: dragRef.current.initialLeft + dx, y: dragRef.current.initialTop + dy }); 
     };
@@ -4153,7 +4170,7 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
 
     return (
         <>
-          {/* Backdrop para fechar a lista ao clicar fora */}
+          {/* Backdrop */}
           {isFeedListOpen && (<div className="absolute inset-0 bg-black/20 backdrop-blur-[2px] z-[5001] transition-opacity" onClick={() => setIsFeedListOpen(false)} />)}
           
           <div 
@@ -4161,10 +4178,12 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
             style={{ left: position.x, top: position.y, cursor: isBtnDragging ? 'grabbing' : 'grab', touchAction: 'none' }} 
             onPointerDown={handlePointerDown}
           >
-              {/* Lista de Notícias (Pop-up) */}
+              {/* Lista de Navegação (Pop-up) */}
               <div className={`overflow-hidden bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl rounded-2xl shadow-2xl transition-all duration-300 border dark:border-white/10 no-drag absolute bottom-full left-0 w-full mb-2 origin-bottom ${isFeedListOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'}`}>
                   <div className="p-3 border-b dark:border-white/10 flex justify-between items-center bg-transparent">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Navegação Rápida</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                          {isVideo ? 'Próximos Vídeos' : 'Navegação Rápida'}
+                      </span>
                       <button onClick={() => setIsFeedListOpen(false)} className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full"><X size={14}/></button>
                   </div>
                   <div className="overflow-y-auto max-h-[40vh] p-1 space-y-1 custom-scrollbar" onPointerDown={(e) => e.stopPropagation()}>
@@ -4182,21 +4201,27 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
                               </div>
                           </div>
                       ))}
+                      {relatedNews.length === 0 && (
+                          <div className="p-4 text-center text-xs opacity-50">Fim da lista.</div>
+                      )}
                   </div>
               </div>
 
-              {/* O Botão Flutuante (Cápsula) */}
+              {/* Botão Flutuante (Cápsula) */}
               <div 
                   onClick={handleToggle} 
                   className={`flex items-center justify-between p-2 pl-2 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-transform active:scale-95 group select-none ${isDarkMode ? 'bg-zinc-900/90' : 'bg-black/80'}`}
               >
                   <div className="flex items-center gap-3 min-w-0 pointer-events-none">
                       <div className="relative">
-                          <div className="absolute inset-0 bg-green-500 rounded-full animate-pulse opacity-20"></div>
+                          {/* Indicador de Status (Verde para Texto, Vermelho para Vídeo) */}
+                          <div className={`absolute inset-0 rounded-full animate-pulse opacity-20 ${isVideo ? 'bg-red-500' : 'bg-green-500'}`}></div>
                           <img src={article.logo} className="relative w-8 h-8 rounded-full border border-white/20 object-cover bg-white" onError={(e) => e.target.style.display = 'none'} />
                       </div>
                       <div className="flex flex-col min-w-0 pr-1">
-                          <span className="text-[9px] text-zinc-400 uppercase font-bold tracking-wider leading-none">{isBtnDragging ? 'Movendo...' : 'Lendo'}</span>
+                          <span className={`text-[9px] uppercase font-bold tracking-wider leading-none ${isVideo ? 'text-red-400' : 'text-zinc-400'}`}>
+                              {isBtnDragging ? 'MOVENDO...' : statusLabel}
+                          </span>
                           <span className="text-xs text-white font-bold truncate leading-tight max-w-[100px]">{article.source}</span>
                       </div>
                   </div>
