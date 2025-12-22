@@ -4329,7 +4329,10 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
       </div>
 ));
 
-// 3. COMPONENTE PRINCIPAL DO PAINEL (COM MODO CINEMA PARA VÍDEOS)
+// ==============================================================================
+// COMPONENTE ARTICLE PANEL (V23 - ANTI-FREEZE DO PLAYER)
+// ==============================================================================
+
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
@@ -4337,6 +4340,9 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
+  // --- NOVO: KEY PARA FORÇAR RECARGA DO VÍDEO ---
+  const [playerKey, setPlayerKey] = useState(0);
+
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -4348,6 +4354,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       return article.videoId || getVideoId(article.link);
   }, [article]);
 
+  // Se tem vídeo, o modo padrão vira 'video'
   useEffect(() => {
       if (videoId) {
           setViewMode('video');
@@ -4360,6 +4367,23 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
           setIsTranslated(false);
       }
   }, [article?.id, videoId]);
+
+  // --- LÓGICA ANTI-CONGELAMENTO (IOS PWA) ---
+  useEffect(() => {
+      const handleVisibilityChange = () => {
+          // Se o usuário VOLTOU para o app (ficou visível)
+          if (document.visibilityState === 'visible') {
+              // Incrementamos a chave. Isso obriga o React a destruir o iframe velho
+              // e criar um novo, reconectando o player que estava congelado.
+              setPlayerKey(prev => prev + 1);
+          }
+      };
+
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      return () => {
+          document.removeEventListener("visibilitychange", handleVisibilityChange);
+      };
+  }, []);
 
   const scrollContainerRef = useRef(null); 
 
@@ -4466,11 +4490,9 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const activeReaderData = { content: safeContent.content, title: safeContent.title };
 
   return (
-    // 1. CONTAINER EXTERNO: Se for vídeo, força bg-black. Se não, segue o tema.
     <div className={`fixed inset-0 z-[5000] flex flex-col transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) will-change-transform transform-gpu backface-hidden ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
-            {/* 2. NAV BAR: Se for vídeo, força fundo preto/transparente e texto branco */}
             <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b backdrop-blur-xl z-50 
                 ${videoId 
                     ? 'bg-black/90 border-white/10 text-white' 
@@ -4506,13 +4528,15 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
             </div>
 
-            {/* 3. ÁREA DE CONTEÚDO: Se for vídeo, força bg-black e texto branco */}
             <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain transform-gpu ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
                 
+                {/* --- MODO VÍDEO (Com chave de atualização para evitar freeze) --- */}
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
                         <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl">
+                            {/* A key={playerKey} aqui força o iframe a recarregar ao voltar para a tela */}
                             <iframe 
+                                key={playerKey} 
                                 src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
                                 className="w-full h-full"
                                 frameBorder="0"
@@ -4586,7 +4610,12 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
             )}
             
             {isOpen && article && feedItems && (
-                <FeedNavigator article={article} feedItems={feedItems} onArticleChange={onArticleChange} isDarkMode={isDarkMode} />
+                <FeedNavigator 
+                    article={article} 
+                    feedItems={feedItems} 
+                    onArticleChange={onArticleChange} 
+                    isDarkMode={isDarkMode} 
+                />
             )}
             
         </div>
