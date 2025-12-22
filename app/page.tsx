@@ -751,19 +751,39 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode, accentColor
 }
 
 
+// --- COMPONENTE: SOURCE SELECTOR (CORRIGIDO PARA FEED E YOUTUBE) ---
 function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'left' }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const uniqueSources = Array.from(new Set(news.map(n => n.source)))
-    .map(sourceName => {
-      return news.find(n => n.source === sourceName);
-    });
+  // --- CORREÇÃO AQUI ---
+  // Usa useMemo para performance e verifica 'source' OU 'channel'
+  const uniqueSources = useMemo(() => {
+      if (!news) return [];
+      const map = new Map();
+      
+      news.forEach(n => {
+          // Pega o nome da fonte (seja feed ou canal do youtube)
+          const name = n.source || n.channel; 
+          
+          // Se tiver nome e ainda não estiver no mapa, adiciona
+          if (name && !map.has(name)) {
+              map.set(name, {
+                  ...n,
+                  // Garante que o objeto tenha uma propriedade 'name' unificada para exibição
+                  displayName: name 
+              });
+          }
+      });
+      
+      return Array.from(map.values());
+  }, [news]);
 
-  // Verifica se o alinhamento pedido é na direita
   const isRight = align === 'right';
 
+  // Encontra o item selecionado para mostrar o logo no botão fechado
+  const activeItem = uniqueSources.find(s => s.displayName === selectedSource);
+
   return (
-    // AQUI ESTÁ A MÁGICA: Se isRight for true, aplica 'right-0', senão 'left-0'
     <div className={`absolute top-2 z-[1001] ${isRight ? 'right-0' : 'left-0'}`}>
       
       <button 
@@ -777,19 +797,18 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'l
             : 'bg-white/80 border-zinc-200 text-zinc-600 hover:bg-white'}
           ${isOpen ? 'w-14 border-purple-500/50' : ''}
           
-          /* INVERTE AS BORDAS ARREDONDADAS SE ESTIVER NA DIREITA */
           ${isRight 
-              ? 'rounded-l-2xl rounded-r-none border-l border-r-0 pr-1' // Lado Direito
-              : 'rounded-r-2xl rounded-l-none border-r border-l-0 pl-1' // Lado Esquerdo
+              ? 'rounded-l-2xl rounded-r-none border-l border-r-0 pr-1' 
+              : 'rounded-r-2xl rounded-l-none border-r border-l-0 pl-1'
           }
         `}
       >
-        {selectedSource === 'all' ? (
+        {selectedSource === 'all' || !activeItem ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
            <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
               <img 
-                src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
+                src={activeItem.logo} 
                 className="w-full h-full object-cover"
                 onError={(e) => e.target.style.display = 'none'}
               />
@@ -808,7 +827,6 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'l
              animate-in duration-200
              ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
              
-             /* AJUSTA O MENU PARA ABRIR PARA DENTRO DA TELA */
              ${isRight 
                 ? 'right-2 slide-in-from-right-2 origin-top-right' 
                 : 'left-2 slide-in-from-left-2 origin-top-left'
@@ -831,18 +849,19 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'l
 
              {uniqueSources.map((item) => (
                <button
-                 key={item.source}
-                 onClick={() => { onSelect(item.source); setIsOpen(false); }}
+                 key={item.displayName}
+                 onClick={() => { onSelect(item.displayName); setIsOpen(false); }}
                  className={`
                    relative w-10 h-10 rounded-full p-[2px] transition-transform hover:scale-110
-                   ${selectedSource === item.source ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
+                   ${selectedSource === item.displayName ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
                  `}
-                 title={item.source}
+                 title={item.displayName}
                >
                  <img 
                    src={item.logo} 
-                   alt={item.source} 
+                   alt={item.displayName} 
                    className="w-full h-full rounded-full object-cover border border-black/10"
+                   onError={(e) => e.target.style.display = 'none'}
                  />
                </button>
              ))}
