@@ -2598,52 +2598,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, onRefresh, storiesTo
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-// --- LÓGICA DE STORIES: ORDEM DE PUBLICAÇÃO ---
-  const storiesToDisplay = useMemo(() => {
-    if (!newsData || newsData.length === 0) return [];
 
-    const sortedEverything = [...newsData].sort((a, b) => {
-        const timeA = new Date(a.rawDate).getTime() || 0;
-        const timeB = new Date(b.rawDate).getTime() || 0;
-        return timeB - timeA;
-    });
-
-    const uniqueStories = [];
-    const seenSources = new Set();
-    
-    for (const item of sortedEverything) {
-        const sourceName = (item.source || "Fonte").trim();
-        
-        if (!seenSources.has(sourceName)) {
-            seenSources.add(sourceName);
-
-            // --- CORREÇÃO APLICADA AQUI ---
-            // Se o ID da notícia mais recente desta fonte já estiver na
-            // lista de stories vistos, nós pulamos para a próxima fonte.
-            if (seenStoryIds.includes(item.id)) {
-                continue;
-            }
-            // --- FIM DA CORREÇÃO ---
-
-            const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
-            const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
-
-            uniqueStories.push({
-                id: item.id,
-                name: sourceName,
-                avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
-                // A propriedade isSeen não é mais necessária, pois o story some
-                items: [{
-                    ...item,
-                    img: finalImg,
-                    origin: 'story'
-                }]
-            });
-        }
-    }
-
-    return uniqueStories;
-  }, [newsData, seenStoryIds]);
 
 
   // --- FUNÇÕES DE GESTO ---
