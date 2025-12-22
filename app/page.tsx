@@ -2617,46 +2617,33 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [isRefreshing, setIsRefreshing] = useState(false);
 
 // --- LÓGICA DE STORIES: FILA REAL (SOME DEPOIS DE LIDO) ---
-  const storiesToDisplay = useMemo(() => {
+const storiesToDisplay = useMemo(() => {
     if (!newsData || newsData.length === 0) return [];
 
-    // 1. FILTRAGEM INICIAL: Remove qualquer notícia que JÁ FOI VISTA.
-    // Isso garante que o card "suma" da lista.
-    const unseenNews = newsData.filter(item => !seenStoryIds.includes(item.id));
-
-    // 2. ORDENAÇÃO ABSOLUTA POR DATA
-    // Garante que as notícias mais novas (independente da fonte) fiquem no topo
-    unseenNews.sort((a, b) => {
-        return new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
-    });
+    // Filtra apenas o que não foi visto e ordena
+    const unseen = newsData
+        .filter(item => !seenStoryIds.includes(item.id))
+        .sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
 
     const uniqueStories = [];
-    const seenSources = new Set(); 
+    const seenSources = new Set();
     
-    // 3. AGRUPAMENTO POR FONTE
-    // Pega apenas a primeira (mais recente) notícia não lida de cada fonte.
-    for (const item of unseenNews) {
-        const sourceName = (item.source || "Fonte").trim();
-        
+    for (const item of unseen) {
+        const sourceName = item.source.trim();
         if (!seenSources.has(sourceName)) {
             seenSources.add(sourceName);
 
-            const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
-            const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
-
             uniqueStories.push({
-                id: item.id, // O ID da notícia atual
+                id: item.id,
                 name: sourceName,
-                avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
-                isSeen: false, // Sempre false, pois filtramos os vistos antes
-                sortTime: new Date(item.rawDate).getTime(), 
-                items: [{ ...item, img: finalImg, origin: 'story' }]
+                avatar: item.logo,
+                // FORÇAMOS apenas o item atual (o mais recente encontrado)
+                items: [item] 
             });
         }
     }
-
     return uniqueStories;
-  }, [newsData, seenStoryIds]);
+}, [newsData, seenStoryIds]);
 
   // --- FUNÇÕES DE GESTO ---
   const handleTouchStart = (e) => {
@@ -3252,15 +3239,28 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         const ytId = getTxt("yt:videoId") || getTxt("videoId");
         if (ytId) link = `https://www.youtube.com/watch?v=${ytId}`;
 
-        // --- CORREÇÃO CRÍTICA DAS DATAS ---
-        const pubDateRaw = getTxt("pubDate") || getTxt("published") || getTxt("updated") || getTxt("dc:date");
-        let parsedDate = new Date(pubDateRaw);
+        const getTxt = (tag) => {
+        // Tenta buscar com namespace (ex: dc:date) ou tag pura
+        const els = node.getElementsByTagName(tag);
+        if (els.length > 0) return els[0].textContent;
+        return node.querySelector(tag)?.textContent || "";
+    };
 
-        // Se a data for inválida (NaN), usamos "Agora" menos os minutos do índice.
-        // Isso garante que o item[0] seja mais recente que o item[1], evitando o agrupamento visual.
-        if (isNaN(parsedDate.getTime())) {
-            parsedDate = new Date(now.getTime() - (index * 60000)); // Subtrai 1 min por item
-        }
+    // 1. Tenta pegar a data mais precisa possível
+    // Folha/UOL usam muito dc:date ou pubDate
+    const rawDateStr = getTxt("dc:date") || getTxt("pubDate") || getTxt("published") || getTxt("updated");
+    let baseDate = new Date(rawDateStr);
+
+    if (isNaN(baseDate.getTime())) {
+        baseDate = new Date(); // Fallback para "agora"
+    }
+
+    // 2. O PULO DO GATO: Desempate Temporal Sênior
+    // Se várias notícias têm a mesma hora, subtraímos milissegundos baseados no index.
+    // Como o parser percorre do topo para baixo (mais novo para o mais velho no RSS),
+    // garantimos que o item[0] seja milissegundos mais novo que o item[1].
+    const uniqueTime = baseDate.getTime() - (index * 1000); 
+    const finalDate = new Date(uniqueTime);
 
         // Extração de Imagem (Mantida)
         const description = getTxt("description") || getTxt("summary");
@@ -4075,8 +4075,15 @@ feedItems={[...realNews, ...realVideos, ...realPodcasts]}          isOpen={!!sel
       
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
-      {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen}  />}
-
+{selectedStory && (
+  <StoryOverlay 
+    stories={storiesToDisplay} // Passa a lista inteira
+    initialStoryId={selectedStory.id} // Passa qual abriu
+    onClose={closeStory} 
+    openArticle={openArticle} 
+    onMarkAsSeen={onMarkAsSeen}  
+  />
+)}
       {playingAudio && (
           <GlobalAudioPlayer 
               track={playingAudio} 
@@ -4204,155 +4211,92 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
   );
 }
 
-function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+function StoryOverlay({ stories, initialStoryId, onClose, openArticle, onMarkAsSeen }) {
+  // Encontra o índice da fonte na lista global
+  const [storyIndex, setStoryIndex] = useState(() => 
+    stories.findIndex(s => s.id === initialStoryId)
+  );
 
-  // Reinicia o índice se mudar de story
-  useEffect(() => { setCurrentIndex(0); }, [story]);
+  const currentStory = stories[storyIndex];
 
-  // EFEITO: Marcar como visto assim que abrir o Story
+  // Se a fonte mudar, marca como visto
   useEffect(() => {
-    if (story && story.id && onMarkAsSeen) {
-        // Disparamos o "visto" imediatamente para o ID da notícia atual
-        onMarkAsSeen(story.id); 
+    if (currentStory && onMarkAsSeen) {
+      onMarkAsSeen(currentStory.id);
     }
-  }, [story, onMarkAsSeen]);
+  }, [currentStory, onMarkAsSeen]);
 
-  if (!story || !story.items || story.items.length === 0) return null;
+  if (!currentStory) return null;
 
-  const handleNext = () => { 
-    if (currentIndex < story.items.length - 1) setCurrentIndex(prev => prev + 1); 
-    else onClose(); 
+  // Como agora cada story tem apenas 1 item, a lógica de "Next" pula a FONTE
+  const handleNext = () => {
+    if (storyIndex < stories.length - 1) {
+      setStoryIndex(prev => prev + 1);
+    } else {
+      onClose(); // Fim da fila
+    }
   };
-  
-  const handlePrev = () => { 
-    if (currentIndex > 0) setCurrentIndex(prev => prev - 1); 
+
+  const handlePrev = () => {
+    if (storyIndex > 0) {
+      setStoryIndex(prev => prev - 1);
+    }
   };
 
-  const currentItem = story.items[currentIndex];
-
-  const handleOpenFullArticle = () => {
-      onClose(); // Fecha o overlay de story
-      
-      // Abre o painel de artigo completo
-      openArticle({ 
-        ...currentItem, 
-        source: story.name, 
-        category: 'Story',
-        // Mudamos para 'rss' para garantir que o leitor carregue o site real
-        origin: 'rss' 
-      });
-  };
+  const currentItem = currentStory.items[0]; // Sempre o primeiro (único)
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-black flex flex-col animate-in zoom-in-95 duration-300">
-       
-       {/* Container Central - TAMANHO MD:MAX-W-[60VH] RESTAURADO */}
-       <div className="relative w-full h-full md:max-w-[60vh] md:aspect-[9/16] md:mx-auto md:my-auto md:rounded-3xl overflow-hidden bg-zinc-900 shadow-2xl border border-white/5">
-        
-        {/* Imagem de Fundo em tela cheia */}
-        <div className="absolute inset-0">
-            <img 
-                src={currentItem.img} 
-                className="w-full h-full object-cover" 
-                alt="Fundo do Story" 
-                onError={(e) => { e.target.style.display = 'none'; }}
-            />
-            {/* Gradientes para melhorar legibilidade */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/90" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60" />
-        </div>
-
-        {/* Barra de Progresso Superior e Cabeçalho */}
-        <div className="absolute top-0 left-0 right-0 p-4 pt-10 md:pt-8 z-30 space-y-4">
-          
-          {/* Indicador de "slides" */}
-          <div className="flex gap-1.5 h-1">
-              {story.items.map((item, idx) => (
-                  <div key={idx} className="flex-1 bg-white/20 rounded-full overflow-hidden h-full">
-                      <div 
-                        className={`h-full bg-white transition-all duration-300 ${idx < currentIndex ? 'w-full' : idx === currentIndex ? 'w-full animate-[progress_5s_linear]' : 'w-0'}`} 
-                      />
-                  </div>
-              ))}
+    <div className="fixed inset-0 z-[10000] bg-black flex flex-col">
+       <div className="relative w-full h-full md:max-w-[60vh] md:mx-auto">
+          {/* Barra de progresso (agora reflete a posição na lista de fontes) */}
+          <div className="absolute top-10 left-0 right-0 px-4 flex gap-1 z-50">
+             {stories.map((s, idx) => (
+               <div key={s.id} className="h-1 flex-1 bg-white/20 rounded-full overflow-hidden">
+                 <div className={`h-full bg-white transition-all ${idx < storyIndex ? 'w-full' : idx === storyIndex ? 'w-full animate-[progress_5s_linear]' : 'w-0'}`} />
+               </div>
+             ))}
           </div>
 
-          {/* Info do Canal e Botão Fechar */}
-          <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full border-2 border-white/30 p-[2px] bg-black/20 backdrop-blur-md">
-                      <img src={story.avatar} className="w-full h-full rounded-full object-cover" alt="Logo" />
-                  </div>
-                  <div className="flex flex-col">
-                      <span className="text-white font-black text-sm drop-shadow-md tracking-tight">{story.name}</span>
-                      <span className="text-zinc-300 text-[10px] font-bold drop-shadow-md opacity-90">{currentItem.time}</span>
-                  </div>
-              </div>
-              <button 
-                onClick={onClose} 
-                className="p-2.5 text-white/80 hover:text-white backdrop-blur-xl rounded-full bg-white/10 border border-white/10 transition-transform active:scale-90"
-              >
-                  <X size={26} />
-              </button>
+          {/* Imagem e Conteúdo */}
+          <div className="absolute inset-0">
+             <img src={currentItem.img} className="w-full h-full object-cover" />
+             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black" />
           </div>
-        </div>
 
-        {/* Áreas de Toque Invisíveis para Navegação */}
-        <div className="absolute inset-0 z-20 flex">
-            <div className="w-[30%] h-full" onClick={handlePrev} />
-            <div className="w-[70%] h-full" onClick={handleNext} />
-        </div>
+          {/* Navegação por Áreas de Toque */}
+          <div className="absolute inset-0 z-20 flex">
+              <div className="w-[30%] h-full" onClick={handlePrev} />
+              <div className="w-[70%] h-full" onClick={handleNext} />
+          </div>
 
-        {/* Setas de Apoio (Estilo Instagram) */}
-        {currentIndex > 0 && (
-          <button 
-            onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"
-          >
-            <ChevronLeft size={28} />
-          </button>
-        )}
-        <button 
-          onClick={(e) => { e.stopPropagation(); handleNext(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"
-        >
-          <ChevronRight size={28} />
-        </button>
+          {/* Setas Visuais (Navegam entre fontes) */}
+          <button onClick={handlePrev} className={`absolute left-4 top-1/2 z-40 p-2 text-white/50 ${storyIndex === 0 ? 'hidden' : ''}`}><ChevronLeft size={32}/></button>
+          <button onClick={handleNext} className="absolute right-4 top-1/2 z-40 p-2 text-white/50"><ChevronRight size={32}/></button>
 
-        {/* Rodapé: Título e Botão de Ação */}
-        <div className="absolute bottom-0 left-0 right-0 p-8 z-30 pb-12 md:pb-10 pointer-events-none">
-            <div className="pointer-events-auto flex flex-col items-center">
-                
-                <h2 className="text-white text-2xl md:text-3xl font-black leading-tight mb-8 drop-shadow-2xl font-serif text-center line-clamp-5">
-                    {currentItem.title}
-                </h2>
-                
-                <button 
-                    onClick={(e) => { 
-                        e.stopPropagation(); 
-                        handleOpenFullArticle(); 
-                    }} 
-                    className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100"
-                >
-                    <span className="text-sm uppercase tracking-widest">Ler Notícia Completa</span>
-                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </button>
-            </div>
-        </div>
+          {/* Cabeçalho */}
+          <div className="absolute top-16 left-4 right-4 flex justify-between items-center z-30">
+             <div className="flex items-center gap-3">
+                <img src={currentStory.avatar} className="w-10 h-10 rounded-full border-2 border-white" />
+                <span className="text-white font-bold">{currentStory.name}</span>
+             </div>
+             <button onClick={onClose} className="text-white"><X size={28}/></button>
+          </div>
+
+          {/* Rodapé */}
+          <div className="absolute bottom-10 left-4 right-4 z-30 flex flex-col items-center">
+             <h2 className="text-white text-2xl font-black text-center mb-6 leading-tight">{currentItem.title}</h2>
+             <button 
+                onClick={() => { onClose(); openArticle({...currentItem, origin: 'rss'}); }}
+                className="w-full py-4 bg-white text-black font-bold rounded-2xl flex items-center justify-center gap-2"
+             >
+                LER NOTÍCIA <ArrowRight size={18}/>
+             </button>
+          </div>
        </div>
-
-       {/* Fundo desfocado para telas grandes (Desktop) */}
-       <div className="fixed inset-0 -z-10 bg-zinc-950/95 backdrop-blur-3xl md:block hidden" onClick={onClose} />
-       
-       <style jsx="true">{`
-          @keyframes progress {
-            0% { width: 0%; }
-            100% { width: 100%; }
-          }
-       `}</style>
     </div>
   );
-}
+
+
 
 
 
