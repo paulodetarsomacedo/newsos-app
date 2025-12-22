@@ -1511,7 +1511,7 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
           selectedSource={channelFilter} 
           onSelect={setChannelFilter} 
           isDarkMode={isDarkMode} 
-          showName={true}
+       
        />
     </div>
 
