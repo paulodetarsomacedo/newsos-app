@@ -1159,12 +1159,19 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
 
   const safeNews = (stableData && stableData.length > 0) ? stableData : []; // Removi FEED_NEWS mockado para evitar mistura
 
-  // 1. Filtra por Categoria e Fonte
+// 1. Filtra por Categoria e Fonte
   const filteredByCategory = category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category);
-  const displayedNewsRaw = sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter);
+  
+  // Cria a lista filtrada por fonte
+  let displayedNewsRaw = sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter);
 
-  // 2. --- CORREÇÃO DO ERRO DE KEY ---
-  // Remove duplicatas baseado no ID antes de renderizar
+  // --- CORREÇÃO DA ORDEM DOS CARDS ---
+  // Força a ordenação por data (timestamp) para garantir que fiquem intercalados corretamente
+  displayedNewsRaw = displayedNewsRaw.sort((a, b) => {
+      return new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
+  });
+
+  // 2. Remove duplicatas baseado no ID antes de renderizar (Mantém a ordem do sort acima)
   const uniqueNews = useMemo(() => {
       const seen = new Set();
       return displayedNewsRaw.filter(item => {
@@ -2593,27 +2600,28 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 const storiesToDisplay = useMemo(() => {
     if (!newsData || newsData.length === 0) return [];
 
-    // 1. PASSO CRUCIAL: Ordena TODAS as notícias por data antes de processar
-    // Isso garante que a gente pegue sempre a mais recente de cada fonte
+    // 1. PASSO CRUCIAL: Cria uma cópia e ordena TUDO pela data (do mais recente para o mais antigo)
+    // Usamos .getTime() para garantir a comparação numérica correta
     const sortedInput = [...newsData].sort((a, b) => {
-        const dateA = new Date(a.rawDate || Date.now()).getTime();
-        const dateB = new Date(b.rawDate || Date.now()).getTime();
-        return dateB - dateA;
+        return new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
     });
 
     const uniqueStories = [];
     const seenSources = new Set(); 
     
-    sortedInput.forEach((item) => {
+    // 2. Itera sobre a lista JÁ ORDENADA. 
+    // A primeira vez que uma fonte aparece, é a sua notícia mais recente.
+    // Como a lista está ordenada por tempo, a ordem de inserção em uniqueStories será a ordem correta.
+    for (const item of sortedInput) {
         const sourceName = item.source || "Fonte"; 
         
-        // Pega apenas a primeira aparição (que agora garantimos ser a mais recente pelo sort acima)
+        // Se ainda não adicionamos esta fonte aos stories...
         if (!seenSources.has(sourceName)) {
             seenSources.add(sourceName);
 
-            // Se o story mais recente já foi visto, ignora a fonte inteira na barra
             const isSeen = seenStoryIds.includes(item.id);
-            if (isSeen) return;
+            // Opcional: Se quiser esconder stories já vistos, descomente a linha abaixo
+            // if (isSeen) continue; 
 
             const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
             const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
@@ -2623,8 +2631,7 @@ const storiesToDisplay = useMemo(() => {
                 name: sourceName,
                 avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
                 isSeen: isSeen,
-                // Garante que a data seja um número para comparação
-                sortTime: new Date(item.rawDate || Date.now()).getTime(), 
+                sortTime: new Date(item.rawDate).getTime(), 
                 items: [{
                     ...item,
                     img: finalImg,
@@ -2632,10 +2639,10 @@ const storiesToDisplay = useMemo(() => {
                 }]
             });
         }
-    });
+    }
 
-    // 2. PASSO FINAL: Ordena a lista de bolinhas pela data da notícia que ela contém
-    return uniqueStories.sort((a, b) => b.sortTime - a.sortTime);
+    // Não precisamos de .sort() final aqui, pois o loop for já respeitou a ordem cronológica do sortedInput
+    return uniqueStories;
 
   }, [newsData, seenStoryIds]);
 
