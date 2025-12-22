@@ -751,62 +751,69 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode, accentColor
 }
 
 
-function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
+function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'left' }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // 1. Extrai fontes únicas das notícias para montar o menu
-  // (Num app real, viria do seu userFeeds, mas aqui extraímos do que temos na tela)
   const uniqueSources = Array.from(new Set(news.map(n => n.source)))
     .map(sourceName => {
       return news.find(n => n.source === sourceName);
     });
 
+  // Verifica se o alinhamento pedido é na direita
+  const isRight = align === 'right';
+
   return (
-    <div className="absolute left-0 top-2 z-[1001]">
+    // AQUI ESTÁ A MÁGICA: Se isRight for true, aplica 'right-0', senão 'left-0'
+    <div className={`absolute top-2 z-[1001] ${isRight ? 'right-0' : 'left-0'}`}>
       
-      {/* --- O BOTÃO "CORTADO" (TRIGGER) --- */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center justify-center
-          h-[42px] w-12 pl-1
-          rounded-r-2xl rounded-l-none /* Arredonda só a direita */
-          border-y border-r border-l-0
+          flex items-center justify-center h-[42px] w-12 
           backdrop-blur-xl shadow-sm transition-all duration-300
+          border-y 
           ${isDarkMode 
             ? 'bg-zinc-900/80 border-white/10 text-white hover:bg-zinc-800' 
             : 'bg-white/80 border-zinc-200 text-zinc-600 hover:bg-white'}
           ${isOpen ? 'w-14 border-purple-500/50' : ''}
+          
+          /* INVERTE AS BORDAS ARREDONDADAS SE ESTIVER NA DIREITA */
+          ${isRight 
+              ? 'rounded-l-2xl rounded-r-none border-l border-r-0 pr-1' // Lado Direito
+              : 'rounded-r-2xl rounded-l-none border-r border-l-0 pl-1' // Lado Esquerdo
+          }
         `}
       >
         {selectedSource === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
-           // Se tiver uma fonte selecionada, tenta mostrar o logo pequeno
            <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
               <img 
                 src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
                 className="w-full h-full object-cover"
+                onError={(e) => e.target.style.display = 'none'}
               />
            </div>
         )}
       </button>
 
-      {/* --- MENU SUSPENSO (ICONES) --- */}
       {isOpen && (
         <>
-          {/* Backdrop invisível para fechar ao clicar fora */}
-          <div className="fixed inset-0 z-[1000" onClick={() => setIsOpen(false)} />
+          <div className="fixed inset-0 z-[1000]" onClick={() => setIsOpen(false)} />
 
           <div className={`
-             absolute top-[50px] left-2 z-[101]
+             absolute top-[50px] z-[101]
              flex flex-col gap-2 p-2
              rounded-2xl border shadow-xl backdrop-blur-xl
-             animate-in slide-in-from-left-2 duration-200
+             animate-in duration-200
              ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
-          `}>
              
-             {/* Opção "Todas" */}
+             /* AJUSTA O MENU PARA ABRIR PARA DENTRO DA TELA */
+             ${isRight 
+                ? 'right-2 slide-in-from-right-2 origin-top-right' 
+                : 'left-2 slide-in-from-left-2 origin-top-left'
+             }
+          `}>
              <button
                onClick={() => { onSelect('all'); setIsOpen(false); }}
                className={`
@@ -822,7 +829,6 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
 
              <div className={`h-[1px] w-full ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
 
-             {/* Lista de Logos */}
              {uniqueSources.map((item) => (
                <button
                  key={item.source}
@@ -846,7 +852,6 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
     </div>
   );
 }
-
 
 // --- COMPONENTE INTELIGENTE DE IMAGEM (NOVO) ---
 
@@ -1076,48 +1081,52 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
   );
 });
 
-// --- TAB: FEED (COM ATUALIZAÇÃO CONTROLADA / ESTÁVEL) ---
+// --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh }) {
   const [category, setCategory] = useState('Tudo');
   
-  // --- ESTADO DE DADOS ESTÁVEIS ---
-  // Esse estado segura as notícias e não deixa elas mudarem sozinhas
+  // Estado de Dados Estáveis
   const [stableData, setStableData] = useState([]);
   const [hasLoaded, setHasLoaded] = useState(false);
 
-  // --- ESTADOS DO PULL-TO-REFRESH ---
+  // Estados Pull-to-Refresh
   const [startY, setStartY] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // --- EFEITO 1: INICIALIZAÇÃO (Ao abrir a aba) ---
+  // Inicialização
   useEffect(() => {
-    // Se temos dados e é a primeira vez que montamos a aba (ou voltamos pra ela),
-    // carregamos os dados no estado estável.
     if (newsData && newsData.length > 0 && !hasLoaded) {
         setStableData(newsData);
         setHasLoaded(true);
     }
   }, [newsData, hasLoaded]);
 
-  // --- EFEITO 2: FORÇAR ATUALIZAÇÃO NO REFRESH MANUAL ---
-  // A lógica de atualização real fica no handleTouchEnd, mas aqui garantimos
-  // que se o newsData mudar drasticamente (ex: primeira carga demorada), ele apareça.
+  // Atualização Forçada
   useEffect(() => {
-      // Se a lista estável estiver vazia e chegarem dados, atualiza (Carga inicial tardia)
       if (stableData.length === 0 && newsData && newsData.length > 0) {
           setStableData(newsData);
       }
   }, [newsData, stableData.length]);
 
+  const safeNews = (stableData && stableData.length > 0) ? stableData : []; // Removi FEED_NEWS mockado para evitar mistura
 
-  // --- LÓGICA DE FILTRAGEM (Aplicada sobre os dados ESTÁVEIS) ---
-  const safeNews = (stableData && stableData.length > 0) ? stableData : FEED_NEWS;
-
+  // 1. Filtra por Categoria e Fonte
   const filteredByCategory = category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category);
-  const displayedNews = sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter);
+  const displayedNewsRaw = sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter);
 
-  // --- FUNÇÕES DE TOQUE ---
+  // 2. --- CORREÇÃO DO ERRO DE KEY ---
+  // Remove duplicatas baseado no ID antes de renderizar
+  const uniqueNews = useMemo(() => {
+      const seen = new Set();
+      return displayedNewsRaw.filter(item => {
+          const duplicate = seen.has(item.id);
+          seen.add(item.id);
+          return !duplicate;
+      });
+  }, [displayedNewsRaw]);
+
+  // Funções de Toque
   const handleTouchStart = (e) => {
     if (window.scrollY <= 5 && !isRefreshing) {
         setStartY(e.touches[0].clientY);
@@ -1145,19 +1154,14 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
         return;
     }
     
-    // Se puxou o suficiente para atualizar
     if (pullDistance > 70) {
         setIsRefreshing(true);
         setPullDistance(70); 
         
-        // 1. Chama a função de buscar dados novos (fetchFeeds)
         if (onRefresh) await onRefresh();
         
-        // 2. Pequeno delay para sensação visual
         await new Promise(resolve => setTimeout(resolve, 500)); 
         
-        // 3. AQUI ESTÁ O SEGREDO: 
-        // Forçamos a atualização da lista visual com os dados mais recentes que chegaram
         if (newsData && newsData.length > 0) {
             setStableData(newsData);
         }
@@ -1185,7 +1189,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
       onTouchEnd={handleTouchEnd}
     >
       
-      {/* CABEÇALHO STICKY */}
+      {/* CABEÇALHO */}
       <div className="sticky top-0 z-[1000] w-full flex justify-center py-2 pointer-events-none">
           <div className="pointer-events-auto">
              <SourceSelector news={safeNews} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} />
@@ -1200,7 +1204,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
           />
       </div>
 
-      {/* ÁREA DE LOADING ANIMADA */}
+      {/* LOADING */}
       <div 
         style={{ 
             height: `${pullDistance}px`, 
@@ -1228,10 +1232,9 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
          </div>
       </div>
       
-     {/* LISTA DE CARDS OTIMIZADA */}
+     {/* LISTA DE CARDS */}
       <div className="flex flex-col gap-4">
         
-        {/* MOSTRA SKELETONS APENAS NA PRIMEIRA CARGA SE ESTIVER VAZIO */}
         {isLoading && stableData.length === 0 && (
             <>
               {[1, 2, 3, 4, 5].map((i) => (
@@ -1240,13 +1243,14 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
             </>
         )}
 
-        {!isLoading && displayedNews.length === 0 && stableData.length > 0 && (
+        {!isLoading && uniqueNews.length === 0 && stableData.length > 0 && (
            <div className="text-center py-10 opacity-50">
              <p>Nenhuma notícia encontrada nesta categoria.</p>
            </div>
         )}
         
-        {displayedNews.map((news) => (
+        {/* Usamos uniqueNews em vez de displayedNewsRaw */}
+        {uniqueNews.map((news) => (
             <NewsCard 
               key={news.id}
               news={news}
@@ -1470,12 +1474,22 @@ const YouTubeStoryModal = ({ story, onClose, onWatchVideo }) => {
 
 // --- ABA YOUTUBE (V8 - LÓGICA DE STORIES ESTRITA: SÓ O MAIS RECENTE) ---
 
-function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideos, isLoading, onPlayVideo, seenStoryIds, onMarkAsSeen }) {
+function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideos, isLoading, onPlayVideo, seenStoryIds, onMarkAsSeen, channelFilter, setChannelFilter }) {
   const [category, setCategory] = useState('Tudo');
   const [activeStory, setActiveStory] = useState(null); 
   
   const safeVideos = (realVideos && realVideos.length > 0) ? realVideos : YOUTUBE_FEED;
-  const displayedVideos = category === 'Tudo' ? safeVideos : safeVideos.filter(v => v.category === category || v.source === category);
+  const displayedVideos = useMemo(() => {
+    return safeVideos.filter(v => {
+        // 1. Filtra por Categoria Lateral (Mantém o que já existia)
+        const matchesCategory = category === 'Tudo' || v.category === category || v.source === category;
+        
+        // 2. ADICIONE ISSO: Filtra por Canal (SourceSelector)
+        const matchesChannel = channelFilter === 'all' || (v.source === channelFilter) || (v.channel === channelFilter);
+        
+        return matchesCategory && matchesChannel;
+    });
+}, [safeVideos, category, channelFilter]); // Não esqueça de adicionar channelFilter nas dependências
 
   // --- LÓGICA DE STORIES CORRIGIDA ---
   const channelStories = useMemo(() => {
@@ -1520,6 +1534,18 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
 
   return (
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
+    
+    <div className="absolute top-0 rigth-0 z-30">
+       <SourceSelector 
+          news={safeVideos} // Passa os vídeos para ele extrair os logos
+          selectedSource={channelFilter} 
+          onSelect={setChannelFilter} 
+          isDarkMode={isDarkMode} 
+          align="right" 
+       />
+    </div>
+
+   
       
       {/* Filtro Lateral */}
       <YouTubeVerticalFilter categories={YOUTUBE_CATEGORIES} active={category} onChange={setCategory} isDarkMode={isDarkMode} />
@@ -2517,18 +2543,28 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // --- LÓGICA DE STORIES ---
-  const storiesToDisplay = useMemo(() => {
+const storiesToDisplay = useMemo(() => {
     if (!newsData || newsData.length === 0) return [];
+
+    // 1. PASSO CRUCIAL: Ordena TODAS as notícias por data antes de processar
+    // Isso garante que a gente pegue sempre a mais recente de cada fonte
+    const sortedInput = [...newsData].sort((a, b) => {
+        const dateA = new Date(a.rawDate || Date.now()).getTime();
+        const dateB = new Date(b.rawDate || Date.now()).getTime();
+        return dateB - dateA;
+    });
 
     const uniqueStories = [];
     const seenSources = new Set(); 
     
-    newsData.forEach((item) => {
+    sortedInput.forEach((item) => {
         const sourceName = item.source || "Fonte"; 
         
+        // Pega apenas a primeira aparição (que agora garantimos ser a mais recente pelo sort acima)
         if (!seenSources.has(sourceName)) {
             seenSources.add(sourceName);
 
+            // Se o story mais recente já foi visto, ignora a fonte inteira na barra
             const isSeen = seenStoryIds.includes(item.id);
             if (isSeen) return;
 
@@ -2540,6 +2576,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                 name: sourceName,
                 avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
                 isSeen: isSeen,
+                // Garante que a data seja um número para comparação
+                sortTime: new Date(item.rawDate || Date.now()).getTime(), 
                 items: [{
                     ...item,
                     img: finalImg,
@@ -2549,7 +2587,9 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         }
     });
 
-    return uniqueStories;
+    // 2. PASSO FINAL: Ordena a lista de bolinhas pela data da notícia que ela contém
+    return uniqueStories.sort((a, b) => b.sortTime - a.sortTime);
+
   }, [newsData, seenStoryIds]);
 
   // --- FUNÇÕES DE GESTO ---
@@ -3365,6 +3405,7 @@ export default function NewsOS_V12() {
   const [seenStoryIds, setSeenStoryIds] = useState([]);
   const [playingAudio, setPlayingAudio] = useState(null);
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [youtubeChannelFilter, setYoutubeChannelFilter] = useState('all');
   
   const [realNews, setRealNews] = useState([]); 
   const [realVideos, setRealVideos] = useState([]);
@@ -3784,6 +3825,8 @@ export default function NewsOS_V12() {
                     onPlayVideo={handleOpenArticle} 
                     seenStoryIds={seenStoryIds}
                     onMarkAsSeen={markStoryAsSeen}
+                    channelFilter={youtubeChannelFilter}
+                    setChannelFilter={setYoutubeChannelFilter}
                 />
             )}
 
@@ -4176,7 +4219,7 @@ const translateText = async (text, targetLang = 'pt') => {
 };
 
 
-// --- COMPONENTE: FEED NAVIGATOR (CORRIGIDO PARA PODCASTS) ---
+// --- COMPONENTE: FEED NAVIGATOR (COM DEDUPLICAÇÃO DE ITENS) ---
 const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkMode }) => {
     if (!article) return null;
 
@@ -4186,31 +4229,43 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
     const dragRef = useRef({ startX: 0, startY: 0, initialLeft: 0, initialTop: 0, hasMoved: false });
 
     // --- LÓGICA DE CONTEXTO ---
-    // 1. É Podcast/Áudio? (Prioridade)
     const isPodcast = article.category === 'Podcast' || article.forceAudioMode || article.type === 'audio';
-    // 2. É Vídeo? (Se não for podcast)
     const isVideo = !isPodcast && (article.videoId || (article.link && (article.link.includes('youtube') || article.link.includes('youtu.be'))));
 
     let statusLabel = 'LENDO';
     if (isPodcast) statusLabel = 'OUVINDO';
     else if (isVideo) statusLabel = 'ASSISTINDO';
 
-    // --- FILTRAGEM INTELIGENTE ---
+    // --- FILTRAGEM INTELIGENTE E DEDUPLICAÇÃO ---
     const relatedNews = useMemo(() => {
         if (!feedItems) return [];
         
+        let filteredList = [];
+
+        // 1. Filtra pelo tipo correto
         if (isPodcast) {
-            // Mostra apenas outros Podcasts ou Áudios
-            return feedItems.filter(item => item.category === 'Podcast' || item.type === 'audio' || item.forceAudioMode);
+            filteredList = feedItems.filter(item => item.category === 'Podcast' || item.type === 'audio' || item.forceAudioMode);
         } 
         else if (isVideo) {
-            // Mostra apenas Vídeos (que não sejam podcasts)
-            return feedItems.filter(item => (item.videoId || (item.link && item.link.includes('youtu'))) && item.category !== 'Podcast');
+            filteredList = feedItems.filter(item => (item.videoId || (item.link && item.link.includes('youtu'))) && item.category !== 'Podcast');
         } 
         else {
-            // Mostra Texto (Exclui vídeos e podcasts)
-            return feedItems.filter(item => !item.videoId && (!item.link || !item.link.includes('youtu')) && item.category !== 'Podcast');
+            filteredList = feedItems.filter(item => !item.videoId && (!item.link || !item.link.includes('youtu')) && item.category !== 'Podcast');
         }
+
+        // 2. Remove Duplicatas (O CORRETOR DO ERRO DE KEY)
+        const uniqueList = [];
+        const seenIds = new Set();
+        
+        for (const item of filteredList) {
+            // Se ainda não vimos esse ID, adiciona. Se já vimos, ignora.
+            if (!seenIds.has(item.id)) {
+                seenIds.add(item.id);
+                uniqueList.push(item);
+            }
+        }
+
+        return uniqueList;
     }, [feedItems, isPodcast, isVideo]);
 
     const currentIndex = relatedNews.findIndex(item => item && item.id === article.id);
@@ -4282,7 +4337,6 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
               <div onClick={handleToggle} className={`flex items-center justify-between p-2 pl-2 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-transform active:scale-95 group select-none ${isDarkMode ? 'bg-zinc-900/90' : 'bg-black/80'}`}>
                   <div className="flex items-center gap-3 min-w-0 pointer-events-none">
                       <div className="relative">
-                          {/* COR DO INDICADOR: Laranja (Pod), Vermelho (Video), Verde (Texto) */}
                           <div className={`absolute inset-0 rounded-full animate-pulse opacity-20 ${isPodcast ? 'bg-orange-500' : (isVideo ? 'bg-red-500' : 'bg-green-500')}`}></div>
                           <img src={article.logo} className="relative w-8 h-8 rounded-full border border-white/20 object-cover bg-white" onError={(e) => e.target.style.display = 'none'} />
                       </div>
@@ -4420,7 +4474,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL (V29 - CORREÇÃO DE ÁUDIO "SANDUÍCHE")
+// COMPONENTE ARTICLE PANEL (V30 - CORREÇÃO DE ÁUDIO VIA CLICK-THROUGH)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
@@ -4430,7 +4484,8 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  const [userHasClickedPlay, setUserHasClickedPlay] = useState(false);
+  // Controle visual para saber se o player já "começou" (para mudar a UI da capa)
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
@@ -4446,7 +4501,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
-          setUserHasClickedPlay(false); 
+          setIsPlayingAudio(false);
       } else {
           setViewMode('web');
           setIframeUrl(null);
@@ -4456,11 +4511,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       }
   }, [article?.id, videoId]);
 
-  // Reset ao minimizar para evitar freeze
+  // Se sair do app, reseta o estado visual (o player morre e renasce pelo visibilitychange)
   useEffect(() => {
       const handleVisibilityChange = () => {
           if (document.visibilityState === 'hidden') {
-              setUserHasClickedPlay(false);
+              setIsPlayingAudio(false);
           }
       };
       document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -4507,7 +4562,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setReaderContent(null);
         setViewMode('web');
         setIsTranslated(false); 
-        setUserHasClickedPlay(false);
+        setIsPlayingAudio(false);
       }, 400); 
   }, [onClose, iframeUrl]);
 
@@ -4549,9 +4604,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
             await new Promise(r => setTimeout(r, 10)); 
             const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
             if (error || !data) throw new Error();
-            if (data.html && (data.html.startsWith('RIFF') || data.html.includes('WEBPVP8') || data.html.includes('PNG') || data.html.charCodeAt(0) > 65000)) {
-                throw new Error("Conteúdo binário detectado");
-            }
+            const header = data.html.substring(0, 50); 
+
+if (header.includes('RIFF') || header.includes('WEBP') || (data.html.charCodeAt(0) > 65000)) {
+    throw new Error("Conteúdo binário detectado");
+}
             const cleanHtml = sanitizeHtml(data.html);
             const blob = new Blob([cleanHtml], { type: 'text/html' });
             setIframeUrl(URL.createObjectURL(blob));
@@ -4617,59 +4674,73 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                     <div className="w-full h-full flex flex-col">
                         <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative group cursor-pointer">
                             
-                            {/* IFRAME: SEMPRE RENDERIZADO QUANDO ATIVO, MAS PODE FICAR EMBAIXO DA CAPA */}
-                            {userHasClickedPlay && (
-                                <iframe 
-                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&modestbranding=1&rel=0&controls=1`}
-                                    // AQUI ESTÁ O SEGREDO: 'z-0'. O vídeo fica na camada base.
-                                    className="absolute inset-0 w-full h-full z-0"
-                                    frameBorder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                    title="YouTube Video"
+                            {/* 
+                               A MÁGICA DO CLIQUE INVISÍVEL (CLICK-THROUGH)
+                               1. Se for MODO AUDIO: O Iframe fica POR CIMA da capa (z-20), 
+                                  mas com opacidade quase zero. O clique pega nele.
+                               2. Se for MODO VIDEO: O Iframe fica NORMAL.
+                            */}
+                            
+                            <iframe 
+                                src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
+                                className={`w-full h-full absolute inset-0 
+                                    ${article.forceAudioMode 
+                                        ? 'opacity-[0.01] z-20' // Invisível mas CLICÁVEL no topo
+                                        : 'z-0' // Normal
+                                    }
+                                `}
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                title="YouTube Video"
+                                // Detecta que o usuário clicou (para mudar visual da capa)
+                                onLoad={() => {
+                                    // Truque: Em iframes cross-origin não detectamos click real, 
+                                    // então assumimos que se o iframe carregou e o usuário interagir, ok.
+                                }}
+                            />
+
+                            {/* CAPA (Abaixo do Iframe se áudio, Acima se Vídeo esperando play) */}
+                            {/* A div abaixo captura o clique visual apenas para feedback */}
+                            <div 
+                                className={`absolute inset-0 w-full h-full 
+                                    ${article.forceAudioMode ? 'z-10' : (isPlayingAudio ? 'hidden' : 'z-10')}
+                                `}
+                                // Se for áudio, o clique VAZA para o iframe (pointer-events-none no container visual?)
+                                // NÃO! Se forceAudioMode, o iframe está por cima (z-20), então ele rouba o clique.
+                                // A capa fica apenas visual (z-10).
+                            >
+                                <img 
+                                    src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
+                                    className={`w-full h-full object-cover transition-opacity ${isPlayingAudio ? 'opacity-40' : 'opacity-80'}`}
+                                    alt="Video Thumbnail"
                                 />
-                            )}
-
-                            {/* CAPA: Z-INDEX 10 (FICA POR CIMA) */}
-                            {/* Se for Modo Audio, a capa NUNCA SOME. O vídeo roda embaixo. */}
-                            {(!userHasClickedPlay || article.forceAudioMode) && (
-                                <div 
-                                    onClick={() => setUserHasClickedPlay(true)} 
-                                    // 'z-10' garante que fica por cima do vídeo
-                                    className={`absolute inset-0 w-full h-full relative z-10 ${userHasClickedPlay ? '' : 'bg-black'}`}
-                                >
-                                    <img 
-                                        src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
-                                        className="w-full h-full object-cover opacity-80"
-                                        alt="Video Thumbnail"
-                                    />
-                                    
-                                    {/* Overlay de Áudio */}
-                                    {userHasClickedPlay && article.forceAudioMode ? (
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 backdrop-blur-sm">
-                                            <div className="flex gap-1 h-8 items-end">
-                                                <div className="w-1 bg-white animate-[bounce_1s_infinite] h-full" />
-                                                <div className="w-1 bg-white animate-[bounce_1.2s_infinite] h-2/3" />
-                                                <div className="w-1 bg-white animate-[bounce_0.8s_infinite] h-full" />
-                                                <div className="w-1 bg-white animate-[bounce_1.5s_infinite] h-1/2" />
+                                
+                                {/* Overlay Visual (O que o usuário VÊ) */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                                    {article.forceAudioMode ? (
+                                        <>
+                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
+                                                <Headphones size={32} fill="white" className="text-white"/>
                                             </div>
-                                            <span className="text-xs font-bold uppercase tracking-widest text-white drop-shadow-md">Ouvindo Podcast</span>
-                                        </div>
+                                            <div className="bg-black/80 px-3 py-1 rounded-full text-xs font-bold text-white mt-2">
+                                                Toque no centro para Ouvir
+                                            </div>
+                                        </>
                                     ) : (
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110 group-active:scale-95">
-                                                {article.forceAudioMode ? <Headphones size={32} fill="white" className="text-white"/> : <Play size={32} fill="white" className="text-white ml-1" />}
+                                        /* Modo Vídeo: O clique precisa ser tratado aqui para remover a capa */
+                                        <div 
+                                            className="w-full h-full flex items-center justify-center pointer-events-auto" 
+                                            onClick={() => setIsPlayingAudio(true)}
+                                        >
+                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
+                                                <Play size={32} fill="white" className="text-white ml-1" />
                                             </div>
-                                        </div>
-                                    )}
-
-                                    {!userHasClickedPlay && (
-                                        <div className="absolute bottom-4 right-4 bg-black/80 px-2 py-1 rounded text-xs font-bold text-white">
-                                            {article.forceAudioMode ? 'Toque para ouvir' : 'Toque para assistir'}
                                         </div>
                                     )}
                                 </div>
-                            )}
+                            </div>
+
                         </div>
 
                         <div className="p-6 max-w-3xl mx-auto pb-20">
