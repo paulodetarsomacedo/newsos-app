@@ -3776,8 +3776,7 @@ export default function NewsOS_V12() {
       <ArticlePanel 
           key={selectedArticle?.id || 'empty-panel'} 
           article={selectedArticle} 
-          feedItems={realNews.length > 0 ? realNews : FEED_NEWS} 
-          isOpen={!!selectedArticle} 
+feedItems={[...realNews, ...realVideos, ...realPodcasts]}          isOpen={!!selectedArticle} 
           onClose={closeArticle} 
           onArticleChange={handleOpenArticle} 
           onToggleSave={handleToggleSave}
@@ -4088,38 +4087,34 @@ const translateText = async (text, targetLang = 'pt') => {
 };
 
 
-// --- COMPONENTE: FEED NAVIGATOR (ISOLADO PARA PERFORMANCE) ---
-// Este componente gerencia seu próprio estado de arrasto (drag) para não
-// causar re-renderizações pesadas no ArticlePanel principal.
-
+// --- COMPONENTE: FEED NAVIGATOR (FILTRO RÍGIDO DE TIPO) ---
 const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkMode }) => {
-    // Se não tiver artigo, não exibe nada
     if (!article) return null;
 
     const [isFeedListOpen, setIsFeedListOpen] = useState(false);
     const [position, setPosition] = useState({ x: 20, y: typeof window !== 'undefined' ? window.innerHeight - 140 : 500 });
     const [isBtnDragging, setIsBtnDragging] = useState(false);
-    
-    // Refs para lógica de arrasto
     const dragRef = useRef({ startX: 0, startY: 0, initialLeft: 0, initialTop: 0, hasMoved: false });
 
-    // --- 1. LÓGICA DE CONTEXTO (NOVO) ---
+    // Detecta tipo do artigo atual
     const isVideo = article.videoId || (article.link && (article.link.includes('youtube') || article.link.includes('youtu.be')));
     const isAudio = article.type === 'audio' || article.category === 'Podcast';
 
-    // Define o rótulo baseado no tipo
     let statusLabel = 'LENDO';
     if (isVideo) statusLabel = 'ASSISTINDO';
     else if (isAudio) statusLabel = 'OUVINDO';
 
-    // --- 2. FILTRAGEM DA LISTA (NOVO) ---
-    // Se estiver vendo vídeo, mostra só vídeos na lista. Caso contrário, mostra o feed normal.
+    // --- FILTRAGEM CORRIGIDA ---
     const relatedNews = useMemo(() => {
         if (!feedItems) return [];
+        
         if (isVideo) {
+            // Se estou vendo vídeo, filtro APENAS itens que são vídeos
             return feedItems.filter(item => item.videoId || (item.link && item.link.includes('youtu')));
+        } else {
+            // Se estou lendo texto, filtro TUDO QUE NÃO É VÍDEO (para não misturar)
+            return feedItems.filter(item => !item.videoId && (!item.link || !item.link.includes('youtu')));
         }
-        return feedItems;
     }, [feedItems, isVideo]);
 
     const currentIndex = relatedNews.findIndex(item => item && item.id === article.id);
@@ -4129,19 +4124,17 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
     const handlePrev = (e) => { e.stopPropagation(); if (hasPrev) onArticleChange(relatedNews[currentIndex - 1]); };
     const handleNext = (e) => { e.stopPropagation(); if (hasNext) onArticleChange(relatedNews[currentIndex + 1]); };
 
-    // Auto-scroll para o item ativo quando a lista abrir
+    // Scroll automático
     useEffect(() => {
         if (isFeedListOpen && article?.id) {
             setTimeout(() => {
                 const activeElement = document.getElementById(`nav-item-${article.id}`);
-                if (activeElement) {
-                    activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
+                if (activeElement) activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 100);
         }
     }, [isFeedListOpen, article?.id]);
 
-    // Lógica de Arrasto
+    // Drag Logic
     const handlePointerDown = (e) => { 
         if (e.target.closest('.no-drag')) return; 
         e.preventDefault(); 
@@ -4150,50 +4143,34 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
         window.addEventListener('pointermove', handlePointerMoveDrag); 
         window.addEventListener('pointerup', handlePointerUpDrag); 
     };
-    
     const handlePointerMoveDrag = (e) => { 
         const dx = e.clientX - dragRef.current.startX; 
         const dy = e.clientY - dragRef.current.startY; 
         if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragRef.current.hasMoved = true; 
         setPosition({ x: dragRef.current.initialLeft + dx, y: dragRef.current.initialTop + dy }); 
     };
-    
     const handlePointerUpDrag = () => { 
         setIsBtnDragging(false); 
         window.removeEventListener('pointermove', handlePointerMoveDrag); 
         window.removeEventListener('pointerup', handlePointerUpDrag); 
     };
-    
-    const handleToggle = () => { 
-        if (!dragRef.current.hasMoved) setIsFeedListOpen(!isFeedListOpen); 
-    };
+    const handleToggle = () => { if (!dragRef.current.hasMoved) setIsFeedListOpen(!isFeedListOpen); };
 
     return (
         <>
-          {/* Backdrop */}
           {isFeedListOpen && (<div className="absolute inset-0 bg-black/20 backdrop-blur-[2px] z-[5001] transition-opacity" onClick={() => setIsFeedListOpen(false)} />)}
           
-          <div 
-            className="absolute z-[5002] w-80 transition-shadow duration-300 select-none" 
-            style={{ left: position.x, top: position.y, cursor: isBtnDragging ? 'grabbing' : 'grab', touchAction: 'none' }} 
-            onPointerDown={handlePointerDown}
-          >
-              {/* Lista de Navegação (Pop-up) */}
+          <div className="absolute z-[5002] w-80 transition-shadow duration-300 select-none" style={{ left: position.x, top: position.y, cursor: isBtnDragging ? 'grabbing' : 'grab', touchAction: 'none' }} onPointerDown={handlePointerDown}>
+              
+              {/* LISTA */}
               <div className={`overflow-hidden bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl rounded-2xl shadow-2xl transition-all duration-300 border dark:border-white/10 no-drag absolute bottom-full left-0 w-full mb-2 origin-bottom ${isFeedListOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'}`}>
                   <div className="p-3 border-b dark:border-white/10 flex justify-between items-center bg-transparent">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-                          {isVideo ? 'Próximos Vídeos' : 'Navegação Rápida'}
-                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{isVideo ? 'Próximos Vídeos' : 'Notícias Relacionadas'}</span>
                       <button onClick={() => setIsFeedListOpen(false)} className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full"><X size={14}/></button>
                   </div>
                   <div className="overflow-y-auto max-h-[40vh] p-1 space-y-1 custom-scrollbar" onPointerDown={(e) => e.stopPropagation()}>
                       {relatedNews.map((item) => (item && 
-                          <div 
-                              key={item.id} 
-                              id={`nav-item-${item.id}`}
-                              onClick={() => { onArticleChange(item); setIsFeedListOpen(false); }} 
-                              className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-colors ${item.id === article?.id ? 'bg-blue-500/10 border border-blue-500/30' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
-                          >
+                          <div key={item.id} id={`nav-item-${item.id}`} onClick={() => { onArticleChange(item); setIsFeedListOpen(false); }} className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-colors ${item.id === article?.id ? 'bg-blue-500/10 border border-blue-500/30' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}>
                               <img src={item.img} className="w-10 h-10 rounded-lg object-cover bg-zinc-200 shrink-0" onError={(e) => e.target.style.display = 'none'} />
                               <div className="flex-1 min-w-0">
                                   <h4 className={`text-xs font-bold leading-snug line-clamp-2 ${item.id === article?.id ? 'text-blue-600 dark:text-blue-400' : 'dark:text-zinc-200'}`}>{item.title}</h4>
@@ -4201,38 +4178,27 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
                               </div>
                           </div>
                       ))}
-                      {relatedNews.length === 0 && (
-                          <div className="p-4 text-center text-xs opacity-50">Fim da lista.</div>
-                      )}
+                      {relatedNews.length === 0 && <div className="p-4 text-center text-xs opacity-50">Sem mais itens.</div>}
                   </div>
               </div>
 
-              {/* Botão Flutuante (Cápsula) */}
-              <div 
-                  onClick={handleToggle} 
-                  className={`flex items-center justify-between p-2 pl-2 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-transform active:scale-95 group select-none ${isDarkMode ? 'bg-zinc-900/90' : 'bg-black/80'}`}
-              >
+              {/* BOTÃO */}
+              <div onClick={handleToggle} className={`flex items-center justify-between p-2 pl-2 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-transform active:scale-95 group select-none ${isDarkMode ? 'bg-zinc-900/90' : 'bg-black/80'}`}>
                   <div className="flex items-center gap-3 min-w-0 pointer-events-none">
                       <div className="relative">
-                          {/* Indicador de Status (Verde para Texto, Vermelho para Vídeo) */}
                           <div className={`absolute inset-0 rounded-full animate-pulse opacity-20 ${isVideo ? 'bg-red-500' : 'bg-green-500'}`}></div>
                           <img src={article.logo} className="relative w-8 h-8 rounded-full border border-white/20 object-cover bg-white" onError={(e) => e.target.style.display = 'none'} />
                       </div>
                       <div className="flex flex-col min-w-0 pr-1">
-                          <span className={`text-[9px] uppercase font-bold tracking-wider leading-none ${isVideo ? 'text-red-400' : 'text-zinc-400'}`}>
-                              {isBtnDragging ? 'MOVENDO...' : statusLabel}
-                          </span>
+                          <span className={`text-[9px] uppercase font-bold tracking-wider leading-none ${isVideo ? 'text-red-400' : 'text-zinc-400'}`}>{isBtnDragging ? 'MOVENDO...' : statusLabel}</span>
                           <span className="text-xs text-white font-bold truncate leading-tight max-w-[100px]">{article.source}</span>
                       </div>
                   </div>
-                  
                   <div className="flex items-center gap-1 no-drag">
                       <button onPointerDown={(e) => e.stopPropagation()} onClick={handlePrev} disabled={!hasPrev} className={`p-1.5 rounded-full transition-colors ${hasPrev ? 'text-white hover:bg-white/20' : 'text-zinc-600 cursor-not-allowed'}`}><ChevronLeft size={18} /></button>
                       <button onPointerDown={(e) => e.stopPropagation()} onClick={handleNext} disabled={!hasNext} className={`p-1.5 rounded-full transition-colors ${hasNext ? 'text-white hover:bg-white/20' : 'text-zinc-600 cursor-not-allowed'}`}><ChevronRight size={18} /></button>
                       <div className="w-px h-4 bg-white/20 mx-1"></div>
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isFeedListOpen ? 'bg-white/20 text-white' : 'text-zinc-400 group-hover:text-white'}`}>
-                          {isBtnDragging ? <GripVertical size={14} /> : <LayoutGrid size={14} />}
-                      </div>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isFeedListOpen ? 'bg-white/20 text-white' : 'text-zinc-400 group-hover:text-white'}`}>{isBtnDragging ? <GripVertical size={14} /> : <LayoutGrid size={14} />}</div>
                   </div>
               </div>
           </div>
