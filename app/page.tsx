@@ -143,15 +143,12 @@ const YOUTUBE_CATEGORIES = ['Tudo', 'Tech', 'Finanças', 'Ciência'];
 const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSave, podcastsData, isLoading }) => {
   const [filter, setFilter] = useState('Todos');
   
-  // LOGICA 1: CATEGORIAS DINÂMICAS (Baseado no que tem no feed)
-  // Se não tiver nada, mostra categorias padrão
   const uniqueCategories = useMemo(() => {
       if (!podcastsData || podcastsData.length === 0) return ['Todos'];
-      const cats = new Set(podcastsData.map(p => p.source)); // Usamos a Fonte como "Filtro" inicial
+      const cats = new Set(podcastsData.map(p => p.source)); 
       return ['Todos', ...Array.from(cats).slice(0, 5)];
   }, [podcastsData]);
 
-  // LOGICA 2: FILTRAGEM
   const displayedPodcasts = useMemo(() => {
       if (!podcastsData) return [];
       if (filter === 'Todos') return podcastsData;
@@ -161,19 +158,16 @@ const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSa
   return (
     <div className="pt-2 pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen">
       
-      {/* 1. Header & Filtros */}
       <div className="px-4 mb-6">
         <div className="flex justify-between items-center mb-4">
             <h2 className={`text-2xl font-black flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                 <Mic size={24} className="text-orange-500" /> Podcasts
             </h2>
-            {/* Indicador de Quantidade */}
             <span className="text-xs font-bold opacity-50 border px-2 py-1 rounded-full">
                 {podcastsData?.length || 0} eps
             </span>
         </div>
         
-        {/* Barra de Filtros (Canais) */}
         {uniqueCategories.length > 1 && (
             <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
                 {uniqueCategories.map(cat => (
@@ -193,7 +187,6 @@ const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSa
         )}
       </div>
 
-      {/* 2. Estado de Loading ou Vazio */}
       {isLoading && (!podcastsData || podcastsData.length === 0) && (
           <div className="flex flex-col items-center justify-center py-20 opacity-50">
               <Loader2 size={30} className="animate-spin mb-2 text-orange-500"/>
@@ -211,26 +204,27 @@ const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSa
           </div>
       )}
 
-      {/* 3. Lista de Episódios Reais */}
       <div className="px-4 space-y-4">
          {displayedPodcasts.map((pod) => (
              <div key={pod.id} className={`group relative p-3 rounded-2xl border transition-all hover:scale-[1.01] ${isDarkMode ? 'bg-zinc-900/50 border-white/5 hover:bg-zinc-900' : 'bg-white border-zinc-100 hover:shadow-lg'}`}>
                  <div className="flex gap-4">
-                     {/* Capa (Quadrada Padrão Podcast) */}
-                     <div className="w-16 h-16 rounded-xl bg-zinc-800 flex-shrink-0 relative overflow-hidden cursor-pointer shadow-sm" onClick={() => onPlayAudio(pod)}>
+                     
+                     {/* --- AQUI ESTÁ A ALTERAÇÃO: forceAudioMode: true --- */}
+                     <div 
+                        className="w-16 h-16 rounded-xl bg-zinc-800 flex-shrink-0 relative overflow-hidden cursor-pointer shadow-sm" 
+                        onClick={() => onPlayAudio({ ...pod, forceAudioMode: true })}
+                     >
                          <img 
                             src={pod.cover || pod.img} 
                             className="w-full h-full object-cover" 
                             onError={(e) => e.target.style.display = 'none'}
                          />
-                         {/* Badge de Tipo (Video ou Audio) */}
                          <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded text-[8px] text-white font-bold flex items-center gap-1">
                              {pod.type === 'video' ? <Youtube size={8} /> : <Rss size={8} />}
                              {pod.type === 'video' ? 'Vídeo' : 'Áudio'}
                          </div>
                      </div>
 
-                     {/* Info */}
                      <div className="flex-1 min-w-0 flex flex-col justify-center">
                          <div className="flex justify-between items-start">
                              <span className="text-[10px] font-bold text-orange-500 uppercase truncate pr-2">
@@ -239,7 +233,11 @@ const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSa
                              <span className="text-[9px] font-bold opacity-40 whitespace-nowrap">{pod.date}</span>
                          </div>
                          
-                         <h4 className={`text-sm font-bold leading-tight mt-1 mb-2 line-clamp-2 cursor-pointer hover:underline ${isDarkMode ? 'text-white' : 'text-zinc-900'}`} onClick={() => onPlayAudio(pod)}>
+                         {/* --- AQUI TAMBÉM: forceAudioMode: true --- */}
+                         <h4 
+                            className={`text-sm font-bold leading-tight mt-1 mb-2 line-clamp-2 cursor-pointer hover:underline ${isDarkMode ? 'text-white' : 'text-zinc-900'}`} 
+                            onClick={() => onPlayAudio({ ...pod, forceAudioMode: true })}
+                         >
                              {pod.title}
                          </h4>
                          
@@ -248,7 +246,6 @@ const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSa
                                  <Bookmark size={12} fill={savedItems?.some(i => i.id === pod.id) ? "currentColor" : "none"} /> Salvar
                              </button>
                              
-                             {/* Botão de Resumo IA */}
                              <button className="flex items-center gap-1 text-[10px] font-bold text-purple-500 hover:text-purple-400 transition-colors bg-purple-500/10 px-2 py-0.5 rounded-full" onClick={(e) => { e.stopPropagation(); alert("A IA está ouvindo e resumindo este episódio..."); }}>
                                  <Sparkles size={10} /> Resumo
                              </button>
@@ -256,9 +253,9 @@ const PodcastTab = React.memo(({ isDarkMode, onPlayAudio, savedItems, onToggleSa
                      </div>
                  </div>
                  
-                 {/* Botão Play Flutuante (Hover) */}
+                 {/* Botão Play Flutuante */}
                  <div className="absolute right-4 bottom-1/2 translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
-                     <button onClick={() => onPlayAudio(pod)} className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center shadow-lg hover:scale-110 transition">
+                     <button onClick={() => onPlayAudio({ ...pod, forceAudioMode: true })} className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center shadow-lg hover:scale-110 transition">
                          <Play size={18} fill="white" className="ml-1" />
                      </button>
                  </div>
@@ -1079,18 +1076,44 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
   );
 });
 
-function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike }) {
+// --- TAB: FEED (COM ATUALIZAÇÃO CONTROLADA / ESTÁVEL) ---
+function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh }) {
   const [category, setCategory] = useState('Tudo');
   
+  // --- ESTADO DE DADOS ESTÁVEIS ---
+  // Esse estado segura as notícias e não deixa elas mudarem sozinhas
+  const [stableData, setStableData] = useState([]);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
   // --- ESTADOS DO PULL-TO-REFRESH ---
   const [startY, setStartY] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // --- LÓGICA DE DADOS REAIS VS MOCKADOS ---
-  const safeNews = (newsData && newsData.length > 0) ? newsData : FEED_NEWS;
+  // --- EFEITO 1: INICIALIZAÇÃO (Ao abrir a aba) ---
+  useEffect(() => {
+    // Se temos dados e é a primeira vez que montamos a aba (ou voltamos pra ela),
+    // carregamos os dados no estado estável.
+    if (newsData && newsData.length > 0 && !hasLoaded) {
+        setStableData(newsData);
+        setHasLoaded(true);
+    }
+  }, [newsData, hasLoaded]);
 
-  // Lógica de Filtragem (Agora usa sourceFilter que vem das props)
+  // --- EFEITO 2: FORÇAR ATUALIZAÇÃO NO REFRESH MANUAL ---
+  // A lógica de atualização real fica no handleTouchEnd, mas aqui garantimos
+  // que se o newsData mudar drasticamente (ex: primeira carga demorada), ele apareça.
+  useEffect(() => {
+      // Se a lista estável estiver vazia e chegarem dados, atualiza (Carga inicial tardia)
+      if (stableData.length === 0 && newsData && newsData.length > 0) {
+          setStableData(newsData);
+      }
+  }, [newsData, stableData.length]);
+
+
+  // --- LÓGICA DE FILTRAGEM (Aplicada sobre os dados ESTÁVEIS) ---
+  const safeNews = (stableData && stableData.length > 0) ? stableData : FEED_NEWS;
+
   const filteredByCategory = category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category);
   const displayedNews = sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter);
 
@@ -1121,17 +1144,31 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
         setStartY(0);
         return;
     }
+    
+    // Se puxou o suficiente para atualizar
     if (pullDistance > 70) {
         setIsRefreshing(true);
         setPullDistance(70); 
-        await new Promise(resolve => setTimeout(resolve, 2000)); 
+        
+        // 1. Chama a função de buscar dados novos (fetchFeeds)
+        if (onRefresh) await onRefresh();
+        
+        // 2. Pequeno delay para sensação visual
+        await new Promise(resolve => setTimeout(resolve, 500)); 
+        
+        // 3. AQUI ESTÁ O SEGREDO: 
+        // Forçamos a atualização da lista visual com os dados mais recentes que chegaram
+        if (newsData && newsData.length > 0) {
+            setStableData(newsData);
+        }
+
         setIsRefreshing(false);
     }
     setPullDistance(0);
     setStartY(0);
   };
 
-  if (isLoading && (!newsData || newsData.length === 0)) {
+  if (isLoading && (!stableData || stableData.length === 0)) {
      return (
        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
           <Loader2 size={40} className="animate-spin text-purple-500" />
@@ -1194,8 +1231,8 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
      {/* LISTA DE CARDS OTIMIZADA */}
       <div className="flex flex-col gap-4">
         
-        {/* MOSTRA SKELETONS SE ESTIVER CARREGANDO */}
-        {isLoading && safeNews === FEED_NEWS && (
+        {/* MOSTRA SKELETONS APENAS NA PRIMEIRA CARGA SE ESTIVER VAZIO */}
+        {isLoading && stableData.length === 0 && (
             <>
               {[1, 2, 3, 4, 5].map((i) => (
                 <NewsCardSkeleton key={i} isDarkMode={isDarkMode} />
@@ -1203,11 +1240,12 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
             </>
         )}
 
-        {!isLoading && displayedNews.length === 0 && (
+        {!isLoading && displayedNews.length === 0 && stableData.length > 0 && (
            <div className="text-center py-10 opacity-50">
              <p>Nenhuma notícia encontrada nesta categoria.</p>
            </div>
         )}
+        
         {displayedNews.map((news) => (
             <NewsCard 
               key={news.id}
@@ -1219,6 +1257,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
               onClick={openArticle}
               onToggleSave={onToggleSave}
               isLiked={likedItems?.includes(news.id)}
+              onToggleLike={onToggleLike}
             />
         ))}
       </div>
@@ -1894,15 +1933,11 @@ const generateTrendRadar = async (news, apiKey) => {
   }
 };
 
-// ==========================================================
-// NOVO COMPONENTE SMART DIGEST (DESIGN BENTO GRID)
-// ==========================================================
-
+// --- SMART DIGEST WIDGET (V3 - COM RELEVO 3D PREMIUM) ---
 const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [digest, setDigest] = useState(null);
-  const [status, setStatus] = useState('idle'); // idle | loading | success | error
+  const [status, setStatus] = useState('idle'); 
 
-  // 1. LÓGICA DE RESET AUTOMÁTICO (Ao puxar a aba para atualizar)
   useEffect(() => {
     if (refreshTrigger > 0) {
         setDigest(null);
@@ -1916,8 +1951,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
         return;
     }
     setStatus('loading');
-    
-    // Pequeno delay para a animação ser sentida
     await new Promise(r => setTimeout(r, 800));
 
     const result = await generateBriefing(newsData, apiKey);
@@ -1930,24 +1963,36 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     }
   };
 
-  // Cores para as tags (para não ficar tudo cinza)
-  const getTagStyle = (index) => {
-      const styles = [
-          'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border-blue-200 dark:border-blue-500/30',
-          'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 border-orange-200 dark:border-orange-500/30',
-          'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30',
-          'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 border-purple-200 dark:border-purple-500/30',
-      ];
-      return styles[index % styles.length];
+  // --- NOVA LÓGICA DE ESTILO 3D PARA AS TAGS ---
+  const getTag3DStyle = (index) => {
+      // Base: Gradiente sutil + Borda de Luz (Topo) + Borda de Sombra (Base)
+      const base3D = "shadow-[0_2px_5px_-1px_rgba(0,0,0,0.2)] border-t border-b";
+      
+      if (isDarkMode) {
+          const styles = [
+              `bg-gradient-to-b from-blue-500/20 to-blue-600/10 text-blue-200 border-t-blue-400/30 border-b-blue-900/50 ${base3D}`,
+              `bg-gradient-to-b from-orange-500/20 to-orange-600/10 text-orange-200 border-t-orange-400/30 border-b-orange-900/50 ${base3D}`,
+              `bg-gradient-to-b from-emerald-500/20 to-emerald-600/10 text-emerald-200 border-t-emerald-400/30 border-b-emerald-900/50 ${base3D}`,
+              `bg-gradient-to-b from-purple-500/20 to-purple-600/10 text-purple-200 border-t-purple-400/30 border-b-purple-900/50 ${base3D}`,
+          ];
+          return styles[index % styles.length];
+      } else {
+          const styles = [
+              `bg-gradient-to-b from-blue-50 to-blue-100/50 text-blue-700 border-t-white border-b-blue-200 ${base3D}`,
+              `bg-gradient-to-b from-orange-50 to-orange-100/50 text-orange-700 border-t-white border-b-orange-200 ${base3D}`,
+              `bg-gradient-to-b from-emerald-50 to-emerald-100/50 text-emerald-700 border-t-white border-b-emerald-200 ${base3D}`,
+              `bg-gradient-to-b from-purple-50 to-purple-100/50 text-purple-700 border-t-white border-b-purple-200 ${base3D}`,
+          ];
+          return styles[index % styles.length];
+      }
   };
 
-  // --- 1. ESTADO INICIAL (CONVITE) ---
+  // 1. IDLE
   if (status === 'idle') {
     return (
       <div className="px-1 mb-6">
         <div className={`relative overflow-hidden rounded-[2rem] p-8 border transition-all shadow-lg ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-           <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-gradient-to-bl from-purple-500/20 to-transparent rounded-full blur-[80px] pointer-events-none -mr-20 -mt-20" />
-           
+           <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-gradient-to-bl from-purple-500/10 to-transparent rounded-full blur-[80px] pointer-events-none -mr-20 -mt-20" />
            <div className="flex flex-col items-center text-center relative z-10">
               <div className="mb-4 p-3 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
                  <Sparkles size={24} className="text-white animate-pulse" />
@@ -1956,13 +2001,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
               <p className={`text-sm mb-6 max-w-[260px] leading-relaxed opacity-70 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
                 Deixe a IA ler {newsData?.length || 0} manchetes e explicar o mundo para você em segundos.
               </p>
-              <button 
-                onClick={handleGenerate}
-                className={`
-                    group relative px-8 py-3 rounded-full font-bold text-xs uppercase tracking-widest overflow-hidden shadow-xl active:scale-95 transition-all
-                    ${isDarkMode ? 'bg-white text-black' : 'bg-zinc-900 text-white'}
-                `}
-              >
+              <button onClick={handleGenerate} className={`group relative px-8 py-3 rounded-full font-bold text-xs uppercase tracking-widest overflow-hidden shadow-xl active:scale-95 transition-all ${isDarkMode ? 'bg-white text-black' : 'bg-zinc-900 text-white'}`}>
                 <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
                 <span className="flex items-center gap-2 relative z-10"><Zap size={14} fill="currentColor"/> Gerar Smart Digest</span>
               </button>
@@ -1972,7 +2011,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     );
   }
 
-  // --- 2. ESTADO LOADING (COM PERSONALIDADE) ---
+  // 2. LOADING
   if (status === 'loading') {
     return (
       <div className="px-1 mb-6">
@@ -1988,7 +2027,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     );
   }
 
-  // --- 3. ESTADO ERRO (RETRY FÁCIL) ---
+  // 3. ERROR
   if (status === 'error' || !digest) {
       return (
         <div className="px-1 mb-6">
@@ -2000,59 +2039,81 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
       );
   }
 
-  // --- 4. ESTADO FINAL (BENTO GRID LAYOUT) ---
+  // 4. ESTADO FINAL (AURA + 3D RELIEF)
   return (
-    <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className={`relative p-5 rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
+    <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+      <div className={`
+        relative p-6 rounded-[2.5rem] shadow-2xl overflow-hidden border transition-all
+        ${isDarkMode 
+            ? 'bg-zinc-950 border-white/10' 
+            : 'bg-white border-white/40 shadow-indigo-500/10'}
+      `}>
          
-         {/* CABEÇALHO HERO */}
-         <div className="flex flex-col items-center text-center mb-8 pt-2">
-            <div className="text-5xl mb-3 animate-bounce shadow-xl rounded-full">{digest.vibe_emoji}</div>
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500 mb-1">
-                Vibe do Momento
-            </span>
-            <h2 className={`text-2xl md:text-3xl font-black leading-tight max-w-sm ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                {digest.vibe_title}
-            </h2>
-         </div>
+         {/* CAMADA DE AURA */}
+         <div className={`absolute -top-24 -left-24 w-96 h-96 rounded-full blur-[100px] opacity-20 animate-pulse ${isDarkMode ? 'bg-indigo-600' : 'bg-blue-300'}`} />
+         <div className={`absolute -bottom-24 -right-24 w-96 h-96 rounded-full blur-[100px] opacity-20 animate-pulse delay-1000 ${isDarkMode ? 'bg-purple-600' : 'bg-purple-300'}`} />
+         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-soft-light pointer-events-none"></div>
+         <div className="absolute inset-0 backdrop-blur-[1px]" />
 
-         {/* GRID DE TÓPICOS */}
-         <div className="grid grid-cols-1 gap-3">
-            {digest.topics?.map((topic, i) => (
-                <div 
-                    key={i} 
-                    className={`
-                        group relative p-5 rounded-3xl border transition-all hover:scale-[1.01]
-                        ${isDarkMode ? 'bg-black/40 border-white/5 hover:bg-white/5' : 'bg-zinc-50 border-zinc-100 hover:shadow-md'}
-                    `}
-                >
-                    <div className="flex justify-between items-start mb-2">
-                        <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border ${getTagStyle(i)}`}>
-                            {topic.tag}
-                        </span>
-                        {/* Indicador visual pequeno */}
-                        <div className="w-1.5 h-1.5 rounded-full bg-current opacity-20 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                        {topic.summary}
-                    </p>
+         {/* CONTEÚDO */}
+         <div className="relative z-10">
+             
+             {/* Cabeçalho */}
+             <div className="flex flex-col items-center text-center mb-8 pt-2">
+                <div className="text-5xl mb-3 animate-bounce drop-shadow-xl select-none grayscale-0">
+                    {digest.vibe_emoji}
                 </div>
-            ))}
-         </div>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500 mb-1">
+                    Vibe do Momento
+                </span>
+                <h2 className={`text-2xl md:text-3xl font-black leading-tight max-w-sm ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                    {digest.vibe_title}
+                </h2>
+             </div>
 
-         {/* RODAPÉ E REFRESH MANUAL */}
-         <div className="mt-6 flex justify-between items-center px-2">
-            <div className="flex items-center gap-1.5 opacity-30">
-                <BrainCircuit size={12} />
-                <span className="text-[10px] font-mono">Gemini 2.0 Flash</span>
-            </div>
-            <button 
-                onClick={handleGenerate} 
-                className={`p-2 rounded-full transition-all active:rotate-180 ${isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500'}`}
-                title="Regerar análise"
-            >
-                <RefreshCw size={16}/>
-            </button>
+             {/* GRID DE TÓPICOS (COM EFEITO 3D NOS CARDS) */}
+             <div className="grid grid-cols-1 gap-4">
+                {digest.topics?.map((topic, i) => (
+                    <div 
+                        key={i} 
+                        className={`
+                            group relative p-5 rounded-3xl transition-all duration-300 hover:scale-[1.01] backdrop-blur-md
+                            
+                            /* --- AQUI ESTÁ O SEGREDO DO 3D NO CARD --- */
+                            ${isDarkMode 
+                                ? 'bg-zinc-900/60 border-t border-l border-white/10 border-b border-r border-black/40 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.5)]' 
+                                : 'bg-white/70 border-t border-l border-white border-b border-r border-zinc-200/60 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.05),_0_2px_4px_-1px_rgba(0,0,0,0.02)]'}
+                        `}
+                    >
+                        <div className="flex justify-between items-start mb-3">
+                            {/* TAG COM EFEITO 3D (CHAMADA DA FUNÇÃO getTag3DStyle) */}
+                            <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-xl backdrop-blur-sm ${getTag3DStyle(i)}`}>
+                                {topic.tag}
+                            </span>
+                            
+                            <div className={`w-1.5 h-1.5 rounded-full opacity-30 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'bg-white' : 'bg-black'}`} />
+                        </div>
+                        <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
+                            {topic.summary}
+                        </p>
+                    </div>
+                ))}
+             </div>
+
+             {/* Rodapé */}
+             <div className="mt-6 flex justify-between items-center px-2">
+                <div className="flex items-center gap-1.5 opacity-40">
+                    <BrainCircuit size={12} />
+                    <span className="text-[10px] font-mono tracking-wide">Gemini 2.0 Flash</span>
+                </div>
+                <button 
+                    onClick={handleGenerate} 
+                    className={`p-2 rounded-full transition-all active:rotate-180 backdrop-blur-md border border-transparent hover:border-current ${isDarkMode ? 'text-zinc-400 hover:text-white hover:bg-white/10' : 'text-zinc-500 hover:text-indigo-600 hover:bg-white/50'}`}
+                    title="Regerar análise"
+                >
+                    <RefreshCw size={16}/>
+                </button>
+             </div>
          </div>
       </div>
     </div>
@@ -2236,12 +2297,15 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
   );
 };
 
-// --- COMPONENTE TREND RADAR (COM ANIMAÇÃO SHIMMER) ---
-// --- COMPONENTE TREND RADAR (CORREÇÃO DE CLIP/Z-INDEX) ---
+// --- COMPONENTE TREND RADAR (V4 - ATUALIZAÇÃO ESTRITA: APENAS PUSH OU START) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
+
+  // TRAVAS LÓGICAS (IGUAL AO CONTEXTO GLOBAL)
+  const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
+  const prevRefreshTrigger = useRef(refreshTrigger);
 
   const getHeatColor = (score) => {
       if (score >= 9) return '#ef4444'; 
@@ -2251,12 +2315,32 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   };
 
   useEffect(() => {
+    // 1. Validações Básicas
     if (!apiKey || !newsData || newsData.length === 0) return;
+
+    // 2. Verifica se é um comando de Refresh do Usuário
+    const isUserRefresh = refreshTrigger !== prevRefreshTrigger.current;
+
+    // 3. A REGRA DE OURO:
+    // Se JÁ carregou a primeira vez E NÃO foi um refresh do usuário... PARE.
+    if (hasLoadedInitial && !isUserRefresh) {
+        return;
+    }
+
+    // Atualiza referências
+    prevRefreshTrigger.current = refreshTrigger;
+    if (!hasLoadedInitial) setHasLoadedInitial(true);
     
     const loadTrends = async () => {
         setLoading(true);
-        setActiveIndex(null); 
-        await new Promise(r => setTimeout(r, 600)); 
+        setActiveIndex(null);
+        
+        // Limpa visualmente apenas se for refresh manual
+        if (isUserRefresh) setTrends(null);
+
+        // Delay visual
+        await new Promise(r => setTimeout(r, isUserRefresh ? 1000 : 600)); 
+        
         const data = await generateTrendRadar(newsData, apiKey);
         
         if (data && Array.isArray(data)) {
@@ -2266,13 +2350,15 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
     };
 
     loadTrends();
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newsData, apiKey, refreshTrigger]);
 
   const handleToggle = (idx) => {
       setActiveIndex(activeIndex === idx ? null : idx);
   };
 
-  // Pega o item ativo para renderizar no "palco" abaixo
+  // Pega o item ativo
   const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
 
   if ((!trends || !Array.isArray(trends)) && !loading) return null;
@@ -2353,7 +2439,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                                     style={{ 
                                         borderColor: isActive ? color : color, 
                                         boxShadow: `0 4px 15px ${color}30`,
-                                        // Usa a cor do anel igual ao calor
                                         '--tw-ring-color': color 
                                     }}
                                 >
@@ -2363,7 +2448,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                                 </div>
                             </button>
                             
-                            {/* Pequena seta indicativa conectada à pílula ativa */}
                             {isActive && (
                                 <div 
                                     className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] animate-in fade-in zoom-in duration-300 z-30"
@@ -2375,11 +2459,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                 })}
              </div>
 
-             {/* 
-                2. ÁREA DE DETALHES (O BALÃO CENTRAL) 
-                Este container fica FORA do scroll, logo não é cortado.
-                Ele empurra o layout para baixo.
-             */}
+             {/* 2. ÁREA DE DETALHES (O BALÃO CENTRAL) */}
              <div 
                 className={`
                     relative w-full px-4 transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden
@@ -2424,7 +2504,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
     </div>
   );
 };
-
 
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, seenStoryIds = [], apiKey }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
@@ -4097,7 +4176,7 @@ const translateText = async (text, targetLang = 'pt') => {
 };
 
 
-// --- COMPONENTE: FEED NAVIGATOR (FILTRO RÍGIDO DE TIPO) ---
+// --- COMPONENTE: FEED NAVIGATOR (CORRIGIDO PARA PODCASTS) ---
 const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkMode }) => {
     if (!article) return null;
 
@@ -4106,26 +4185,33 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
     const [isBtnDragging, setIsBtnDragging] = useState(false);
     const dragRef = useRef({ startX: 0, startY: 0, initialLeft: 0, initialTop: 0, hasMoved: false });
 
-    // Detecta tipo do artigo atual
-    const isVideo = article.videoId || (article.link && (article.link.includes('youtube') || article.link.includes('youtu.be')));
-    const isAudio = article.type === 'audio' || article.category === 'Podcast';
+    // --- LÓGICA DE CONTEXTO ---
+    // 1. É Podcast/Áudio? (Prioridade)
+    const isPodcast = article.category === 'Podcast' || article.forceAudioMode || article.type === 'audio';
+    // 2. É Vídeo? (Se não for podcast)
+    const isVideo = !isPodcast && (article.videoId || (article.link && (article.link.includes('youtube') || article.link.includes('youtu.be'))));
 
     let statusLabel = 'LENDO';
-    if (isVideo) statusLabel = 'ASSISTINDO';
-    else if (isAudio) statusLabel = 'OUVINDO';
+    if (isPodcast) statusLabel = 'OUVINDO';
+    else if (isVideo) statusLabel = 'ASSISTINDO';
 
-    // --- FILTRAGEM CORRIGIDA ---
+    // --- FILTRAGEM INTELIGENTE ---
     const relatedNews = useMemo(() => {
         if (!feedItems) return [];
         
-        if (isVideo) {
-            // Se estou vendo vídeo, filtro APENAS itens que são vídeos
-            return feedItems.filter(item => item.videoId || (item.link && item.link.includes('youtu')));
-        } else {
-            // Se estou lendo texto, filtro TUDO QUE NÃO É VÍDEO (para não misturar)
-            return feedItems.filter(item => !item.videoId && (!item.link || !item.link.includes('youtu')));
+        if (isPodcast) {
+            // Mostra apenas outros Podcasts ou Áudios
+            return feedItems.filter(item => item.category === 'Podcast' || item.type === 'audio' || item.forceAudioMode);
+        } 
+        else if (isVideo) {
+            // Mostra apenas Vídeos (que não sejam podcasts)
+            return feedItems.filter(item => (item.videoId || (item.link && item.link.includes('youtu'))) && item.category !== 'Podcast');
+        } 
+        else {
+            // Mostra Texto (Exclui vídeos e podcasts)
+            return feedItems.filter(item => !item.videoId && (!item.link || !item.link.includes('youtu')) && item.category !== 'Podcast');
         }
-    }, [feedItems, isVideo]);
+    }, [feedItems, isPodcast, isVideo]);
 
     const currentIndex = relatedNews.findIndex(item => item && item.id === article.id);
     const hasPrev = currentIndex > 0;
@@ -4134,7 +4220,6 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
     const handlePrev = (e) => { e.stopPropagation(); if (hasPrev) onArticleChange(relatedNews[currentIndex - 1]); };
     const handleNext = (e) => { e.stopPropagation(); if (hasNext) onArticleChange(relatedNews[currentIndex + 1]); };
 
-    // Scroll automático
     useEffect(() => {
         if (isFeedListOpen && article?.id) {
             setTimeout(() => {
@@ -4144,7 +4229,6 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
         }
     }, [isFeedListOpen, article?.id]);
 
-    // Drag Logic
     const handlePointerDown = (e) => { 
         if (e.target.closest('.no-drag')) return; 
         e.preventDefault(); 
@@ -4175,7 +4259,9 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
               {/* LISTA */}
               <div className={`overflow-hidden bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl rounded-2xl shadow-2xl transition-all duration-300 border dark:border-white/10 no-drag absolute bottom-full left-0 w-full mb-2 origin-bottom ${isFeedListOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'}`}>
                   <div className="p-3 border-b dark:border-white/10 flex justify-between items-center bg-transparent">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{isVideo ? 'Próximos Vídeos' : 'Notícias Relacionadas'}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                          {isPodcast ? 'Próximos Episódios' : (isVideo ? 'Próximos Vídeos' : 'Notícias Relacionadas')}
+                      </span>
                       <button onClick={() => setIsFeedListOpen(false)} className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full"><X size={14}/></button>
                   </div>
                   <div className="overflow-y-auto max-h-[40vh] p-1 space-y-1 custom-scrollbar" onPointerDown={(e) => e.stopPropagation()}>
@@ -4192,15 +4278,18 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
                   </div>
               </div>
 
-              {/* BOTÃO */}
+              {/* BOTÃO FLUTUANTE */}
               <div onClick={handleToggle} className={`flex items-center justify-between p-2 pl-2 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-transform active:scale-95 group select-none ${isDarkMode ? 'bg-zinc-900/90' : 'bg-black/80'}`}>
                   <div className="flex items-center gap-3 min-w-0 pointer-events-none">
                       <div className="relative">
-                          <div className={`absolute inset-0 rounded-full animate-pulse opacity-20 ${isVideo ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                          {/* COR DO INDICADOR: Laranja (Pod), Vermelho (Video), Verde (Texto) */}
+                          <div className={`absolute inset-0 rounded-full animate-pulse opacity-20 ${isPodcast ? 'bg-orange-500' : (isVideo ? 'bg-red-500' : 'bg-green-500')}`}></div>
                           <img src={article.logo} className="relative w-8 h-8 rounded-full border border-white/20 object-cover bg-white" onError={(e) => e.target.style.display = 'none'} />
                       </div>
                       <div className="flex flex-col min-w-0 pr-1">
-                          <span className={`text-[9px] uppercase font-bold tracking-wider leading-none ${isVideo ? 'text-red-400' : 'text-zinc-400'}`}>{isBtnDragging ? 'MOVENDO...' : statusLabel}</span>
+                          <span className={`text-[9px] uppercase font-bold tracking-wider leading-none ${isPodcast ? 'text-orange-400' : (isVideo ? 'text-red-400' : 'text-zinc-400')}`}>
+                              {isBtnDragging ? 'MOVENDO...' : statusLabel}
+                          </span>
                           <span className="text-xs text-white font-bold truncate leading-tight max-w-[100px]">{article.source}</span>
                       </div>
                   </div>
@@ -4331,7 +4420,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL (V25 - LAZY MOUNT / INICIALIZAÇÃO SUAVE)
+// COMPONENTE ARTICLE PANEL (V29 - CORREÇÃO DE ÁUDIO "SANDUÍCHE")
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
@@ -4341,15 +4430,13 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // --- ALTERAÇÃO 1: Começa FALSE para não travar na abertura ---
-  const [isPlayerMounted, setIsPlayerMounted] = useState(false);
+  const [userHasClickedPlay, setUserHasClickedPlay] = useState(false);
 
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedData, setTranslatedData] = useState(null);
 
-  // --- DETECÇÃO DE VIDEO ---
   const videoId = useMemo(() => {
       if (!article) return null;
       return article.videoId || getVideoId(article.link);
@@ -4359,47 +4446,26 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
-          
-          // --- ALTERAÇÃO 2: Montagem Tardia (Delay) ---
-          // Reseta primeiro para garantir limpeza
-          setIsPlayerMounted(false);
-          
-          // Espera 300ms antes de carregar o iframe.
-          // Isso dá tempo da animação de slide terminar e do app "acordar" totalmente.
-          const timer = setTimeout(() => {
-              setIsPlayerMounted(true);
-          }, 900);
-
-          return () => clearTimeout(timer);
+          setUserHasClickedPlay(false); 
       } else {
           setViewMode('web');
           setIframeUrl(null);
           setReaderContent(null);
           setTranslatedData(null);
           setIsTranslated(false);
-          setIsPlayerMounted(false);
       }
   }, [article?.id, videoId]);
 
-  // --- LÓGICA DE VISIBILIDADE (Mantida para minimizar/restaurar) ---
+  // Reset ao minimizar para evitar freeze
   useEffect(() => {
       const handleVisibilityChange = () => {
           if (document.visibilityState === 'hidden') {
-              setIsPlayerMounted(false);
-          } 
-          else if (document.visibilityState === 'visible' && videoId) {
-              // Se voltou e tem vídeo, espera um pouco e remonta
-              setTimeout(() => {
-                  setIsPlayerMounted(true);
-              }, 300);
+              setUserHasClickedPlay(false);
           }
       };
-
       document.addEventListener("visibilitychange", handleVisibilityChange);
-      return () => {
-          document.removeEventListener("visibilitychange", handleVisibilityChange);
-      };
-  }, [videoId]);
+      return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   const scrollContainerRef = useRef(null); 
 
@@ -4441,7 +4507,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setReaderContent(null);
         setViewMode('web');
         setIsTranslated(false); 
-        setIsPlayerMounted(false); // Limpa player ao fechar
+        setUserHasClickedPlay(false);
       }, 400); 
   }, [onClose, iframeUrl]);
 
@@ -4549,23 +4615,59 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
-                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative">
-                            {/* ESTADO DE LOADING / DELAYED MOUNT */}
-                            {isPlayerMounted ? (
+                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative group cursor-pointer">
+                            
+                            {/* IFRAME: SEMPRE RENDERIZADO QUANDO ATIVO, MAS PODE FICAR EMBAIXO DA CAPA */}
+                            {userHasClickedPlay && (
                                 <iframe 
-                                    src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
-                                    className="w-full h-full animate-in fade-in duration-700"
+                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&modestbranding=1&rel=0&controls=1`}
+                                    // AQUI ESTÁ O SEGREDO: 'z-0'. O vídeo fica na camada base.
+                                    className="absolute inset-0 w-full h-full z-0"
                                     frameBorder="0"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
                                     title="YouTube Video"
                                 />
-                            ) : (
-                                <div className="w-full h-full bg-black flex items-center justify-center">
-                                    <div className="flex flex-col items-center gap-2 opacity-50">
-                                        <Loader2 className="animate-spin text-red-600" />
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-white">Carregando Player...</span>
-                                    </div>
+                            )}
+
+                            {/* CAPA: Z-INDEX 10 (FICA POR CIMA) */}
+                            {/* Se for Modo Audio, a capa NUNCA SOME. O vídeo roda embaixo. */}
+                            {(!userHasClickedPlay || article.forceAudioMode) && (
+                                <div 
+                                    onClick={() => setUserHasClickedPlay(true)} 
+                                    // 'z-10' garante que fica por cima do vídeo
+                                    className={`absolute inset-0 w-full h-full relative z-10 ${userHasClickedPlay ? '' : 'bg-black'}`}
+                                >
+                                    <img 
+                                        src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
+                                        className="w-full h-full object-cover opacity-80"
+                                        alt="Video Thumbnail"
+                                    />
+                                    
+                                    {/* Overlay de Áudio */}
+                                    {userHasClickedPlay && article.forceAudioMode ? (
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 backdrop-blur-sm">
+                                            <div className="flex gap-1 h-8 items-end">
+                                                <div className="w-1 bg-white animate-[bounce_1s_infinite] h-full" />
+                                                <div className="w-1 bg-white animate-[bounce_1.2s_infinite] h-2/3" />
+                                                <div className="w-1 bg-white animate-[bounce_0.8s_infinite] h-full" />
+                                                <div className="w-1 bg-white animate-[bounce_1.5s_infinite] h-1/2" />
+                                            </div>
+                                            <span className="text-xs font-bold uppercase tracking-widest text-white drop-shadow-md">Ouvindo Podcast</span>
+                                        </div>
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110 group-active:scale-95">
+                                                {article.forceAudioMode ? <Headphones size={32} fill="white" className="text-white"/> : <Play size={32} fill="white" className="text-white ml-1" />}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {!userHasClickedPlay && (
+                                        <div className="absolute bottom-4 right-4 bg-black/80 px-2 py-1 rounded text-xs font-bold text-white">
+                                            {article.forceAudioMode ? 'Toque para ouvir' : 'Toque para assistir'}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
