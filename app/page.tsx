@@ -751,122 +751,92 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode, accentColor
 }
 
 
-// --- COMPONENTE: SOURCE SELECTOR (CORRIGIDO E SIMPLIFICADO) ---
-function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'left' }) {
+function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // 1. Extração segura das fontes únicas
-  const uniqueItems = useMemo(() => {
-      if (!news || !Array.isArray(news)) return [];
-      
-      const map = new Map();
-      
-      news.forEach(item => {
-          if (!item) return;
-          // Pega o nome: tenta 'source', se não tiver tenta 'channel'
-          const name = item.source || item.channel;
-          
-          if (name && !map.has(name)) {
-              map.set(name, {
-                  name: name, // Nome para filtrar
-                  logo: item.logo || item.img // Logo para exibir
-              });
-          }
-      });
-      
-      return Array.from(map.values());
-  }, [news]);
-
-  const isRight = align === 'right';
-  
-  // Item ativo para mostrar no botão fechado
-  const activeItem = uniqueItems.find(i => i.name === selectedSource);
-
-  const handleSelect = (name) => {
-      onSelect(name);
-      setIsOpen(false);
-  };
+  // 1. Extrai fontes únicas das notícias para montar o menu
+  // (Num app real, viria do seu userFeeds, mas aqui extraímos do que temos na tela)
+  const uniqueSources = Array.from(new Set(news.map(n => n.source)))
+    .map(sourceName => {
+      return news.find(n => n.source === sourceName);
+    });
 
   return (
-    <div className={`absolute top-2 z-[1001] ${isRight ? 'right-0' : 'left-0'}`}>
+    <div className="absolute left-0 top-2 z-[1001]">
       
-      {/* Botão Principal */}
+      {/* --- O BOTÃO "CORTADO" (TRIGGER) --- */}
       <button 
-        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center justify-center h-[42px] w-12 
+          flex items-center justify-center
+          h-[42px] w-12 pl-1
+          rounded-r-2xl rounded-l-none /* Arredonda só a direita */
+          border-y border-r border-l-0
           backdrop-blur-xl shadow-sm transition-all duration-300
-          border-y 
           ${isDarkMode 
             ? 'bg-zinc-900/80 border-white/10 text-white hover:bg-zinc-800' 
             : 'bg-white/80 border-zinc-200 text-zinc-600 hover:bg-white'}
           ${isOpen ? 'w-14 border-purple-500/50' : ''}
-          ${isRight 
-              ? 'rounded-l-2xl rounded-r-none border-l border-r-0 pr-1' 
-              : 'rounded-r-2xl rounded-l-none border-r border-l-0 pl-1'
-          }
         `}
       >
-        {selectedSource === 'all' || !activeItem ? (
+        {selectedSource === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
+           // Se tiver uma fonte selecionada, tenta mostrar o logo pequeno
            <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
               <img 
-                src={activeItem.logo} 
+                src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
                 className="w-full h-full object-cover"
-                onError={(e) => e.target.style.display = 'none'}
-                alt=""
               />
            </div>
         )}
       </button>
 
-      {/* Menu Suspenso */}
+      {/* --- MENU SUSPENSO (ICONES) --- */}
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-[1000]" onClick={() => setIsOpen(false)} />
+          {/* Backdrop invisível para fechar ao clicar fora */}
+          <div className="fixed inset-0 z-[1000" onClick={() => setIsOpen(false)} />
 
           <div className={`
-             absolute top-[50px] z-[101]
+             absolute top-[50px] left-2 z-[101]
              flex flex-col gap-2 p-2
              rounded-2xl border shadow-xl backdrop-blur-xl
-             animate-in duration-200
+             animate-in slide-in-from-left-2 duration-200
              ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
-             ${isRight 
-                ? 'right-2 slide-in-from-right-2 origin-top-right' 
-                : 'left-2 slide-in-from-left-2 origin-top-left'
-             }
           `}>
+             
+             {/* Opção "Todas" */}
              <button
-               onClick={() => handleSelect('all')}
+               onClick={() => { onSelect('all'); setIsOpen(false); }}
                className={`
                  w-10 h-10 rounded-full flex items-center justify-center transition-all
                  ${selectedSource === 'all' 
                     ? 'bg-purple-600 text-white shadow-lg' 
                     : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}
                `}
-               title="Todas"
+               title="Todas as Fontes"
              >
                 <LayoutGrid size={20} />
              </button>
 
              <div className={`h-[1px] w-full ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
 
-             {uniqueItems.map((item) => (
+             {/* Lista de Logos */}
+             {uniqueSources.map((item) => (
                <button
-                 key={item.name}
-                 onClick={() => handleSelect(item.name)}
+                 key={item.source}
+                 onClick={() => { onSelect(item.source); setIsOpen(false); }}
                  className={`
                    relative w-10 h-10 rounded-full p-[2px] transition-transform hover:scale-110
-                   ${selectedSource === item.name ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
+                   ${selectedSource === item.source ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
                  `}
-                 title={item.name}
+                 title={item.source}
                >
                  <img 
                    src={item.logo} 
-                   alt={item.name} 
+                   alt={item.source} 
                    className="w-full h-full rounded-full object-cover border border-black/10"
-                   onError={(e) => e.target.style.display = 'none'}
                  />
                </button>
              ))}
@@ -876,6 +846,7 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode, align = 'l
     </div>
   );
 }
+
 
 // --- COMPONENTE INTELIGENTE DE IMAGEM (NOVO) ---
 
@@ -1504,18 +1475,17 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   
   const safeVideos = (realVideos && realVideos.length > 0) ? realVideos : YOUTUBE_FEED;
   const displayedVideos = useMemo(() => {
-      return safeVideos.filter(v => {
-          const matchesCategory = category === 'Tudo' || v.category === category || v.source === category;
-          
-          // CORREÇÃO: Verifica source OU channel contra o filtro
-          const matchesChannel = channelFilter === 'all' || v.source === channelFilter || v.channel === channelFilter;
-          
-          return matchesCategory && matchesChannel;
-      });
-  }, [safeVideos, category, channelFilter]);
+    return safeVideos.filter(v => {
+        // 1. Filtra por Categoria Lateral (Mantém o que já existia)
+        const matchesCategory = category === 'Tudo' || v.category === category || v.source === category;
+        
+        // 2. ADICIONE ISSO: Filtra por Canal (SourceSelector)
+        const matchesChannel = channelFilter === 'all' || (v.source === channelFilter) || (v.channel === channelFilter);
+        
+        return matchesCategory && matchesChannel;
+    });
+}, [safeVideos, category, channelFilter]); // Não esqueça de adicionar channelFilter nas dependências
 
-
-  
   // --- LÓGICA DE STORIES CORRIGIDA ---
   const channelStories = useMemo(() => {
       const processedChannels = new Set(); // Para rastrear quais canais já verificamos
@@ -1560,13 +1530,12 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   return (
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
     
-    <div className="absolute top-0 left-200 z-9999">
+    <div className="absolute top-0 left-16 z-30">
        <SourceSelector 
           news={safeVideos} // Passa os vídeos para ele extrair os logos
           selectedSource={channelFilter} 
           onSelect={setChannelFilter} 
           isDarkMode={isDarkMode} 
-          align="right" 
        />
     </div>
 
@@ -3405,100 +3374,8 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   );
 };
 
-
-// --- COMPONENTE: SPLASH SCREEN (LOGO + NOME COM AURA) ---
-const SplashScreen = ({ onFinish }) => {
-  const [step, setStep] = useState(0); // 0: Init, 1: Converge, 2: Explode N + Texto, 3: FadeOut
-
-  useEffect(() => {
-    // Sequência de Animação
-    const t1 = setTimeout(() => setStep(1), 100);  // Entrar ícones
-    const t2 = setTimeout(() => setStep(2), 1200); // Convergir, Revelar N e Texto
-    const t3 = setTimeout(() => setStep(3), 2500); // Fade Out da tela
-    const t4 = setTimeout(onFinish, 3000);         // Desmontar
-
-    return () => {
-      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4);
-    };
-  }, [onFinish]);
-
-  const icons = [
-    { Icon: Rss, color: 'text-blue-500', pos: '-translate-x-12 -translate-y-12' },
-    { Icon: Youtube, color: 'text-red-500', pos: 'translate-x-12 -translate-y-12' },
-    { Icon: Mic, color: 'text-orange-500', pos: '-translate-x-12 translate-y-12' },
-    { Icon: Mail, color: 'text-purple-500', pos: 'translate-x-12 translate-y-12' },
-  ];
-
-  return (
-    <div className={`
-      fixed inset-0 z-[99999] flex items-center justify-center bg-black
-      transition-opacity duration-700 ease-out
-      ${step === 3 ? 'opacity-0 pointer-events-none' : 'opacity-100'}
-    `}>
-      {/* BACKGROUND AURA */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-600/20 rounded-full blur-[100px] animate-pulse" />
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-600/20 rounded-full blur-[80px] animate-pulse delay-75" />
-      </div>
-
-      {/* CONTAINER CENTRAL (LOGO + TEXTO) */}
-      <div className="flex flex-col items-center justify-center z-20">
-        
-        {/* ÁREA DO LOGO */}
-        <div className="relative w-40 h-40 flex items-center justify-center mb-2">
-            {/* Ícones Orbitando */}
-            {icons.map((item, i) => (
-            <div
-                key={i}
-                className={`
-                absolute transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-                ${step >= 2 ? 'translate-x-0 translate-y-0 opacity-0 scale-0' : ''} 
-                ${step === 0 ? 'opacity-0 scale-50' : 'opacity-100 scale-100'}
-                ${step === 1 ? item.pos : ''}
-                `}
-            >
-                <div className={`p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-xl ${item.color}`}>
-                <item.Icon size={24} />
-                </div>
-            </div>
-            ))}
-
-            {/* O LOGO "N" */}
-            <div 
-            className={`
-                relative z-20 flex items-center justify-center
-                transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
-                ${step >= 2 ? 'scale-100 opacity-100 rotate-0' : 'scale-0 opacity-0 -rotate-180'}
-            `}
-            >
-            <div className={`absolute inset-0 bg-white/30 blur-2xl rounded-full ${step >= 2 ? 'animate-ping' : ''}`} />
-            
-            <div className="w-24 h-24 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-3xl flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.3)] border border-white/20">
-                <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800 tracking-tighter" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    N
-                </span>
-            </div>
-            </div>
-        </div>
-
-        {/* --- O NOME "NewsOS" (NOVO CÓDIGO) --- */}
-        <div className={`
-            transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
-            ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
-        `}>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
-                NewsOS
-            </h1>
-        </div>
-
-      </div>
-    </div>
-  );
-};
-
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
 export default function NewsOS_V12() {
-  const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('happening'); 
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [selectedOutlet, setSelectedOutlet] = useState(null); 
@@ -3866,8 +3743,6 @@ export default function NewsOS_V12() {
 
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
-      {/* --- SPLASH SCREEN --- */}
-      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
       
       <div className={`transition-all duration-500 transform h-[100dvh] flex flex-col ${isMainViewReceded ? `scale-[0.9] pointer-events-none` : 'scale-100 opacity-100'}`}>
          
