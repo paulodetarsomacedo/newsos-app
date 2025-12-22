@@ -1530,7 +1530,7 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   return (
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
     
-    <div className="absolute top-0 left-16 z-30">
+    <div className="absolute top-0 left-210 z-30">
        <SourceSelector 
           news={safeVideos} // Passa os vídeos para ele extrair os logos
           selectedSource={channelFilter} 
