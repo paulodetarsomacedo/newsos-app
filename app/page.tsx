@@ -4330,7 +4330,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL (V23 - ANTI-FREEZE DO PLAYER)
+// COMPONENTE ARTICLE PANEL (V24 - RECONSTRUÇÃO TOTAL DO PLAYER)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
@@ -4340,8 +4340,8 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // --- NOVO: KEY PARA FORÇAR RECARGA DO VÍDEO ---
-  const [playerKey, setPlayerKey] = useState(0);
+  // --- ESTADO NOVO: CONTROLE TOTAL DE MONTAGEM ---
+  const [isPlayerMounted, setIsPlayerMounted] = useState(true);
 
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
@@ -4354,11 +4354,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       return article.videoId || getVideoId(article.link);
   }, [article]);
 
-  // Se tem vídeo, o modo padrão vira 'video'
   useEffect(() => {
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
+          setIsPlayerMounted(true); // Garante que monta ao abrir
       } else {
           setViewMode('web');
           setIframeUrl(null);
@@ -4368,14 +4368,20 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       }
   }, [article?.id, videoId]);
 
-  // --- LÓGICA ANTI-CONGELAMENTO (IOS PWA) ---
+  // --- LÓGICA "NUCLEAR" ANTI-FREEZE (IOS PWA) ---
   useEffect(() => {
       const handleVisibilityChange = () => {
-          // Se o usuário VOLTOU para o app (ficou visível)
-          if (document.visibilityState === 'visible') {
-              // Incrementamos a chave. Isso obriga o React a destruir o iframe velho
-              // e criar um novo, reconectando o player que estava congelado.
-              setPlayerKey(prev => prev + 1);
+          if (document.visibilityState === 'hidden') {
+              // 1. SAIU DO APP: Destrói o player imediatamente.
+              // Isso evita que o iOS tente manter conexão zumbi.
+              setIsPlayerMounted(false);
+          } 
+          else if (document.visibilityState === 'visible') {
+              // 2. VOLTOU AO APP: Espera um pouquinho e recria.
+              // O timeout de 100ms dá tempo do iOS reconectar o Wi-Fi do processo.
+              setTimeout(() => {
+                  setIsPlayerMounted(true);
+              }, 100);
           }
       };
 
@@ -4493,6 +4499,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     <div className={`fixed inset-0 z-[5000] flex flex-col transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) will-change-transform transform-gpu backface-hidden ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
+            {/* NAV BAR */}
             <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b backdrop-blur-xl z-50 
                 ${videoId 
                     ? 'bg-black/90 border-white/10 text-white' 
@@ -4530,20 +4537,25 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
 
             <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain transform-gpu ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
                 
-                {/* --- MODO VÍDEO (Com chave de atualização para evitar freeze) --- */}
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
-                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl">
-                            {/* A key={playerKey} aqui força o iframe a recarregar ao voltar para a tela */}
-                            <iframe 
-                                key={playerKey} 
-                                src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
-                                className="w-full h-full"
-                                frameBorder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                                title="YouTube Video"
-                            />
+                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative">
+                            {/* AQUI ESTÁ A LÓGICA DE MONTAGEM */}
+                            {isPlayerMounted ? (
+                                <iframe 
+                                    src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
+                                    className="w-full h-full animate-in fade-in duration-500"
+                                    frameBorder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                    title="YouTube Video"
+                                />
+                            ) : (
+                                // Placeholder preto enquanto recarrega para não piscar branco
+                                <div className="w-full h-full bg-black flex items-center justify-center">
+                                    <Loader2 className="text-white/20 animate-spin" />
+                                </div>
+                            )}
                         </div>
 
                         <div className="p-6 max-w-3xl mx-auto pb-20">
