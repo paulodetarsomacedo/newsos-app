@@ -4843,7 +4843,7 @@ if (header.includes('RIFF') || header.includes('WEBP') || (data.html.charCodeAt(
                             {/* CAPA (Abaixo do Iframe se áudio, Acima se Vídeo esperando play) */}
                             {/* A div abaixo captura o clique visual apenas para feedback */}
                             <div 
-                                className={`absolute inset-0 w-full h-full 
+                                className={`absolute inset-0 w-full h-[80%] 
                                     ${article.forceAudioMode ? 'z-10' : (isPlayingAudio ? 'hidden' : 'z-10')}
                                 `}
                                 // Se for áudio, o clique VAZA para o iframe (pointer-events-none no container visual?)
