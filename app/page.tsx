@@ -1157,49 +1157,31 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
       }
   }, [newsData, stableData.length]);
 
-// 1. DEFINIÇÃO OBRIGATÓRIA (Correção do Erro ReferenceError)
-  // Definimos 'safeNews' aqui para que o SourceSelector lá embaixo consiga ler.
-  const safeNews = (newsData && newsData.length > 0) ? newsData : [];
+  const safeNews = (stableData && stableData.length > 0) ? stableData : []; // Removi FEED_NEWS mockado para evitar mistura
 
-  // 2. ORDENAÇÃO CRONOLÓGICA (Correção da Ordem dos Cards)
-  // Ordenamos 'safeNews' imediatamente para garantir que tudo o que for derivado dele
-  // já esteja na ordem correta (mais recente para mais antigo).
-  const sortedNews = useMemo(() => {
-      return [...safeNews].sort((a, b) => {
-          // Usa timestamp seguro. Se der erro, assume 0.
+// 1. Filtra categorias e fonte selecionada
+  const filteredByCategory = category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category);
+  const filteredBySource = sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter);
+
+  // 2. CORREÇÃO DA ORDEM NO FEED:
+  // Cria uma nova lista e força o sort por timestamp seguro
+  const sortedFeed = useMemo(() => {
+      return [...filteredBySource].sort((a, b) => {
           const tA = new Date(a.rawDate).getTime() || 0;
           const tB = new Date(b.rawDate).getTime() || 0;
-          return tB - tA; 
+          return tB - tA; // Mais recente no topo
       });
-  }, [safeNews]);
+  }, [filteredBySource]);
 
-  // 3. FILTRAGEM (Categoria e Fonte)
-  const filteredNews = useMemo(() => {
-      let data = sortedNews;
-
-      // Filtro de Categoria (LiquidFilterBar)
-      if (category !== 'Tudo') {
-          data = data.filter(n => n.category === category);
-      }
-
-      // Filtro de Fonte (SourceSelector)
-      if (sourceFilter !== 'all') {
-          data = data.filter(n => n.source === sourceFilter);
-      }
-
-      return data;
-  }, [sortedNews, category, sourceFilter]);
-
-  // 4. DEDUPLICAÇÃO FINAL (Remove IDs repetidos mantendo a ordem)
+  // 3. Remove duplicatas (mantendo a ordem do sort acima)
   const uniqueNews = useMemo(() => {
       const seen = new Set();
-      // Como 'filteredNews' já vem de 'sortedNews', a ordem está preservada
-      return filteredNews.filter(item => {
+      return sortedFeed.filter(item => {
           if (seen.has(item.id)) return false;
           seen.add(item.id);
           return true;
       });
-  }, [filteredNews]);
+  }, [sortedFeed]);
 
   // Funções de Toque
   const handleTouchStart = (e) => {
@@ -2616,34 +2598,54 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-// --- LÓGICA DE STORIES: FILA REAL (SOME DEPOIS DE LIDO) ---
-const storiesToDisplay = useMemo(() => {
+// --- LÓGICA DE STORIES: ORDEM DE PUBLICAÇÃO ---
+  const storiesToDisplay = useMemo(() => {
     if (!newsData || newsData.length === 0) return [];
 
-    // Filtra apenas o que não foi visto e ordena
-    const unseen = newsData
-        .filter(item => !seenStoryIds.includes(item.id))
-        .sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+    // 1. FORÇA BRUTA: Reordena tudo por data de novo para garantir
+    // Isso coloca a notícia de 10:05 antes da de 10:00, independente da fonte
+    const sortedEverything = [...newsData].sort((a, b) => {
+        const timeA = new Date(a.rawDate).getTime() || 0;
+        const timeB = new Date(b.rawDate).getTime() || 0;
+        return timeB - timeA; // Decrescente (Mais novo primeiro)
+    });
 
     const uniqueStories = [];
-    const seenSources = new Set();
+    const seenSources = new Set(); // Set para garantir unicidade da fonte
     
-    for (const item of unseen) {
-        const sourceName = item.source.trim();
+    // 2. Itera na lista JÁ ORDENADA.
+    // A primeira vez que o loop encontra "G1", é a notícia mais recente do G1.
+    // A primeira vez que encontra "Folha", é a mais recente da Folha.
+    // Como sortedEverything está por tempo, as bolinhas ficarão na ordem do tempo.
+    for (const item of sortedEverything) {
+        // Normaliza o nome da fonte para evitar "Folha" e "Folha de S.Paulo" duplicados se vierem sujos
+        const sourceName = (item.source || "Fonte").trim();
+        
         if (!seenSources.has(sourceName)) {
-            seenSources.add(sourceName);
+            seenSources.add(sourceName); // Marca como vista, ignora as próximas desse jornal
+
+            // Lógica de "Visto"
+            const isSeen = seenStoryIds.includes(item.id);
+
+            const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
+            const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
 
             uniqueStories.push({
                 id: item.id,
                 name: sourceName,
-                avatar: item.logo,
-                // FORÇAMOS apenas o item atual (o mais recente encontrado)
-                items: [item] 
+                avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
+                isSeen: isSeen,
+                items: [{
+                    ...item,
+                    img: finalImg,
+                    origin: 'story'
+                }]
             });
         }
     }
+
     return uniqueStories;
-}, [newsData, seenStoryIds]);
+  }, [newsData, seenStoryIds]);
 
   // --- FUNÇÕES DE GESTO ---
   const handleTouchStart = (e) => {
@@ -3203,28 +3205,40 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlText, "text/xml");
       
-      const channelTitleNode = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
-      let detectedTitle = channelTitleNode ? channelTitleNode.textContent.trim() : feedSource;
+      // Verifica se houve erro no parse do XML
+      const parserError = xmlDoc.querySelector("parsererror");
+      if (parserError) {
+          console.warn("Erro ao ler XML de:", feedSource);
+          return { items: [], realTitle: feedSource, realLogo: null };
+      }
 
-      // Logica de Logo (mantida)
+      // Tenta descobrir título
+      let detectedTitle = feedSource;
+      const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
+      if (channelTitle && channelTitle.textContent) {
+          detectedTitle = channelTitle.textContent.trim();
+      }
+
+      // Tenta descobrir link para logo
       let siteLink = "";
       const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("link");
-      if (channelLink) siteLink = channelLink.textContent || channelLink.getAttribute("href") || "";
-      
+      if (channelLink) {
+          siteLink = channelLink.textContent || channelLink.getAttribute("href") || "";
+      }
+
+      // Logo automática baseada no site descoberto
       let autoLogo = `https://ui-avatars.com/api/?name=${detectedTitle}&background=random`;
       if (siteLink) {
           try {
               const domain = new URL(siteLink).hostname;
               autoLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-          } catch (e) {}
+          } catch (e) { /* ignora */ }
       }
 
       const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
       
-      // Data de referência para fallback (agora)
-      const now = new Date();
-
       const parsedItems = items.map((node, index) => {
+        // Função segura para pegar texto de tags (suporta namespaces como yt:videoId)
         const getTxt = (tag) => {
             if (tag.includes(':')) {
                 const els = node.getElementsByTagName(tag);
@@ -3233,49 +3247,39 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
             return node.querySelector(tag)?.textContent || "";
         };
 
-        // Extração de Link
+        // Links
         const linkNode = node.querySelector("link");
         let link = linkNode?.getAttribute("href") || linkNode?.textContent || "";
+
+        // Suporte YouTube
         const ytId = getTxt("yt:videoId") || getTxt("videoId");
         if (ytId) link = `https://www.youtube.com/watch?v=${ytId}`;
 
-        const getTxt = (tag) => {
-        // Tenta buscar com namespace (ex: dc:date) ou tag pura
-        const els = node.getElementsByTagName(tag);
-        if (els.length > 0) return els[0].textContent;
-        return node.querySelector(tag)?.textContent || "";
-    };
-
-    // 1. Tenta pegar a data mais precisa possível
-    // Folha/UOL usam muito dc:date ou pubDate
-    const rawDateStr = getTxt("dc:date") || getTxt("pubDate") || getTxt("published") || getTxt("updated");
-    let baseDate = new Date(rawDateStr);
-
-    if (isNaN(baseDate.getTime())) {
-        baseDate = new Date(); // Fallback para "agora"
-    }
-
-    // 2. O PULO DO GATO: Desempate Temporal Sênior
-    // Se várias notícias têm a mesma hora, subtraímos milissegundos baseados no index.
-    // Como o parser percorre do topo para baixo (mais novo para o mais velho no RSS),
-    // garantimos que o item[0] seja milissegundos mais novo que o item[1].
-    const uniqueTime = baseDate.getTime() - (index * 1000); 
-    const finalDate = new Date(uniqueTime);
-
-        // Extração de Imagem (Mantida)
+        // Datas e Conteúdo
+        const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated") || new Date().toISOString();
         const description = getTxt("description") || getTxt("summary");
         const contentEncoded = getTxt("content:encoded") || getTxt("content");
+
+        // --- BUSCA DE IMAGEM EM CASCATA ---
         let img = null;
+        
+        // 1. Tags de Media (Padrão moderno)
         const mediaContent = node.getElementsByTagName("media:content");
         if (mediaContent.length > 0) img = mediaContent[0].getAttribute("url");
         if (!img) {
             const mediaThumb = node.getElementsByTagName("media:thumbnail")[0];
             if (mediaThumb) img = mediaThumb.getAttribute("url");
         }
+
+        // 2. Enclosure (Padrão RSS clássico)
         if (!img) {
             const enclosure = node.querySelector("enclosure");
-            if (enclosure && enclosure.getAttribute("type")?.includes("image")) img = enclosure.getAttribute("url");
+            if (enclosure && enclosure.getAttribute("type")?.includes("image")) {
+                img = enclosure.getAttribute("url");
+            }
         }
+
+        // 3. HTML do Conteúdo (Padrão Wordpress/Folha)
         if (!img) img = extractImageFromContent(contentEncoded);
         if (!img) img = extractImageFromContent(description);
 
@@ -3283,8 +3287,8 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           id: `${feedId}-${index}-${Math.random().toString(36).substr(2, 5)}`,
           source: detectedTitle,
           logo: autoLogo,
-          time: parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          rawDate: parsedDate, // OBJETO DATE REAL
+          time: new Date(pubDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          rawDate: new Date(pubDate),
           title: getTxt("title"),
           summary: description.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
           category: 'Geral',
@@ -3299,10 +3303,11 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       return { items: parsedItems, realTitle: detectedTitle, realLogo: autoLogo };
 
   } catch (err) {
-      console.error("Erro parser:", err);
+      console.error("Erro fatal no parser:", err);
       return { items: [], realTitle: feedSource, realLogo: null };
   }
 };
+
 
 
 
@@ -4075,15 +4080,8 @@ feedItems={[...realNews, ...realVideos, ...realPodcasts]}          isOpen={!!sel
       
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
-{selectedStory && (
-  <StoryOverlay 
-    stories={storiesToDisplay} // Passa a lista inteira
-    initialStoryId={selectedStory.id} // Passa qual abriu
-    onClose={closeStory} 
-    openArticle={openArticle} 
-    onMarkAsSeen={onMarkAsSeen}  
-  />
-)}
+      {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen}  />}
+
       {playingAudio && (
           <GlobalAudioPlayer 
               track={playingAudio} 
@@ -4211,92 +4209,155 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
   );
 }
 
-function StoryOverlay({ stories, initialStoryId, onClose, openArticle, onMarkAsSeen }) {
-  // Encontra o índice da fonte na lista global
-  const [storyIndex, setStoryIndex] = useState(() => 
-    stories.findIndex(s => s.id === initialStoryId)
-  );
+function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  const currentStory = stories[storyIndex];
+  // Reinicia o índice se mudar de story
+  useEffect(() => { setCurrentIndex(0); }, [story]);
 
-  // Se a fonte mudar, marca como visto
+  // EFEITO: Marcar como visto assim que abrir o Story
   useEffect(() => {
-    if (currentStory && onMarkAsSeen) {
-      onMarkAsSeen(currentStory.id);
+    if (story && story.id && onMarkAsSeen) {
+        // Disparamos o "visto" imediatamente para o ID da notícia atual
+        onMarkAsSeen(story.id); 
     }
-  }, [currentStory, onMarkAsSeen]);
+  }, [story, onMarkAsSeen]);
 
-  if (!currentStory) return null;
+  if (!story || !story.items || story.items.length === 0) return null;
 
-  // Como agora cada story tem apenas 1 item, a lógica de "Next" pula a FONTE
-  const handleNext = () => {
-    if (storyIndex < stories.length - 1) {
-      setStoryIndex(prev => prev + 1);
-    } else {
-      onClose(); // Fim da fila
-    }
+  const handleNext = () => { 
+    if (currentIndex < story.items.length - 1) setCurrentIndex(prev => prev + 1); 
+    else onClose(); 
+  };
+  
+  const handlePrev = () => { 
+    if (currentIndex > 0) setCurrentIndex(prev => prev - 1); 
   };
 
-  const handlePrev = () => {
-    if (storyIndex > 0) {
-      setStoryIndex(prev => prev - 1);
-    }
-  };
+  const currentItem = story.items[currentIndex];
 
-  const currentItem = currentStory.items[0]; // Sempre o primeiro (único)
+  const handleOpenFullArticle = () => {
+      onClose(); // Fecha o overlay de story
+      
+      // Abre o painel de artigo completo
+      openArticle({ 
+        ...currentItem, 
+        source: story.name, 
+        category: 'Story',
+        // Mudamos para 'rss' para garantir que o leitor carregue o site real
+        origin: 'rss' 
+      });
+  };
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-black flex flex-col">
-       <div className="relative w-full h-full md:max-w-[60vh] md:mx-auto">
-          {/* Barra de progresso (agora reflete a posição na lista de fontes) */}
-          <div className="absolute top-10 left-0 right-0 px-4 flex gap-1 z-50">
-             {stories.map((s, idx) => (
-               <div key={s.id} className="h-1 flex-1 bg-white/20 rounded-full overflow-hidden">
-                 <div className={`h-full bg-white transition-all ${idx < storyIndex ? 'w-full' : idx === storyIndex ? 'w-full animate-[progress_5s_linear]' : 'w-0'}`} />
-               </div>
-             ))}
+    <div className="fixed inset-0 z-[10000] bg-black flex flex-col animate-in zoom-in-95 duration-300">
+       
+       {/* Container Central - TAMANHO MD:MAX-W-[60VH] RESTAURADO */}
+       <div className="relative w-full h-full md:max-w-[60vh] md:aspect-[9/16] md:mx-auto md:my-auto md:rounded-3xl overflow-hidden bg-zinc-900 shadow-2xl border border-white/5">
+        
+        {/* Imagem de Fundo em tela cheia */}
+        <div className="absolute inset-0">
+            <img 
+                src={currentItem.img} 
+                className="w-full h-full object-cover" 
+                alt="Fundo do Story" 
+                onError={(e) => { e.target.style.display = 'none'; }}
+            />
+            {/* Gradientes para melhorar legibilidade */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/90" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60" />
+        </div>
+
+        {/* Barra de Progresso Superior e Cabeçalho */}
+        <div className="absolute top-0 left-0 right-0 p-4 pt-10 md:pt-8 z-30 space-y-4">
+          
+          {/* Indicador de "slides" */}
+          <div className="flex gap-1.5 h-1">
+              {story.items.map((item, idx) => (
+                  <div key={idx} className="flex-1 bg-white/20 rounded-full overflow-hidden h-full">
+                      <div 
+                        className={`h-full bg-white transition-all duration-300 ${idx < currentIndex ? 'w-full' : idx === currentIndex ? 'w-full animate-[progress_5s_linear]' : 'w-0'}`} 
+                      />
+                  </div>
+              ))}
           </div>
 
-          {/* Imagem e Conteúdo */}
-          <div className="absolute inset-0">
-             <img src={currentItem.img} className="w-full h-full object-cover" />
-             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black" />
+          {/* Info do Canal e Botão Fechar */}
+          <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full border-2 border-white/30 p-[2px] bg-black/20 backdrop-blur-md">
+                      <img src={story.avatar} className="w-full h-full rounded-full object-cover" alt="Logo" />
+                  </div>
+                  <div className="flex flex-col">
+                      <span className="text-white font-black text-sm drop-shadow-md tracking-tight">{story.name}</span>
+                      <span className="text-zinc-300 text-[10px] font-bold drop-shadow-md opacity-90">{currentItem.time}</span>
+                  </div>
+              </div>
+              <button 
+                onClick={onClose} 
+                className="p-2.5 text-white/80 hover:text-white backdrop-blur-xl rounded-full bg-white/10 border border-white/10 transition-transform active:scale-90"
+              >
+                  <X size={26} />
+              </button>
           </div>
+        </div>
 
-          {/* Navegação por Áreas de Toque */}
-          <div className="absolute inset-0 z-20 flex">
-              <div className="w-[30%] h-full" onClick={handlePrev} />
-              <div className="w-[70%] h-full" onClick={handleNext} />
-          </div>
+        {/* Áreas de Toque Invisíveis para Navegação */}
+        <div className="absolute inset-0 z-20 flex">
+            <div className="w-[30%] h-full" onClick={handlePrev} />
+            <div className="w-[70%] h-full" onClick={handleNext} />
+        </div>
 
-          {/* Setas Visuais (Navegam entre fontes) */}
-          <button onClick={handlePrev} className={`absolute left-4 top-1/2 z-40 p-2 text-white/50 ${storyIndex === 0 ? 'hidden' : ''}`}><ChevronLeft size={32}/></button>
-          <button onClick={handleNext} className="absolute right-4 top-1/2 z-40 p-2 text-white/50"><ChevronRight size={32}/></button>
+        {/* Setas de Apoio (Estilo Instagram) */}
+        {currentIndex > 0 && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); handlePrev(); }}
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"
+          >
+            <ChevronLeft size={28} />
+          </button>
+        )}
+        <button 
+          onClick={(e) => { e.stopPropagation(); handleNext(); }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"
+        >
+          <ChevronRight size={28} />
+        </button>
 
-          {/* Cabeçalho */}
-          <div className="absolute top-16 left-4 right-4 flex justify-between items-center z-30">
-             <div className="flex items-center gap-3">
-                <img src={currentStory.avatar} className="w-10 h-10 rounded-full border-2 border-white" />
-                <span className="text-white font-bold">{currentStory.name}</span>
-             </div>
-             <button onClick={onClose} className="text-white"><X size={28}/></button>
-          </div>
-
-          {/* Rodapé */}
-          <div className="absolute bottom-10 left-4 right-4 z-30 flex flex-col items-center">
-             <h2 className="text-white text-2xl font-black text-center mb-6 leading-tight">{currentItem.title}</h2>
-             <button 
-                onClick={() => { onClose(); openArticle({...currentItem, origin: 'rss'}); }}
-                className="w-full py-4 bg-white text-black font-bold rounded-2xl flex items-center justify-center gap-2"
-             >
-                LER NOTÍCIA <ArrowRight size={18}/>
-             </button>
-          </div>
+        {/* Rodapé: Título e Botão de Ação */}
+        <div className="absolute bottom-0 left-0 right-0 p-8 z-30 pb-12 md:pb-10 pointer-events-none">
+            <div className="pointer-events-auto flex flex-col items-center">
+                
+                <h2 className="text-white text-2xl md:text-3xl font-black leading-tight mb-8 drop-shadow-2xl font-serif text-center line-clamp-5">
+                    {currentItem.title}
+                </h2>
+                
+                <button 
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        handleOpenFullArticle(); 
+                    }} 
+                    className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100"
+                >
+                    <span className="text-sm uppercase tracking-widest">Ler Notícia Completa</span>
+                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+            </div>
+        </div>
        </div>
+
+       {/* Fundo desfocado para telas grandes (Desktop) */}
+       <div className="fixed inset-0 -z-10 bg-zinc-950/95 backdrop-blur-3xl md:block hidden" onClick={onClose} />
+       
+       <style jsx="true">{`
+          @keyframes progress {
+            0% { width: 0%; }
+            100% { width: 100%; }
+          }
+       `}</style>
     </div>
   );
-
-
+}
 
 
 
