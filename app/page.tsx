@@ -4525,7 +4525,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL - REFATORADO (MODO EMBED PURO / SEM AUTOPLAY)
+// COMPONENTE ARTICLE PANEL - CORREÇÃO DE GPU/COMPOSITING (IOS PWA FIX)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
@@ -4535,9 +4535,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // Controle de Áudio (Mantido apenas para MP3/Podcast nativo, não afeta YouTube)
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -4564,7 +4561,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
 
   const scrollContainerRef = useRef(null); 
 
-  // ... (Lógica de domínios problemáticos e sanitizeHtml mantida para segurança) ...
   const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
   const isProblematicSite = useMemo(() => {
       if (!article?.link) return false;
@@ -4652,8 +4648,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const activeArticleData = { ...safeArticle, ...safeContent };
   const activeReaderData = { content: safeContent.content, title: safeContent.title };
 
+  // --- CORREÇÃO AQUI ---
+  // Removidas as classes: 'will-change-transform', 'transform-gpu', 'backface-hidden'
+  // Essas classes forçam o WebKit a criar uma textura estática no PWA, congelando o vídeo.
   return (
-    <div className={`fixed inset-0 z-[5000] flex flex-col transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) will-change-transform transform-gpu backface-hidden ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+    <div className={`fixed inset-0 z-[5000] flex flex-col transition-transform duration-300 ease-out ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
             {/* TOP BAR */}
@@ -4686,21 +4685,14 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                  <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
             </div>
 
-            <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain transform-gpu ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
+            <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
                 
-                {/* --- SEÇÃO DE VÍDEO (REFATORADA PARA EMBED PURO) --- */}
+                {/* --- SEÇÃO DE VÍDEO --- */}
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
                         
-                        {/* 
-                           AQUI ESTÁ A CORREÇÃO:
-                           1. Aspect Ratio de vídeo.
-                           2. Nenhuma capa. Nenhuma div por cima.
-                           3. Iframe direto.
-                           4. Autoplay DESLIGADO (autoplay=0). O usuário TEM que clicar.
-                           5. Playsinline LIGADO (pra não quebrar o layout no iOS).
-                        */}
                         <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative">
+                            {/* Iframe Puro, Sem Autoplay, Sem Z-Index complexo, Sem Transform */}
                             <iframe 
                                 src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&modestbranding=1&rel=0&controls=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
                                 className="w-full h-full absolute inset-0 z-10"
@@ -4711,7 +4703,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                             />
                         </div>
 
-                        {/* Detalhes do Artigo */}
                         <div className="p-6 max-w-3xl mx-auto pb-20">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10">
@@ -4763,7 +4754,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 <FeedNavigator article={article} feedItems={feedItems} onArticleChange={onArticleChange} isDarkMode={isDarkMode} />
             )}
         </div>
-        <style jsx="true">{`@keyframes progress-aura { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } } .animate-progress-aura { animation: progress-aura 1.5s infinite linear; } .backface-hidden { backface-visibility: hidden; }`}</style>
+        <style jsx="true">{`@keyframes progress-aura { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } } .animate-progress-aura { animation: progress-aura 1.5s infinite linear; }`}</style>
     </div>
   );
 });
