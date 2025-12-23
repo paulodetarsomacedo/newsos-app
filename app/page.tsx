@@ -3903,6 +3903,37 @@ const allAvailableStories = useMemo(() => {
 }, [realNews]); // Depende apenas de 'realNews', não de 'seenStoryIds'
 
 
+// --- CONTROLE DE INATIVIDADE DA NAV BAR (RESTAURADO) ---
+  const navTimerRef = useRef(null); // Esta linha estava faltando!
+
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+    if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    navTimerRef.current = setTimeout(() => setIsNavVisible(false), 4000);
+  };
+  
+  useEffect(() => {
+    const resetInactivityTimer = () => {
+      if (navTimerRef.current) clearTimeout(navTimerRef.current);
+      if (isNavVisible) {
+        navTimerRef.current = setTimeout(() => { setIsNavVisible(false); }, 3000); 
+      }
+    };
+    if (isNavVisible) {
+      window.addEventListener('mousedown', resetInactivityTimer);
+      window.addEventListener('touchstart', resetInactivityTimer);
+      window.addEventListener('scroll', resetInactivityTimer);
+      resetInactivityTimer();
+    }
+    return () => {
+      window.removeEventListener('mousedown', resetInactivityTimer);
+      window.removeEventListener('touchstart', resetInactivityTimer);
+      window.removeEventListener('scroll', resetInactivityTimer);
+    };
+  }, [isNavVisible]);
+
+
+
 // --- FUNÇÃO DE ABERTURA INTELIGENTE (VIDEO vs ARTIGO) ---
   const handleOpenArticle = (article) => {
     // 1. Verifica se é vídeo (YouTube ID, Link do YT ou Podcast tipo vídeo)
