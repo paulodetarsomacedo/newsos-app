@@ -2982,34 +2982,44 @@ function SavedTab({ isDarkMode, openArticle, items, onRemoveItem, onPlayVideo })
   );
 }
 
-const TabButton = React.forwardRef(({ icon, label, active, onClick, isDarkMode }, ref) => { 
+function TabButton({ icon, label, active, onClick, isDarkMode }) { 
   return (
     <button 
-      ref={ref} // Atribui a ref ao botão para medirmos sua posição
       onClick={onClick} 
       className={`
-        group relative z-10 flex flex-col items-center justify-center 
-        w-14 h-full transition-transform duration-200 ease-out 
+        group relative flex flex-col items-center justify-center 
+        w-14 h-9 /* Um pouco maior para a aura ter espaço */
+        transition-transform duration-200 ease-out 
         active:scale-90 touch-manipulation
+        ${active ? 'scale-110 -translate-y-2' : 'hover:-translate-y-1'}
       `}
     >
       {/* Container do Ícone */}
       <div className={`
-        relative p-3 rounded-full transition-colors duration-300
+        relative p-3 rounded-full transition-all duration-200
         ${isDarkMode 
-            ? (active ? 'text-black' : 'text-zinc-500 group-hover:text-zinc-200')
-            : (active ? 'text-white' : 'text-zinc-400 group-hover:text-zinc-600')
+            ? 'text-zinc-500 group-hover:text-zinc-200' 
+            : 'text-zinc-400 group-hover:text-zinc-600'
         }
       `}>
-        {React.cloneElement(icon, { 
-            className: `transition-transform duration-300 ${active ? 'scale-110' : ''}`
-        })}
+        {/* Ícone */}
+        <div className={`transition-transform duration-200 ${active ? 'scale-125' : 'scale-100'}`}>
+            {React.cloneElement(icon, { 
+                className: `transition-colors duration-200 ${active ? (isDarkMode ? 'text-white' : 'text-blue-500') : ''}` 
+            })}
+        </div>
+
+        {/* EFEITO AURA (Só aparece quando ativo) */}
+        {active && (
+            <div className={`
+                absolute inset-0 rounded-full blur-lg animate-pulse
+                bg-blue-500/70 /* Cor principal da Aura (mesma do cabeçalho) */
+            `}/>
+        )}
       </div>
     </button>
   ); 
-});
-
-
+}
 // --- APP PRINCIPAL ---
 
 
