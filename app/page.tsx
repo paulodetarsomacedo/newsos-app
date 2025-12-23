@@ -1768,7 +1768,6 @@ const generateSmartClustering = async (news, apiKey) => {
     `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img}`
   ).join('\n');
 
-  // A CORREÇÃO ESTÁ APLICADA NO TEXTO DESTE PROMPT
   const prompt = `
   Você é um Editor-Chefe e Diretor de Arte de uma publicação de tecnologia de ponta.
 
@@ -1809,7 +1808,11 @@ const generateSmartClustering = async (news, apiKey) => {
     });
 
     const data = await response.json();
-    const text = data.candidates?.?.content?.parts?.?.text;
+    
+    // --- AQUI ESTÁ A CORREÇÃO DE SINTAXE ---
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    // --- FIM DA CORREÇÃO ---
+
     if (!text) return null;
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
@@ -1818,7 +1821,6 @@ const generateSmartClustering = async (news, apiKey) => {
             ...cluster,
             related_articles: cluster.related_articles.map(ref => {
                 const article = news.find(n => n.id === ref.id);
-                // Retorna o artigo completo se encontrado, senão mantém a referência (com logo)
                 return article ? { ...ref, ...article } : ref;
             }).filter(item => item && item.id)
         };
