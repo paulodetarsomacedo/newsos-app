@@ -1764,11 +1764,11 @@ const generateBriefingFallback = async (news, apiKey) => {
 const generateSmartClustering = async (news, apiKey) => {
   if (!news || news.length < 4 || !apiKey) return null;
 
-  // Prepara os dados para a IA, incluindo o ID, Fonte, Título e a IMAGEM
   const context = news.slice(0, 50).map(n => 
     `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img}`
   ).join('\n');
 
+  // A CORREÇÃO ESTÁ APLICADA NO TEXTO DESTE PROMPT
   const prompt = `
   Você é um Editor-Chefe e Diretor de Arte de uma publicação de tecnologia de ponta.
 
@@ -1777,7 +1777,7 @@ const generateSmartClustering = async (news, apiKey) => {
 
   PARA CADA EVENTO IDENTIFICADO, SIGA ESTAS REGRAS:
   1.  **CRIE UMA MANCHETE:** Escreva um título jornalístico, curto e impactante (máximo de 8 palavras) que resuma a essência do evento. Não mencione os nomes das fontes no título.
-  2.  **SELECIONE A IMAGEM-CHAVE:** Das imagens disponíveis para o evento (`IMG`), escolha a URL daquela que for mais representativa, poderosa e de melhor qualidade visual. Forneça apenas uma URL de imagem por evento.
+  2.  **SELECIONE A IMAGEM-CHAVE:** Das imagens disponíveis para o evento (\`IMG\`), escolha a URL daquela que for mais representativa, poderosa e de melhor qualidade visual. Forneça apenas uma URL de imagem por evento.
   3.  **LISTE AS FONTES:** Agrupe todas as notícias (com seus IDs e logos) que cobrem este mesmo evento.
 
   INPUT (LISTA DE NOTÍCIAS):
@@ -1809,18 +1809,18 @@ const generateSmartClustering = async (news, apiKey) => {
     });
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data.candidates?.?.content?.parts?.?.text;
     if (!text) return null;
 
-    // Limpa e faz o parse do JSON retornado pela IA
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-    // Adiciona os dados completos do artigo aos 'related_articles' para o onClick funcionar
     const hydratedJson = json.map(cluster => {
         return {
             ...cluster,
             related_articles: cluster.related_articles.map(ref => {
-                return news.find(n => n.id === ref.id) || ref;
-            }).filter(item => item && item.id) // Garante que apenas artigos encontrados sejam mantidos
+                const article = news.find(n => n.id === ref.id);
+                // Retorna o artigo completo se encontrado, senão mantém a referência (com logo)
+                return article ? { ...ref, ...article } : ref;
+            }).filter(item => item && item.id)
         };
     });
 
@@ -1831,6 +1831,7 @@ const generateSmartClustering = async (news, apiKey) => {
     return null;
   }
 };
+
 
 // --- PRINCIPAL (ATUALIZADO PARA 4 TÓPICOS) ---
 const generateBriefing = async (news, apiKey) => {
