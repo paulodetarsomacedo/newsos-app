@@ -2017,44 +2017,58 @@ const generateTrendRadar = async (news, apiKey) => {
 };
 
 // --- FUNÇÃO DE IA: ANÁLISE DE MERCADO (NOVA) ---
+// --- FUNÇÃO DE IA: ANÁLISE DE MERCADO (ATUALIZADA) ---
 const generateMarketAnalysis = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
 
-  // Filtra apenas notícias que parecem de economia/mercado para economizar tokens e focar o contexto
+  // Filtra notícias de mercado
   const marketNews = news.filter(n => 
       n.category === 'Economia' || 
       n.category === 'Finanças' || 
       n.category === 'Mercados' ||
-      n.category === 'Tech' || // Tech move mercado
+      n.category === 'Tech' ||
       n.title.toLowerCase().includes('dólar') ||
-      n.title.toLowerCase().includes('bolsa') ||
+      n.title.toLowerCase().includes('ibovespa') ||
       n.title.toLowerCase().includes('bitcoin')
-  ).slice(0, 30); // Pega as 30 mais relevantes
+  ).slice(0, 30);
 
   if (marketNews.length === 0) return null;
 
-  const context = marketNews.map(n => `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title}`).join('\n');
+  const context = marketNews.map(n => `FONTE: ${n.source} | TÍTULO: ${n.title} | DATA: ${n.time}`).join('\n');
+  
+  // Detecta hora atual para ajudar a IA no contexto (Hora de Brasília)
+  const now = new Date();
+  const currentHour = now.getHours();
+  const isLikelyClosed = currentHour >= 18 || currentHour < 9; // Lógica simples de horário
 
   const prompt = `
-  Atue como um Analista Financeiro Sênior. Analise as manchetes abaixo e gere um relatório de mercado do dia.
+  Atue como um Analista Financeiro de Wall Street/Faria Lima.
+  Hora atual aproximada: ${currentHour}h. ${isLikelyClosed ? "Provável que o mercado esteja FECHADO." : "O mercado deve estar ABERTO."}
 
   DADOS:
   ${context}
 
   TAREFAS:
-  1. Determine o "Sentimento Geral" do mercado (0 = Pânico Total, 50 = Neutro, 100 = Euforia Total).
-  2. Escreva um resumo executivo de 2 frases sobre o porquê desse sentimento.
-  3. Identifique até 4 ativos/temas principais citados (Ex: Dólar, Petrobras, Bitcoin, Taxa Juros) e qual a tendência deles baseada na notícia.
-  4. Associe o ID da notícia que justifica essa tendência.
+  1. Sentimento Geral (0-100).
+  2. Resumo executivo curto.
+  3. Identifique 4 ativos principais (Movers).
+  4. GERE O "RODAPÉ FINANCEIRO":
+     - Determine se o mercado está ABERTO ou FECHADO com base nas notícias (Ex: se falam "fechou", "encerrou" é fechado. Se falam "opera", "sobe" é aberto).
+     - Se FECHADO: Crie um texto de 3 linhas concatenando os resultados finais (Ex: "Ibovespa recua 1% aos 120k pts | Dólar fecha a R$ 5,00...").
+     - Se ABERTO: Crie um texto sobre a tendência do momento e a aposta para o fechamento.
+     - Defina a tendência geral: 'bullish' (alta), 'bearish' (baixa) ou 'neutral'.
 
   RETORNE APENAS JSON:
   {
     "market_score": 75,
     "market_status": "Otimismo Cauteloso",
-    "summary": "O mercado reage bem à aprovação fiscal, mas mantém atenção nos juros americanos...",
+    "summary": "Resumo executivo do card principal...",
+    "market_state": "CLOSED" ou "OPEN",
+    "trend_direction": "bullish" | "bearish" | "neutral",
+    "bottom_summary": "O texto específico de 3 linhas para o rodapé financeiro...",
     "movers": [
-      { "asset": "Dólar", "trend": "down", "change_label": "Queda", "news_id": "...", "reason": "Otimismo fiscal derruba moeda" },
-      { "asset": "VALE3", "trend": "up", "change_label": "Alta", "news_id": "...", "reason": "Minério sobe na China" }
+      { "asset": "Dólar", "trend": "down", "change_label": "-0.5%", "news_id": "...", "reason": "Motivo curto" },
+      { "asset": "PETR4", "trend": "up", "change_label": "+1.2%", "news_id": "...", "reason": "Motivo curto" }
     ]
   }
   `;
@@ -2075,12 +2089,11 @@ const generateMarketAnalysis = async (news, apiKey) => {
     
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
     
-    // Hidratar com o objeto da notícia real para o link funcionar
     if (json.movers) {
         json.movers = json.movers.map(mover => {
             const article = news.find(n => n.id === mover.news_id);
             return { ...mover, article };
-        }).filter(m => m.article); // Remove se não achou artigo
+        }).filter(m => m.article);
     }
 
     return json;
@@ -2612,7 +2625,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
 };
 
 
-// --- WIDGET: MARKET PULSE (SUBSTITUTO DO "EM ALTA") ---
+// --- WIDGET: MARKET PULSE (COM RODAPÉ TICKER) ---
 const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2622,7 +2635,6 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
   useEffect(() => {
     if (!apiKey || !newsData || newsData.length === 0) return;
     
-    // Lógica de carga única ou refresh manual (igual aos outros widgets)
     const isUserRefresh = refreshTrigger !== prevTrigger.current;
     if (hasLoaded && !isUserRefresh) return;
 
@@ -2631,7 +2643,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
     const load = async () => {
         setLoading(true);
         if (isUserRefresh) setData(null);
-        await new Promise(r => setTimeout(r, 1500)); // Delay para efeito visual
+        await new Promise(r => setTimeout(r, 1500)); 
         const result = await generateMarketAnalysis(newsData, apiKey);
         if (result) {
             setData(result);
@@ -2645,90 +2657,116 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
   if (loading) {
       return (
           <div className="px-2 mb-6 animate-pulse">
-              <div className={`h-40 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200'}`}></div>
+              <div className={`h-64 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200'}`}></div>
           </div>
       );
   }
 
   if (!data) return null;
 
-  // Cor baseada no score (0-40 vermelho, 41-60 amarelo, 61-100 verde)
   const getScoreColor = (score) => {
       if (score > 60) return 'text-emerald-500';
       if (score < 40) return 'text-rose-500';
       return 'text-yellow-500';
   };
 
-  const getBarColor = (score) => {
-      if (score > 60) return 'bg-emerald-500';
-      if (score < 40) return 'bg-rose-500';
-      return 'bg-yellow-500';
+  const getTrendColor = (trend) => {
+      if (trend === 'bullish') return 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]';
+      if (trend === 'bearish') return 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.4)]';
+      return 'bg-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]';
+  };
+
+  const getTrendIcon = (trend) => {
+      if (trend === 'bullish') return <TrendingUp size={18} className="text-emerald-500" />;
+      if (trend === 'bearish') return <TrendingDown size={18} className="text-rose-500" />;
+      return <Minus size={18} className="text-yellow-500" />;
   };
 
   return (
     <div className="px-2 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className={`p-5 rounded-[2rem] border relative overflow-hidden ${isDarkMode ? 'bg-zinc-950 border-white/10' : 'bg-white border-zinc-200 shadow-xl'}`}>
+        <div className={`rounded-[2rem] border relative overflow-hidden transition-all hover:shadow-2xl ${isDarkMode ? 'bg-zinc-950 border-white/10' : 'bg-white border-zinc-200 shadow-xl'}`}>
             
-            {/* Background Decorativo */}
-            <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-transparent to-transparent opacity-10 rounded-full blur-3xl -mr-10 -mt-10 ${data.market_score > 50 ? 'from-emerald-500' : 'from-rose-500'}`} />
+            {/* CORPO PRINCIPAL */}
+            <div className="p-5 pb-6 relative z-10">
+                {/* Background Decorativo */}
+                <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-transparent to-transparent opacity-10 rounded-full blur-3xl -mr-10 -mt-10 ${data.market_score > 50 ? 'from-emerald-500' : 'from-rose-500'}`} />
 
-            {/* Header: Score e Status */}
-            <div className="flex items-end justify-between mb-4 relative z-10">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <Activity size={16} className={getScoreColor(data.market_score)} />
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Market Pulse</span>
-                    </div>
-                    <h2 className={`text-2xl font-black leading-none ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                        {data.market_status}
-                    </h2>
-                </div>
-                <div className="text-right">
-                    <span className={`text-3xl font-black ${getScoreColor(data.market_score)}`}>{data.market_score}</span>
-                    <span className="text-[10px] font-bold opacity-50 block">/100</span>
-                </div>
-            </div>
-
-            {/* Barra de Termômetro */}
-            <div className={`w-full h-2 rounded-full mb-4 overflow-hidden ${isDarkMode ? 'bg-white/10' : 'bg-zinc-100'}`}>
-                <div 
-                    className={`h-full rounded-full transition-all duration-1000 ${getBarColor(data.market_score)}`} 
-                    style={{ width: `${data.market_score}%` }} 
-                />
-            </div>
-
-            {/* Resumo */}
-            <p className={`text-sm font-medium leading-relaxed mb-6 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                {data.summary}
-            </p>
-
-            {/* Grid de Movers (Ativos) */}
-            <div className="grid grid-cols-2 gap-3">
-                {data.movers.map((mover, idx) => (
-                    <button 
-                        key={idx}
-                        onClick={() => openArticle(mover.article)}
-                        className={`
-                            text-left p-3 rounded-2xl border transition-all hover:scale-[1.02] active:scale-95
-                            ${isDarkMode ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-zinc-50 border-zinc-100 hover:bg-zinc-100'}
-                        `}
-                    >
-                        <div className="flex justify-between items-start mb-1">
-                            <span className={`text-xs font-black ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{mover.asset}</span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${mover.trend === 'up' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
-                                {mover.trend === 'up' ? <TrendingUp size={10}/> : <TrendingDown size={10}/>}
-                            </span>
+                {/* Header */}
+                <div className="flex items-end justify-between mb-4">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <Activity size={16} className={getScoreColor(data.market_score)} />
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Market Pulse</span>
                         </div>
-                        <p className={`text-[10px] leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                            {mover.reason}
-                        </p>
-                    </button>
-                ))}
+                        <h2 className={`text-2xl font-black leading-none ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                            {data.market_status}
+                        </h2>
+                    </div>
+                    <div className="text-right">
+                        <span className={`text-3xl font-black ${getScoreColor(data.market_score)}`}>{data.market_score}</span>
+                        <span className="text-[10px] font-bold opacity-50 block">/100</span>
+                    </div>
+                </div>
+
+                {/* Resumo */}
+                <p className={`text-sm font-medium leading-relaxed mb-6 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                    {data.summary}
+                </p>
+
+                {/* Grid de Movers */}
+                <div className="grid grid-cols-2 gap-3 mb-2">
+                    {data.movers.map((mover, idx) => (
+                        <button 
+                            key={idx}
+                            onClick={() => openArticle(mover.article)}
+                            className={`
+                                text-left p-3 rounded-2xl border transition-all hover:scale-[1.02] active:scale-95 group
+                                ${isDarkMode ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-zinc-50 border-zinc-100 hover:bg-zinc-100'}
+                            `}
+                        >
+                            <div className="flex justify-between items-center mb-1">
+                                <span className={`text-xs font-black truncate pr-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{mover.asset}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${mover.trend === 'up' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
+                                    {mover.change_label}
+                                </span>
+                            </div>
+                            <p className={`text-[9px] leading-tight line-clamp-1 opacity-60 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                                {mover.reason}
+                            </p>
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            <div className="mt-4 flex items-center justify-end gap-2 opacity-40">
-                <span className="text-[9px] font-mono">Powered by Gemini AI</span>
+            {/* --- ÁREA DO TICKER FINANCEIRO (NOVA) --- */}
+            <div className={`relative border-t p-4 flex gap-4 items-center ${isDarkMode ? 'bg-black/40 border-white/5' : 'bg-zinc-50 border-zinc-100'}`}>
+                
+                {/* Indicador Visual Futurista */}
+                <div className="flex-shrink-0 flex flex-col items-center justify-center gap-1 w-10">
+                    <div className={`w-2 h-2 rounded-full mb-1 animate-pulse ${getTrendColor(data.trend_direction)}`} />
+                    {getTrendIcon(data.trend_direction)}
+                </div>
+
+                {/* Texto do Ticker */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${data.market_state === 'CLOSED' ? 'text-rose-500' : 'text-emerald-500'}`}>
+                            {data.market_state === 'CLOSED' ? 'Mercado Encerrado' : 'Pregão Ao Vivo'}
+                        </span>
+                        <span className="text-[9px] font-mono opacity-40">
+                            {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                    </div>
+                    
+                    <p className={`text-xs font-mono leading-tight ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                        {data.bottom_summary}
+                    </p>
+                </div>
+
+                {/* Efeito de Scanline sutil (opcional, dá um ar tech) */}
+                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5 pointer-events-none mix-blend-overlay"></div>
             </div>
+
         </div>
     </div>
   );
