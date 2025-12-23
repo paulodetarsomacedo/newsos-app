@@ -3614,6 +3614,9 @@ const handleHappeningRefresh = () => {
     }
   };
   
+
+
+
   const handleSaveToArchive = (article, note) => {
       setSavedItems(prev => {
           const filtered = prev.filter(i => i.id !== article.id);
@@ -3722,9 +3725,9 @@ const handleHappeningRefresh = () => {
                }
             }
 
-            let LIMIT = 12; 
-            if (feed.type === 'podcast') LIMIT = 2; 
-            else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 3;
+            let LIMIT = 15; 
+            if (feed.type === 'podcast') LIMIT = 1; 
+            else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
 
             const processedItems = feedItems.slice(0, LIMIT).map(item => {
                 // 1. LINK PRINCIPAL
@@ -3876,6 +3879,54 @@ const handleHappeningRefresh = () => {
       mainRef.current.scrollTo({ top: 0, behavior: 'smooth' }); 
     }
   }, [activeTab]);
+
+
+
+  // Adicione este bloco de código dentro de NewsOS_V12, antes do `return (`
+
+const storiesToDisplay = useMemo(() => {
+    // Se não houver notícias, retorna um array vazio imediatamente
+    if (!realNews || realNews.length === 0) return [];
+
+    const sortedEverything = [...realNews].sort((a, b) => {
+        const timeA = new Date(a.rawDate).getTime() || 0;
+        const timeB = new Date(b.rawDate).getTime() || 0;
+        return timeB - timeA; // Mais novo primeiro
+    });
+
+    const uniqueStories = [];
+    const seenSources = new Set();
+    
+    for (const item of sortedEverything) {
+        const sourceName = (item.source || "Fonte").trim();
+        
+        if (!seenSources.has(sourceName)) {
+            seenSources.add(sourceName);
+
+            if (seenStoryIds.includes(item.id)) {
+                continue;
+            }
+
+            const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
+            const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
+
+            uniqueStories.push({
+                id: item.id,
+                name: sourceName,
+                avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
+                items: [{
+                    ...item,
+                    img: finalImg,
+                    origin: 'story'
+                }]
+            });
+        }
+    }
+    return uniqueStories;
+}, [realNews, seenStoryIds]);
+
+
+
 
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
