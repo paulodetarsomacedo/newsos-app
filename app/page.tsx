@@ -2630,7 +2630,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
           {/* 2. Subtítulo Condicional - Só aparece durante o carregamento */}
           {isContextLoading && (
-              <p className={`text-xs font-medium animate-pulse ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+              <p className={`text-lg font-medium animate-pulse ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
                   Analisando os fatos...
               </p>
           )}
@@ -2644,8 +2644,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             isDarkMode={isDarkMode} 
             apiKey={apiKey} 
             refreshTrigger={refreshTrigger}
-            // Passa a função para o filho atualizar o estado de loading
-            onLoadingChange={setIsContextLoading}
+         
         />
         <GeminiBar />
       </div>
