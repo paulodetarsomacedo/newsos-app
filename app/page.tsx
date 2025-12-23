@@ -1772,12 +1772,12 @@ const generateSmartClustering = async (news, apiKey) => {
   Você é um Editor-Chefe e Diretor de Arte de uma publicação jornalística de ponta.
 
   TAREFA PRINCIPAL:
-  Analise a lista de notícias abaixo e identifique até 3 (três) eventos principais que estão sendo cobertos por 4 (quatro) ou mais fontes diferentes. Para cada evento, aja como um curador de conteúdo de elite.
+  Analise a lista de notícias abaixo e identifique até 3 (três) eventos principais que estão sendo cobertos por, no mínimo, 3 (três) ou mais fontes diferentes. Para cada evento, aja como um curador de conteúdo de elite.
 
   PARA CADA EVENTO IDENTIFICADO, SIGA ESTAS REGRAS:
   1.  **CRIE UMA MANCHETE:** Escreva um título jornalístico, curto e impactante (máximo de 8 palavras) que resuma a essência do evento. Não mencione os nomes das fontes no título.
   2.  **SELECIONE A IMAGEM-CHAVE:** Das imagens disponíveis para o evento (\`IMG\`), escolha a URL daquela que for mais representativa, poderosa e de melhor qualidade visual. Forneça apenas uma URL de imagem por evento.
-  3.  **LISTE AS FONTES:** Agrupe todas as notícias (com seus IDs e logos) que cobrem este mesmo evento.
+  3.  **LISTE AS FONTES:** Agrupe todas as notícias (com seus IDs e logos) que cobrem este mesmo evento. Proibido repetir fontes.
 
   INPUT (LISTA DE NOTÍCIAS):
   ${context}
@@ -2248,10 +2248,8 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
                     <Sparkles size={18} />
                 </div>
                 <div>
-                    <h3 className={`text-sm font-black uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
-                        Contexto Global
-                    </h3>
-                    <p className={`text-[10px] font-medium ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    
+                        <p className={`text-[14px] font-medium ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
                         Os maiores eventos, em múltiplos ângulos
                     </p>
                 </div>
@@ -2600,13 +2598,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       
       <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
       
-      {/* --- SMART DIGEST ADICIONADO DE VOLTA AQUI --- */}
-      <SmartDigestWidget 
-          newsData={newsData} 
-          apiKey={apiKey} 
-          isDarkMode={isDarkMode} 
-          refreshTrigger={refreshTrigger} 
-      />
+      
       {/* --- FIM DA CORREÇÃO --- */}
       
       <div className="space-y-4">
@@ -2614,7 +2606,13 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         <WhileYouWereAwayWidget news={newsData} openArticle={openArticle} isDarkMode={isDarkMode} apiKey={apiKey} refreshTrigger={refreshTrigger} />
         <GeminiBar />
       </div>
-      
+      {/* --- SMART DIGEST ADICIONADO DE VOLTA AQUI --- */}
+      <SmartDigestWidget 
+          newsData={newsData} 
+          apiKey={apiKey} 
+          isDarkMode={isDarkMode} 
+          refreshTrigger={refreshTrigger} 
+      />
       <div className="px-2 pt-4">
         <div className="flex items-center gap-2 mb-4 px-1"><TrendingUp size={20} className="text-blue-500" /><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Em Alta Agora</h3></div>
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
