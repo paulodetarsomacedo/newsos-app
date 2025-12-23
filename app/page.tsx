@@ -3934,14 +3934,7 @@ const allAvailableStories = useMemo(() => {
   // Ela diz pro layout: "Se tiver qualquer coisa aberta (artigo, banca, story ou VIDEO), encolha o fundo."
   const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory || !!selectedVideo;
 
-  // ... timers e refs ...
-  const mainRef = useRef(null);
-  useEffect(() => {
-    if (mainRef.current) {
-      mainRef.current.scrollTo({ top: 0, behavior: 'smooth' }); 
-    }
-  }, [activeTab]);
-
+  
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       {/* --- SPLASH SCREEN --- */}
