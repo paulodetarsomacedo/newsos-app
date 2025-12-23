@@ -2614,18 +2614,28 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
       
       {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA --- */}
-      <div className="space-y-4">
-        {/* Cabeçalho Futurista */}
-        <div className="relative z-10 flex items-center gap-3 px-6">
-            <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                <Sparkles size={18} />
-            </div>
-            <div>
-                                       <span className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                        Os maiores eventos, em múltiplos ângulos...
-                    </span>
-            
-        </div>
+<div className="space-y-4">
+  {/* Cabeçalho Futurista de Dois Níveis */}
+  <div className="relative z-10 flex items-center gap-3 px-6">
+      <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+          <Sparkles size={18} />
+      </div>
+      
+      {/* Container para os dois textos */}
+      <div>
+          {/* 1. Título Principal - Sempre visível e com a animação */}
+          <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+              Os maiores eventos, em múltiplos ângulos.
+          </h3>
+
+          {/* 2. Subtítulo Condicional - Só aparece durante o carregamento */}
+          {isContextLoading && (
+              <p className={`text-xs font-medium animate-pulse ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  Analisando os fatos...
+              </p>
+          )}
+      </div>
+  </div>
 
         <GeminiBar />
         <WhileYouWereAwayWidget 
