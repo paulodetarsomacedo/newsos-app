@@ -16,6 +16,17 @@ import {
 } from 'lucide-react';
 
 
+const stringToHash = (str) => {
+  let hash = 0;
+  if (str.length === 0) return hash;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Converte para um inteiro de 32bit
+  }
+  return Math.abs(hash);
+};
+
 // --- DADOS MOCKADOS ---
 
 const STORIES = [
@@ -3181,7 +3192,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
 
       const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
       
-      const parsedItems = items.map((node, index) => {
+      const parsedItems = items.map((node) => { // Removido o 'index' que não era mais necessário
         const getTxt = (tag) => {
             if (tag.includes(':')) {
                 const els = node.getElementsByTagName(tag);
@@ -3195,13 +3206,9 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
 
         const ytId = getTxt("yt:videoId") || getTxt("videoId");
         if (ytId) link = `https://www.youtube.com/watch?v=${ytId}`;
-
-        // --- CORREÇÃO APLICADA AQUI ---
-        // Buscamos a data. Se não existir, 'pubDate' será nulo.
+        
         const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated");
-        // Criamos um objeto Date apenas se a data for válida, senão, 'rawDateValue' será null.
         const rawDateValue = pubDate ? new Date(pubDate) : null;
-        // --- FIM DA CORREÇÃO ---
         
         const description = getTxt("description") || getTxt("summary");
         const contentEncoded = getTxt("content:encoded") || getTxt("content");
@@ -3222,15 +3229,18 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         if (!img) img = extractImageFromContent(contentEncoded);
         if (!img) img = extractImageFromContent(description);
 
+        // --- AQUI ESTÁ A CORREÇÃO PRINCIPAL ---
+        const title = getTxt("title");
+        // Cria um ID único e estável a partir do título e do link
+        const stableId = stringToHash(title + link);
+
         return {
-          id: `${feedId}-${index}-${Math.random().toString(36).substr(2, 5)}`,
+          id: `${feedId}-${stableId}`, // <-- ID ESTÁVEL SENDO USADO AQUI
           source: detectedTitle,
           logo: autoLogo,
-          // Se a data for válida, formata a hora. Senão, mostra 'N/A'.
           time: rawDateValue ? rawDateValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A',
-          // Passa o objeto Date (ou null) para ordenação.
           rawDate: rawDateValue,
-          title: getTxt("title"),
+          title: title, // <-- Reutiliza a variável 'title'
           summary: description.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
           category: 'Geral',
           img: img,
