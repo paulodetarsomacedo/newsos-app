@@ -2562,7 +2562,6 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     { id: 3, title: 'Bitcoin atinge nova máxima histórica com aprovação de ETF', source: 'Bloomberg', time: '2h', img: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=600&q=80' }
   ];
 
-  // Componente para a barra de efeito Gemini
   const GeminiBar = () => (
     <div className="h-0.5 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-orange-400 animate-[gradient-flow_4s_ease_infinite] bg-[length:400%_100%]" />
   );
@@ -2570,7 +2569,6 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       
-      {/* --- CSS DA ANIMAÇÃO DA BARRA --- */}
       <style jsx="true">{`
         @keyframes gradient-flow {
           0% { background-position: 0% 50%; }
@@ -2579,13 +2577,15 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         }
       `}</style>
       
-      {/* (O resto do componente HappeningTab permanece igual...) */}
+      {/* Indicador de Loading */}
       <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '35%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 || isRefreshing ? 'flex' : 'none' }}>
          <div className={`flex flex-col items-center gap-3 p-6 rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-black/5 border-white/10 shadow-purple-500/20' : 'bg-white/90 border-white shadow-xl text-zinc-900'}`}>
             {isRefreshing ? <Loader2 size={42} className="animate-spin text-purple-500" /> : <RefreshCw size={42} className="text-purple-500 transition-transform" style={{ transform: `rotate(${pullDistance * 3}deg)` }}/>}
             <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{isRefreshing ? 'Atualizando Feed' : 'Solte para Atualizar'}</span>
          </div>
       </div>
+      
+      {/* Área de Stories */}
       <div className="flex items-center gap-4 px-2 pt-2 relative z-10">
         <div className="flex-1 min-w-0"> 
             <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
@@ -2600,13 +2600,20 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       
       <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
       
-      {/* --- BARRAS DE EFEITO GEMINI ENVOLVENDO O CONTEXTO GLOBAL --- */}
+      {/* --- SMART DIGEST ADICIONADO DE VOLTA AQUI --- */}
+      <SmartDigestWidget 
+          newsData={newsData} 
+          apiKey={apiKey} 
+          isDarkMode={isDarkMode} 
+          refreshTrigger={refreshTrigger} 
+      />
+      {/* --- FIM DA CORREÇÃO --- */}
+      
       <div className="space-y-4">
         <GeminiBar />
         <WhileYouWereAwayWidget news={newsData} openArticle={openArticle} isDarkMode={isDarkMode} apiKey={apiKey} refreshTrigger={refreshTrigger} />
         <GeminiBar />
       </div>
-      {/* --- FIM DA SEÇÃO DAS BARRAS --- */}
       
       <div className="px-2 pt-4">
         <div className="flex items-center gap-2 mb-4 px-1"><TrendingUp size={20} className="text-blue-500" /><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Em Alta Agora</h3></div>
@@ -2618,6 +2625,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     </div>
   );
 }
+
 
 function BancaTab({ openOutlet, isDarkMode }) {
   const [category, setCategory] = useState('Tudo');
