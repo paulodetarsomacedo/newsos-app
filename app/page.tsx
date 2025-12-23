@@ -2195,45 +2195,28 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
   const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
   const prevRefreshTrigger = useRef(refreshTrigger);
 
-  // --- LÓGICA DE DELAY INTELIGENTE APLICADA AQUI ---
   useEffect(() => {
-    // 1. Condições de Saída: Não faz nada se não tiver a API key ou notícias suficientes.
-    if (!apiKey || !news || news.length < 5) {
-      return;
-    }
+    if (!apiKey || !news || news.length < 5) return;
 
     const isUserRefresh = refreshTrigger !== prevRefreshTrigger.current;
     
-    // 2. Lógica para a PRIMEIRA ABERTURA do app
     if (!hasLoadedInitial) {
-      // Marca que a carga inicial já aconteceu para não entrar mais aqui
       setHasLoadedInitial(true);
-      
-      // Define um delay de 3 segundos APÓS os dados carregarem.
-      // Isso dá tempo para a interface principal renderizar suavemente.
-      const initialLoadTimer = setTimeout(() => {
-        runAI();
-      }, 3000); // Delay de 3 segundos (muito melhor que 15)
-
-      // Limpa o timer se o componente for desmontado
+      const initialLoadTimer = setTimeout(() => runAI(), 3000);
       return () => clearTimeout(initialLoadTimer);
     }
     
-    // 3. Lógica para o PUSH do usuário (sem delay)
     if (isUserRefresh) {
       prevRefreshTrigger.current = refreshTrigger;
       runAI();
     }
-
-  }, [news, apiKey, refreshTrigger]); // O useEffect reavalia sempre que as notícias ou o refresh mudam
+  }, [news, apiKey, refreshTrigger]);
 
   const runAI = async () => {
       setLoading(true);
-      setClusters(null); // Limpa os clusters antigos para dar feedback visual de atualização
-      await new Promise(r => setTimeout(r, 1000)); // Pequeno delay cosmético para a animação de loading
-      
+      setClusters(null);
+      await new Promise(r => setTimeout(r, 1000));
       const result = await generateSmartClustering(news, apiKey);
-      
       setClusters(result);
       setLoading(false);
   };
@@ -2243,25 +2226,14 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
       const scrollLeft = scrollRef.current.scrollLeft;
       const cardWidth = scrollRef.current.offsetWidth;
       const newIndex = Math.round(scrollLeft / cardWidth);
-      if (newIndex !== activeIndex) {
-        setActiveIndex(newIndex);
-      }
+      if (newIndex !== activeIndex) setActiveIndex(newIndex);
     }
   };
   
-  // O resto do componente (skeleton e JSX) permanece exatamente o mesmo.
   if (loading) {
       return (
-        <div className="px-1 mt-6 animate-pulse">
-            <div className={`h-[420px] rounded-[32px] w-full border p-6 flex flex-col justify-between ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}`}>
-                <div className="w-3/4 h-8 rounded-md bg-zinc-200 dark:bg-zinc-800" />
-                <div className="w-full h-48 rounded-xl bg-zinc-200 dark:bg-zinc-800" />
-                <div className="flex gap-4">
-                  <div className="w-14 h-14 rounded-full bg-zinc-200 dark:bg-zinc-800" />
-                  <div className="w-14 h-14 rounded-full bg-zinc-200 dark:bg-zinc-800" />
-                  <div className="w-14 h-14 rounded-full bg-zinc-200 dark:bg-zinc-800" />
-                </div>
-            </div>
+        <div className="px-1 mt-8 animate-pulse">
+            <div className={`h-[420px] rounded-[32px] w-full ${isDarkMode ? 'bg-zinc-900' : 'bg-zinc-200'}`}></div>
         </div>
       );
   }
@@ -2269,7 +2241,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
   if (!clusters || clusters.length === 0) return null;
 
   return (
-    <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
         <div className="relative w-full">
             <div className="relative z-10 flex items-center gap-3 mb-4 px-6">
                 <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
@@ -2284,14 +2256,22 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
                     </p>
                 </div>
             </div>
+
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
-              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-2" // Adicionado py-2 para a sombra não ser cortada
             >
                 {clusters.map((cluster, idx) => (
                     <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
-                        <div className="group relative h-[420px] w-full rounded-[32px] overflow-hidden cursor-default shadow-2xl">
+                        <div className={`
+                            group relative h-[420px] w-full rounded-[32px] overflow-hidden cursor-default 
+                            transition-all duration-300
+                            
+                            /* --- PADRÃO DE SOMBRA DO SMARTDIGEST APLICADO AQUI --- */
+                            shadow-2xl 
+                            ${!isDarkMode ? 'shadow-indigo-500/10' : 'shadow-black/50'}
+                        `}>
                             <img src={cluster.representative_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={cluster.ai_title} />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
                             <div className="absolute top-6 left-6 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
@@ -2308,11 +2288,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
                                            className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md p-1.5 border-2 border-white/20 shadow-xl transition-all duration-300 hover:scale-110 active:scale-95 hover:border-purple-400 hover:shadow-purple-500/50"
                                            title={`Ler no ${article.source}`}
                                        >
-                                           <img 
-                                               src={article.logo} 
-                                               className="w-full h-full object-contain rounded-full bg-white" 
-                                               onError={(e) => e.target.style.display='none'}
-                                           />
+                                           <img src={article.logo} className="w-full h-full object-contain rounded-full bg-white" onError={(e) => e.target.style.display='none'} />
                                        </button>
                                    ))}
                                </div>
@@ -2321,8 +2297,9 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
                     </div>
                 ))}
             </div>
+            
             {clusters.length > 1 && (
-              <div className="flex justify-center gap-2 mt-4">
+              <div className="flex justify-center gap-2 mt-2">
                   {clusters.map((_, idx) => (
                       <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${activeIndex === idx ? (isDarkMode ? 'bg-white w-6' : 'bg-zinc-800 w-6') : (isDarkMode ? 'bg-white/30 w-1.5' : 'bg-zinc-300 w-1.5')}`} />
                   ))}
@@ -2545,51 +2522,36 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
 
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
-  
-  // O refreshTrigger para os widgets de IA precisa ser gerenciado aqui
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  
-  // --- ESTADOS DO PULL-TO-REFRESH ---
   const [startY, setStartY] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // --- FUNÇÕES DE GESTO ---
   const handleTouchStart = (e) => {
-    if (window.scrollY <= 5 && !isRefreshing) {
-        setStartY(e.touches[0].clientY);
-    }
+    if (window.scrollY <= 5 && !isRefreshing) setStartY(e.touches[0].clientY);
   };
-
   const handleTouchMove = (e) => {
     if (startY === 0 || isRefreshing) return;
     const currentY = e.touches[0].clientY;
     const diff = currentY - startY;
-
     if (diff > 0 && window.scrollY <= 5) {
-        if (e.cancelable) e.preventDefault();
-        const newPull = Math.min(diff * 0.5, 220); 
-        setPullDistance(newPull);
+      if (e.cancelable) e.preventDefault();
+      const newPull = Math.min(diff * 0.5, 220);
+      setPullDistance(newPull);
     }
   };
-
   const handleTouchEnd = async () => {
     if (pullDistance > 90) {
-        setIsRefreshing(true);
-        setPullDistance(120); 
-        
-        setRefreshTrigger(prev => prev + 1);
-        
-        if (onRefresh) {
-            await onRefresh();
-        }
-        
-        setTimeout(() => {
-            setIsRefreshing(false);
-            setPullDistance(0);
-        }, 1000);
-    } else {
+      setIsRefreshing(true);
+      setPullDistance(120);
+      setRefreshTrigger(prev => prev + 1);
+      if (onRefresh) await onRefresh();
+      setTimeout(() => {
+        setIsRefreshing(false);
         setPullDistance(0);
+      }, 1000);
+    } else {
+      setPullDistance(0);
     }
     setStartY(0);
   };
@@ -2600,136 +2562,58 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     { id: 3, title: 'Bitcoin atinge nova máxima histórica com aprovação de ETF', source: 'Bloomberg', time: '2h', img: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=600&q=80' }
   ];
 
+  // Componente para a barra de efeito Gemini
+  const GeminiBar = () => (
+    <div className="h-0.5 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-orange-400 animate-[gradient-flow_4s_ease_infinite] bg-[length:400%_100%]" />
+  );
+
   return (
-    <div 
-        className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-    >
+    <div className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       
-      {/* INDICADOR DE LOADING */}
-      <div 
-        className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none"
-        style={{ 
-            top: '35%', 
-            opacity: Math.min(pullDistance / 80, 1),
-            transform: `scale(${Math.min(pullDistance / 100, 1.2)})`,
-            display: pullDistance > 0 || isRefreshing ? 'flex' : 'none'
-        }}
-      >
-         <div className={`
-            flex flex-col items-center gap-3 p-6 rounded-[2.5rem] 
-             shadow-2xl border
-            ${isDarkMode 
-                ? 'bg-black/5 border-white/10 shadow-purple-500/20' 
-                : 'bg-white/90 border-white shadow-xl text-zinc-900'}
-         `}>
-            {isRefreshing ? (
-                <Loader2 size={42} className="animate-spin text-purple-500" />
-            ) : (
-                <RefreshCw 
-                    size={42} 
-                    className="text-purple-500 transition-transform" 
-                    style={{ transform: `rotate(${pullDistance * 3}deg)` }}
-                />
-            )}
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">
-                {isRefreshing ? 'Atualizando Feed' : 'Solte para Atualizar'}
-            </span>
+      {/* --- CSS DA ANIMAÇÃO DA BARRA --- */}
+      <style jsx="true">{`
+        @keyframes gradient-flow {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
+      
+      {/* (O resto do componente HappeningTab permanece igual...) */}
+      <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '35%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 || isRefreshing ? 'flex' : 'none' }}>
+         <div className={`flex flex-col items-center gap-3 p-6 rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-black/5 border-white/10 shadow-purple-500/20' : 'bg-white/90 border-white shadow-xl text-zinc-900'}`}>
+            {isRefreshing ? <Loader2 size={42} className="animate-spin text-purple-500" /> : <RefreshCw size={42} className="text-purple-500 transition-transform" style={{ transform: `rotate(${pullDistance * 3}deg)` }}/>}
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{isRefreshing ? 'Atualizando Feed' : 'Solte para Atualizar'}</span>
          </div>
       </div>
-
-      {/* ÁREA DE STORIES */}
       <div className="flex items-center gap-4 px-2 pt-2 relative z-10">
         <div className="flex-1 min-w-0"> 
             <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
-                {storiesToDisplay && storiesToDisplay.length === 0 && (
-                    <div className="flex flex-col justify-center h-full pl-2 opacity-50">
-                        <span className="text-[10px] font-bold uppercase tracking-widest">Nada de novo por aqui</span>
-                        <span className="text-[9px]">Puxe para atualizar o feed</span>
-                    </div>
-                )}
-
-                {storiesToDisplay && storiesToDisplay.map((story) => (
-                <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
-                    <div className={`
-                        relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500
-                        bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-lg shadow-rose-500/20
-                    `}>
-                        <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
-                            <img src={story.avatar} className="w-full h-full object-cover" alt="" />
-                        </div>
-                    </div>
-                    <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                        {story.name}
-                    </span>
-                </div>
-                ))}
+                {storiesToDisplay && storiesToDisplay.length === 0 && <div className="flex flex-col justify-center h-full pl-2 opacity-50"><span className="text-[10px] font-bold uppercase tracking-widest">Nada de novo por aqui</span><span className="text-[9px]">Puxe para atualizar o feed</span></div>}
+                {storiesToDisplay && storiesToDisplay.map((story) => <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0"><div className="relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-lg shadow-rose-500/20"><div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}><img src={story.avatar} className="w-full h-full object-cover" alt="" /></div></div><span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span></div>)}
             </div>
         </div>
-
         <div className="flex-shrink-0 pl-2 border-l border-dashed border-zinc-300 dark:border-zinc-700">
-            <button onClick={() => setIsPodcastOpen(true)} className="group relative flex flex-col items-center justify-center gap-1.5 w-20 transition-all hover:scale-105 active:scale-95">
-                <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                    <Sparkles size={14} className="absolute top-1 right-1 text-white/60 animate-pulse" />
-                    <Headphones size={20} className="text-white" />
-                </div>
-                <div className="text-center leading-none">
-                    <span className={`block text-[10px] font-black uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</span>
-                    <span className="text-[8px] text-purple-500 font-bold">07:00</span>
-                </div>
-            </button>
+            <button onClick={() => setIsPodcastOpen(true)} className="group relative flex flex-col items-center justify-center gap-1.5 w-20 transition-all hover:scale-105 active:scale-95"><div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20"><Sparkles size={14} className="absolute top-1 right-1 text-white/60 animate-pulse" /><Headphones size={20} className="text-white" /></div><div className="text-center leading-none"><span className={`block text-[10px] font-black uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</span><span className="text-[8px] text-purple-500 font-bold">07:00</span></div></button>
         </div>
       </div>
-
-      {/* WIDGETS CORRIGIDOS */}
-      <TrendRadar 
-          newsData={newsData} 
-          apiKey={apiKey} 
-          isDarkMode={isDarkMode} 
-          refreshTrigger={refreshTrigger} 
-      />
-
-      <SmartDigestWidget 
-          newsData={newsData} 
-          apiKey={apiKey} 
-          isDarkMode={isDarkMode} 
-          refreshTrigger={refreshTrigger} 
-      />
-
-      <WhileYouWereAwayWidget 
-          news={newsData} 
-          openArticle={openArticle}
-          isDarkMode={isDarkMode}
-          apiKey={apiKey}
-          refreshTrigger={refreshTrigger}
-      />
-
-      {/* SEÇÃO EM ALTA */}
+      
+      <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
+      
+      {/* --- BARRAS DE EFEITO GEMINI ENVOLVENDO O CONTEXTO GLOBAL --- */}
+      <div className="space-y-4">
+        <GeminiBar />
+        <WhileYouWereAwayWidget news={newsData} openArticle={openArticle} isDarkMode={isDarkMode} apiKey={apiKey} refreshTrigger={refreshTrigger} />
+        <GeminiBar />
+      </div>
+      {/* --- FIM DA SEÇÃO DAS BARRAS --- */}
+      
       <div className="px-2 pt-4">
-        <div className="flex items-center gap-2 mb-4 px-1">
-            <TrendingUp size={20} className="text-blue-500" />
-            <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Em Alta Agora</h3>
-        </div>
+        <div className="flex items-center gap-2 mb-4 px-1"><TrendingUp size={20} className="text-blue-500" /><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Em Alta Agora</h3></div>
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
-          {trending.map(item => (
-            <div key={item.id} onClick={() => openArticle({...item, origin: 'rss'})} className={`min-w-[280px] md:min-w-[320px] rounded-2xl p-4 cursor-pointer snap-center border transition-all hover:scale-[1.02] ${isDarkMode ? 'bg-zinc-900/50 border-white/5 hover:bg-zinc-800' : 'bg-white border-zinc-200 hover:shadow-lg'}`}>
-              <div className="flex gap-4 items-center">
-                <div className="w-20 h-20 rounded-xl overflow-hidden bg-zinc-200 flex-shrink-0 relative">
-                    <img src={item.img} className="w-full h-full object-cover" alt="" />
-                    <div className="absolute top-0 left-0 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-br-lg text-white text-[10px] font-bold">#{item.id}</div>
-                </div>
-                <div>
-                    <span className="text-[10px] font-bold text-blue-500 uppercase">{item.source} • {item.time}</span>
-                    <h4 className={`font-bold leading-snug mt-1 line-clamp-2 ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{item.title}</h4>
-                </div>
-              </div>
-            </div>
-          ))}
+          {trending.map(item => <div key={item.id} onClick={() => openArticle({...item, origin: 'rss'})} className={`min-w-[280px] md:min-w-[320px] rounded-2xl p-4 cursor-pointer snap-center border transition-all hover:scale-[1.02] ${isDarkMode ? 'bg-zinc-900/50 border-white/5 hover:bg-zinc-800' : 'bg-white border-zinc-200 hover:shadow-lg'}`}><div className="flex gap-4 items-center"><div className="w-20 h-20 rounded-xl overflow-hidden bg-zinc-200 flex-shrink-0 relative"><img src={item.img} className="w-full h-full object-cover" alt="" /><div className="absolute top-0 left-0 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-br-lg text-white text-[10px] font-bold">#{item.id}</div></div><div><span className="text-[10px] font-bold text-blue-500 uppercase">{item.source} • {item.time}</span><h4 className={`font-bold leading-snug mt-1 line-clamp-2 ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{item.title}</h4></div></div></div>)}
         </div>
       </div>
-
       {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
   );
