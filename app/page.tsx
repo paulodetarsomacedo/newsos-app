@@ -3360,6 +3360,71 @@ const MagicBubble = ({ style, isDarkMode }) => (
 );
 
 
+
+// --- NOVO COMPONENTE: PÁGINA SIMPLES DE VÍDEO (ESTILO NATIVO/PRINT) ---
+const SimpleYouTubePage = ({ video, onClose }) => {
+  if (!video) return null;
+
+  // Extrair ID com segurança
+  const videoId = video.videoId || getVideoId(video.link);
+
+  return (
+    <div className="fixed inset-0 z-[99999] bg-black flex flex-col h-full w-full">
+      
+      {/* 1. Header Simples (Link no topo, igual pedido) */}
+      <div className="flex items-center justify-between px-4 py-3 bg-zinc-900 border-b border-zinc-800 shrink-0">
+        <div className="flex flex-col overflow-hidden">
+            <span className="text-white text-xs font-bold truncate max-w-[200px]">
+                youtube.com
+            </span>
+            <span className="text-zinc-500 text-[10px] truncate">
+                {video.title}
+            </span>
+        </div>
+        <button 
+            onClick={onClose} 
+            className="text-white font-bold text-sm bg-zinc-800 px-4 py-2 rounded-full active:scale-95 transition-transform"
+        >
+            Fechar
+        </button>
+      </div>
+
+      {/* 2. Área do Iframe (Ocupa o resto da tela) */}
+      <div className="flex-1 w-full bg-black flex items-center justify-center relative overflow-hidden">
+         {/* 
+            PLAYSLINE=1 é OBRIGATÓRIO no iOS para não dar tela cheia nativa e travar a UI.
+            Modestbranding limpa a interface.
+            Sem autoplay, deixa o usuário clicar (igual ao print).
+         */}
+         <iframe 
+            src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1&autoplay=0`}
+            className="w-full h-full absolute inset-0"
+            style={{ width: '100%', height: '100%' }}
+            frameBorder="0"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title={video.title}
+         />
+      </div>
+
+      {/* 3. Rodapé informativo (Opcional, imitando a info do print) */}
+      <div className="p-4 bg-zinc-900 shrink-0 pb-10 safe-area-bottom">
+          <h1 className="text-white text-lg font-bold leading-tight mb-2 line-clamp-2">
+              {video.title}
+          </h1>
+          <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-zinc-700 overflow-hidden">
+                  <img src={video.logo} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'}/>
+              </div>
+              <span className="text-zinc-400 text-sm font-bold">{video.source}</span>
+          </div>
+      </div>
+    </div>
+  );
+};
+
+
+
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
 export default function NewsOS_V12() {
   const [showSplash, setShowSplash] = useState(true);
@@ -3367,6 +3432,7 @@ export default function NewsOS_V12() {
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [selectedOutlet, setSelectedOutlet] = useState(null); 
   const [selectedStory, setSelectedStory] = useState(null);
+  const [selectedVideo, setSelectedVideo] = useState(null);
   
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
@@ -3732,21 +3798,25 @@ const handleStoryNavigation = (direction) => {
   };
 
   const handleOpenArticle = (article) => {
-    setSelectedArticle(article);
-    if (!readHistory.includes(article.id)) setReadHistory((prev) => [...prev, article.id]);
-  };
+    // Verifica se é vídeo do YouTube (videoId ou link)
+    const isVideo = article.videoId || (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be')));
+    
+    // Se for podcast marcado como vídeo, também conta
+    const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
 
-  const closeArticle = () => setSelectedArticle(null);
-  const closeOutlet = () => setSelectedOutlet(null);
-  const closeStory = () => setSelectedStory(null);
-  const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
-  
-  const navTimerRef = useRef(null);
-  const handleTabClick = (tab) => {
-    setActiveTab(tab);
-    if (navTimerRef.current) clearTimeout(navTimerRef.current);
-    navTimerRef.current = setTimeout(() => setIsNavVisible(false), 4000);
-  };
+    if (isVideo || isPodcastVideo) {
+        // ABRE O NOVO PLAYER SIMPLES
+        setSelectedVideo(article);
+        setSelectedArticle(null); // Garante que o painel de texto fecha
+    } else {
+        // ABRE O ARTICLE PANEL NORMAL
+        setSelectedArticle(article);
+        setSelectedVideo(null);
+    }
+
+    // Lógica de histórico (mantida)
+    if (!readHistory.includes(article.id)) setReadHistory((prev) => [...prev, article.id]);
+};
   
   useEffect(() => {
     const resetInactivityTimer = () => {
@@ -4016,6 +4086,18 @@ const allAvailableStories = useMemo(() => {
           />
       )}
       
+
+       {/* RENDERIZAÇÃO DO PLAYER SIMPLES (VIDEO) */}
+      {selectedVideo && (
+          <SimpleYouTubePage 
+              video={selectedVideo} 
+              onClose={() => setSelectedVideo(null)} 
+          />
+      )}
+
+
+
+
       <ArticlePanel 
           key={selectedArticle?.id || 'empty-panel'} 
           article={selectedArticle} 
@@ -5156,6 +5238,8 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                     </div>
                 </div>
             )}
+
+
             
             {/* ABA API */}
             {activeTab === 'api' && (
