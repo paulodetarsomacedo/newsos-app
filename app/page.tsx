@@ -2245,13 +2245,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
         <div className="relative w-full">
             <div className="relative z-10 flex items-center gap-3 mb-4 px-6">
                 <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                    <Sparkles size={18} />
-                </div>
-                <div>
                     
-                        <p className={`text-[14px] font-medium ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                        Os maiores eventos, em múltiplos ângulos
-                    </p>
                 </div>
             </div>
 
