@@ -4525,7 +4525,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL - REFATORADO PARA IOS PWA (CLICK-TO-LOAD)
+// COMPONENTE ARTICLE PANEL - REFATORADO (MODO EMBED PURO / SEM AUTOPLAY)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
@@ -4535,10 +4535,8 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // --- ESTADO CRÍTICO PARA O VÍDEO ---
-  // false = Mostra capa estática (leve).
-  // true = Monta o iframe (pesado) e dá play.
-  const [videoActive, setVideoActive] = useState(false);
+  // Controle de Áudio (Mantido apenas para MP3/Podcast nativo, não afeta YouTube)
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
@@ -4555,9 +4553,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
-          // IMPORTANTE: Reseta o vídeo para "desativado" sempre que abrir um novo artigo.
-          // Isso obriga o usuário a clicar novamente, garantindo o "User Interaction" que o iOS exige.
-          setVideoActive(false);
       } else {
           setViewMode('web');
           setIframeUrl(null);
@@ -4569,7 +4564,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
 
   const scrollContainerRef = useRef(null); 
 
-  // ... (Lógica de domínios problemáticos e sanitizeHtml mantida igual) ...
+  // ... (Lógica de domínios problemáticos e sanitizeHtml mantida para segurança) ...
   const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
   const isProblematicSite = useMemo(() => {
       if (!article?.link) return false;
@@ -4577,7 +4572,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   }, [article?.link]);
 
   const sanitizeHtml = (html) => {
-      // ... (código existente de sanitize mantido para brevidade) ...
       if (!html) return "";
       let clean = html;
       const headInjection = `<base href="${article.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
@@ -4596,7 +4590,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setReaderContent(null);
         setViewMode('web');
         setIsTranslated(false); 
-        setVideoActive(false); // Garante limpeza
       }, 400); 
   }, [onClose, iframeUrl]);
 
@@ -4605,7 +4598,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   }, [article]);
 
   const handleToggleTranslation = async () => {
-      // ... (código de tradução mantido igual) ...
       if (translatedData) { setIsTranslated(!isTranslated); return; }
       const contentToTranslate = readerContent || article;
       if (!contentToTranslate) return;
@@ -4632,7 +4624,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   };
 
   useEffect(() => {
-    // ... (Logica de fetch do proxy view mantida igual) ...
     if (!isOpen || !article?.link || videoId) return;
     setIsLoading(true);
     const fetchContent = async () => {
@@ -4689,7 +4680,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 {videoId && (
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-widest opacity-60 mr-2">{article.source}</span>
-                        <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                        <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
                     </div>
                 )}
                  <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
@@ -4697,40 +4688,27 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
 
             <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain transform-gpu ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
                 
-                {/* --- SEÇÃO DE VÍDEO REFATORADA --- */}
+                {/* --- SEÇÃO DE VÍDEO (REFATORADA PARA EMBED PURO) --- */}
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
                         
+                        {/* 
+                           AQUI ESTÁ A CORREÇÃO:
+                           1. Aspect Ratio de vídeo.
+                           2. Nenhuma capa. Nenhuma div por cima.
+                           3. Iframe direto.
+                           4. Autoplay DESLIGADO (autoplay=0). O usuário TEM que clicar.
+                           5. Playsinline LIGADO (pra não quebrar o layout no iOS).
+                        */}
                         <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative">
-                            {videoActive ? (
-                                /* ESTADO ATIVO: O IFRAME É MONTADO AGORA, APÓS O CLIQUE */
-                                <iframe 
-                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&modestbranding=1&rel=0&controls=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                                    className="w-full h-full absolute inset-0 z-50"
-                                    frameBorder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                    title="YouTube Video"
-                                    key={videoId} // Força recriação se mudar o vídeo
-                                />
-                            ) : (
-                                /* ESTADO INATIVO: APENAS IMAGEM E BOTÃO. SEM IFRAMES ESCONDIDOS. */
-                                <div 
-                                    className="absolute inset-0 w-full h-full z-50 cursor-pointer group"
-                                    onClick={() => setVideoActive(true)}
-                                >
-                                    <img 
-                                        src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
-                                        className="w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity"
-                                        alt="Video Thumbnail"
-                                    />
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110">
-                                            <Play size={40} fill="white" className="text-white ml-1" />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                            <iframe 
+                                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&modestbranding=1&rel=0&controls=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                                className="w-full h-full absolute inset-0 z-10"
+                                frameBorder="0"
+                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                title="YouTube Video"
+                            />
                         </div>
 
                         {/* Detalhes do Artigo */}
