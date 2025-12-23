@@ -4525,11 +4525,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL (V30 - CORREÇÃO DE ÁUDIO VIA CLICK-THROUGH)
-// ==============================================================================
-
-// ==============================================================================
-// COMPONENTE ARTICLE PANEL (CORRIGIDO E FINAL)
+// COMPONENTE ARTICLE PANEL (CORREÇÃO DEFINITIVA PARA IPAD PWA)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
@@ -4539,7 +4535,8 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // Controle visual para saber se o player já "começou" (para mudar a UI da capa)
+  // Controle para saber se o usuário DEU O PLAY. 
+  // No iPad PWA, o iframe só deve nascer quando isso for true.
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   // --- LÓGICA DE TRADUÇÃO ---
@@ -4556,6 +4553,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
+          // IMPORTANTE: Reseta o play ao trocar de artigo para forçar novo clique
           setIsPlayingAudio(false);
       } else {
           setViewMode('web');
@@ -4566,7 +4564,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       }
   }, [article?.id, videoId]);
 
-  // Se sair do app, reseta o estado visual (o player morre e renasce pelo visibilitychange)
+  // Se o app for minimizado, reseta o player para evitar bugs de áudio em background
   useEffect(() => {
       const handleVisibilityChange = () => {
           if (document.visibilityState === 'hidden') {
@@ -4686,6 +4684,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     <div className={`fixed inset-0 z-[5000] flex flex-col transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) will-change-transform transform-gpu backface-hidden ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
+            {/* --- TOP BAR --- */}
             <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b backdrop-blur-xl z-50 
                 ${videoId 
                     ? 'bg-black/90 border-white/10 text-white' 
@@ -4725,16 +4724,19 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
+                        
+                        {/* --- ÁREA DO VÍDEO (FIX PARA IPAD) --- */}
                         <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative group cursor-pointer">
                             
-                            {/* IFRAME: Renderiza apenas se áudio (hidden) OU se clicou no Play */}
+                            {/* 1. O IFRAME SÓ NASCE SE FOR MODO AUDIO (escondido) OU SE TIVER DADO PLAY */}
+                            {/* Isso impede o iPad de tentar renderizar o vídeo no background e travar a GPU */}
                             {(article.forceAudioMode || isPlayingAudio) && (
                                 <iframe 
                                     src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                                    className={`w-full h-full absolute inset-0 
+                                    className={`w-full h-full absolute inset-0 transition-opacity duration-500 
                                         ${article.forceAudioMode 
-                                            ? 'opacity-[0.01] z-20' 
-                                            : 'z-20' 
+                                            ? 'opacity-0 pointer-events-none' // Escondido, mas existe no DOM para áudio
+                                            : 'opacity-100 z-50' // Visível e no topo
                                         }
                                     `}
                                     frameBorder="0"
@@ -4744,16 +4746,19 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                                 />
                             )}
                             
-                            {/* CAPA (Thumbnail): Renderiza se NÃO estiver tocando ou se for modo áudio */}
+                            {/* 2. CAPA (Thumbnail) - SÓ APARECE SE NÃO ESTIVER TOCANDO */}
                             {(!isPlayingAudio || article.forceAudioMode) && (
                                 <div 
-                                    className={`absolute inset-0 w-full h-full 
-                                        ${article.forceAudioMode ? 'z-10' : 'z-10'}
-                                    `}
+                                    className="absolute inset-0 w-full h-full z-40 bg-black"
+                                    onClick={() => {
+                                        if (!article.forceAudioMode) {
+                                            setIsPlayingAudio(true);
+                                        }
+                                    }}
                                 >
                                     <img 
                                         src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
-                                        className={`w-full h-full object-cover transition-opacity ${isPlayingAudio ? 'opacity-40' : 'opacity-80'}`}
+                                        className="w-full h-full object-cover opacity-80"
                                         alt="Video Thumbnail"
                                     />
                                     
@@ -4761,21 +4766,17 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
                                         {article.forceAudioMode ? (
                                             <>
-                                                <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
+                                                <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl animate-pulse">
                                                     <Headphones size={32} fill="white" className="text-white"/>
                                                 </div>
                                                 <div className="bg-black/80 px-3 py-1 rounded-full text-xs font-bold text-white mt-2">
-                                                    Toque no centro para Ouvir
+                                                    Áudio Iniciando...
                                                 </div>
+                                                {/* No modo áudio, o iframe carrega escondido e toca sozinho pelo autoplay */}
                                             </>
                                         ) : (
-                                            <div 
-                                                className="w-full h-full flex items-center justify-center pointer-events-auto" 
-                                                onClick={() => setIsPlayingAudio(true)}
-                                            >
-                                                <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
-                                                    <Play size={32} fill="white" className="text-white ml-1" />
-                                                </div>
+                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110">
+                                                <Play size={32} fill="white" className="text-white ml-1" />
                                             </div>
                                         )}
                                     </div>
@@ -4783,6 +4784,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                             )}
 
                         </div>
+                        {/* --- FIM DA ÁREA DO VÍDEO --- */}
 
                         <div className="p-6 max-w-3xl mx-auto pb-20">
                             <div className="flex items-center gap-3 mb-4">
