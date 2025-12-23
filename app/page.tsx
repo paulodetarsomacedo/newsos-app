@@ -2208,7 +2208,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
         if (isUserRefresh) setClusters(null); 
         await new Promise(r => setTimeout(r, 1000));
         
-        // A função de IA agora retorna os dados no novo formato visual
         const result = await generateSmartClustering(news, apiKey);
         
         setClusters(result);
@@ -2229,14 +2228,14 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
     }
   };
 
-  // Função para dar fundos levemente diferentes para cada card
+  // Função para dar fundos de cores fortes e escuras
   const getCardBgStyle = (index, isDark) => {
     const gradients = [
-      'from-indigo-900/50 to-zinc-900',
-      'from-purple-900/50 to-zinc-900',
-      'from-teal-900/50 to-zinc-900',
+      'from-indigo-900 via-zinc-950 to-zinc-950',
+      'from-purple-900 via-zinc-950 to-zinc-950',
+      'from-teal-900 via-zinc-950 to-zinc-950',
     ];
-    const lightGradients = [
+    const lightGradients = [ // Mantemos uma versão light sutil
       'from-indigo-100 to-white',
       'from-purple-100 to-white',
       'from-teal-100 to-white',
@@ -2245,15 +2244,15 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
   };
 
   if (loading) {
-      return (
+      return ( // Skeleton de loading mantido para boa experiência
         <div className="px-1 mt-6 animate-pulse">
-            <div className={`h-[380px] rounded-[32px] w-full border p-6 flex flex-col justify-between ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}`}>
-                <div className="w-3/4 h-6 rounded-md bg-zinc-200 dark:bg-zinc-800" />
+            <div className={`h-[420px] rounded-[32px] w-full border p-6 flex flex-col justify-between ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}`}>
+                <div className="w-3/4 h-8 rounded-md bg-zinc-200 dark:bg-zinc-800" />
                 <div className="w-full h-48 rounded-xl bg-zinc-200 dark:bg-zinc-800" />
                 <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800" />
-                  <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800" />
-                  <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+                  <div className="w-14 h-14 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+                  <div className="w-14 h-14 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+                  <div className="w-14 h-14 rounded-full bg-zinc-200 dark:bg-zinc-800" />
                 </div>
             </div>
         </div>
@@ -2265,7 +2264,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
   return (
     <div className="px-1 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-1000">
         <div className="relative w-full">
-            {/* Header */}
             <div className="relative z-10 flex items-center gap-3 mb-4 px-5">
                 <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
                     <Sparkles size={18} />
@@ -2280,7 +2278,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
                 </div>
             </div>
 
-            {/* Carrossel de Notícias */}
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
@@ -2288,32 +2285,52 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
             >
                 {clusters.map((cluster, idx) => (
                     <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
-                        <div className={`relative w-full rounded-[2rem] overflow-hidden shadow-2xl transition-all border ${isDarkMode ? 'border-white/10' : 'border-zinc-200/50'}`}>
-                            <div className={`absolute inset-0 bg-gradient-to-br ${getCardBgStyle(idx, isDarkMode)}`} />
-                            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light pointer-events-none"></div>
+                        {/* --- CARD PRINCIPAL COM EFEITO 3D E AURAS --- */}
+                        <div className={`
+                            relative w-full rounded-[2rem] overflow-hidden shadow-2xl transition-all
+                            bg-gradient-to-br ${getCardBgStyle(idx, isDarkMode)}
+                            
+                            /* --- Efeito de Relevo 3D com Bordas --- */
+                            ${isDarkMode 
+                                ? 'border-t border-l border-white/10 border-b border-r border-black/40' 
+                                : 'border border-zinc-200/50'}
+                        `}>
+                            {/* --- Efeitos de Aura Futurista --- */}
+                            <div className="absolute -top-16 -right-16 w-48 h-48 bg-purple-600/30 rounded-full blur-3xl animate-pulse" />
+                            <div className="absolute -bottom-16 -left-16 w-40 h-40 bg-indigo-600/30 rounded-full blur-3xl animate-pulse delay-500" />
+                            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-soft-light pointer-events-none"></div>
 
                             <div className="relative z-10 flex flex-col">
-                                {/* Imagem Representativa */}
                                 <div className="w-full aspect-[16/9] bg-black/20 overflow-hidden">
                                     <img src={cluster.representative_image} className="w-full h-full object-cover" alt={cluster.ai_title} />
                                 </div>
                                 
                                 <div className="p-6">
-                                    {/* Título Gerado pela IA */}
-                                    <h3 className={`text-lg font-black leading-tight mb-5 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{cluster.ai_title}</h3>
+                                    {/* --- TÍTULO COM FONTE E TAMANHO MELHORADOS --- */}
+                                    <h3 className={`
+                                        text-xl font-black leading-tight mb-6 min-h-[56px]
+                                        ${isDarkMode ? 'text-white drop-shadow-sm' : 'text-zinc-900'}
+                                    `}>
+                                        {cluster.ai_title}
+                                    </h3>
                                     
-                                    {/* Logos Clicáveis */}
-                                    <div className="flex flex-wrap gap-3 items-center">
+                                    {/* --- BOTÕES DE LOGO MAIORES E ESTILIZADOS --- */}
+                                    <div className="flex flex-wrap gap-4 items-center">
                                         {cluster.related_articles.map(article => (
                                             <button
                                                 key={article.id}
                                                 onClick={() => openArticle(article)}
-                                                className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md p-1 border border-white/10 shadow-md transition-transform hover:scale-110 active:scale-95"
+                                                className="
+                                                    w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm p-1.5 
+                                                    border border-white/10 shadow-lg 
+                                                    transition-transform hover:scale-110 active:scale-95
+                                                    hover:shadow-indigo-500/50
+                                                "
                                                 title={`Ler no ${article.source}`}
                                             >
                                                 <img 
                                                     src={article.logo} 
-                                                    className="w-full h-full object-contain rounded-full bg-white" 
+                                                    className="w-full h-full object-contain rounded-full bg-white p-0.5" 
                                                     onError={(e) => e.target.style.display='none'}
                                                 />
                                             </button>
@@ -2326,14 +2343,10 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
                 ))}
             </div>
             
-            {/* Indicadores do Carrossel */}
             {clusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-4">
                   {clusters.map((_, idx) => (
-                      <div 
-                          key={idx}
-                          className={`h-1.5 rounded-full transition-all duration-300 ${activeIndex === idx ? 'bg-white w-5' : 'bg-white/30 w-1.5'}`} 
-                      />
+                      <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${activeIndex === idx ? (isDarkMode ? 'bg-white w-6' : 'bg-zinc-800 w-6') : (isDarkMode ? 'bg-white/30 w-1.5' : 'bg-zinc-300 w-1.5')}`} />
                   ))}
               </div>
             )}
