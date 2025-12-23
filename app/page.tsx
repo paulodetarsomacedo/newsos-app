@@ -872,7 +872,7 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
   }, [videos]);
 
   return (
-    <div className="absolute left-150 top-2 z-[1001]">
+    <div className="absolute left-15 top-2 z-[1001]">
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-2 h-[42px] px-6 rounded-r-2xl border-y border-l border-r-0 backdrop-blur-xl shadow-sm transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
@@ -4525,7 +4525,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL (V27 - RESET FORÇADO NO BACKGROUND)
+// COMPONENTE ARTICLE PANEL (V23 - ANTI-FREEZE DO PLAYER)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
@@ -4535,24 +4535,25 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // ESTADO DO PLAYER (FACADE)
-  const [userHasClickedPlay, setUserHasClickedPlay] = useState(false);
+  // --- NOVO: KEY PARA FORÇAR RECARGA DO VÍDEO ---
+  const [playerKey, setPlayerKey] = useState(0);
 
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedData, setTranslatedData] = useState(null);
 
+  // --- DETECÇÃO DE VIDEO ---
   const videoId = useMemo(() => {
       if (!article) return null;
       return article.videoId || getVideoId(article.link);
   }, [article]);
 
+  // Se tem vídeo, o modo padrão vira 'video'
   useEffect(() => {
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
-          setUserHasClickedPlay(false); // Reseta ao abrir novo artigo
       } else {
           setViewMode('web');
           setIframeUrl(null);
@@ -4562,14 +4563,14 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       }
   }, [article?.id, videoId]);
 
-  // --- AQUI ESTÁ A CORREÇÃO DO LOOP INFINITO ---
+  // --- LÓGICA ANTI-CONGELAMENTO (IOS PWA) ---
   useEffect(() => {
       const handleVisibilityChange = () => {
-          // Se o usuário minimizou o app (hidden), nós MATAMOS o player.
-          // Voltamos o estado para 'false'. 
-          // Assim, o iframe é removido da memória do iOS.
-          if (document.visibilityState === 'hidden') {
-              setUserHasClickedPlay(false);
+          // Se o usuário VOLTOU para o app (ficou visível)
+          if (document.visibilityState === 'visible') {
+              // Incrementamos a chave. Isso obriga o React a destruir o iframe velho
+              // e criar um novo, reconectando o player que estava congelado.
+              setPlayerKey(prev => prev + 1);
           }
       };
 
@@ -4619,7 +4620,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setReaderContent(null);
         setViewMode('web');
         setIsTranslated(false); 
-        setUserHasClickedPlay(false); // Garante reset ao fechar
       }, 400); 
   }, [onClose, iframeUrl]);
 
@@ -4725,37 +4725,20 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
 
             <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain transform-gpu ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
                 
+                {/* --- MODO VÍDEO (Com chave de atualização para evitar freeze) --- */}
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
-                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative group cursor-pointer">
-                            
-                            {/* LOGICA FACADE: SE CLICOU E ESTÁ ATIVO, MOSTRA IFRAME. SE NÃO, MOSTRA CAPA. */}
-                            {userHasClickedPlay ? (
-                                <iframe 
-                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&modestbranding=1&rel=0&controls=1`}
-                                    className="w-full h-full animate-in fade-in duration-300"
-                                    frameBorder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                    title="YouTube Video"
-                                />
-                            ) : (
-                                <div onClick={() => setUserHasClickedPlay(true)} className="absolute inset-0 w-full h-full relative">
-                                    <img 
-                                        src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
-                                        className="w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity"
-                                        alt="Video Thumbnail"
-                                    />
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110 group-active:scale-95">
-                                            <Play size={32} fill="white" className="text-white ml-1" />
-                                        </div>
-                                    </div>
-                                    <div className="absolute bottom-4 right-4 bg-black/80 px-2 py-1 rounded text-xs font-bold text-white">
-                                        Toque para assistir
-                                    </div>
-                                </div>
-                            )}
+                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl">
+                            {/* A key={playerKey} aqui força o iframe a recarregar ao voltar para a tela */}
+                            <iframe 
+                                key={playerKey} 
+                                src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
+                                className="w-full h-full"
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                title="YouTube Video"
+                            />
                         </div>
 
                         <div className="p-6 max-w-3xl mx-auto pb-20">
