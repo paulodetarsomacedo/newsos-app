@@ -1762,38 +1762,44 @@ const generateBriefingFallback = async (news, apiKey) => {
 
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V1 - CONTEXTO REAL) ---
 const generateSmartClustering = async (news, apiKey) => {
-  if (!news || news.length === 0 || !apiKey) return null;
+  if (!news || news.length < 4 || !apiKey) return null;
 
-  // Prepara os dados para a IA (ID, Fonte e Título)
-  // Limitamos a 50 para não estourar o contexto rápido
-  const context = news.slice(0, 50).map(n => `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title}`).join('\n');
+  // Prepara os dados para a IA, incluindo o ID, Fonte, Título e a IMAGEM
+  const context = news.slice(0, 50).map(n => 
+    `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img}`
+  ).join('\n');
 
   const prompt = `
-  Atue como um Curador de Notícias Sênior.
-  Analise a lista de manchetes abaixo.
-  
-  TAREFA:
-  Encontre exatamente 2 (DOIS) eventos específicos que estão sendo noticiados por 2 ou mais fontes diferentes.
-  Não agrupe por temas genéricos (como "Política" ou "Futebol"). Agrupe por FATOS (ex: "O acidente na Av. Paulista", "A votação da PEC dos Precatórios").
+  Você é um Editor-Chefe e Diretor de Arte de uma publicação de tecnologia de ponta.
 
-  Para cada grupo, gere um JSON com:
-  1. "narrative": Um texto de 2 linhas, natural e jornalístico. Deve começar citando as fontes (ex: "G1, Folha e UOL repercutem...") e depois explicar o fato (ex: "O acidente envolveu...").
-  2. "related_ids": Uma lista com os IDs exatos das notícias que falam sobre isso (para eu criar os links).
+  TAREFA PRINCIPAL:
+  Analise a lista de notícias abaixo e identifique até 3 (três) eventos principais que estão sendo cobertos por 4 (quatro) ou mais fontes diferentes. Para cada evento, aja como um curador de conteúdo de elite.
 
-  INPUT:
+  PARA CADA EVENTO IDENTIFICADO, SIGA ESTAS REGRAS:
+  1.  **CRIE UMA MANCHETE:** Escreva um título jornalístico, curto e impactante (máximo de 8 palavras) que resuma a essência do evento. Não mencione os nomes das fontes no título.
+  2.  **SELECIONE A IMAGEM-CHAVE:** Das imagens disponíveis para o evento (`IMG`), escolha a URL daquela que for mais representativa, poderosa e de melhor qualidade visual. Forneça apenas uma URL de imagem por evento.
+  3.  **LISTE AS FONTES:** Agrupe todas as notícias (com seus IDs e logos) que cobrem este mesmo evento.
+
+  INPUT (LISTA DE NOTÍCIAS):
   ${context}
 
-  FORMATO JSON OBRIGATÓRIO (Array):
+  FORMATO JSON DE SAÍDA OBRIGATÓRIO (Array de até 3 objetos):
   [
     {
-      "narrative": "G1 e Metrópoles destacam a nova alta da Selic. O Banco Central decidiu elevar a taxa para...",
-      "related_ids": ["id_da_noticia_1", "id_da_noticia_2"]
+      "ai_title": "Senado Aprova Marco Regulatório para Inteligência Artificial em Votação Histórica",
+      "representative_image": "https://images.unsplash.com/photo-1555848960-8c3fd4479802?w=800&q=80",
+      "related_articles": [
+        { "id": "id_da_noticia_1", "source": "Politico", "logo": "https://...logo_politico.png" },
+        { "id": "id_da_noticia_2", "source": "G1", "logo": "https://...logo_g1.png" },
+        { "id": "id_da_noticia_3", "source": "Folha", "logo": "https://...logo_folha.png" },
+        { "id": "id_da_noticia_4", "source": "CNN", "logo": "https://...logo_cnn.png" }
+      ]
     }
   ]
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1806,11 +1812,22 @@ const generateSmartClustering = async (news, apiKey) => {
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
 
+    // Limpa e faz o parse do JSON retornado pela IA
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-    return Array.isArray(json) ? json : null;
+    // Adiciona os dados completos do artigo aos 'related_articles' para o onClick funcionar
+    const hydratedJson = json.map(cluster => {
+        return {
+            ...cluster,
+            related_articles: cluster.related_articles.map(ref => {
+                return news.find(n => n.id === ref.id) || ref;
+            }).filter(item => item && item.id) // Garante que apenas artigos encontrados sejam mantidos
+        };
+    });
+
+    return Array.isArray(hydratedJson) ? hydratedJson : null;
 
   } catch (error) {
-    console.error("Erro no Smart Clustering:", error);
+    console.error("Erro no novo Smart Clustering:", error);
     return null;
   }
 };
@@ -2165,169 +2182,154 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
   const [clusters, setClusters] = useState(null);
   const [loading, setLoading] = useState(false);
   
-  // TRAVAS LÓGICAS
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef(null);
+  
   const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
   const prevRefreshTrigger = useRef(refreshTrigger);
 
-  const shuffleArray = (array) => {
-      const newArr = [...array];
-      for (let i = newArr.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
-      }
-      return newArr;
-  };
-
   useEffect(() => {
-    // 1. Validações Básicas
-    if (!news || news.length === 0 || !apiKey) return;
-
-    // 2. Verifica se é um comando de Refresh do Usuário
+    if (!news || news.length < 4 || !apiKey) return;
     const isUserRefresh = refreshTrigger !== prevRefreshTrigger.current;
+    if (hasLoadedInitial && !isUserRefresh) return;
 
-    // 3. A REGRA DE OURO:
-    // Se JÁ carregou a primeira vez (hasLoadedInitial) E NÃO foi um refresh do usuário...
-    // ENTÃO PARE AGORA. (Ignora atualizações passivas do banco de dados)
-    if (hasLoadedInitial && !isUserRefresh) {
-        return;
-    }
-
-    // Se passou daqui, atualizamos as referências para o próximo ciclo
     prevRefreshTrigger.current = refreshTrigger;
     if (!hasLoadedInitial) setHasLoadedInitial(true);
 
     const runAI = async () => {
         setLoading(true);
-        // Limpa clusters apenas se for refresh manual para dar feedback visual
         if (isUserRefresh) setClusters(null); 
+        await new Promise(r => setTimeout(r, 1000));
         
-        // Pequeno delay para UI
-        await new Promise(r => setTimeout(r, isUserRefresh ? 1000 : 100)); 
+        // A função de IA agora retorna os dados no novo formato visual
+        const result = await generateSmartClustering(news, apiKey);
         
-        // Lógica de Embaralhamento (Shuffle)
-        const topNews = news.slice(0, 5);
-        const otherNews = news.slice(5, 55);
-        const shuffledOthers = shuffleArray(otherNews);
-        const mixedNews = [...topNews, ...shuffledOthers];
-
-        const result = await generateSmartClustering(mixedNews, apiKey);
-        
-        if (result) {
-            setClusters(result);
-        } else {
-            // Fallback sem shuffle se a IA falhar
-            const retry = await generateSmartClustering(news.slice(0, 40), apiKey);
-            setClusters(retry);
-        }
+        setClusters(result);
         setLoading(false);
     };
 
     runAI();
-    
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [news, apiKey, refreshTrigger]); // Mantemos as dependências, mas a lógica interna bloqueia execuções indesejadas
+  }, [news, apiKey, refreshTrigger]);
 
-  if (!apiKey) return null; 
-  
-  // Skeleton
-  if (loading || !clusters) {
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const scrollLeft = scrollRef.current.scrollLeft;
+      const cardWidth = scrollRef.current.offsetWidth;
+      const newIndex = Math.round(scrollLeft / cardWidth);
+      if (newIndex !== activeIndex) {
+        setActiveIndex(newIndex);
+      }
+    }
+  };
+
+  // Função para dar fundos levemente diferentes para cada card
+  const getCardBgStyle = (index, isDark) => {
+    const gradients = [
+      'from-indigo-900/50 to-zinc-900',
+      'from-purple-900/50 to-zinc-900',
+      'from-teal-900/50 to-zinc-900',
+    ];
+    const lightGradients = [
+      'from-indigo-100 to-white',
+      'from-purple-100 to-white',
+      'from-teal-100 to-white',
+    ];
+    return isDark ? gradients[index % gradients.length] : lightGradients[index % lightGradients.length];
+  };
+
+  if (loading) {
       return (
         <div className="px-1 mt-6 animate-pulse">
-            <div className={`h-[280px] rounded-[32px] w-full border border-white/5 relative overflow-hidden ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
-                <div className="absolute top-0 right-0 w-1/2 h-full bg-indigo-500/10 blur-[80px]" />
-                <div className="p-6 flex flex-col gap-4 relative z-10">
-                    <div className="flex gap-2 mb-2">
-                        <div className="w-8 h-8 rounded-lg bg-zinc-200 dark:bg-white/10" />
-                        <div className="w-32 h-4 rounded bg-zinc-200 dark:bg-white/10 mt-2" />
-                    </div>
-                    <div className="w-full h-20 rounded-xl bg-zinc-200 dark:bg-white/5" />
+            <div className={`h-[380px] rounded-[32px] w-full border p-6 flex flex-col justify-between ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}`}>
+                <div className="w-3/4 h-6 rounded-md bg-zinc-200 dark:bg-zinc-800" />
+                <div className="w-full h-48 rounded-xl bg-zinc-200 dark:bg-zinc-800" />
+                <div className="flex gap-4">
+                  <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+                  <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+                  <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800" />
                 </div>
             </div>
         </div>
       );
   }
 
+  if (!clusters || clusters.length === 0) return null;
+
   return (
     <div className="px-1 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-        <div className={`
-            relative w-full rounded-[32px] p-6 overflow-hidden shadow-2xl transition-all border
-            ${isDarkMode 
-                ? 'bg-zinc-950 border-white/10' 
-                : 'bg-white border-white/40 shadow-purple-500/5'}
-        `}>
-            {/* Visual Aura */}
-            <div className={`absolute -top-20 -right-20 w-80 h-80 rounded-full blur-[90px] opacity-40 animate-pulse ${isDarkMode ? 'bg-indigo-600' : 'bg-blue-400'}`} />
-            <div className={`absolute -bottom-20 -left-20 w-80 h-80 rounded-full blur-[90px] opacity-30 animate-pulse delay-1000 ${isDarkMode ? 'bg-purple-600' : 'bg-purple-300'}`} />
-            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light pointer-events-none"></div>
-            <div className="absolute inset-0 backdrop-blur-[1px]" />
-
+        <div className="relative w-full">
             {/* Header */}
-            <div className="relative z-10 flex items-center gap-3 mb-6">
+            <div className="relative z-10 flex items-center gap-3 mb-4 px-5">
                 <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                    <Sparkles size={18} className="animate-pulse" />
+                    <Sparkles size={18} />
                 </div>
                 <div>
                     <h3 className={`text-sm font-black uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
                         Contexto Global
                     </h3>
-                    <div className="flex items-center gap-1.5">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                        </span>
-                        <p className={`text-[10px] font-medium ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                            IA processou {news.length} fontes
-                        </p>
-                    </div>
+                    <p className={`text-[10px] font-medium ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                        Os maiores eventos, em múltiplos ângulos
+                    </p>
                 </div>
             </div>
 
-            {/* Conteúdo */}
-            <div className="relative z-10 flex flex-col gap-6">
-                {clusters.map((group, idx) => (
-                    <div key={idx} className="flex flex-col gap-3">
-                        <div className={`p-0 rounded-2xl ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
-                            <p className="text-sm font-medium leading-relaxed font-sans">
-                                {group.narrative}
-                            </p>
-                        </div>
+            {/* Carrossel de Notícias */}
+            <div 
+              ref={scrollRef}
+              onScroll={handleScroll}
+              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+            >
+                {clusters.map((cluster, idx) => (
+                    <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
+                        <div className={`relative w-full rounded-[2rem] overflow-hidden shadow-2xl transition-all border ${isDarkMode ? 'border-white/10' : 'border-zinc-200/50'}`}>
+                            <div className={`absolute inset-0 bg-gradient-to-br ${getCardBgStyle(idx, isDarkMode)}`} />
+                            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light pointer-events-none"></div>
 
-                        <div className="flex flex-wrap gap-2 mt-1">
-                            {[...new Set(group.related_ids)].map(id => {
-                                const article = news.find(n => n.id === id);
-                                if (!article) return null;
-
-                                return (
-                                    <button
-                                        key={id}
-                                        onClick={() => openArticle(article)}
-                                        className={`
-                                            group flex items-center gap-2 pl-1 pr-3 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-wide transition-all active:scale-95
-                                            ${isDarkMode 
-                                                ? 'bg-black/20 border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white hover:border-white/30 backdrop-blur-md' 
-                                                : 'bg-white/60 border-white/40 text-zinc-600 hover:bg-white hover:text-indigo-600 hover:shadow-md'}
-                                        `}
-                                    >
-                                        <div className="relative w-5 h-5 rounded-full overflow-hidden shadow-sm">
-                                            <img 
-                                                src={article.logo} 
-                                                className="w-full h-full object-cover" 
-                                                onError={(e) => e.target.style.display='none'}
-                                            />
-                                        </div>
-                                        <span>Ler no {article.source}</span>
-                                        <ArrowRight size={10} className="opacity-50 group-hover:translate-x-0.5 transition-transform" />
-                                    </button>
-                                );
-                            })}
+                            <div className="relative z-10 flex flex-col">
+                                {/* Imagem Representativa */}
+                                <div className="w-full aspect-[16/9] bg-black/20 overflow-hidden">
+                                    <img src={cluster.representative_image} className="w-full h-full object-cover" alt={cluster.ai_title} />
+                                </div>
+                                
+                                <div className="p-6">
+                                    {/* Título Gerado pela IA */}
+                                    <h3 className={`text-lg font-black leading-tight mb-5 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{cluster.ai_title}</h3>
+                                    
+                                    {/* Logos Clicáveis */}
+                                    <div className="flex flex-wrap gap-3 items-center">
+                                        {cluster.related_articles.map(article => (
+                                            <button
+                                                key={article.id}
+                                                onClick={() => openArticle(article)}
+                                                className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md p-1 border border-white/10 shadow-md transition-transform hover:scale-110 active:scale-95"
+                                                title={`Ler no ${article.source}`}
+                                            >
+                                                <img 
+                                                    src={article.logo} 
+                                                    className="w-full h-full object-contain rounded-full bg-white" 
+                                                    onError={(e) => e.target.style.display='none'}
+                                                />
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        
-                        {idx < clusters.length - 1 && (
-                            <div className={`h-px w-full my-2 bg-gradient-to-r from-transparent via-current to-transparent opacity-10 ${isDarkMode ? 'text-white' : 'text-black'}`} />
-                        )}
                     </div>
                 ))}
             </div>
+            
+            {/* Indicadores do Carrossel */}
+            {clusters.length > 1 && (
+              <div className="flex justify-center gap-2 mt-4">
+                  {clusters.map((_, idx) => (
+                      <div 
+                          key={idx}
+                          className={`h-1.5 rounded-full transition-all duration-300 ${activeIndex === idx ? 'bg-white w-5' : 'bg-white/30 w-1.5'}`} 
+                      />
+                  ))}
+              </div>
+            )}
         </div>
     </div>
   );
