@@ -1730,6 +1730,8 @@ const parseAndNormalize = (text) => {
     }
 }
 
+
+
 // --- FALLBACK (ATUALIZADO PARA 4 TÓPICOS) ---
 const generateBriefingFallback = async (news, apiKey) => {
     console.log("Iniciando Fallback (Gemini 1.5)...");
@@ -2013,6 +2015,82 @@ const generateTrendRadar = async (news, apiKey) => {
     return []; 
   }
 };
+
+// --- FUNÇÃO DE IA: ANÁLISE DE MERCADO (NOVA) ---
+const generateMarketAnalysis = async (news, apiKey) => {
+  if (!news || news.length === 0) return null;
+
+  // Filtra apenas notícias que parecem de economia/mercado para economizar tokens e focar o contexto
+  const marketNews = news.filter(n => 
+      n.category === 'Economia' || 
+      n.category === 'Finanças' || 
+      n.category === 'Mercados' ||
+      n.category === 'Tech' || // Tech move mercado
+      n.title.toLowerCase().includes('dólar') ||
+      n.title.toLowerCase().includes('bolsa') ||
+      n.title.toLowerCase().includes('bitcoin')
+  ).slice(0, 30); // Pega as 30 mais relevantes
+
+  if (marketNews.length === 0) return null;
+
+  const context = marketNews.map(n => `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title}`).join('\n');
+
+  const prompt = `
+  Atue como um Analista Financeiro Sênior. Analise as manchetes abaixo e gere um relatório de mercado do dia.
+
+  DADOS:
+  ${context}
+
+  TAREFAS:
+  1. Determine o "Sentimento Geral" do mercado (0 = Pânico Total, 50 = Neutro, 100 = Euforia Total).
+  2. Escreva um resumo executivo de 2 frases sobre o porquê desse sentimento.
+  3. Identifique até 4 ativos/temas principais citados (Ex: Dólar, Petrobras, Bitcoin, Taxa Juros) e qual a tendência deles baseada na notícia.
+  4. Associe o ID da notícia que justifica essa tendência.
+
+  RETORNE APENAS JSON:
+  {
+    "market_score": 75,
+    "market_status": "Otimismo Cauteloso",
+    "summary": "O mercado reage bem à aprovação fiscal, mas mantém atenção nos juros americanos...",
+    "movers": [
+      { "asset": "Dólar", "trend": "down", "change_label": "Queda", "news_id": "...", "reason": "Otimismo fiscal derruba moeda" },
+      { "asset": "VALE3", "trend": "up", "change_label": "Alta", "news_id": "...", "reason": "Minério sobe na China" }
+    ]
+  }
+  `;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
+      })
+    });
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return null;
+    
+    const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+    
+    // Hidratar com o objeto da notícia real para o link funcionar
+    if (json.movers) {
+        json.movers = json.movers.map(mover => {
+            const article = news.find(n => n.id === mover.news_id);
+            return { ...mover, article };
+        }).filter(m => m.article); // Remove se não achou artigo
+    }
+
+    return json;
+
+  } catch (error) {
+    console.error("Erro Market Analysis:", error);
+    return null;
+  }
+};
+
 
 // --- SMART DIGEST WIDGET (V3 - COM RELEVO 3D PREMIUM) ---
 const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
@@ -2533,6 +2611,131 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   );
 };
 
+
+// --- WIDGET: MARKET PULSE (SUBSTITUTO DO "EM ALTA") ---
+const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const prevTrigger = useRef(refreshTrigger);
+
+  useEffect(() => {
+    if (!apiKey || !newsData || newsData.length === 0) return;
+    
+    // Lógica de carga única ou refresh manual (igual aos outros widgets)
+    const isUserRefresh = refreshTrigger !== prevTrigger.current;
+    if (hasLoaded && !isUserRefresh) return;
+
+    prevTrigger.current = refreshTrigger;
+    
+    const load = async () => {
+        setLoading(true);
+        if (isUserRefresh) setData(null);
+        await new Promise(r => setTimeout(r, 1500)); // Delay para efeito visual
+        const result = await generateMarketAnalysis(newsData, apiKey);
+        if (result) {
+            setData(result);
+            setHasLoaded(true);
+        }
+        setLoading(false);
+    };
+    load();
+  }, [newsData, apiKey, refreshTrigger]);
+
+  if (loading) {
+      return (
+          <div className="px-2 mb-6 animate-pulse">
+              <div className={`h-40 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200'}`}></div>
+          </div>
+      );
+  }
+
+  if (!data) return null;
+
+  // Cor baseada no score (0-40 vermelho, 41-60 amarelo, 61-100 verde)
+  const getScoreColor = (score) => {
+      if (score > 60) return 'text-emerald-500';
+      if (score < 40) return 'text-rose-500';
+      return 'text-yellow-500';
+  };
+
+  const getBarColor = (score) => {
+      if (score > 60) return 'bg-emerald-500';
+      if (score < 40) return 'bg-rose-500';
+      return 'bg-yellow-500';
+  };
+
+  return (
+    <div className="px-2 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className={`p-5 rounded-[2rem] border relative overflow-hidden ${isDarkMode ? 'bg-zinc-950 border-white/10' : 'bg-white border-zinc-200 shadow-xl'}`}>
+            
+            {/* Background Decorativo */}
+            <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-transparent to-transparent opacity-10 rounded-full blur-3xl -mr-10 -mt-10 ${data.market_score > 50 ? 'from-emerald-500' : 'from-rose-500'}`} />
+
+            {/* Header: Score e Status */}
+            <div className="flex items-end justify-between mb-4 relative z-10">
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <Activity size={16} className={getScoreColor(data.market_score)} />
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Market Pulse</span>
+                    </div>
+                    <h2 className={`text-2xl font-black leading-none ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                        {data.market_status}
+                    </h2>
+                </div>
+                <div className="text-right">
+                    <span className={`text-3xl font-black ${getScoreColor(data.market_score)}`}>{data.market_score}</span>
+                    <span className="text-[10px] font-bold opacity-50 block">/100</span>
+                </div>
+            </div>
+
+            {/* Barra de Termômetro */}
+            <div className={`w-full h-2 rounded-full mb-4 overflow-hidden ${isDarkMode ? 'bg-white/10' : 'bg-zinc-100'}`}>
+                <div 
+                    className={`h-full rounded-full transition-all duration-1000 ${getBarColor(data.market_score)}`} 
+                    style={{ width: `${data.market_score}%` }} 
+                />
+            </div>
+
+            {/* Resumo */}
+            <p className={`text-sm font-medium leading-relaxed mb-6 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                {data.summary}
+            </p>
+
+            {/* Grid de Movers (Ativos) */}
+            <div className="grid grid-cols-2 gap-3">
+                {data.movers.map((mover, idx) => (
+                    <button 
+                        key={idx}
+                        onClick={() => openArticle(mover.article)}
+                        className={`
+                            text-left p-3 rounded-2xl border transition-all hover:scale-[1.02] active:scale-95
+                            ${isDarkMode ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-zinc-50 border-zinc-100 hover:bg-zinc-100'}
+                        `}
+                    >
+                        <div className="flex justify-between items-start mb-1">
+                            <span className={`text-xs font-black ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{mover.asset}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${mover.trend === 'up' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
+                                {mover.trend === 'up' ? <TrendingUp size={10}/> : <TrendingDown size={10}/>}
+                            </span>
+                        </div>
+                        <p className={`text-[10px] leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                            {mover.reason}
+                        </p>
+                    </button>
+                ))}
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2 opacity-40">
+                <span className="text-[9px] font-mono">Powered by Gemini AI</span>
+            </div>
+        </div>
+    </div>
+  );
+};
+
+
+
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey }) {
@@ -2671,15 +2874,27 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
           refreshTrigger={refreshTrigger} 
       />
       
-      <div className="px-2 pt-4">
-        <div className="flex items-center gap-2 mb-4 px-1"><TrendingUp size={20} className="text-blue-500" /><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Em Alta Agora</h3></div>
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
-          {trending.map(item => <div key={item.id} onClick={() => openArticle({...item, origin: 'rss'})} className={`min-w-[280px] md:min-w-[320px] rounded-2xl p-4 cursor-pointer snap-center border transition-all hover:scale-[1.02] ${isDarkMode ? 'bg-zinc-900/50 border-white/5 hover:bg-zinc-800' : 'bg-white border-zinc-200 hover:shadow-lg'}`}><div className="flex gap-4 items-center"><div className="w-20 h-20 rounded-xl overflow-hidden bg-zinc-200 flex-shrink-0 relative"><img src={item.img} className="w-full h-full object-cover" alt="" /><div className="absolute top-0 left-0 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-br-lg text-white text-[10px] font-bold">#{item.id}</div></div><div><span className="text-[10px] font-bold text-blue-500 uppercase">{item.source} • {item.time}</span><h4 className={`font-bold leading-snug mt-1 line-clamp-2 ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{item.title}</h4></div></div></div>)}
-        </div>
+      {/* --- AQUI ENTRA A NOVA SESSÃO DE MERCADO --- */}
+      {/* Removemos a div antiga "Em Alta Agora" e colocamos o Widget */}
+      <div className="pt-2">
+          <div className="flex items-center gap-2 mb-2 px-3">
+             <TrendingUp size={20} className="text-emerald-500" />
+             <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h3>
+          </div>
+          
+          <MarketPulseWidget 
+             newsData={newsData}
+             apiKey={apiKey}
+             isDarkMode={isDarkMode}
+             refreshTrigger={refreshTrigger}
+             openArticle={openArticle}
+          />
       </div>
+
       {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
-  );
+);
+  
 }
 
 
