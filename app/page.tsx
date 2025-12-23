@@ -1783,48 +1783,43 @@ const generateBriefingFallback = async (news, apiKey) => {
     }
 };
 
-// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA + SENTIMENTO (V2) ---
+// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (CORRIGIDA) ---
 const generateSmartClustering = async (news, apiKey) => {
-  // Aumentamos para 100 para ter massa crítica suficiente para encontrar 4 fontes sobre o mesmo tema
   if (!news || news.length < 10 || !apiKey) return null;
 
-  // Limpeza agressiva para caber 100 notícias no prompt sem estourar tokens
+  // --- CORREÇÃO AQUI: Adicionei o campo IMG para a IA conseguir ler a url ---
   const context = news.slice(0, 100).map(n => 
-    `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title}`
+    `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img || ''}`
   ).join('\n');
 
   const prompt = `
-  Você é um Editor-Chefe de Inteligência Global e muito experiente em coberturas jornalísticas nacionais e internacionais.
+  Você é um Editor-Chefe de Inteligência Global.
   
-  OBJETIVO CRÍTICO:
-  Identifique os 3 (TRÊS) maiores eventos globais que estão sendo noticiados massivamente agora.
+  OBJETIVO:
+  Identifique os 3 (TRÊS) maiores eventos globais noticiados massivamente agora.
   
-  REGRA DE OURO (Filtro Rígido):
-  Um evento SÓ é válido se for coberto por NO MÍNIMO 4 (QUATRO) FONTES DIFERENTES na lista abaixo.
-  Se o evento tiver apenas 2 ou 3 fontes, IGNORE-O. Quero apenas o "Mainstream Consensus".
-   NÃO REPITA FONTES dentro do mesmo cluster.
+  REGRA RÍGIDA:
+  Um evento SÓ é válido se tiver NO MÍNIMO 4 (QUATRO) FONTES DIFERENTES.
+  IGNORE eventos com menos fontes.
 
-  PARA CADA EVENTO VÁLIDO:
-  1. Escreva um título jornalístico, curto e impactante (máximo de 12 palavras) que resuma a essência do evento. Não mencione os nomes das fontes no título.
-  2. SELECIONE A IMAGEM-CHAVE:Das imagens disponíveis para o evento (\`IMG\`), escolha a URL daquela que for mais representativa, poderosa e de melhor qualidade visual. Forneça apenas uma URL de imagem por evento.
-  3. Para CADA fonte listada, analise o título dela e defina o SENTIMENTO/VIÉS em relação à notícia:
-     - "positive" (Otimista/A favor)
-     - "negative" (Crítico/Preocupado/Desastre)
-     - "neutral" (Informativo/Imparcial)
+  PARA CADA EVENTO:
+  1. Título: Jornalístico, curto, impactante (máx 12 palavras). Sem citar fontes.
+  2. Imagem: OBRIGATÓRIO pegar a URL do campo 'IMG' de uma das notícias. Não invente URLs.
+  3. Fontes: Analise o viés de cada uma ('positive', 'negative', 'neutral').
 
-  DADOS BRUTOS:
+  DADOS:
   ${context}
 
   RETORNE APENAS JSON:
   [
     {
-      "ai_title": "Título Jornalístico Impactante",
-      "representative_image": "URL da imagem escolhida",
+      "ai_title": "Título aqui",
+      "representative_image": "url_da_imagem_aqui",
       "related_articles": [
-        { "id": "id_da_noticia_1", "sentiment": "neutral" },
-        { "id": "id_da_noticia_2", "sentiment": "negative" },
-        { "id": "id_da_noticia_3", "sentiment": "positive" },
-        { "id": "id_da_noticia_4", "sentiment": "neutral" }
+        { "id": "id_1", "sentiment": "neutral" },
+        { "id": "id_2", "sentiment": "negative" },
+        { "id": "id_3", "sentiment": "positive" },
+        { "id": "id_4", "sentiment": "neutral" }
       ]
     }
   ]
@@ -1842,32 +1837,24 @@ const generateSmartClustering = async (news, apiKey) => {
 
     const data = await response.json();
     
-    if (!response.ok || data.error) {
-        console.error("Erro API IA:", data.error?.message);
-        return null;
-    }
+    if (!response.ok || data.error) return null;
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
-    // --- HIDRATAÇÃO AVANÇADA (Merge de Dados + Sentimento) ---
     const hydratedJson = json.map(cluster => {
         const hydratedArticles = cluster.related_articles
             .map(ref => {
                 const originalArticle = news.find(n => n.id === ref.id);
                 if (!originalArticle) return null;
-                // Mesclamos o artigo original com o sentimento detectado pela IA
                 return { ...originalArticle, ai_sentiment: ref.sentiment }; 
             })
-            .filter(Boolean); // Remove nulos
+            .filter(Boolean);
 
-        return {
-            ...cluster,
-            related_articles: hydratedArticles
-        };
-    }).filter(c => c.related_articles.length >= 3); // Filtro de segurança final no front
+        return { ...cluster, related_articles: hydratedArticles };
+    }).filter(c => c.related_articles.length >= 3); 
 
     return Array.isArray(hydratedJson) ? hydratedJson : null;
 
@@ -2432,11 +2419,10 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 
 
 
-// --- WIDGET: CONTEXTO GLOBAL (COM ANÁLISE DE VIÉS/SENTIMENTO) ---
+// --- WIDGET: CONTEXTO GLOBAL (VISUAL FUTURISTA) ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refreshTrigger }) => {
   const [clusters, setClusters] = useState(null);
   const [loading, setLoading] = useState(false);
-  
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
   
@@ -2445,7 +2431,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
 
   useEffect(() => {
     if (!apiKey || !news || news.length < 5) return;
-
     const isUserRefresh = refreshTrigger !== prevRefreshTrigger.current;
     
     if (!hasLoadedInitial) {
@@ -2453,7 +2438,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
       const initialLoadTimer = setTimeout(() => runAI(), 3000);
       return () => clearTimeout(initialLoadTimer);
     }
-    
     if (isUserRefresh) {
       prevRefreshTrigger.current = refreshTrigger;
       runAI();
@@ -2478,17 +2462,17 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
     }
   };
 
-  // Função para definir a cor da borda baseada no sentimento da IA
-  const getSentimentBorder = (sentiment) => {
-      if (sentiment === 'positive') return 'border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.4)]'; // Verde Neon
-      if (sentiment === 'negative') return 'border-rose-500/60 shadow-[0_0_15px_rgba(244,63,94,0.4)]';    // Vermelho Neon
-      return 'border-white/20 shadow-none'; // Neutro (Vidro padrão)
+  // Cores de Neon (Brilho na borda)
+  const getSentimentGlow = (sentiment) => {
+      if (sentiment === 'positive') return 'border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]'; // Verde Neon Forte
+      if (sentiment === 'negative') return 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]';    // Vermelho Neon Forte
+      return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]'; // Branco Sutil
   };
   
   if (loading) {
       return (
         <div className="px-1 mt-8 animate-pulse">
-            <div className={`h-[420px] rounded-[32px] w-full ${isDarkMode ? 'bg-zinc-900' : 'bg-zinc-200'}`}></div>
+            <div className={`h-[480px] rounded-[2.5rem] w-full ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-zinc-200'}`}></div>
         </div>
       );
   }
@@ -2496,77 +2480,103 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
   if (!clusters || clusters.length === 0) return null;
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
+    <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000">
         <div className="relative w-full">
-            <div className="relative z-10 flex items-center gap-3 mb-4 px-6">
-                <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+            
+            {/* Header da Seção */}
+            <div className="relative z-10 flex items-center gap-3 mb-5 px-6">
+                <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
                     <Layers size={18} />
                 </div>
-                
                 <div>
-                    <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                    <h3 className="text-lg font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
                         Contexto Global
                     </h3>
                 </div>
             </div>
 
+            {/* Scroll Horizontal */}
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
-              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-2 px-2"
+              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-4 px-2"
             >
                 {clusters.map((cluster, idx) => (
                     <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
                         <div className={`
-                            group relative h-[420px] w-full rounded-[32px] overflow-hidden cursor-default 
-                            transition-all duration-300 shadow-2xl 
-                            ${!isDarkMode ? 'shadow-indigo-500/10' : 'shadow-black/50'}
+                            group relative h-[480px] w-full rounded-[2.5rem] overflow-hidden cursor-default 
+                            transition-all duration-500 hover:scale-[1.01]
+                            shadow-2xl shadow-black/40 border border-white/10
                         `}>
-                            <img src={cluster.representative_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={cluster.ai_title} />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
                             
-                            <div className="absolute top-6 left-6 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-                               <Globe size={12} className="text-white/70" />
-                               <span className="text-white text-[10px] font-bold uppercase tracking-widest">{cluster.related_articles.length} ÂNGULOS</span>
+                            {/* IMAGEM DE FUNDO (Full Bleed) */}
+                            <img 
+                                src={cluster.representative_image} 
+                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" 
+                                alt="" 
+                            />
+                            
+                            {/* Gradiente Cinematográfico (Escuro embaixo para leitura) */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
+
+                            {/* Tag Flutuante (Topo Esquerda) */}
+                            <div className="absolute top-6 left-6">
+                                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg">
+                                   <Globe size={14} className="text-blue-400" />
+                                   <span className="text-white text-[10px] font-black uppercase tracking-[0.15em]">
+                                       {cluster.related_articles.length} Fontes
+                                   </span>
+                                </div>
                             </div>
 
-                            <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full">
-                               <h2 className="text-2xl md:text-3xl font-black text-white leading-tight mb-6 min-h-[64px] drop-shadow-lg">
+                            {/* Conteúdo (Baixo) */}
+                            <div className="absolute bottom-0 left-0 w-full p-8 flex flex-col justify-end">
+                                
+                                {/* Título Grande e Impactante */}
+                                <h2 className="text-3xl md:text-4xl font-black text-white leading-[1.1] mb-6 drop-shadow-2xl tracking-tight">
                                    {cluster.ai_title}
-                               </h2>
-                               
-                               <div className="flex flex-wrap gap-4 items-center">
+                                </h2>
+                                
+                                {/* Lista de Fontes (Logos com Neon) */}
+                                <div className="flex flex-wrap items-center gap-4">
                                    {cluster.related_articles.map(article => (
                                        <button
                                            key={article.id}
                                            onClick={() => openArticle(article)}
                                            className={`
-                                               relative w-14 h-14 rounded-full bg-white/10 backdrop-blur-md p-1 
-                                               border-[3px] transition-all duration-300 hover:scale-110 active:scale-95
-                                               ${getSentimentBorder(article.ai_sentiment)}
+                                               relative w-12 h-12 rounded-full p-[2px] transition-all duration-300 
+                                               hover:scale-125 hover:z-10 bg-black/40 backdrop-blur-sm border-2
+                                               ${getSentimentGlow(article.ai_sentiment)}
                                            `}
-                                           title={`Ler no ${article.source} (${article.ai_sentiment === 'positive' ? 'Viés Positivo' : article.ai_sentiment === 'negative' ? 'Viés Negativo' : 'Neutro'})`}
+                                           title={`${article.source}: ${article.title}`}
                                        >
-                                           <img src={article.logo} className="w-full h-full object-contain rounded-full bg-white" onError={(e) => e.target.style.display='none'} />
-                                           
-                                           {/* Indicador de Bolinha Pequena (Opcional, para reforçar a cor) */}
-                                           <div className={`absolute bottom-0 right-0 w-4 h-4 border-2 border-black rounded-full ${article.ai_sentiment === 'positive' ? 'bg-emerald-500' : article.ai_sentiment === 'negative' ? 'bg-rose-500' : 'hidden'}`} />
+                                           <img 
+                                                src={article.logo} 
+                                                className="w-full h-full object-cover rounded-full" 
+                                                onError={(e) => e.target.style.display='none'} 
+                                           />
                                        </button>
                                    ))}
-                               </div>
-                               <p className="text-[10px] text-white/40 mt-4 font-bold uppercase tracking-widest text-center md:text-left">
-                                   Cores indicam o tom da cobertura (Positivo/Negativo)
-                               </p>
+                                </div>
+
+                                {/* Legenda Sutil */}
+                                <div className="mt-4 flex items-center gap-2 opacity-50">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+                                    <span className="text-[9px] font-bold text-white uppercase tracking-widest">
+                                        Análise de Viés em Tempo Real
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 ))}
             </div>
             
+            {/* Indicador de Paginação */}
             {clusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-2">
                   {clusters.map((_, idx) => (
-                      <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${activeIndex === idx ? (isDarkMode ? 'bg-white w-6' : 'bg-zinc-800 w-6') : (isDarkMode ? 'bg-white/30 w-1.5' : 'bg-zinc-300 w-1.5')}`} />
+                      <div key={idx} className={`h-1 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-8' : 'bg-zinc-300 dark:bg-zinc-700 w-2'}`} />
                   ))}
               </div>
             )}
