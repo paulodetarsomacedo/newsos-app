@@ -1862,7 +1862,8 @@ const generateSmartClustering = async (news, apiKey) => {
   }
 };
 
-// --- PRINCIPAL (ATUALIZADO PARA 4 TÓPICOS) ---
+
+// --- FUNÇÃO DE IA: SMART DIGEST (COM RASTREABILIDADE) ---
 const generateBriefing = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
   if (!apiKey) {
@@ -1870,13 +1871,14 @@ const generateBriefing = async (news, apiKey) => {
       return null;
   }
 
-  const context = news.slice(0, 30).map(n => {
-      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 400) : "Sem detalhes.";
-      return `[FONTE: ${n.source}] MANCHETE: ${n.title} | CONTEXTO: ${cleanSummary}`;
+  // Preparamos o contexto com ID para a IA saber o que referenciar
+  const context = news.slice(0, 40).map(n => {
+      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 300) : "Sem detalhes.";
+      return `ID: ${n.id} | [FONTE: ${n.source}] TÍTULO: ${n.title} | CONTEXTO: ${cleanSummary}`;
   }).join('\n\n');
 
   const prompt = `
-  Você é o Editor-Chefe de uma newsletter premium e inteligente (estilo Morning Brew ou Axios).
+  Você é o Editor-Chefe de uma newsletter premium (estilo Morning Brew).
   
   SUA MISSÃO:
   Ler as notícias fornecidas abaixo, identificar os 4 (QUATRO) maiores temas do momento e escrever resumos EXPLICATIVOS, fluídos e concatenados.
@@ -1885,31 +1887,25 @@ const generateBriefing = async (news, apiKey) => {
   1. CONTEXTUALIZE: Não apenas repita o título. Explique o "porquê".
   2. AGRUPE: Junte notícias parecidas no mesmo tópico.
   3. TOM DE VOZ: Profissional, direto, mas conversacional.
-  4. TAMANHO: O campo "summary" deve ter entre 25 a 40 palavras.
+  4. TAMANHO: O campo "summary" deve ter entre 40 a 55 palavras.
+
+  REGRAS OBRIGATÓRIAS:
+  1. Identifique quais notícias (pelos IDs) compõem cada tópico.
+  2. O resumo deve explicar o "porquê" do fato ser importante.
+  3. JSON Estrito.
 
   MATÉRIA PRIMA:
   ${context}
 
-  RETORNE APENAS ESTE JSON (Exatamente 4 itens em 'topics'):
+  RETORNE APENAS ESTE JSON:
   {
     "vibe_emoji": "Um único emoji que defina o humor global",
-    "vibe_title": "Uma manchete de capa impactante e curta (3 a 6 palavras)",
+    "vibe_title": "Uma manchete de capa impactante (3 a 6 palavras)",
     "topics": [
       { 
-        "tag": "Categoria 1 (Ex: Política)", 
-        "summary": "Texto explicativo rico..." 
-      },
-      { 
-        "tag": "Categoria 2 (Ex: Economia)", 
-        "summary": "Texto explicativo rico..." 
-      },
-      { 
-        "tag": "Categoria 3 (Ex: Tech/Mundo)", 
-        "summary": "Texto explicativo rico..." 
-      },
-      { 
-        "tag": "Categoria 4 (Ex: Brasil/Cultura)", 
-        "summary": "Texto explicativo rico..." 
+        "tag": "Categoria (Ex: Política, Tech)", 
+        "summary": "Texto explicativo rico (30-40 palavras)...",
+        "source_ids": ["id_da_noticia_1", "id_da_noticia_2"] 
       }
     ]
   }
@@ -1928,29 +1924,34 @@ const generateBriefing = async (news, apiKey) => {
     const data = await response.json();
 
     if (data.error) {
-        console.warn(`Erro Principal (${data.error.message}). Fallback...`);
-        return await generateBriefingFallback(news, apiKey);
+        console.warn(`Erro IA: ${data.error.message}`);
+        return await generateBriefingFallback(news, apiKey); // Mantém seu fallback existente
     }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) {
-        return await generateBriefingFallback(news, apiKey);
-    }
+    if (!text) return await generateBriefingFallback(news, apiKey);
 
     const finalData = parseAndNormalize(text);
     
-    if (!finalData || !finalData.topics || finalData.topics.length === 0) {
-        return await generateBriefingFallback(news, apiKey);
-    }
+    if (!finalData || !finalData.topics) return await generateBriefingFallback(news, apiKey);
+
+    // --- HIDRATAÇÃO: Cruzar IDs com as notícias reais ---
+    finalData.topics = finalData.topics.map(topic => {
+        const relatedArticles = topic.source_ids
+            ? topic.source_ids.map(id => news.find(n => n.id === id)).filter(Boolean)
+            : [];
+        return { ...topic, articles: relatedArticles };
+    });
 
     return finalData;
 
   } catch (error) {
-    console.warn("Erro fatal. Fallback...", error);
+    console.warn("Erro fatal SmartDigest:", error);
     return await generateBriefingFallback(news, apiKey);
   }
 };
+
+
 
 // --- FUNÇÃO TREND RADAR (V4 - SINGLE FACT FOCUS) ---
 const generateTrendRadar = async (news, apiKey) => {
@@ -2105,17 +2106,31 @@ const generateMarketAnalysis = async (news, apiKey) => {
   }
 };
 
-// --- SMART DIGEST WIDGET (V3 - COM RELEVO 3D PREMIUM) ---
-const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
+
+// --- WIDGET: SMART DIGEST (COM ÁUDIO NATIVO E FONTES EXPANSÍVEIS) ---
+const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
   const [digest, setDigest] = useState(null);
   const [status, setStatus] = useState('idle'); 
+  
+  // Estado para controlar qual tópico está expandido (Accordion)
+  const [expandedIndex, setExpandedIndex] = useState(null);
+  
+  // Estado para o Áudio
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
 
   useEffect(() => {
     if (refreshTrigger > 0) {
         setDigest(null);
         setStatus('idle');
+        cancelSpeech(); // Para o áudio se recarregar
     }
   }, [refreshTrigger]);
+
+  // Garante que o áudio pare se o componente desmontar
+  useEffect(() => {
+      return () => cancelSpeech();
+  }, []);
 
   const handleGenerate = async () => {
     if (!apiKey) {
@@ -2135,11 +2150,48 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     }
   };
 
-  // --- NOVA LÓGICA DE ESTILO 3D PARA AS TAGS ---
+  // --- LÓGICA DE ÁUDIO NATIVO (TTS) ---
+  const cancelSpeech = () => {
+      if (synthRef.current) {
+          synthRef.current.cancel();
+          setIsSpeaking(false);
+      }
+  };
+
+  const handlePlayBriefing = () => {
+      if (!synthRef.current || !digest) return;
+
+      if (isSpeaking) {
+          cancelSpeech();
+          return;
+      }
+
+      setIsSpeaking(true);
+
+      // Monta o texto para leitura fluida
+      const intro = `Resumo do News O S. ${digest.vibe_title}.`;
+      const content = digest.topics.map(t => `${t.tag}. ${t.summary}`).join('. Próximo: ');
+      const finalText = `${intro} ${content}. Fim do resumo.`;
+
+      const utterance = new SpeechSynthesisUtterance(finalText);
+      utterance.lang = 'pt-BR'; // Força português
+      utterance.rate = 1.1; // Um pouco mais dinâmico
+      utterance.pitch = 1;
+
+      // Evento quando termina de falar
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+
+      synthRef.current.speak(utterance);
+  };
+
+  const toggleExpand = (index) => {
+      setExpandedIndex(expandedIndex === index ? null : index);
+  };
+
+  // Estilo 3D das tags (Mantido da sua versão anterior)
   const getTag3DStyle = (index) => {
-      // Base: Gradiente sutil + Borda de Luz (Topo) + Borda de Sombra (Base)
       const base3D = "shadow-[0_2px_5px_-1px_rgba(0,0,0,0.2)] border-t border-b";
-      
       if (isDarkMode) {
           const styles = [
               `bg-gradient-to-b from-blue-500/20 to-blue-600/10 text-blue-200 border-t-blue-400/30 border-b-blue-900/50 ${base3D}`,
@@ -2159,7 +2211,8 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
       }
   };
 
-  // 1. IDLE
+  // --- RENDERIZAÇÃO ---
+
   if (status === 'idle') {
     return (
       <div className="px-1 mb-6">
@@ -2183,7 +2236,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     );
   }
 
-  // 2. LOADING
   if (status === 'loading') {
     return (
       <div className="px-1 mb-6">
@@ -2199,7 +2251,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     );
   }
 
-  // 3. ERROR
   if (status === 'error' || !digest) {
       return (
         <div className="px-1 mb-6">
@@ -2211,7 +2262,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
       );
   }
 
-  // 4. ESTADO FINAL (AURA + 3D RELIEF)
   return (
     <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
       <div className={`
@@ -2230,7 +2280,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
          {/* CONTEÚDO */}
          <div className="relative z-10">
              
-             {/* Cabeçalho */}
+             {/* Cabeçalho com Botão de Áudio */}
              <div className="flex flex-col items-center text-center mb-8 pt-2">
                 <div className="text-5xl mb-3 animate-bounce drop-shadow-xl select-none grayscale-0">
                     {digest.vibe_emoji}
@@ -2238,38 +2288,111 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500 mb-1">
                     Vibe do Momento
                 </span>
-                <h2 className={`text-2xl md:text-3xl font-black leading-tight max-w-sm ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                <h2 className={`text-2xl md:text-3xl font-black leading-tight max-w-sm mb-4 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                     {digest.vibe_title}
                 </h2>
+                
+                {/* BOTÃO DE AUDIO BRIEFING (TTS Nativo) */}
+                <button 
+                    onClick={handlePlayBriefing}
+                    className={`
+                        flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all active:scale-95
+                        ${isSpeaking 
+                            ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' 
+                            : (isDarkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-zinc-100 text-zinc-800 hover:bg-zinc-200')}
+                    `}
+                >
+                    {isSpeaking ? (
+                        <> <Pause size={12} fill="currentColor" /> Parar Briefing </>
+                    ) : (
+                        <> <Play size={12} fill="currentColor" /> Ouvir Resumo </>
+                    )}
+                </button>
              </div>
 
-             {/* GRID DE TÓPICOS (COM EFEITO 3D NOS CARDS) */}
+             {/* GRID DE TÓPICOS (ACORDEÃO) */}
              <div className="grid grid-cols-1 gap-4">
-                {digest.topics?.map((topic, i) => (
-                    <div 
-                        key={i} 
-                        className={`
-                            group relative p-5 rounded-3xl transition-all duration-300 hover:scale-[1.01] backdrop-blur-md
+                {digest.topics?.map((topic, i) => {
+                    const isExpanded = expandedIndex === i;
+                    
+                    return (
+                        <div 
+                            key={i} 
+                            onClick={() => toggleExpand(i)}
+                            className={`
+                                group relative p-5 rounded-3xl transition-all duration-300 backdrop-blur-md cursor-pointer
+                                ${isDarkMode 
+                                    ? 'bg-zinc-900/60 border-t border-l border-white/10 border-b border-r border-black/40' 
+                                    : 'bg-white/70 border-t border-l border-white border-b border-r border-zinc-200/60'}
+                                ${isExpanded ? 'ring-2 ring-purple-500/30 scale-[1.02] z-20' : 'hover:scale-[1.01]'}
+                            `}
+                        >
+                            <div className="flex justify-between items-start mb-3">
+                                <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-xl backdrop-blur-sm ${getTag3DStyle(i)}`}>
+                                    {topic.tag}
+                                </span>
+                                
+                                <div className={`flex items-center gap-2`}>
+                                    {/* Indicador de Quantidade de Fontes */}
+                                    {topic.articles && topic.articles.length > 0 && (
+                                        <span className="text-[9px] font-bold opacity-40 uppercase tracking-wide">
+                                            {topic.articles.length} {topic.articles.length === 1 ? 'Fonte' : 'Fontes'}
+                                        </span>
+                                    )}
+                                    <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} opacity-50`}>
+                                        <ChevronRight size={14} />
+                                    </div>
+                                </div>
+                            </div>
                             
-                            /* --- AQUI ESTÁ O SEGREDO DO 3D NO CARD --- */
-                            ${isDarkMode 
-                                ? 'bg-zinc-900/60 border-t border-l border-white/10 border-b border-r border-black/40 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.5)]' 
-                                : 'bg-white/70 border-t border-l border-white border-b border-r border-zinc-200/60 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.05),_0_2px_4px_-1px_rgba(0,0,0,0.02)]'}
-                        `}
-                    >
-                        <div className="flex justify-between items-start mb-3">
-                            {/* TAG COM EFEITO 3D (CHAMADA DA FUNÇÃO getTag3DStyle) */}
-                            <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-xl backdrop-blur-sm ${getTag3DStyle(i)}`}>
-                                {topic.tag}
-                            </span>
-                            
-                            <div className={`w-1.5 h-1.5 rounded-full opacity-30 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'bg-white' : 'bg-black'}`} />
+                            <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
+                                {topic.summary}
+                            </p>
+
+                            {/* ÁREA EXPANDIDA (FONTES ORIGINAIS) */}
+                            <div className={`grid transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'grid-rows-[1fr] mt-4 opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                                <div className="min-h-0">
+                                    <div className={`h-px w-full mb-3 ${isDarkMode ? 'bg-white/10' : 'bg-black/5'}`} />
+                                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Baseado em:</p>
+                                    
+                                    <div className="space-y-2">
+                                        {topic.articles && topic.articles.length > 0 ? (
+                                            topic.articles.map((article, idx) => (
+                                                <div 
+                                                    key={idx}
+                                                    onClick={(e) => { e.stopPropagation(); openArticle(article); }}
+                                                    className={`
+                                                        flex items-center gap-3 p-2 rounded-xl border transition-colors hover:scale-[1.01] active:scale-95
+                                                        ${isDarkMode ? 'bg-black/20 border-white/5 hover:bg-white/5' : 'bg-white/50 border-black/5 hover:bg-white'}
+                                                    `}
+                                                >
+                                                    <img 
+                                                        src={article.logo} 
+                                                        className="w-6 h-6 rounded-lg object-cover" 
+                                                        onError={(e) => e.target.style.display = 'none'}
+                                                    />
+                                                    <div className="min-w-0">
+                                                        <div className={`text-[9px] font-bold uppercase mb-0.5 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                                                            {article.source}
+                                                        </div>
+                                                        <div className={`text-xs font-bold leading-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                                                            {article.title}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-[10px] opacity-50 italic pl-1">
+                                                Fontes não identificadas diretamente.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
-                        <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
-                            {topic.summary}
-                        </p>
-                    </div>
-                ))}
+                    );
+                })}
              </div>
 
              {/* Rodapé */}
@@ -2293,8 +2416,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
 };
 
 
-
-// --- WIDGET: ENQUANTO VOCÊ ESTAVA FORA (VERSÃO IA GENERATIVA) ---
 
 // --- WIDGET: CONTEXTO GLOBAL (V4 - ATUALIZAÇÃO ESTRITA: APENAS PUSH OU START) ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refreshTrigger }) => {
