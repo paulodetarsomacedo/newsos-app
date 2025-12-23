@@ -2518,12 +2518,18 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   );
 };
 
+// Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
+
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [startY, setStartY] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // --- NOVO ESTADO ---
+  // Este estado será atualizado pelo componente filho (WhileYouWereAwayWidget)
+  const [isContextLoading, setIsContextLoading] = useState(true);
 
   const handleTouchStart = (e) => {
     if (window.scrollY <= 5 && !isRefreshing) setStartY(e.touches[0].clientY);
@@ -2573,9 +2579,18 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
+        /* Animação de texto cintilante */
+        @keyframes shimmer-text {
+            0% { background-position: 200% center; }
+            100% { background-position: -200% center; }
+        }
+        .animate-shimmer-text {
+            background-size: 200% auto;
+            animation: shimmer-text 3s linear infinite;
+        }
       `}</style>
       
-      {/* Indicador de Loading */}
+      {/* Indicador de Loading (Pull to refresh) */}
       <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '35%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 || isRefreshing ? 'flex' : 'none' }}>
          <div className={`flex flex-col items-center gap-3 p-6 rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-black/5 border-white/10 shadow-purple-500/20' : 'bg-white/90 border-white shadow-xl text-zinc-900'}`}>
             {isRefreshing ? <Loader2 size={42} className="animate-spin text-purple-500" /> : <RefreshCw size={42} className="text-purple-500 transition-transform" style={{ transform: `rotate(${pullDistance * 3}deg)` }}/>}
@@ -2598,21 +2613,49 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       
       <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
       
-      
-      {/* --- FIM DA CORREÇÃO --- */}
-      
+      {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA --- */}
       <div className="space-y-4">
+        {/* Cabeçalho Futurista */}
+        <div className="relative z-10 flex items-center gap-3 px-6">
+            <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+                <Sparkles size={18} />
+            </div>
+            <div>
+                <h3 className={`text-sm font-black uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
+                    Contexto Global
+                </h3>
+                {isContextLoading ? (
+                    <span className="text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                        Analisando os fatos...
+                    </span>
+                ) : (
+                    <p className={`text-xs font-medium ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                        Os maiores eventos, em múltiplos ângulos
+                    </p>
+                )}
+            </div>
+        </div>
+
         <GeminiBar />
-        <WhileYouWereAwayWidget news={newsData} openArticle={openArticle} isDarkMode={isDarkMode} apiKey={apiKey} refreshTrigger={refreshTrigger} />
+        <WhileYouWereAwayWidget 
+            news={newsData} 
+            openArticle={openArticle} 
+            isDarkMode={isDarkMode} 
+            apiKey={apiKey} 
+            refreshTrigger={refreshTrigger}
+            // Passa a função para o filho atualizar o estado de loading
+            onLoadingChange={setIsContextLoading}
+        />
         <GeminiBar />
       </div>
-      {/* --- SMART DIGEST ADICIONADO DE VOLTA AQUI --- */}
+
       <SmartDigestWidget 
           newsData={newsData} 
           apiKey={apiKey} 
           isDarkMode={isDarkMode} 
           refreshTrigger={refreshTrigger} 
       />
+      
       <div className="px-2 pt-4">
         <div className="flex items-center gap-2 mb-4 px-1"><TrendingUp size={20} className="text-blue-500" /><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Em Alta Agora</h3></div>
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
@@ -2623,6 +2666,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     </div>
   );
 }
+
 
 
 function BancaTab({ openOutlet, isDarkMode }) {
