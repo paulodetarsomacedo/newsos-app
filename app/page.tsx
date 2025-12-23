@@ -2195,27 +2195,48 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
   const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
   const prevRefreshTrigger = useRef(refreshTrigger);
 
+  // --- LÓGICA DE DELAY INTELIGENTE APLICADA AQUI ---
   useEffect(() => {
-    if (!news || news.length < 4 || !apiKey) return;
+    // 1. Condições de Saída: Não faz nada se não tiver a API key ou notícias suficientes.
+    if (!apiKey || !news || news.length < 5) {
+      return;
+    }
+
     const isUserRefresh = refreshTrigger !== prevRefreshTrigger.current;
-    if (hasLoadedInitial && !isUserRefresh) return;
+    
+    // 2. Lógica para a PRIMEIRA ABERTURA do app
+    if (!hasLoadedInitial) {
+      // Marca que a carga inicial já aconteceu para não entrar mais aqui
+      setHasLoadedInitial(true);
+      
+      // Define um delay de 3 segundos APÓS os dados carregarem.
+      // Isso dá tempo para a interface principal renderizar suavemente.
+      const initialLoadTimer = setTimeout(() => {
+        runAI();
+      }, 3000); // Delay de 3 segundos (muito melhor que 15)
 
-    prevRefreshTrigger.current = refreshTrigger;
-    if (!hasLoadedInitial) setHasLoadedInitial(true);
+      // Limpa o timer se o componente for desmontado
+      return () => clearTimeout(initialLoadTimer);
+    }
+    
+    // 3. Lógica para o PUSH do usuário (sem delay)
+    if (isUserRefresh) {
+      prevRefreshTrigger.current = refreshTrigger;
+      runAI();
+    }
 
-    const runAI = async () => {
-        setLoading(true);
-        if (isUserRefresh) setClusters(null); 
-        await new Promise(r => setTimeout(r, 1000));
-        
-        const result = await generateSmartClustering(news, apiKey);
-        
-        setClusters(result);
-        setLoading(false);
-    };
+  }, [news, apiKey, refreshTrigger]); // O useEffect reavalia sempre que as notícias ou o refresh mudam
 
-    runAI();
-  }, [news, apiKey, refreshTrigger]);
+  const runAI = async () => {
+      setLoading(true);
+      setClusters(null); // Limpa os clusters antigos para dar feedback visual de atualização
+      await new Promise(r => setTimeout(r, 1000)); // Pequeno delay cosmético para a animação de loading
+      
+      const result = await generateSmartClustering(news, apiKey);
+      
+      setClusters(result);
+      setLoading(false);
+  };
 
   const handleScroll = () => {
     if (scrollRef.current) {
@@ -2227,24 +2248,10 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
       }
     }
   };
-
-  // Função para dar fundos de cores fortes e escuras
-  const getCardBgStyle = (index, isDark) => {
-    const gradients = [
-      'from-indigo-900 via-zinc-950 to-zinc-950',
-      'from-purple-900 via-zinc-950 to-zinc-950',
-      'from-teal-900 via-zinc-950 to-zinc-950',
-    ];
-    const lightGradients = [ // Mantemos uma versão light sutil
-      'from-indigo-100 to-white',
-      'from-purple-100 to-white',
-      'from-teal-100 to-white',
-    ];
-    return isDark ? gradients[index % gradients.length] : lightGradients[index % lightGradients.length];
-  };
-
+  
+  // O resto do componente (skeleton e JSX) permanece exatamente o mesmo.
   if (loading) {
-      return ( // Skeleton de loading mantido para boa experiência
+      return (
         <div className="px-1 mt-6 animate-pulse">
             <div className={`h-[420px] rounded-[32px] w-full border p-6 flex flex-col justify-between ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}`}>
                 <div className="w-3/4 h-8 rounded-md bg-zinc-200 dark:bg-zinc-800" />
@@ -2262,9 +2269,9 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
   if (!clusters || clusters.length === 0) return null;
 
   return (
-    <div className="px-1 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+    <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
         <div className="relative w-full">
-            <div className="relative z-10 flex items-center gap-3 mb-4 px-5">
+            <div className="relative z-10 flex items-center gap-3 mb-4 px-6">
                 <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
                     <Sparkles size={18} />
                 </div>
@@ -2277,7 +2284,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
                     </p>
                 </div>
             </div>
-
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
@@ -2285,64 +2291,36 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
             >
                 {clusters.map((cluster, idx) => (
                     <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
-                        {/* --- CARD PRINCIPAL COM EFEITO 3D E AURAS --- */}
-                        <div className={`
-                            relative w-full rounded-[2rem] overflow-hidden shadow-2xl transition-all
-                            bg-gradient-to-br ${getCardBgStyle(idx, isDarkMode)}
-                            
-                            /* --- Efeito de Relevo 3D com Bordas --- */
-                            ${isDarkMode 
-                                ? 'border-t border-l border-white/10 border-b border-r border-black/40' 
-                                : 'border border-zinc-200/50'}
-                        `}>
-                            {/* --- Efeitos de Aura Futurista --- */}
-                            <div className="absolute -top-16 -right-16 w-48 h-48 bg-purple-600/30 rounded-full blur-3xl animate-pulse" />
-                            <div className="absolute -bottom-16 -left-16 w-40 h-40 bg-indigo-600/30 rounded-full blur-3xl animate-pulse delay-500" />
-                            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-soft-light pointer-events-none"></div>
-
-                            <div className="relative z-10 flex flex-col">
-                                <div className="w-full aspect-[16/9] bg-black/20 overflow-hidden">
-                                    <img src={cluster.representative_image} className="w-full h-full object-cover" alt={cluster.ai_title} />
-                                </div>
-                                
-                                <div className="p-6">
-                                    {/* --- TÍTULO COM FONTE E TAMANHO MELHORADOS --- */}
-                                    <h3 className={`
-                                        text-xl font-black leading-tight mb-6 min-h-[56px]
-                                        ${isDarkMode ? 'text-white drop-shadow-sm' : 'text-zinc-900'}
-                                    `}>
-                                        {cluster.ai_title}
-                                    </h3>
-                                    
-                                    {/* --- BOTÕES DE LOGO MAIORES E ESTILIZADOS --- */}
-                                    <div className="flex flex-wrap gap-4 items-center">
-                                        {cluster.related_articles.map(article => (
-                                            <button
-                                                key={article.id}
-                                                onClick={() => openArticle(article)}
-                                                className="
-                                                    w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm p-1.5 
-                                                    border border-white/10 shadow-lg 
-                                                    transition-transform hover:scale-110 active:scale-95
-                                                    hover:shadow-indigo-500/50
-                                                "
-                                                title={`Ler no ${article.source}`}
-                                            >
-                                                <img 
-                                                    src={article.logo} 
-                                                    className="w-full h-full object-contain rounded-full bg-white p-0.5" 
-                                                    onError={(e) => e.target.style.display='none'}
-                                                />
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+                        <div className="group relative h-[420px] w-full rounded-[32px] overflow-hidden cursor-default shadow-2xl">
+                            <img src={cluster.representative_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={cluster.ai_title} />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+                            <div className="absolute top-6 left-6 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                               <Layers size={12} className="text-white/70" />
+                               <span className="text-white text-[10px] font-bold uppercase tracking-widest">{cluster.related_articles.length} FONTES</span>
+                            </div>
+                            <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full">
+                               <h2 className="text-2xl md:text-3xl font-black text-white leading-tight mb-6 min-h-[64px]">{cluster.ai_title}</h2>
+                               <div className="flex flex-wrap gap-4 items-center">
+                                   {cluster.related_articles.map(article => (
+                                       <button
+                                           key={article.id}
+                                           onClick={() => openArticle(article)}
+                                           className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md p-1.5 border-2 border-white/20 shadow-xl transition-all duration-300 hover:scale-110 active:scale-95 hover:border-purple-400 hover:shadow-purple-500/50"
+                                           title={`Ler no ${article.source}`}
+                                       >
+                                           <img 
+                                               src={article.logo} 
+                                               className="w-full h-full object-contain rounded-full bg-white" 
+                                               onError={(e) => e.target.style.display='none'}
+                                           />
+                                       </button>
+                                   ))}
+                               </div>
                             </div>
                         </div>
                     </div>
                 ))}
             </div>
-            
             {clusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-4">
                   {clusters.map((_, idx) => (
@@ -2354,6 +2332,8 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
     </div>
   );
 };
+
+
 
 // --- COMPONENTE TREND RADAR (V4 - ATUALIZAÇÃO ESTRITA: APENAS PUSH OU START) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
