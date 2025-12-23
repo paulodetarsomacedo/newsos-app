@@ -1769,7 +1769,7 @@ const generateSmartClustering = async (news, apiKey) => {
   ).join('\n');
 
   const prompt = `
-  Você é um Editor-Chefe e Diretor de Arte de uma publicação de tecnologia de ponta.
+  Você é um Editor-Chefe e Diretor de Arte de uma publicação jornalística de ponta.
 
   TAREFA PRINCIPAL:
   Analise a lista de notícias abaixo e identifique até 3 (três) eventos principais que estão sendo cobertos por 4 (quatro) ou mais fontes diferentes. Para cada evento, aja como um curador de conteúdo de elite.
@@ -1798,9 +1798,7 @@ const generateSmartClustering = async (news, apiKey) => {
   `;
 
   try {
-    // --- AQUI ESTÁ A CORREÇÃO FINAL DA URL ---
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-    // --- FIM DA CORREÇÃO ---
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1820,13 +1818,16 @@ const generateSmartClustering = async (news, apiKey) => {
     if (!text) return null;
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+
+    // --- LÓGICA DE HIDRATAÇÃO CORRIGIDA E SIMPLIFICADA ---
     const hydratedJson = json.map(cluster => {
+        const hydratedArticles = cluster.related_articles
+            .map(ref => news.find(n => n.id === ref.id)) // Encontra o artigo completo na lista 'news'
+            .filter(Boolean); // Remove quaisquer resultados 'undefined' (caso um artigo não seja encontrado)
+
         return {
             ...cluster,
-            related_articles: cluster.related_articles.map(ref => {
-                const article = news.find(n => n.id === ref.id);
-                return article ? { ...ref, ...article } : ref;
-            }).filter(item => item && item.id)
+            related_articles: hydratedArticles
         };
     });
 
