@@ -2587,7 +2587,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   );
 };
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, apiKey }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
   
   // O refreshTrigger para os widgets de IA precisa ser gerenciado aqui
@@ -2622,10 +2622,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         setIsRefreshing(true);
         setPullDistance(120); 
         
-        // Aciona o gatilho para os widgets de IA recarregarem
         setRefreshTrigger(prev => prev + 1);
         
-        // Chama a função de refresh principal (que limpa os seenStoryIds e busca dados)
         if (onRefresh) {
             await onRefresh();
         }
@@ -2690,14 +2688,14 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       <div className="flex items-center gap-4 px-2 pt-2 relative z-10">
         <div className="flex-1 min-w-0"> 
             <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
-                {storiesToDisplay.length === 0 && (
+                {storiesToDisplay && storiesToDisplay.length === 0 && (
                     <div className="flex flex-col justify-center h-full pl-2 opacity-50">
                         <span className="text-[10px] font-bold uppercase tracking-widest">Nada de novo por aqui</span>
                         <span className="text-[9px]">Puxe para atualizar o feed</span>
                     </div>
                 )}
 
-                {storiesToDisplay.map((story) => (
+                {storiesToDisplay && storiesToDisplay.map((story) => (
                 <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
                     <div className={`
                         relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500
@@ -2729,7 +2727,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
 
-      {/* WIDGETS */}
+      {/* WIDGETS CORRIGIDOS */}
       <TrendRadar 
           newsData={newsData} 
           apiKey={apiKey} 
@@ -2745,7 +2743,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       />
 
       <WhileYouWereAwayWidget 
-          news={newsData || FEED_NEWS} 
+          news={newsData} 
           openArticle={openArticle}
           isDarkMode={isDarkMode}
           apiKey={apiKey}
@@ -3898,15 +3896,14 @@ const handleHappeningRefresh = () => {
             {activeTab === 'happening' && (
                 <HappeningTab 
                     openArticle={handleOpenArticle} 
-                    openStory={setSelectedStory} 
-                    isDarkMode={isDarkMode} 
-                    newsData={realNews} 
-                    onRefresh={fetchFeeds}
-                    seenStoryIds={seenStoryIds} 
-                    onRefresh={handleHappeningRefresh}
-                    onMarkAsSeen={markStoryAsSeen}
-                    apiKey={apiKey}
-                    storiesToDisplay={storiesToDisplay}
+        openStory={setSelectedStory} 
+        isDarkMode={isDarkMode} 
+        newsData={realNews} // Garanta que esta linha está presente
+        onRefresh={handleHappeningRefresh}
+        storiesToDisplay={storiesToDisplay} // E esta também
+        onMarkAsSeen={markStoryAsSeen}
+        apiKey={apiKey}
+                    
                 />
             )}
 
