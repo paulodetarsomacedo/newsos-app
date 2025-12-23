@@ -4525,7 +4525,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL (CORREÇÃO DEFINITIVA PARA IPAD PWA)
+// COMPONENTE ARTICLE PANEL (VERSÃO NATIVA / SEM CAPA CUSTOMIZADA NO VÍDEO)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
@@ -4535,8 +4535,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // Controle para saber se o usuário DEU O PLAY. 
-  // No iPad PWA, o iframe só deve nascer quando isso for true.
+  // Controle de Áudio (Apenas para podcasts/MP3, não afeta mais o YouTube)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   // --- LÓGICA DE TRADUÇÃO ---
@@ -4553,7 +4552,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
-          // IMPORTANTE: Reseta o play ao trocar de artigo para forçar novo clique
           setIsPlayingAudio(false);
       } else {
           setViewMode('web');
@@ -4564,7 +4562,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       }
   }, [article?.id, videoId]);
 
-  // Se o app for minimizado, reseta o player para evitar bugs de áudio em background
+  // Se sair do app, reseta o estado visual
   useEffect(() => {
       const handleVisibilityChange = () => {
           if (document.visibilityState === 'hidden') {
@@ -4725,64 +4723,50 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
                         
-                        {/* --- ÁREA DO VÍDEO (FIX PARA IPAD) --- */}
-                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative group cursor-pointer">
+                        {/* --- ÁREA DO VÍDEO NATIVO (SEM CAPAS/OVERLAYS) --- */}
+                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative">
                             
-                            {/* 1. O IFRAME SÓ NASCE SE FOR MODO AUDIO (escondido) OU SE TIVER DADO PLAY */}
-                            {/* Isso impede o iPad de tentar renderizar o vídeo no background e travar a GPU */}
-                            {(article.forceAudioMode || isPlayingAudio) && (
+                            {/* 
+                                SOLUÇÃO DEFINITIVA PWA:
+                                1. Iframe direto, sem condicionais de "isPlaying".
+                                2. Sem autoplay forçado, mas com playsinline (melhor para iOS).
+                                3. O usuário verá o player do YouTube carregado e clicará no Play.
+                                4. Sem z-index maluco, sem imagens por cima.
+                            */}
+                            
+                            {article.forceAudioMode ? (
+                                /* Lógica especial APENAS para Áudio/Podcast (mantida pois vc disse que audio funciona) */
+                                <>
+                                   <iframe 
+                                        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                                        className="w-full h-full absolute inset-0 opacity-[0.01] z-20"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        title="YouTube Audio"
+                                    />
+                                    {/* Capa do Áudio (Obrigatória para não ficar tela preta) */}
+                                    <div className="absolute inset-0 w-full h-full z-10 bg-black flex flex-col items-center justify-center gap-2">
+                                        <img src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="" />
+                                        <div className="relative z-20 flex flex-col items-center">
+                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl animate-pulse">
+                                                <Headphones size={32} fill="white" className="text-white"/>
+                                            </div>
+                                            <div className="bg-black/80 px-3 py-1 rounded-full text-xs font-bold text-white mt-2">Toque para Ouvir</div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                /* LÓGICA PURA PARA VÍDEO (SEM CAPA) */
                                 <iframe 
-                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                                    className={`w-full h-full absolute inset-0 transition-opacity duration-500 
-                                        ${article.forceAudioMode 
-                                            ? 'opacity-0 pointer-events-none' // Escondido, mas existe no DOM para áudio
-                                            : 'opacity-100 z-50' // Visível e no topo
-                                        }
-                                    `}
+                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&modestbranding=1&rel=0&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                                    className="w-full h-full absolute inset-0 z-10"
                                     frameBorder="0"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
+                                    loading="eager"
                                     title="YouTube Video"
                                 />
                             )}
-                            
-                            {/* 2. CAPA (Thumbnail) - SÓ APARECE SE NÃO ESTIVER TOCANDO */}
-                            {(!isPlayingAudio || article.forceAudioMode) && (
-                                <div 
-                                    className="absolute inset-0 w-full h-full z-40 bg-black"
-                                    onClick={() => {
-                                        if (!article.forceAudioMode) {
-                                            setIsPlayingAudio(true);
-                                        }
-                                    }}
-                                >
-                                    <img 
-                                        src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
-                                        className="w-full h-full object-cover opacity-80"
-                                        alt="Video Thumbnail"
-                                    />
-                                    
-                                    {/* Overlay Visual (Botões) */}
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
-                                        {article.forceAudioMode ? (
-                                            <>
-                                                <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl animate-pulse">
-                                                    <Headphones size={32} fill="white" className="text-white"/>
-                                                </div>
-                                                <div className="bg-black/80 px-3 py-1 rounded-full text-xs font-bold text-white mt-2">
-                                                    Áudio Iniciando...
-                                                </div>
-                                                {/* No modo áudio, o iframe carrega escondido e toca sozinho pelo autoplay */}
-                                            </>
-                                        ) : (
-                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110">
-                                                <Play size={32} fill="white" className="text-white ml-1" />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
                         </div>
                         {/* --- FIM DA ÁREA DO VÍDEO --- */}
 
