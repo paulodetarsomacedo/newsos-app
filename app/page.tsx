@@ -1010,6 +1010,12 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
 const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike }) => {
+  // --- CORREÇÃO APLICADA AQUI ---
+  const displayTime = news.rawDate 
+    ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+    : '...';
+  // --- FIM DA CORREÇÃO ---
+
   return (
     <div 
       onClick={() => onClick(news)}
@@ -1028,25 +1034,15 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
         }
       `}
     >
-      {/* EFEITOS DE FUNDO */}
       <div className={`absolute -top-10 -right-10 w-48 h-48 rounded-full blur-[60px] pointer-events-none transition-opacity duration-700 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-40'} ${isDarkMode ? 'bg-blue-600/20' : 'bg-blue-200/50'}`} />
       <div className={`absolute -bottom-10 -left-10 w-32 h-32 rounded-full blur-[50px] pointer-events-none transition-opacity duration-700 ${isSelected ? 'opacity-80' : 'opacity-0'} ${isDarkMode ? 'bg-purple-600/20' : 'bg-purple-200/50'}`} />
 
       <div className="relative z-10 flex flex-row gap-5 w-full p-3 items-start">
-          {/* IMAGEM */}
           <div className={`relative overflow-hidden rounded-2xl flex-shrink-0 shadow-sm w-28 h-28 md:w-36 md:h-36 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-            <SmartImage 
-                src={news.img} 
-                title={news.title} 
-                logo={news.logo} 
-                sourceName={news.source} 
-                isDarkMode={isDarkMode}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-            />
+            <SmartImage src={news.img} title={news.title} logo={news.logo} sourceName={news.source} isDarkMode={isDarkMode} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"/>
             {isSelected && <div className="absolute inset-0 bg-[#4c1d95]/10 mix-blend-overlay pointer-events-none" />}
           </div>
 
-          {/* CONTEÚDO */}
           <div className="flex-1 flex flex-col justify-start gap-1 py-1 min-w-0">
             <div>
                 <div className="flex justify-between items-center mb-2">
@@ -1060,72 +1056,23 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
                     </div>
 
                     <div className="flex items-center gap-1">
-                      {isRead && !isSelected && (
-                         <div className="flex items-center gap-1 bg-red-500 px-1.5 py-0.5 rounded text-white" title="Notícia já lida">
-                            <CheckCircle size={10} />
-                            <span className="text-[9px] font-bold uppercase">Lido</span>
-                         </div>
-                      )}
-                      <span className={`text-[10px] font-bold tracking-wide ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                          {news.time}
-                      </span>
+                      {isRead && !isSelected && (<div className="flex items-center gap-1 bg-red-500 px-1.5 py-0.5 rounded text-white" title="Notícia já lida"><CheckCircle size={10} /><span className="text-[9px] font-bold uppercase">Lido</span></div>)}
+                      {/* USA A NOVA VARIÁVEL 'displayTime' */}
+                      <span className={`text-[10px] font-bold tracking-wide ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{displayTime}</span>
                     </div>
                 </div>
-
-                {isSelected && (
-                    <div className="flex items-center gap-2 mb-1.5 animate-pulse">
-                        <Sparkles size={16} className="text-[#047857] dark:text-[#4ade80]" />
-                        <span className="text-[16px] font-black font-bold uppercase tracking-widest text-[green] dark:text-[#4ade80] drop-shadow-sm">
-                            Lendo Agora
-                        </span>
-                    </div>
-                )}
-
-                <h3 className={`text-lg font-bold leading-snug tracking-tight transition-colors line-clamp-3 ${isSelected ? 'text-[purple] dark:text-[#4ade80]' : isRead ? (isDarkMode ? 'text-zinc-500' : 'text-zinc-400') : (isDarkMode ? 'text-zinc-100 group-hover:text-purple-400' : 'text-zinc-800 group-hover:text-[#4c1d95]')}`}>
-                  {news.title}
-                </h3>
+                {isSelected && (<div className="flex items-center gap-2 mb-1.5 animate-pulse"><Sparkles size={16} className="text-[#047857] dark:text-[#4ade80]" /><span className="text-[16px] font-black font-bold uppercase tracking-widest text-[green] dark:text-[#4ade80] drop-shadow-sm">Lendo Agora</span></div>)}
+                <h3 className={`text-lg font-bold leading-snug tracking-tight transition-colors line-clamp-3 ${isSelected ? 'text-[purple] dark:text-[#4ade80]' : isRead ? (isDarkMode ? 'text-zinc-500' : 'text-zinc-400') : (isDarkMode ? 'text-zinc-100 group-hover:text-purple-400' : 'text-zinc-800 group-hover:text-[#4c1d95]')}`}>{news.title}</h3>
             </div>
-
-            <p className={`text-sm leading-relaxed line-clamp-2 font-medium mt-0 ${isRead ? 'text-zinc-500/60' : (isSelected ? (isDarkMode ? 'text-zinc-300' : 'text-zinc-600') : (isDarkMode ? 'text-zinc-500' : 'text-zinc-500'))}`}>
-               {news.summary}
-            </p>
+            <p className={`text-sm leading-relaxed line-clamp-2 font-medium mt-0 ${isRead ? 'text-zinc-500/60' : (isSelected ? (isDarkMode ? 'text-zinc-300' : 'text-zinc-600') : (isDarkMode ? 'text-zinc-500' : 'text-zinc-500'))}`}>{news.summary}</p>
           </div>
       </div>
 
-      {/* RODAPÉ DO CARD (Botões) */}
       <div className="absolute bottom-3 right-3 flex items-center gap-2 z-30">
-          <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border backdrop-blur-md select-none ${isDarkMode ? 'bg-black/20 border-white/5 text-zinc-400' : 'bg-white/40 border-black/5 text-zinc-500'}`}>
-              <Clock size={10} className={isDarkMode ? 'text-zinc-500' : 'text-zinc-400'} />
-              <span className="text-[9px] font-bold uppercase tracking-wider">{news.readTime || '3 min'}</span>
-          </div>
-
-          {/* --- BOTÃO DE CURTIR CORRIGIDO --- */}
-<button 
-  onClick={(e) => { 
-      e.stopPropagation(); 
-      // Se a função existir, chama ela. Se não, não faz nada (sem alert chato)
-      if (onToggleLike) onToggleLike(news);
-  }} 
-  className={`
-      p-2 rounded-full transition-all duration-300 active:scale-75 group/like
-      ${isLiked 
-          ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' // Vermelho forte quando curtido
-          : (isDarkMode ? 'bg-black/20 text-zinc-400 hover:text-rose-500' : 'bg-white/40 text-zinc-500 hover:text-rose-500')
-      }
-  `} 
-  title="Curtir"
->
-   {/* fill={isLiked ? "currentColor" : "none"} garante que fique preenchido */}
-   <Heart size={18} fill={isLiked ? "currentColor" : "none"} className="transition-transform group-hover/like:scale-110" />
-</button>
-
-          <button onClick={(e) => { e.stopPropagation(); alert(`Iniciando leitura por IA de: ${news.title}`); }} className={`p-2 rounded-full transition-all duration-300 active:scale-90 group/audio ${isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95] text-zinc-400 hover:text-white' : 'bg-white/40 hover:bg-[#4c1d95] text-zinc-500 hover:text-white'}`} title="Ouvir Resumo">
-             <Headphones size={18} />
-          </button>
-
-          <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2 rounded-full transition-all duration-300 active:scale-75 group/save ${isSaved ? 'bg-[#4c1d95] text-white shadow-lg shadow-purple-500/30' : (isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95]/20 text-zinc-400 hover:text-[#a78bfa]' : 'bg-white/40 hover:bg-[#4c1d95]/10 text-zinc-500 hover:text-[#4c1d95]')}`} title="Salvar para ler depois">
-            <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} className="transition-transform group-hover/save:scale-110" />
-          </button>
+          <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border backdrop-blur-md select-none ${isDarkMode ? 'bg-black/20 border-white/5 text-zinc-400' : 'bg-white/40 border-black/5 text-zinc-500'}`}><Clock size={10} className={isDarkMode ? 'text-zinc-500' : 'text-zinc-400'} /><span className="text-[9px] font-bold uppercase tracking-wider">{news.readTime || '3 min'}</span></div>
+          <button onClick={(e) => { e.stopPropagation(); if (onToggleLike) onToggleLike(news);}} className={`p-2 rounded-full transition-all duration-300 active:scale-75 group/like ${isLiked ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' : (isDarkMode ? 'bg-black/20 text-zinc-400 hover:text-rose-500' : 'bg-white/40 text-zinc-500 hover:text-rose-500')}`} title="Curtir"><Heart size={18} fill={isLiked ? "currentColor" : "none"} className="transition-transform group-hover/like:scale-110" /></button>
+          <button onClick={(e) => { e.stopPropagation(); alert(`Iniciando leitura por IA de: ${news.title}`); }} className={`p-2 rounded-full transition-all duration-300 active:scale-90 group/audio ${isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95] text-zinc-400 hover:text-white' : 'bg-white/40 hover:bg-[#4c1d95] text-zinc-500 hover:text-white'}`} title="Ouvir Resumo"><Headphones size={18} /></button>
+          <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2 rounded-full transition-all duration-300 active:scale-75 group/save ${isSaved ? 'bg-[#4c1d95] text-white shadow-lg shadow-purple-500/30' : (isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95]/20 text-zinc-400 hover:text-[#a78bfa]' : 'bg-white/40 hover:bg-[#4c1d95]/10 text-zinc-500 hover:text-[#4c1d95]')}`} title="Salvar para ler depois"><Bookmark size={18} fill={isSaved ? "currentColor" : "none"} className="transition-transform group-hover/save:scale-110" /></button>
       </div>
     </div>
   );
@@ -1135,7 +1082,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     prev.isSelected === next.isSelected &&
     prev.isRead === next.isRead &&
     prev.isSaved === next.isSaved &&
-    prev.isLiked === next.isLiked && // Adicionei verificação para evitar re-render desnecessário
+    prev.isLiked === next.isLiked &&
     prev.isDarkMode === next.isDarkMode
   );
 });
@@ -3192,7 +3139,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
 
       const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
       
-      const parsedItems = items.map((node) => { // Removido o 'index' que não era mais necessário
+      const parsedItems = items.map((node) => {
         const getTxt = (tag) => {
             if (tag.includes(':')) {
                 const els = node.getElementsByTagName(tag);
@@ -3229,18 +3176,16 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         if (!img) img = extractImageFromContent(contentEncoded);
         if (!img) img = extractImageFromContent(description);
 
-        // --- AQUI ESTÁ A CORREÇÃO PRINCIPAL ---
         const title = getTxt("title");
-        // Cria um ID único e estável a partir do título e do link
         const stableId = stringToHash(title + link);
 
         return {
-          id: `${feedId}-${stableId}`, // <-- ID ESTÁVEL SENDO USADO AQUI
+          id: `${feedId}-${stableId}`,
           source: detectedTitle,
           logo: autoLogo,
-          time: rawDateValue ? rawDateValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+          // A LINHA 'time:' FOI REMOVIDA DAQUI
           rawDate: rawDateValue,
-          title: title, // <-- Reutiliza a variável 'title'
+          title: title,
           summary: description.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
           category: 'Geral',
           img: img,
@@ -4255,15 +4200,20 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
     }
   }, [story, onMarkAsSeen]);
 
-  // Encontra o índice do story atual na lista completa
   const currentIndex = allStories.findIndex(s => s.id === story.id);
-  // Determina se há um story anterior ou próximo
   const hasPrevStory = currentIndex > 0;
   const hasNextStory = currentIndex >= 0 && currentIndex < allStories.length - 1;
 
   if (!story || !story.items || story.items.length === 0) return null;
 
   const currentItem = story.items[0];
+
+  // --- CORREÇÃO APLICADA AQUI ---
+  // Formata a data diretamente no componente do cliente
+  const displayTime = currentItem.rawDate 
+    ? new Date(currentItem.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+    : 'Agora';
+  // --- FIM DA CORREÇÃO ---
 
   const handleOpenFullArticle = () => {
       onClose();
@@ -4302,7 +4252,8 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
                   </div>
                   <div className="flex flex-col">
                       <span className="text-white font-black text-sm drop-shadow-md tracking-tight">{story.name}</span>
-                      <span className="text-zinc-300 text-[10px] font-bold drop-shadow-md opacity-90">{currentItem.time}</span>
+                      {/* USA A NOVA VARIÁVEL 'displayTime' */}
+                      <span className="text-zinc-300 text-[10px] font-bold drop-shadow-md opacity-90">{displayTime}</span>
                   </div>
               </div>
               <button onClick={onClose} className="p-2.5 text-white/80 hover:text-white backdrop-blur-xl rounded-full bg-white/10 border border-white/10 transition-transform active:scale-90">
@@ -4311,56 +4262,36 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
           </div>
         </div>
 
+        {/* O resto do componente StoryOverlay continua igual... */}
         <div className="absolute inset-0 z-20 flex">
             <div className="w-[30%] h-full" onClick={() => onNavigate('prev')} />
             <div className="w-[70%] h-full" onClick={() => onNavigate('next')} />
         </div>
-
         {hasPrevStory && (
-          <button 
-            onClick={(e) => { e.stopPropagation(); onNavigate('prev'); }}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"
-          >
+          <button onClick={(e) => { e.stopPropagation(); onNavigate('prev'); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all">
             <ChevronLeft size={28} />
           </button>
         )}
         {hasNextStory && (
-          <button 
-            onClick={(e) => { e.stopPropagation(); onNavigate('next'); }}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"
-          >
+          <button onClick={(e) => { e.stopPropagation(); onNavigate('next'); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all">
             <ChevronRight size={28} />
           </button>
         )}
-
         <div className="absolute bottom-0 left-0 right-0 p-8 z-30 pb-12 md:pb-10 pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-center">
-                <h2 className="text-white text-2xl md:text-3xl font-black leading-tight mb-8 drop-shadow-2xl font-serif text-center line-clamp-5">
-                    {currentItem.title}
-                </h2>
-                <button 
-                    onClick={(e) => { e.stopPropagation(); handleOpenFullArticle(); }} 
-                    className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100"
-                >
+                <h2 className="text-white text-2xl md:text-3xl font-black leading-tight mb-8 drop-shadow-2xl font-serif text-center line-clamp-5">{currentItem.title}</h2>
+                <button onClick={(e) => { e.stopPropagation(); handleOpenFullArticle(); }} className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100">
                     <span className="text-sm uppercase tracking-widest">Ler Notícia Completa</span>
                     <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                 </button>
             </div>
         </div>
        </div>
-
        <div className="fixed inset-0 -z-10 bg-zinc-950/95 backdrop-blur-3xl md:block hidden" onClick={onClose} />
-       
-       <style jsx="true">{`
-          @keyframes progress {
-            0% { width: 0%; }
-            100% { width: 100%; }
-          }
-       `}</style>
+       <style jsx="true">{`@keyframes progress { 0% { width: 0%; } 100% { width: 100%; } }`}</style>
     </div>
   );
 }
-
 
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
