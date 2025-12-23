@@ -3797,27 +3797,7 @@ const handleStoryNavigation = (direction) => {
     setSavedItems((prevItems) => prevItems.filter((item) => item.id !== idToRemove));
   };
 
-  const handleOpenArticle = (article) => {
-    // Verifica se é vídeo do YouTube (videoId ou link)
-    const isVideo = article.videoId || (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be')));
     
-    // Se for podcast marcado como vídeo, também conta
-    const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
-
-    if (isVideo || isPodcastVideo) {
-        // ABRE O NOVO PLAYER SIMPLES
-        setSelectedVideo(article);
-        setSelectedArticle(null); // Garante que o painel de texto fecha
-    } else {
-        // ABRE O ARTICLE PANEL NORMAL
-        setSelectedArticle(article);
-        setSelectedVideo(null);
-    }
-
-    // Lógica de histórico (mantida)
-    if (!readHistory.includes(article.id)) setReadHistory((prev) => [...prev, article.id]);
-};
-  
   useEffect(() => {
     const resetInactivityTimer = () => {
       if (navTimerRef.current) clearTimeout(navTimerRef.current);
@@ -3923,7 +3903,44 @@ const allAvailableStories = useMemo(() => {
 }, [realNews]); // Depende apenas de 'realNews', não de 'seenStoryIds'
 
 
+// --- FUNÇÃO DE ABERTURA INTELIGENTE (VIDEO vs ARTIGO) ---
+  const handleOpenArticle = (article) => {
+    // 1. Verifica se é vídeo (YouTube ID, Link do YT ou Podcast tipo vídeo)
+    const isVideo = article.videoId || (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be')));
+    const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
 
+    if (isVideo || isPodcastVideo) {
+        // É VÍDEO: Abre no player simples (SimpleYouTubePage)
+        setSelectedVideo(article);
+        setSelectedArticle(null); 
+    } else {
+        // É TEXTO: Abre no ArticlePanel
+        setSelectedArticle(article);
+        setSelectedVideo(null);
+    }
+
+    // Histórico de leitura
+    if (!readHistory.includes(article.id)) {
+        setReadHistory((prev) => [...prev, article.id]);
+    }
+  };
+
+  // --- FUNÇÕES DE FECHAMENTO ---
+  const closeArticle = () => setSelectedArticle(null);
+  const closeOutlet = () => setSelectedOutlet(null);
+  const closeStory = () => setSelectedStory(null);
+
+  // --- A VARIÁVEL QUE ESTAVA FALTANDO E QUEBROU O BUILD ---
+  // Ela diz pro layout: "Se tiver qualquer coisa aberta (artigo, banca, story ou VIDEO), encolha o fundo."
+  const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory || !!selectedVideo;
+
+  // ... timers e refs ...
+  const mainRef = useRef(null);
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo({ top: 0, behavior: 'smooth' }); 
+    }
+  }, [activeTab]);
 
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
@@ -4101,13 +4118,12 @@ const allAvailableStories = useMemo(() => {
       <ArticlePanel 
           key={selectedArticle?.id || 'empty-panel'} 
           article={selectedArticle} 
-feedItems={[...realNews, ...realVideos, ...realPodcasts]}          isOpen={!!selectedArticle} 
+          feedItems={[...realNews, ...realVideos, ...realPodcasts]}          
+          isOpen={!!selectedArticle} 
           onClose={closeArticle} 
           onArticleChange={handleOpenArticle} 
           onToggleSave={handleToggleSave}
           isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-          isExpanded={isExpanded} 
-          setIsExpanded={setIsExpanded} 
           isDarkMode={isDarkMode} 
           onSaveToArchive={handleSaveToArchive}
       />
