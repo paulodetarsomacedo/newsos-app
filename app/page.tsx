@@ -3730,36 +3730,6 @@ const handleStoryNavigation = (direction) => {
   const closeOutlet = () => setSelectedOutlet(null);
   const closeStory = () => setSelectedStory(null);
   const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
-
-  // 1. Array de configuração para as abas (para facilitar o map e a obtenção das refs)
-  const tabs = [
-    { id: 'happening', label: 'Agora', icon: <Sparkles size={24} /> },
-    { id: 'feed', label: 'Feed', icon: <Rss size={24} /> },
-    { id: 'banca', label: 'Banca', icon: <LayoutGrid size={24} /> },
-    { id: 'youtube', label: 'Vídeos', icon: <Youtube size={24} /> },
-    { id: 'podcast', label: 'Pod', icon: <Mic size={24} /> },
-    { id: 'newsletter', label: 'News', icon: <Mail size={24} /> },
-    { id: 'saved', label: 'Salvos', icon: <Bookmark size={24} /> },
-  ];
-
-  // 2. Estado para guardar o estilo (posição e largura) da bolha
-  const [bubbleStyle, setBubbleStyle] = useState({});
-  
-  // 3. Ref para guardar a referência de todos os botões das abas
-  const tabRefs = useRef([]);
-
-  // 4. Efeito que recalcula a posição da bolha sempre que a aba ativa muda
-  useEffect(() => {
-    const activeTabIndex = tabs.findIndex(tab => tab.id === activeTab);
-    const activeTabNode = tabRefs.current[activeTabIndex];
-
-    if (activeTabNode) {
-      setBubbleStyle({
-        width: activeTabNode.offsetWidth,
-        transform: `translateX(${activeTabNode.offsetLeft}px)`,
-      });
-    }
-  }, [activeTab]);
   
   const navTimerRef = useRef(null);
   const handleTabClick = (tab) => {
@@ -3974,74 +3944,55 @@ const allAvailableStories = useMemo(() => {
             {activeTab === 'newsletter' && <NewsletterTab openArticle={handleOpenArticle} isDarkMode={isDarkMode} newsData={realNews} />}
           </main>
 
-       {/* --- BARRA DE NAVEGAÇÃO LÍQUIDA --- */}
-<div className="fixed bottom-0 left-0 right-0 z-[1000] flex justify-center pointer-events-none">
-  {/* Filtro SVG que cria o efeito "gooey". Ele fica invisível. */}
-  <svg style={{ display: 'none' }} width="0" height="0">
-    <defs>
-      <filter id="gooey">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
-        <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
-        <feComposite in="SourceGraphic" in2="goo" operator="atop" />
-      </filter>
-    </defs>
-  </svg>
-
-  <div 
-    className="pointer-events-auto w-full relative"
-    // O filtro é aplicado ao container PAI de todos os elementos que devem se fundir
-    style={{ filter: 'url(#gooey)' }}
-  >
-    
-    {!isNavVisible && (
-        <div 
-            className="absolute bottom-0 left-0 w-full h-20 z-[110] cursor-pointer bg-transparent"
-            style={{ touchAction: 'none' }}
-            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setIsNavVisible(true); if (window.navigator.vibrate) window.navigator.vibrate(10); }}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsNavVisible(true); }}
-        />
-    )}
-
-    <nav className={`
-        relative w-full overflow-hidden flex flex-col border-t shadow-[0_-10px_50px_rgba(0,0,0,0.5)] border-white/20  
-        transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1)
-        ${isNavVisible ? 'translate-y-0' : 'translate-y-[75%]'} 
-        ${isDarkMode ? 'bg-zinc-950' : 'bg-slate-900'}
-        backdrop-blur-2xl
-    `}>
-        
-        <div className="w-full flex justify-center pt-4 pb-2 relative z-20">
-            <div className={`rounded-full transition-all duration-300 ${isNavVisible ? 'bg-white/10 w-12 h-1.5 opacity-50' : 'bg-white/60 w-24 h-2 opacity-0 shadow-[0_0_20px_rgba(255,255,255,0.4)]'}`} />
-        </div>
-
-        {/* Container dos botões e da bolha */}
-        <div className={`
-            relative z-10 w-full flex justify-center gap-2 px-2 pb-10 transition-all duration-300 h-[80px]
-            ${isNavVisible ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}
-        `}> 
-            {/* A Bolha Mágica que se move */}
-            <MagicBubble style={bubbleStyle} isDarkMode={isDarkMode} />
-
+        <div className="fixed bottom-0 left-0 right-0 z-[1000] flex justify-center pointer-events-none">
+          <div className="pointer-events-auto w-full relative">
             
+            {!isNavVisible && (
+                <div 
+                    className="absolute bottom-0 left-0 w-full h-20 z-[110] cursor-pointer bg-transparent"
+                    style={{ touchAction: 'none' }}
+                    onPointerDown={(e) => {
+                        e.preventDefault(); e.stopPropagation(); setIsNavVisible(true);
+                        if (window.navigator.vibrate) window.navigator.vibrate(10);
+                    }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsNavVisible(true); }}
+                />
+            )}
 
-            {tabs.map((tab, index) => (
-              <TabButton 
-                  key={tab.id}
-                  ref={el => tabRefs.current[index] = el}
-                  icon={tab.icon} 
-                  label={tab.label} 
-                  active={activeTab === tab.id} 
-                  onClick={() => handleTabClick(tab.id)} 
-                  isDarkMode={isDarkMode} 
-              />
-            ))}
+            <nav className={`
+                relative w-full overflow-hidden flex flex-col border-t shadow-[0_-10px_50px_rgba(0,0,0,0.5)] border-white/20  
+                transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1)
+                ${isNavVisible ? 'translate-y-0' : 'translate-y-[75%]'} 
+                ${isDarkMode ? 'bg-zinc-950/95' : 'bg-slate-900/95'}
+                backdrop-blur-2xl
+            `}>
+                
+                <div className="w-full flex justify-center pt-4 pb-2 relative z-20">
+                    <div className={`
+                        rounded-full transition-all duration-300 
+                        ${isNavVisible ? 'bg-white/10 w-12 h-1.5 opacity-50' : 'bg-white/60 w-24 h-2 opacity-0 shadow-[0_0_20px_rgba(255,255,255,0.4)]'}
+                    `} />
+                </div>
+
+                <div className={`
+                    relative z-10 w-full flex justify-center gap-2 px-2 pb-10 transition-all duration-300
+                    ${isNavVisible ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}
+                `}> 
+                    <TabButton icon={<Sparkles size={24} />} label="Agora" active={activeTab === 'happening'} onClick={() => handleTabClick('happening')} isDarkMode={isDarkMode} />
+                    <TabButton icon={<Rss size={24} />} label="Feed" active={activeTab === 'feed'} onClick={() => handleTabClick('feed')} isDarkMode={isDarkMode} />
+                    <TabButton icon={<LayoutGrid size={24} />} label="Banca" active={activeTab === 'banca'} onClick={() => handleTabClick('banca')} isDarkMode={isDarkMode} />
+                    <TabButton icon={<Youtube size={24} />} label="Vídeos" active={activeTab === 'youtube'} onClick={() => handleTabClick('youtube')} isDarkMode={isDarkMode} />
+                    <TabButton icon={<Mic size={24} />} label="Pod" active={activeTab === 'podcast'} onClick={() => handleTabClick('podcast')} isDarkMode={isDarkMode} />
+                    <TabButton icon={<Mail size={24} />} label="News" active={activeTab === 'newsletter'} onClick={() => handleTabClick('newsletter')} isDarkMode={isDarkMode} />
+                    <TabButton icon={<Bookmark size={24} />} label="Salvos" active={activeTab === 'saved'} onClick={() => handleTabClick('saved')} isDarkMode={isDarkMode} />
+                </div>
+
+                <div className="absolute top-[-50%] left-[-10%] w-[50%] h-[200%] bg-blue-600/20 blur-[60px] rounded-full pointer-events-none" />
+                <div className="absolute bottom-[-50%] right-[-10%] w-[50%] h-[200%] bg-purple-600/10 blur-[50px] rounded-full pointer-events-none" />
+            </nav>
+          </div>
         </div>
-
-        <div className="absolute top-[-50%] left-[-10%] w-[50%] h-[200%] bg-blue-600/20 blur-[60px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-[-50%] right-[-10%] w-[50%] h-[200%] bg-purple-600/10 blur-[50px] rounded-full pointer-events-none" />
-    </nav>
-  </div>
-</div>      </div>
+      </div>
 
       {isSettingsOpen && (
           <SettingsModal 
