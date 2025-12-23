@@ -3382,51 +3382,109 @@ const MagicBubble = ({ style, isDarkMode }) => (
 
 
 
-const SimpleYouTubePage = ({ video, onClose }) => {
-  const url = getVideoUrl(video);
 
-  if (!url) return null;
+
+
+// --- NOVO COMPONENTE: PLAYER NATIVO (IGUAL AO PRINT) ---
+const NativeVideoModal = ({ video, onClose }) => {
+  if (!video) return null;
+
+  // Extração robusta do ID do YouTube
+  let videoId = video.videoId;
+  if (!videoId && video.link) {
+      const match = video.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
+      if (match && match[2].length === 11) videoId = match[2];
+  }
+
+  // Se não achou ID, não renderiza nada para não dar erro
+  if (!videoId) return null;
 
   return (
     <div 
-        style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            width: '100vw', 
-            height: '100vh', 
-            zIndex: 999999, // Z-Index Nuclear
-            backgroundColor: '#000000',
+        style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            zIndex: 9999999, // Máximo possível
+            backgroundColor: '#000000', // Fundo preto total
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            transform: 'none', // Impede aceleração de GPU errada
+            willChange: 'auto'
         }}
     >
-      {/* Barra de Topo Simples */}
-      <div className="flex items-center justify-between px-4 py-4 bg-zinc-900 border-b border-zinc-800">
-        <span className="text-white text-xs font-bold truncate pr-4">
-            {video.title || 'YouTube Video'}
-        </span>
-        <button 
-            onClick={onClose} 
-            className="bg-white text-black text-xs font-bold px-4 py-2 rounded-full active:scale-95"
-        >
-            FECHAR
-        </button>
+      {/* 1. Header estilo Browser (Igual ao Print) */}
+      <div style={{
+          padding: '16px',
+          backgroundColor: '#1f1f1f', // Cinza escuro do YouTube
+          borderBottom: '1px solid #333',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexShrink: 0
+      }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>
+                  youtube.com
+              </span>
+              <span style={{ color: '#aaa', fontSize: '12px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {video.title}
+              </span>
+          </div>
+          <button 
+              onClick={onClose}
+              style={{
+                  backgroundColor: '#333',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+              }}
+          >
+              FECHAR
+          </button>
       </div>
 
-      {/* O Iframe ocupa todo o resto. SEM transform, SEM animations */}
-      <div className="flex-1 w-full h-full relative">
-         <iframe 
-            src={url}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            title="Video Player"
-         />
+      {/* 2. Área do Iframe - Centralizada */}
+      <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'black'
+      }}>
+          {/* 
+             AQUI ESTÁ O SEGREDO: 
+             - Sem autoplay.
+             - playsinline=1 (Para não forçar tela cheia nativa bugada).
+             - key={videoId} (Força o React a recriar o player do zero se mudar o vídeo).
+          */}
+          <iframe 
+              key={videoId}
+              src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1&autoplay=0`}
+              style={{
+                  width: '100%',
+                  aspectRatio: '16/9',
+                  border: 'none',
+                  maxHeight: '100%'
+              }}
+              allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title={video.title}
+          />
       </div>
+      
+      {/* Rodapé falso para preencher espaço (opcional, igual ao print) */}
+      <div style={{ height: '40px', backgroundColor: '#0f0f0f' }} />
     </div>
   );
 };
+
 
 
 
@@ -3940,31 +3998,30 @@ const allAvailableStories = useMemo(() => {
 
 
 // --- FUNÇÃO DE ABERTURA INTELIGENTE (VIDEO vs ARTIGO) ---
- const handleOpenArticle = (article) => {
-    if (!article) return;
-
-    console.log("Abrindo item:", article); // Para debug
-
-    // Detecção agressiva de vídeo
-    const isVideo = article.videoId || 
-                    article.category === 'Vídeo' || 
-                    (article.link && (article.link.includes('youtube') || article.link.includes('youtu.be')));
-
-    if (isVideo) {
-        console.log("Detectado como VIDEO via SimplePlayer");
-        setSelectedVideo(article);
-        setSelectedArticle(null); // Fecha o painel de texto se estiver aberto
-    } else {
-        console.log("Detectado como ARTIGO");
-        setSelectedArticle(article);
-        setSelectedVideo(null);
-    }
+const handleOpenArticle = (article) => {
+    // Tenta detectar se é vídeo do YouTube
+    const isYoutube = article.videoId || 
+                      (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be')));
     
-    // Histórico
-    if (!readHistory.includes(article.id)) {
+    // Se for Podcast marcado como vídeo
+    const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
+
+    if (isYoutube || isPodcastVideo) {
+        // MODO VIDEO: Limpa o artigo de texto e define o vídeo
+        // Isso vai ativar o nosso novo modal NativeVideoModal
+        setSelectedArticle(null); 
+        setSelectedVideo(article);
+    } else {
+        // MODO TEXTO: Limpa o vídeo e define o artigo
+        setSelectedVideo(null);
+        setSelectedArticle(article);
+    }
+
+    // Adiciona ao histórico (sem lógica complexa)
+    if (article.id && !readHistory.includes(article.id)) {
         setReadHistory(prev => [...prev, article.id]);
     }
-};
+  };
 
   // --- FUNÇÕES DE FECHAMENTO ---
   const closeArticle = () => setSelectedArticle(null);
@@ -4138,15 +4195,7 @@ const allAvailableStories = useMemo(() => {
       )}
       
 
-      {/* PLAYER DE VÍDEO "NUCLEAR" */}
-      {selectedVideo && (
-          <SimpleYouTubePage 
-              video={selectedVideo} 
-              onClose={() => setSelectedVideo(null)} 
-          />
-      )}
-      
-      {/* SEU PAINEL DE ARTIGO (Só aparece se NÃO tiver vídeo) */}
+    {/* RENDERIZAÇÃO DO ARTIGO DE TEXTO (Só se não tiver vídeo) */}
       {!selectedVideo && (
           <ArticlePanel 
               key={selectedArticle?.id || 'empty-panel'} 
@@ -4159,6 +4208,15 @@ const allAvailableStories = useMemo(() => {
               isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
               isDarkMode={isDarkMode} 
               onSaveToArchive={handleSaveToArchive}
+          />
+      )}
+
+      {/* RENDERIZAÇÃO DO NOVO PLAYER NATIVO (O que imita o print) */}
+      {/* Ele está fora de tudo, com z-index máximo */}
+      {selectedVideo && (
+          <NativeVideoModal 
+              video={selectedVideo} 
+              onClose={() => setSelectedVideo(null)} 
           />
       )}
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
