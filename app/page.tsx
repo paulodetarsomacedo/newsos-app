@@ -15,6 +15,27 @@ import {
   Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart
 } from 'lucide-react';
 
+// Função robusta para extrair o ID ou garantir que temos um link funcional
+const getVideoUrl = (video) => {
+    if (!video) return null;
+    
+    // Se já temos o ID, montamos a URL de embed simples (mais leve que o site completo)
+    if (video.videoId) {
+        return `https://www.youtube.com/embed/${video.videoId}?playsinline=1&controls=1&autoplay=0`;
+    }
+    
+    // Se temos o link completo, tentamos extrair o ID
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = video.link?.match(regExp);
+    const id = (match && match[2].length === 11) ? match[2] : null;
+    
+    if (id) {
+        return `https://www.youtube.com/embed/${id}?playsinline=1&controls=1&autoplay=0`;
+    }
+    
+    // Fallback: Se não achou ID, usa o link original (pode abrir o site full)
+    return video.link; 
+};
 
 const stringToHash = (str) => {
   let hash = 0;
@@ -3361,63 +3382,47 @@ const MagicBubble = ({ style, isDarkMode }) => (
 
 
 
-// --- NOVO COMPONENTE: PÁGINA SIMPLES DE VÍDEO (ESTILO NATIVO/PRINT) ---
 const SimpleYouTubePage = ({ video, onClose }) => {
-  if (!video) return null;
+  const url = getVideoUrl(video);
 
-  // Extrair ID com segurança
-  const videoId = video.videoId || getVideoId(video.link);
+  if (!url) return null;
 
   return (
-    <div className="fixed inset-0 z-[99999] bg-black flex flex-col h-full w-full">
-      
-      {/* 1. Header Simples (Link no topo, igual pedido) */}
-      <div className="flex items-center justify-between px-4 py-3 bg-zinc-900 border-b border-zinc-800 shrink-0">
-        <div className="flex flex-col overflow-hidden">
-            <span className="text-white text-xs font-bold truncate max-w-[200px]">
-                youtube.com
-            </span>
-            <span className="text-zinc-500 text-[10px] truncate">
-                {video.title}
-            </span>
-        </div>
+    <div 
+        style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100vw', 
+            height: '100vh', 
+            zIndex: 999999, // Z-Index Nuclear
+            backgroundColor: '#000000',
+            display: 'flex',
+            flexDirection: 'column'
+        }}
+    >
+      {/* Barra de Topo Simples */}
+      <div className="flex items-center justify-between px-4 py-4 bg-zinc-900 border-b border-zinc-800">
+        <span className="text-white text-xs font-bold truncate pr-4">
+            {video.title || 'YouTube Video'}
+        </span>
         <button 
             onClick={onClose} 
-            className="text-white font-bold text-sm bg-zinc-800 px-4 py-2 rounded-full active:scale-95 transition-transform"
+            className="bg-white text-black text-xs font-bold px-4 py-2 rounded-full active:scale-95"
         >
-            Fechar
+            FECHAR
         </button>
       </div>
 
-      {/* 2. Área do Iframe (Ocupa o resto da tela) */}
-      <div className="flex-1 w-full bg-black flex items-center justify-center relative overflow-hidden">
-         {/* 
-            PLAYSLINE=1 é OBRIGATÓRIO no iOS para não dar tela cheia nativa e travar a UI.
-            Modestbranding limpa a interface.
-            Sem autoplay, deixa o usuário clicar (igual ao print).
-         */}
+      {/* O Iframe ocupa todo o resto. SEM transform, SEM animations */}
+      <div className="flex-1 w-full h-full relative">
          <iframe 
-            src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1&autoplay=0`}
-            className="w-full h-full absolute inset-0"
-            style={{ width: '100%', height: '100%' }}
-            frameBorder="0"
-            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            src={url}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
-            title={video.title}
+            title="Video Player"
          />
-      </div>
-
-      {/* 3. Rodapé informativo (Opcional, imitando a info do print) */}
-      <div className="p-4 bg-zinc-900 shrink-0 pb-10 safe-area-bottom">
-          <h1 className="text-white text-lg font-bold leading-tight mb-2 line-clamp-2">
-              {video.title}
-          </h1>
-          <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-zinc-700 overflow-hidden">
-                  <img src={video.logo} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'}/>
-              </div>
-              <span className="text-zinc-400 text-sm font-bold">{video.source}</span>
-          </div>
       </div>
     </div>
   );
@@ -3935,26 +3940,31 @@ const allAvailableStories = useMemo(() => {
 
 
 // --- FUNÇÃO DE ABERTURA INTELIGENTE (VIDEO vs ARTIGO) ---
-  const handleOpenArticle = (article) => {
-    // 1. Verifica se é vídeo (YouTube ID, Link do YT ou Podcast tipo vídeo)
-    const isVideo = article.videoId || (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be')));
-    const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
+ const handleOpenArticle = (article) => {
+    if (!article) return;
 
-    if (isVideo || isPodcastVideo) {
-        // É VÍDEO: Abre no player simples (SimpleYouTubePage)
+    console.log("Abrindo item:", article); // Para debug
+
+    // Detecção agressiva de vídeo
+    const isVideo = article.videoId || 
+                    article.category === 'Vídeo' || 
+                    (article.link && (article.link.includes('youtube') || article.link.includes('youtu.be')));
+
+    if (isVideo) {
+        console.log("Detectado como VIDEO via SimplePlayer");
         setSelectedVideo(article);
-        setSelectedArticle(null); 
+        setSelectedArticle(null); // Fecha o painel de texto se estiver aberto
     } else {
-        // É TEXTO: Abre no ArticlePanel
+        console.log("Detectado como ARTIGO");
         setSelectedArticle(article);
         setSelectedVideo(null);
     }
-
-    // Histórico de leitura
+    
+    // Histórico
     if (!readHistory.includes(article.id)) {
-        setReadHistory((prev) => [...prev, article.id]);
+        setReadHistory(prev => [...prev, article.id]);
     }
-  };
+};
 
   // --- FUNÇÕES DE FECHAMENTO ---
   const closeArticle = () => setSelectedArticle(null);
@@ -4128,30 +4138,29 @@ const allAvailableStories = useMemo(() => {
       )}
       
 
-       {/* RENDERIZAÇÃO DO PLAYER SIMPLES (VIDEO) */}
+      {/* PLAYER DE VÍDEO "NUCLEAR" */}
       {selectedVideo && (
           <SimpleYouTubePage 
               video={selectedVideo} 
               onClose={() => setSelectedVideo(null)} 
           />
       )}
-
-
-
-
-      <ArticlePanel 
-          key={selectedArticle?.id || 'empty-panel'} 
-          article={selectedArticle} 
-          feedItems={[...realNews, ...realVideos, ...realPodcasts]}          
-          isOpen={!!selectedArticle} 
-          onClose={closeArticle} 
-          onArticleChange={handleOpenArticle} 
-          onToggleSave={handleToggleSave}
-          isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-          isDarkMode={isDarkMode} 
-          onSaveToArchive={handleSaveToArchive}
-      />
       
+      {/* SEU PAINEL DE ARTIGO (Só aparece se NÃO tiver vídeo) */}
+      {!selectedVideo && (
+          <ArticlePanel 
+              key={selectedArticle?.id || 'empty-panel'} 
+              article={selectedArticle} 
+              feedItems={[...realNews, ...realVideos, ...realPodcasts]}          
+              isOpen={!!selectedArticle} 
+              onClose={closeArticle} 
+              onArticleChange={handleOpenArticle} 
+              onToggleSave={handleToggleSave}
+              isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
+              isDarkMode={isDarkMode} 
+              onSaveToArchive={handleSaveToArchive}
+          />
+      )}
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
       {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen} allStories={allAvailableStories}  onNavigate={handleStoryNavigation}/>}
