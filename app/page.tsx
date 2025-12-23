@@ -1783,38 +1783,48 @@ const generateBriefingFallback = async (news, apiKey) => {
     }
 };
 
-// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V1 - CONTEXTO REAL) ---
+// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA + SENTIMENTO (V2) ---
 const generateSmartClustering = async (news, apiKey) => {
-  if (!news || news.length < 4 || !apiKey) return null;
+  // Aumentamos para 100 para ter massa crítica suficiente para encontrar 4 fontes sobre o mesmo tema
+  if (!news || news.length < 10 || !apiKey) return null;
 
-  const context = news.slice(0, 50).map(n => 
-    `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img}`
+  // Limpeza agressiva para caber 100 notícias no prompt sem estourar tokens
+  const context = news.slice(0, 100).map(n => 
+    `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title}`
   ).join('\n');
 
   const prompt = `
-  Você é um Editor-Chefe e Diretor de Arte de uma publicação jornalística de ponta.
+  Você é um Editor-Chefe de Inteligência Global e muito experiente em coberturas jornalísticas nacionais e internacionais.
+  
+  OBJETIVO CRÍTICO:
+  Identifique os 3 (TRÊS) maiores eventos globais que estão sendo noticiados massivamente agora.
+  
+  REGRA DE OURO (Filtro Rígido):
+  Um evento SÓ é válido se for coberto por NO MÍNIMO 4 (QUATRO) FONTES DIFERENTES na lista abaixo.
+  Se o evento tiver apenas 2 ou 3 fontes, IGNORE-O. Quero apenas o "Mainstream Consensus".
+   NÃO REPITA FONTES dentro do mesmo cluster.
 
-  TAREFA PRINCIPAL:
-  Analise a lista de notícias abaixo e identifique até 3 (três) eventos principais que estão sendo cobertos por, no mínimo, 3 (três) ou mais fontes diferentes. Para cada evento, aja como um curador de conteúdo de elite.
+  PARA CADA EVENTO VÁLIDO:
+  1. Escreva um título jornalístico, curto e impactante (máximo de 12 palavras) que resuma a essência do evento. Não mencione os nomes das fontes no título.
+  2. SELECIONE A IMAGEM-CHAVE:Das imagens disponíveis para o evento (\`IMG\`), escolha a URL daquela que for mais representativa, poderosa e de melhor qualidade visual. Forneça apenas uma URL de imagem por evento.
+  3. Para CADA fonte listada, analise o título dela e defina o SENTIMENTO/VIÉS em relação à notícia:
+     - "positive" (Otimista/A favor)
+     - "negative" (Crítico/Preocupado/Desastre)
+     - "neutral" (Informativo/Imparcial)
 
-  PARA CADA EVENTO IDENTIFICADO, SIGA ESTAS REGRAS:
-  1.  **CRIE UMA MANCHETE:** Escreva um título jornalístico, curto e impactante (máximo de 8 palavras) que resuma a essência do evento. Não mencione os nomes das fontes no título.
-  2.  **SELECIONE A IMAGEM-CHAVE:** Das imagens disponíveis para o evento (\`IMG\`), escolha a URL daquela que for mais representativa, poderosa e de melhor qualidade visual. Forneça apenas uma URL de imagem por evento.
-  3.  **LISTE AS FONTES:** Agrupe todas as notícias (com seus IDs e logos) que cobrem este mesmo evento. Proibido repetir fontes.
-
-  INPUT (LISTA DE NOTÍCIAS):
+  DADOS BRUTOS:
   ${context}
 
-  FORMATO JSON DE SAÍDA OBRIGATÓRIO (Array de até 3 objetos):
+  RETORNE APENAS JSON:
   [
     {
-      "ai_title": "Senado Aprova Marco Regulatório para Inteligência Artificial em Votação Histórica",
-      "representative_image": "https://images.unsplash.com/photo-1555848960-8c3fd4479802?w=800&q=80",
+      "ai_title": "Título Jornalístico Impactante",
+      "representative_image": "URL da imagem escolhida",
       "related_articles": [
-        { "id": "id_da_noticia_1", "source": "Politico", "logo": "https://...logo_politico.png" },
-        { "id": "id_da_noticia_2", "source": "G1", "logo": "https://...logo_g1.png" },
-        { "id": "id_da_noticia_3", "source": "Folha", "logo": "https://...logo_folha.png" },
-        { "id": "id_da_noticia_4", "source": "CNN", "logo": "https://...logo_cnn.png" }
+        { "id": "id_da_noticia_1", "sentiment": "neutral" },
+        { "id": "id_da_noticia_2", "sentiment": "negative" },
+        { "id": "id_da_noticia_3", "sentiment": "positive" },
+        { "id": "id_da_noticia_4", "sentiment": "neutral" }
       ]
     }
   ]
@@ -1833,7 +1843,7 @@ const generateSmartClustering = async (news, apiKey) => {
     const data = await response.json();
     
     if (!response.ok || data.error) {
-        console.error("Erro da API Gemini:", data.error?.message || response.statusText);
+        console.error("Erro API IA:", data.error?.message);
         return null;
     }
 
@@ -1842,22 +1852,27 @@ const generateSmartClustering = async (news, apiKey) => {
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
-    // --- LÓGICA DE HIDRATAÇÃO CORRIGIDA E SIMPLIFICADA ---
+    // --- HIDRATAÇÃO AVANÇADA (Merge de Dados + Sentimento) ---
     const hydratedJson = json.map(cluster => {
         const hydratedArticles = cluster.related_articles
-            .map(ref => news.find(n => n.id === ref.id)) // Encontra o artigo completo na lista 'news'
-            .filter(Boolean); // Remove quaisquer resultados 'undefined' (caso um artigo não seja encontrado)
+            .map(ref => {
+                const originalArticle = news.find(n => n.id === ref.id);
+                if (!originalArticle) return null;
+                // Mesclamos o artigo original com o sentimento detectado pela IA
+                return { ...originalArticle, ai_sentiment: ref.sentiment }; 
+            })
+            .filter(Boolean); // Remove nulos
 
         return {
             ...cluster,
             related_articles: hydratedArticles
         };
-    });
+    }).filter(c => c.related_articles.length >= 3); // Filtro de segurança final no front
 
     return Array.isArray(hydratedJson) ? hydratedJson : null;
 
   } catch (error) {
-    console.error("Erro no novo Smart Clustering:", error);
+    console.error("Erro Smart Clustering:", error);
     return null;
   }
 };
@@ -2417,7 +2432,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 
 
 
-// --- WIDGET: CONTEXTO GLOBAL (V4 - ATUALIZAÇÃO ESTRITA: APENAS PUSH OU START) ---
+// --- WIDGET: CONTEXTO GLOBAL (COM ANÁLISE DE VIÉS/SENTIMENTO) ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refreshTrigger }) => {
   const [clusters, setClusters] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2462,6 +2477,13 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
       if (newIndex !== activeIndex) setActiveIndex(newIndex);
     }
   };
+
+  // Função para definir a cor da borda baseada no sentimento da IA
+  const getSentimentBorder = (sentiment) => {
+      if (sentiment === 'positive') return 'border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.4)]'; // Verde Neon
+      if (sentiment === 'negative') return 'border-rose-500/60 shadow-[0_0_15px_rgba(244,63,94,0.4)]';    // Vermelho Neon
+      return 'border-white/20 shadow-none'; // Neutro (Vidro padrão)
+  };
   
   if (loading) {
       return (
@@ -2478,45 +2500,63 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
         <div className="relative w-full">
             <div className="relative z-10 flex items-center gap-3 mb-4 px-6">
                 <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                    
+                    <Layers size={18} />
+                </div>
+                
+                <div>
+                    <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                        Contexto Global
+                    </h3>
                 </div>
             </div>
 
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
-              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-2" // Adicionado py-2 para a sombra não ser cortada
+              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-2 px-2"
             >
                 {clusters.map((cluster, idx) => (
                     <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
                         <div className={`
                             group relative h-[420px] w-full rounded-[32px] overflow-hidden cursor-default 
-                            transition-all duration-300
-                            
-                            /* --- PADRÃO DE SOMBRA DO SMARTDIGEST APLICADO AQUI --- */
-                            shadow-2xl 
+                            transition-all duration-300 shadow-2xl 
                             ${!isDarkMode ? 'shadow-indigo-500/10' : 'shadow-black/50'}
                         `}>
                             <img src={cluster.representative_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={cluster.ai_title} />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
+                            
                             <div className="absolute top-6 left-6 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-                               <Layers size={12} className="text-white/70" />
-                               <span className="text-white text-[10px] font-bold uppercase tracking-widest">{cluster.related_articles.length} FONTES</span>
+                               <Globe size={12} className="text-white/70" />
+                               <span className="text-white text-[10px] font-bold uppercase tracking-widest">{cluster.related_articles.length} ÂNGULOS</span>
                             </div>
+
                             <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full">
-                               <h2 className="text-2xl md:text-3xl font-black text-white leading-tight mb-6 min-h-[64px]">{cluster.ai_title}</h2>
+                               <h2 className="text-2xl md:text-3xl font-black text-white leading-tight mb-6 min-h-[64px] drop-shadow-lg">
+                                   {cluster.ai_title}
+                               </h2>
+                               
                                <div className="flex flex-wrap gap-4 items-center">
                                    {cluster.related_articles.map(article => (
                                        <button
                                            key={article.id}
                                            onClick={() => openArticle(article)}
-                                           className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md p-1.5 border-2 border-white/20 shadow-xl transition-all duration-300 hover:scale-110 active:scale-95 hover:border-purple-400 hover:shadow-purple-500/50"
-                                           title={`Ler no ${article.source}`}
+                                           className={`
+                                               relative w-14 h-14 rounded-full bg-white/10 backdrop-blur-md p-1 
+                                               border-[3px] transition-all duration-300 hover:scale-110 active:scale-95
+                                               ${getSentimentBorder(article.ai_sentiment)}
+                                           `}
+                                           title={`Ler no ${article.source} (${article.ai_sentiment === 'positive' ? 'Viés Positivo' : article.ai_sentiment === 'negative' ? 'Viés Negativo' : 'Neutro'})`}
                                        >
                                            <img src={article.logo} className="w-full h-full object-contain rounded-full bg-white" onError={(e) => e.target.style.display='none'} />
+                                           
+                                           {/* Indicador de Bolinha Pequena (Opcional, para reforçar a cor) */}
+                                           <div className={`absolute bottom-0 right-0 w-4 h-4 border-2 border-black rounded-full ${article.ai_sentiment === 'positive' ? 'bg-emerald-500' : article.ai_sentiment === 'negative' ? 'bg-rose-500' : 'hidden'}`} />
                                        </button>
                                    ))}
                                </div>
+                               <p className="text-[10px] text-white/40 mt-4 font-bold uppercase tracking-widest text-center md:text-left">
+                                   Cores indicam o tom da cobertura (Positivo/Negativo)
+                               </p>
                             </div>
                         </div>
                     </div>
@@ -2534,7 +2574,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refresh
     </div>
   );
 };
-
 
 
 // --- COMPONENTE TREND RADAR (V4 - ATUALIZAÇÃO ESTRITA: APENAS PUSH OU START) ---
