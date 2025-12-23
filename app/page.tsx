@@ -4190,26 +4190,38 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
 
 function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, onNavigate }) {
   
+  // --- INÍCIO DO BLOCO DE DIAGNÓSTICO ---
+  console.log("--- DEBUG STORY OVERLAY ---");
+  console.log("Story atual recebido (prop 'story'):", story);
+  console.log("ID que estamos procurando:", story?.id);
+  console.log("Lista completa recebida (prop 'allStories'):", allStories);
+  console.log("A lista 'allStories' é um array?", Array.isArray(allStories));
+  if (Array.isArray(allStories)) {
+    console.log("Total de stories na lista:", allStories.length);
+    console.log("IDs presentes na lista:", allStories.map(s => s.id));
+  }
+  // --- FIM DO BLOCO DE DIAGNÓSTICO ---
+
   useEffect(() => {
     if (story && story.id && onMarkAsSeen) {
         onMarkAsSeen(story.id); 
     }
   }, [story, onMarkAsSeen]);
 
-  const currentIndex = allStories.findIndex(s => s.id === story.id);
+  // Esta linha é o ponto de falha. Vamos logar o resultado dela.
+  const currentIndex = Array.isArray(allStories) ? allStories.findIndex(s => s.id === story.id) : -1;
+  console.log("Resultado do findIndex (currentIndex):", currentIndex);
+
   const hasPrevStory = currentIndex > 0;
-  const hasNextStory = currentIndex >= 0 && currentIndex < allStories.length - 1;
+  const hasNextStory = currentIndex >= 0 && currentIndex < (allStories?.length || 0) - 1;
+  
+  console.log("hasPrevStory:", hasPrevStory, "| hasNextStory:", hasNextStory);
+  console.log("--------------------------");
+
 
   if (!story || !story.items || story.items.length === 0) return null;
 
   const currentItem = story.items[0];
-
-  // --- CORREÇÃO APLICADA AQUI ---
-  // Formata a data diretamente no componente do cliente
-  const displayTime = currentItem.rawDate 
-    ? new Date(currentItem.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-    : 'Agora';
-  // --- FIM DA CORREÇÃO ---
 
   const handleOpenFullArticle = () => {
       onClose();
@@ -4221,23 +4233,18 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
       });
   };
 
+  // O resto do componente continua igual, apenas o início foi modificado para os logs.
   return (
     <div className="fixed inset-0 z-[10000] bg-black flex flex-col animate-in zoom-in-95 duration-300">
        <div className="relative w-full h-full md:max-w-[60vh] md:aspect-[9/16] md:mx-auto md:my-auto md:rounded-3xl overflow-hidden bg-zinc-900 shadow-2xl border border-white/5">
         <div className="absolute inset-0">
-            <img 
-                src={currentItem.img} 
-                className="w-full h-full object-cover" 
-                alt="Fundo do Story" 
-                onError={(e) => { e.target.style.display = 'none'; }}
-            />
+            <img src={currentItem.img} className="w-full h-full object-cover" alt="Fundo do Story" onError={(e) => { e.target.style.display = 'none'; }}/>
             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/90" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60" />
         </div>
-
         <div className="absolute top-0 left-0 right-0 p-4 pt-10 md:pt-8 z-30 space-y-4">
           <div className="flex gap-1.5 h-1">
-              {allStories.map((s, idx) => (
+              {allStories && allStories.map((s, idx) => (
                   <div key={s.id} className={`flex-1 rounded-full h-full ${idx < currentIndex ? 'bg-white' : (idx === currentIndex ? 'bg-white animate-[progress_5s_linear]' : 'bg-white/20')}`} />
               ))}
           </div>
@@ -4248,38 +4255,22 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
                   </div>
                   <div className="flex flex-col">
                       <span className="text-white font-black text-sm drop-shadow-md tracking-tight">{story.name}</span>
-                      {/* USA A NOVA VARIÁVEL 'displayTime' */}
-                      <span className="text-zinc-300 text-[10px] font-bold drop-shadow-md opacity-90">{displayTime}</span>
+                      <span className="text-zinc-300 text-[10px] font-bold drop-shadow-md opacity-90">{currentItem.rawDate ? new Date(currentItem.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                   </div>
               </div>
-              <button onClick={onClose} className="p-2.5 text-white/80 hover:text-white backdrop-blur-xl rounded-full bg-white/10 border border-white/10 transition-transform active:scale-90">
-                  <X size={26} />
-              </button>
+              <button onClick={onClose} className="p-2.5 text-white/80 hover:text-white backdrop-blur-xl rounded-full bg-white/10 border border-white/10 transition-transform active:scale-90"><X size={26} /></button>
           </div>
         </div>
-
-        {/* O resto do componente StoryOverlay continua igual... */}
         <div className="absolute inset-0 z-20 flex">
             <div className="w-[30%] h-full" onClick={() => onNavigate('prev')} />
             <div className="w-[70%] h-full" onClick={() => onNavigate('next')} />
         </div>
-        {hasPrevStory && (
-          <button onClick={(e) => { e.stopPropagation(); onNavigate('prev'); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all">
-            <ChevronLeft size={28} />
-          </button>
-        )}
-        {hasNextStory && (
-          <button onClick={(e) => { e.stopPropagation(); onNavigate('next'); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all">
-            <ChevronRight size={28} />
-          </button>
-        )}
+        {hasPrevStory && ( <button onClick={(e) => { e.stopPropagation(); onNavigate('prev'); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"><ChevronLeft size={28} /></button> )}
+        {hasNextStory && ( <button onClick={(e) => { e.stopPropagation(); onNavigate('next'); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"><ChevronRight size={28} /></button> )}
         <div className="absolute bottom-0 left-0 right-0 p-8 z-30 pb-12 md:pb-10 pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-center">
                 <h2 className="text-white text-2xl md:text-3xl font-black leading-tight mb-8 drop-shadow-2xl font-serif text-center line-clamp-5">{currentItem.title}</h2>
-                <button onClick={(e) => { e.stopPropagation(); handleOpenFullArticle(); }} className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100">
-                    <span className="text-sm uppercase tracking-widest">Ler Notícia Completa</span>
-                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </button>
+                <button onClick={(e) => { e.stopPropagation(); handleOpenFullArticle(); }} className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100"><span className="text-sm uppercase tracking-widest">Ler Notícia Completa</span><ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></button>
             </div>
         </div>
        </div>
@@ -4288,7 +4279,6 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
     </div>
   );
 }
-
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
 // Usa a API 'gtx' do Google (gratuita/pública) para traduzir textos mantendo estrutura
