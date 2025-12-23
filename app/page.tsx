@@ -383,13 +383,22 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [data, setData] = useState({});
 
-  // --- LÓGICA DE DATA, ARRASTAR E CALENDÁRIO ---
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI ---
+  // 1. Inicializa a data como 'null' no servidor.
+  const [currentDate, setCurrentDate] = useState(null); 
+  // --- FIM DA CORREÇÃO ---
+
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [dragStartX, setDragStartX] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
 
-  // --- BRAIN: FRASES INTELIGENTES ---
+  // --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI ---
+  // 2. A data real (local do usuário) só é definida no navegador, após a primeira renderização.
+  useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
+  // --- FIM DA CORREÇÃO ---
+
   const PHRASES = {
     loading: [
         "Sincronizando satélites de dados...",
@@ -443,15 +452,12 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
       return list[Math.floor(Math.random() * list.length)];
   };
 
-  // --- EFEITO: ATUALIZA O STATUS BASEADO NO CONTEXTO ---
   useEffect(() => {
-    // 1. Prioridade: Loading
     if (isLoading) {
         setAiStatus(getRandomPhrase('loading'));
         return;
     }
 
-    // 2. Prioridade: Fonte Específica no Feed
     if (activeTab === 'feed' && selectedSource && selectedSource !== 'all') {
         const sourceName = selectedSource.charAt(0).toUpperCase() + selectedSource.slice(1);
         const sourcePhrases = [
@@ -463,7 +469,6 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
         return;
     }
 
-    // 3. Prioridade: Abas Gerais
     switch (activeTab) {
         case 'youtube': setAiStatus(getRandomPhrase('youtube')); break;
         case 'podcast': setAiStatus(getRandomPhrase('podcast')); break;
@@ -490,6 +495,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
   };
 
   const handleDragEnd = () => {
+    if (!currentDate) return; // Proteção extra
     if (Math.abs(dragOffset) < 5) {
         setIsCalendarOpen(true);
     } 
@@ -509,9 +515,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
   const handleDateChange = (newDate) => {
       setCurrentDate(newDate);
       const isToday = newDate.toDateString() === new Date().toDateString();
-      if (isToday) {
-          // Status atualizado pelo useEffect principal
-      } else {
+      if (!isToday) {
           setAiStatus(`Acessando arquivos de ${newDate.toLocaleDateString()}...`);
       }
   };
@@ -581,27 +585,26 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
 
   return (
     <div className="relative z-20 pb-2">
-      <CalendarModal 
+      {/* O CalendarModal só é renderizado se a data existir */}
+      {currentDate && <CalendarModal 
         isOpen={isCalendarOpen} 
         onClose={() => setIsCalendarOpen(false)}
         selectedDate={currentDate}
         onSelectDate={handleDateChange}
         isDarkMode={isDarkMode}
-      />
+      />}
 
       <div className={`
         relative w-full overflow-hidden rounded-b-[2.5rem] shadow-2xl border-b border-white/10 
         transition-all duration-500 ease-in-out
         ${isDarkMode ? 'bg-zinc-950' : 'bg-slate-900'}
       `}>
-        {/* Background Effects */}
         <div className="absolute top-[-50%] left-[-20%] w-[80%] h-[150%] bg-indigo-600/20 blur-[100px] rounded-full animate-pulse pointer-events-none" />
         <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[100%] bg-teal-600/10 blur-[80px] rounded-full pointer-events-none" />
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 mix-blend-soft-light pointer-events-none"></div>
 
         <div className="relative px-6 pt-6 pb-4 flex flex-col gap-4">
            
-           {/* DATA ABA */}
            <div 
              className="absolute top-0 right-0 z-50 cursor-ew-resize select-none touch-none group"
              onMouseDown={(e) => handleDragStart(e.clientX)}
@@ -624,14 +627,16 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
               >
                   <ChevronLeft size={14} className={`text-white/40 transition-opacity ${Math.abs(dragOffset) > 0 ? 'opacity-100' : 'group-hover:opacity-100'}`} />
                   <span className="text-sm font-bold text-green-400 whitespace-nowrap tracking-wide flex items-center gap-2 uppercase text-[10px]">
-                      {formatDate(currentDate)}
+                      {/* --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI --- */}
+                      {/* 3. Renderiza a data apenas se ela já foi definida no cliente */}
+                      {currentDate ? formatDate(currentDate) : <>&nbsp;</>}
+                      {/* --- FIM DA CORREÇÃO --- */}
                       <CalendarIcon size={10} className="opacity-50" />
                   </span>
                   <ChevronRight size={14} className={`text-white/40 transition-opacity ${Math.abs(dragOffset) > 0 ? 'opacity-100' : 'group-hover:opacity-100'}`} />
               </div>
            </div>
 
-           {/* LINHA 1: PERFIL + BOTÃO */}
            <div className="flex justify-between items-center mt-10">
               <div className="flex items-center gap-3">
                  <div onClick={onOpenSettings} className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] cursor-pointer hover:scale-105 transition-transform shadow-lg">
@@ -641,15 +646,12 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                     <h1 className="text-[10px] font-black uppercase text-white/40 tracking-[0.15em] leading-none mb-1">System Status</h1>
                     <div className="flex items-center gap-1.5">
                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-                       {/* AQUI É ONDE A MÁGICA ACONTECE */}
-                       <span className="text-xs font-bold text-white tracking-wide animate-in fade-in slide-in-from-left-2 duration-500 key={aiStatus}">
+                       <span className="text-xs font-bold text-white tracking-wide animate-in fade-in slide-in-from-left-2 duration-500" key={aiStatus}>
                            {aiStatus}
                        </span>
                     </div>
                  </div>
               </div>
-
-              {/* BOTÃO GATILHO */}
               <button 
                 onClick={() => setIsSearchOpen(!isSearchOpen)}
                 className={`
@@ -663,8 +665,6 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                 {!isSearchOpen && <span className="text-[10px] font-black uppercase tracking-widest px-4">Ask AI</span>}
               </button>
            </div>
-
-           {/* LINHA 2: BARRA DE PESQUISA */}
            <div className={`
               grid transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
               ${isSearchOpen ? 'grid-rows-[1fr] mt-2 mb-2' : 'grid-rows-[0fr] mt-0 mb-0'}
@@ -693,8 +693,6 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                 </div>
               </div>
            </div>
-
-           {/* LINHA 3: TICKER DE MERCADO */}
            <div className={`
               relative w-full overflow-hidden transition-all duration-700
               [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]
@@ -713,13 +711,11 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                   ))}
               </div>
            </div>
-
         </div>
       </div>
     </div>
   );
 }
-
 
 // --- LIQUID FILTER ---
 
