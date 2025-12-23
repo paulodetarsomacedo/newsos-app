@@ -1798,7 +1798,9 @@ const generateSmartClustering = async (news, apiKey) => {
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // --- AQUI ESTÁ A CORREÇÃO DA URL ---
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+    // --- FIM DA CORREÇÃO ---
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1809,10 +1811,13 @@ const generateSmartClustering = async (news, apiKey) => {
 
     const data = await response.json();
     
-    // --- AQUI ESTÁ A CORREÇÃO DE SINTAXE ---
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    // --- FIM DA CORREÇÃO ---
+    // Verificação de segurança para o caso de a API retornar um erro no corpo da resposta
+    if (!response.ok || data.error) {
+        console.error("Erro da API Gemini:", data.error?.message || response.statusText);
+        return null;
+    }
 
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
