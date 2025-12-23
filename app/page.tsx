@@ -3465,25 +3465,23 @@ const handleHappeningRefresh = () => {
   };
 
 const handleStoryNavigation = (direction) => {
-    if (!selectedStory || !storiesToDisplay) return;
+    // AQUI, use 'allAvailableStories'
+    if (!selectedStory || !allAvailableStories) return;
 
-    const currentIndex = storiesToDisplay.findIndex(s => s.id === selectedStory.id);
+    const currentIndex = allAvailableStories.findIndex(s => s.id === selectedStory.id);
     if (currentIndex === -1) return;
 
     if (direction === 'next') {
         const nextIndex = currentIndex + 1;
-        if (nextIndex < storiesToDisplay.length) {
-            // Se houver um próximo, atualiza o estado para mostrar o novo story
-            setSelectedStory(storiesToDisplay[nextIndex]);
+        if (nextIndex < allAvailableStories.length) {
+            setSelectedStory(allAvailableStories[nextIndex]);
         } else {
-            // Se for o último, simplesmente fecha a visualização de stories
             closeStory();
         }
     } else if (direction === 'prev') {
         const prevIndex = currentIndex - 1;
         if (prevIndex >= 0) {
-            // Se houver um anterior, mostra
-            setSelectedStory(storiesToDisplay[prevIndex]);
+            setSelectedStory(allAvailableStories[prevIndex]);
         }
     }
   };
@@ -3839,14 +3837,13 @@ const handleStoryNavigation = (direction) => {
 
   // Adicione este bloco de código dentro de NewsOS_V12, antes do `return (`
 
-const storiesToDisplay = useMemo(() => {
-    // Se não houver notícias, retorna um array vazio imediatamente
+const storiesForHappeningTab = useMemo(() => {
     if (!realNews || realNews.length === 0) return [];
 
     const sortedEverything = [...realNews].sort((a, b) => {
         const timeA = new Date(a.rawDate).getTime() || 0;
         const timeB = new Date(b.rawDate).getTime() || 0;
-        return timeB - timeA; // Mais novo primeiro
+        return timeB - timeA;
     });
 
     const uniqueStories = [];
@@ -3858,6 +3855,7 @@ const storiesToDisplay = useMemo(() => {
         if (!seenSources.has(sourceName)) {
             seenSources.add(sourceName);
 
+            // A lógica de filtro permanece AQUI
             if (seenStoryIds.includes(item.id)) {
                 continue;
             }
@@ -3869,16 +3867,48 @@ const storiesToDisplay = useMemo(() => {
                 id: item.id,
                 name: sourceName,
                 avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
-                items: [{
-                    ...item,
-                    img: finalImg,
-                    origin: 'story'
-                }]
+                items: [{ ...item, img: finalImg, origin: 'story' }]
             });
         }
     }
     return uniqueStories;
 }, [realNews, seenStoryIds]);
+
+
+// 2. Esta lista é para a NAVEGAÇÃO. Ela contém TODOS os stories, sem filtro.
+const allAvailableStories = useMemo(() => {
+    if (!realNews || realNews.length === 0) return [];
+
+    const sortedEverything = [...realNews].sort((a, b) => {
+        const timeA = new Date(a.rawDate).getTime() || 0;
+        const timeB = new Date(b.rawDate).getTime() || 0;
+        return timeB - timeA;
+    });
+
+    const uniqueStories = [];
+    const seenSources = new Set();
+    
+    for (const item of sortedEverything) {
+        const sourceName = (item.source || "Fonte").trim();
+        
+        if (!seenSources.has(sourceName)) {
+            seenSources.add(sourceName);
+
+            // SEM FILTRO de 'seenStoryIds' aqui
+
+            const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
+            const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
+
+            uniqueStories.push({
+                id: item.id,
+                name: sourceName,
+                avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
+                items: [{ ...item, img: finalImg, origin: 'story' }]
+            });
+        }
+    }
+    return uniqueStories;
+}, [realNews]); // Depende apenas de 'realNews', não de 'seenStoryIds'
 
 
 
@@ -3906,9 +3936,10 @@ const storiesToDisplay = useMemo(() => {
         isDarkMode={isDarkMode} 
         newsData={realNews} // Garanta que esta linha está presente
         onRefresh={handleHappeningRefresh}
-        storiesToDisplay={storiesToDisplay} // E esta também
+        
         onMarkAsSeen={markStoryAsSeen}
         apiKey={apiKey}
+        storiesToDisplay={storiesForHappeningTab}
                     
                 />
             )}
@@ -4059,7 +4090,7 @@ feedItems={[...realNews, ...realVideos, ...realPodcasts]}          isOpen={!!sel
       
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
-      {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen} allStories={storiesToDisplay} onNavigate={handleStoryNavigation}/>}
+      {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen} allStories={allAvailableStories}  onNavigate={handleStoryNavigation}/>}
 
       {playingAudio && (
           <GlobalAudioPlayer 
