@@ -2621,16 +2621,14 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                 <Sparkles size={18} />
             </div>
             <div>
-                <h3 className={`text-sm font-black uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
-                    Contexto Global
-                </h3>
+               
                 {isContextLoading ? (
                     <span className="text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                        Analisando os fatos...
+                        Os maiores eventos, em múltiplos ângulos...
                     </span>
                 ) : (
                     <p className={`text-xs font-medium ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                        Os maiores eventos, em múltiplos ângulos
+                        
                     </p>
                 )}
             </div>
