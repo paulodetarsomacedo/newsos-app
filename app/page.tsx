@@ -4525,18 +4525,20 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL (VERSÃO NATIVA / SEM CAPA CUSTOMIZADA NO VÍDEO)
+// COMPONENTE ARTICLE PANEL - REFATORADO PARA IOS PWA (CLICK-TO-LOAD)
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
+const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
   const [readerContent, setReaderContent] = useState(null); 
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // Controle de Áudio (Apenas para podcasts/MP3, não afeta mais o YouTube)
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  // --- ESTADO CRÍTICO PARA O VÍDEO ---
+  // false = Mostra capa estática (leve).
+  // true = Monta o iframe (pesado) e dá play.
+  const [videoActive, setVideoActive] = useState(false);
 
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
@@ -4548,11 +4550,14 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       return article.videoId || getVideoId(article.link);
   }, [article]);
 
+  // Resetar estados quando o artigo muda
   useEffect(() => {
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
-          setIsPlayingAudio(false);
+          // IMPORTANTE: Reseta o vídeo para "desativado" sempre que abrir um novo artigo.
+          // Isso obriga o usuário a clicar novamente, garantindo o "User Interaction" que o iOS exige.
+          setVideoActive(false);
       } else {
           setViewMode('web');
           setIframeUrl(null);
@@ -4562,44 +4567,22 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       }
   }, [article?.id, videoId]);
 
-  // Se sair do app, reseta o estado visual
-  useEffect(() => {
-      const handleVisibilityChange = () => {
-          if (document.visibilityState === 'hidden') {
-              setIsPlayingAudio(false);
-          }
-      };
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-      return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
-
   const scrollContainerRef = useRef(null); 
 
+  // ... (Lógica de domínios problemáticos e sanitizeHtml mantida igual) ...
   const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
-
   const isProblematicSite = useMemo(() => {
       if (!article?.link) return false;
       return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
   }, [article?.link]);
 
   const sanitizeHtml = (html) => {
+      // ... (código existente de sanitize mantido para brevidade) ...
       if (!html) return "";
       let clean = html;
-      const headInjection = `
-        <base href="${article.link}" target="_blank">
-        <meta name="referrer" content="no-referrer">
-        <style>
-            .onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, 
-            [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; }
-            body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }
-        </style>
-      `;
+      const headInjection = `<base href="${article.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
       if (isProblematicSite) {
-          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
-          clean = clean.replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "");
-          clean = clean.replace(/data-src=/gi, 'src=');
-          clean = clean.replace(/data-srcset=/gi, 'srcset=');
-          clean = clean.replace(/loading="lazy"/gi, ''); 
+          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "").replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "").replace(/data-src=/gi, 'src=').replace(/data-srcset=/gi, 'srcset=').replace(/loading="lazy"/gi, ''); 
       }
       if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
       return `${headInjection}${clean}`;
@@ -4613,7 +4596,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setReaderContent(null);
         setViewMode('web');
         setIsTranslated(false); 
-        setIsPlayingAudio(false);
+        setVideoActive(false); // Garante limpeza
       }, 400); 
   }, [onClose, iframeUrl]);
 
@@ -4622,6 +4605,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   }, [article]);
 
   const handleToggleTranslation = async () => {
+      // ... (código de tradução mantido igual) ...
       if (translatedData) { setIsTranslated(!isTranslated); return; }
       const contentToTranslate = readerContent || article;
       if (!contentToTranslate) return;
@@ -4648,6 +4632,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   };
 
   useEffect(() => {
+    // ... (Logica de fetch do proxy view mantida igual) ...
     if (!isOpen || !article?.link || videoId) return;
     setIsLoading(true);
     const fetchContent = async () => {
@@ -4655,9 +4640,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
             await new Promise(r => setTimeout(r, 10)); 
             const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
             if (error || !data) throw new Error();
-            if (data.html && (data.html.startsWith('RIFF') || data.html.includes('WEBPVP8') || data.html.includes('PNG') || data.html.charCodeAt(0) > 65000)) {
-                throw new Error("Conteúdo binário detectado");
-            }
+            if (data.html && (data.html.startsWith('RIFF') || data.html.includes('WEBPVP8') || data.html.includes('PNG') || data.html.charCodeAt(0) > 65000)) throw new Error("Binário");
             const cleanHtml = sanitizeHtml(data.html);
             const blob = new Blob([cleanHtml], { type: 'text/html' });
             setIframeUrl(URL.createObjectURL(blob));
@@ -4682,13 +4665,8 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     <div className={`fixed inset-0 z-[5000] flex flex-col transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) will-change-transform transform-gpu backface-hidden ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
-            {/* --- TOP BAR --- */}
-            <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b backdrop-blur-xl z-50 
-                ${videoId 
-                    ? 'bg-black/90 border-white/10 text-white' 
-                    : (isDarkMode ? 'bg-zinc-950/90 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-900')
-                }`}
-            >
+            {/* TOP BAR */}
+            <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b backdrop-blur-xl z-50 ${videoId ? 'bg-black/90 border-white/10 text-white' : (isDarkMode ? 'bg-zinc-950/90 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-900')}`}>
                 <button onClick={handleClosePanel} className={`flex items-center gap-1 py-2 pr-3 text-sm font-black transition active:scale-95 ${videoId ? 'text-zinc-300 hover:text-white' : (isDarkMode ? 'text-zinc-300 hover:text-white' : 'text-zinc-600 hover:text-black')}`}><ChevronLeft size={24} /> <span className="hidden md:inline">VOLTAR</span></button>
                 
                 {!videoId && (
@@ -4699,11 +4677,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                             <button onClick={() => setViewMode('ai')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'ai' ? 'text-purple-500' : 'text-zinc-500'}`}><Sparkles size={10} /> AI ANALYSIS</button>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button onClick={() => setViewMode(viewMode === 'magic' ? 'web' : 'magic')} title="Reconstrução Editorial" className={`p-2.5 rounded-xl transition-all border active:scale-90 ${viewMode === 'magic' ? 'bg-purple-600 text-white border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : (isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100')}`}><Wand2 size={20} className={viewMode === 'magic' ? 'animate-pulse' : ''} /></button>
-                            <button onClick={handleToggleTranslation} disabled={isTranslating} className={`p-2.5 rounded-xl transition-all border active:scale-90 relative overflow-hidden ${isTranslated ? 'bg-blue-600 text-white border-blue-500 shadow-md' : (isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100')}`}>{isTranslating ? <Loader2 size={20} className="animate-spin" /> : <Languages size={20} />}</button>
-                            <button onClick={() => setViewMode(viewMode === 'reader' ? 'web' : 'reader')} title="Modo Leitura Limpo" className={`p-2.5 rounded-xl transition border active:scale-90 ${viewMode === 'reader' ? 'bg-black text-white dark:bg-white dark:text-black border-transparent' : (isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100')}`}><ALargeSmall size={20} /></button>
-                            <button onClick={handleOpenInBrowser} title="Abrir no Browser" className={`p-2.5 rounded-xl transition border active:scale-90 ${isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10 hover:text-white' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100 hover:text-blue-600'}`}><Globe size={20} /></button>
-                            <button onClick={() => onToggleSave(article)} title="Salvar" className={`p-2.5 rounded-xl transition active:scale-75 ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                             <button onClick={() => setViewMode(viewMode === 'magic' ? 'web' : 'magic')} className={`p-2.5 rounded-xl border ${viewMode === 'magic' ? 'bg-purple-600 text-white border-purple-500' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><Wand2 size={20} /></button>
+                             <button onClick={handleToggleTranslation} className={`p-2.5 rounded-xl border ${isTranslated ? 'bg-blue-600 text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}>{isTranslating ? <Loader2 size={20} className="animate-spin" /> : <Languages size={20} />}</button>
+                             <button onClick={() => setViewMode(viewMode === 'reader' ? 'web' : 'reader')} className={`p-2.5 rounded-xl border ${viewMode === 'reader' ? 'bg-black text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><ALargeSmall size={20} /></button>
+                             <button onClick={handleOpenInBrowser} className={`p-2.5 rounded-xl border ${isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200'}`}><Globe size={20} /></button>
+                             <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
                         </div>
                     </>
                 )}
@@ -4711,65 +4689,51 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 {videoId && (
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-widest opacity-60 mr-2">{article.source}</span>
-                        <button onClick={() => onToggleSave(article)} title="Salvar" className={`p-2.5 rounded-xl transition active:scale-75 ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                        <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
                     </div>
                 )}
-
-                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
+                 <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
             </div>
 
             <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain transform-gpu ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
                 
+                {/* --- SEÇÃO DE VÍDEO REFATORADA --- */}
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
                         
-                        {/* --- ÁREA DO VÍDEO NATIVO (SEM CAPAS/OVERLAYS) --- */}
                         <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative">
-                            
-                            {/* 
-                                SOLUÇÃO DEFINITIVA PWA:
-                                1. Iframe direto, sem condicionais de "isPlaying".
-                                2. Sem autoplay forçado, mas com playsinline (melhor para iOS).
-                                3. O usuário verá o player do YouTube carregado e clicará no Play.
-                                4. Sem z-index maluco, sem imagens por cima.
-                            */}
-                            
-                            {article.forceAudioMode ? (
-                                /* Lógica especial APENAS para Áudio/Podcast (mantida pois vc disse que audio funciona) */
-                                <>
-                                   <iframe 
-                                        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                                        className="w-full h-full absolute inset-0 opacity-[0.01] z-20"
-                                        frameBorder="0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        title="YouTube Audio"
-                                    />
-                                    {/* Capa do Áudio (Obrigatória para não ficar tela preta) */}
-                                    <div className="absolute inset-0 w-full h-full z-10 bg-black flex flex-col items-center justify-center gap-2">
-                                        <img src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="" />
-                                        <div className="relative z-20 flex flex-col items-center">
-                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl animate-pulse">
-                                                <Headphones size={32} fill="white" className="text-white"/>
-                                            </div>
-                                            <div className="bg-black/80 px-3 py-1 rounded-full text-xs font-bold text-white mt-2">Toque para Ouvir</div>
-                                        </div>
-                                    </div>
-                                </>
-                            ) : (
-                                /* LÓGICA PURA PARA VÍDEO (SEM CAPA) */
+                            {videoActive ? (
+                                /* ESTADO ATIVO: O IFRAME É MONTADO AGORA, APÓS O CLIQUE */
                                 <iframe 
-                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&modestbranding=1&rel=0&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                                    className="w-full h-full absolute inset-0 z-10"
+                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&modestbranding=1&rel=0&controls=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                                    className="w-full h-full absolute inset-0 z-50"
                                     frameBorder="0"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
-                                    loading="eager"
                                     title="YouTube Video"
+                                    key={videoId} // Força recriação se mudar o vídeo
                                 />
+                            ) : (
+                                /* ESTADO INATIVO: APENAS IMAGEM E BOTÃO. SEM IFRAMES ESCONDIDOS. */
+                                <div 
+                                    className="absolute inset-0 w-full h-full z-50 cursor-pointer group"
+                                    onClick={() => setVideoActive(true)}
+                                >
+                                    <img 
+                                        src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
+                                        className="w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity"
+                                        alt="Video Thumbnail"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110">
+                                            <Play size={40} fill="white" className="text-white ml-1" />
+                                        </div>
+                                    </div>
+                                </div>
                             )}
                         </div>
-                        {/* --- FIM DA ÁREA DO VÍDEO --- */}
 
+                        {/* Detalhes do Artigo */}
                         <div className="p-6 max-w-3xl mx-auto pb-20">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10">
@@ -4780,44 +4744,28 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                                     <p className="text-xs opacity-60">{article.time}</p>
                                 </div>
                             </div>
-
-                            <h1 className="text-2xl md:text-3xl font-black leading-tight mb-4 tracking-tight">
-                                {article.title}
-                            </h1>
-
+                            <h1 className="text-2xl md:text-3xl font-black leading-tight mb-4 tracking-tight">{article.title}</h1>
                             <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode || videoId ? 'bg-white/5 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}>
                                 {article.summary || "Sem descrição disponível."}
                             </div>
-                            
-                            <a 
-                                href={`https://www.youtube.com/watch?v=${videoId}`}
-                                target="_blank"
-                                className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-transform shadow-lg"
-                            >
+                            <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-transform shadow-lg">
                                 <Youtube size={18} /> Abrir no App YouTube
                             </a>
                         </div>
                     </div>
                 ) : (
+                    /* --- MODOS NÃO VÍDEO (WEB, READER, ETC) --- */
                     <>
                         {isLoading && (<div className="absolute inset-0 flex flex-col items-center justify-center bg-inherit z-50"><Loader2 size={48} className="animate-spin text-purple-600 mb-4" /><p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40 animate-pulse">Carregando...</p></div>)}
-                        
                         {viewMode === 'web' && (
                             <div className="w-full h-full">
                                 {iframeUrl ? (
-                                    <iframe 
-                                        src={iframeUrl} 
-                                        className="w-full h-full border-none" 
-                                        sandbox={isProblematicSite ? "allow-same-origin allow-popups" : "allow-same-origin allow-scripts allow-popups allow-forms"}
-                                        title="Web" 
-                                        loading="lazy"
-                                    />
+                                    <iframe src={iframeUrl} className="w-full h-full border-none" sandbox={isProblematicSite ? "allow-same-origin allow-popups" : "allow-same-origin allow-scripts allow-popups allow-forms"} title="Web" loading="lazy" />
                                 ) : !isLoading && (
-                                    <div className="flex flex-col items-center justify-center h-full p-12 text-center text-zinc-500"><div className="p-6 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-6"><Globe size={40} className="opacity-40" /></div><h3 className="font-black text-xl mb-2">Web Indisponível</h3><p className="max-w-xs text-sm opacity-60 mb-6">Conteúdo bloqueado. Use os modos de leitura.</p><div className="flex gap-2"><button onClick={() => setViewMode('magic')} className="px-6 py-3 bg-purple-600 text-white rounded-full font-bold shadow-xl hover:bg-purple-500 transition active:scale-95 flex items-center gap-2"><Wand2 size={16}/> Varinha</button></div></div>
+                                    <div className="flex flex-col items-center justify-center h-full p-12 text-center text-zinc-500"><div className="p-6 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-6"><Globe size={40} className="opacity-40" /></div><h3 className="font-black text-xl mb-2">Web Indisponível</h3><p className="max-w-xs text-sm opacity-60 mb-6">Conteúdo bloqueado.</p></div>
                                 )}
                             </div>
                         )}
-                        
                         {viewMode === 'ai' && <AIAnalysisView article={activeArticleData} isDarkMode={isDarkMode} />}
                         {viewMode === 'magic' && <MagicPremiumView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
                         {viewMode === 'reader' && <AppleReaderView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
@@ -4834,14 +4782,8 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
             )}
             
             {isOpen && article && feedItems && (
-                <FeedNavigator 
-                    article={article} 
-                    feedItems={feedItems} 
-                    onArticleChange={onArticleChange} 
-                    isDarkMode={isDarkMode} 
-                />
+                <FeedNavigator article={article} feedItems={feedItems} onArticleChange={onArticleChange} isDarkMode={isDarkMode} />
             )}
-            
         </div>
         <style jsx="true">{`@keyframes progress-aura { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } } .animate-progress-aura { animation: progress-aura 1.5s infinite linear; } .backface-hidden { backface-visibility: hidden; }`}</style>
     </div>
