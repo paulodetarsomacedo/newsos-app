@@ -865,10 +865,10 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
   }, [videos]);
 
   return (
-    <div className="absolute left-0 top-2 z-[1001]">
+    <div className="absolute left-150 top-2 z-[1001]">
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 h-[42px] px-3 rounded-r-2xl border-y border-r border-l-0 backdrop-blur-xl shadow-sm transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
+        className={`flex items-center gap-2 h-[42px] px-3 rounded-r-2xl border-y border-l border-r-0 backdrop-blur-xl shadow-sm transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
       >
         {selectedChannel === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
@@ -3504,7 +3504,16 @@ export default function NewsOS_V12() {
   const [user, setUser] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false); 
 
-  const handleStoryNavigation = (direction) => {
+
+
+const handleHappeningRefresh = () => {
+    // Limpa a lista de IDs de stories vistos
+    
+    // Chama a função original para buscar novas notícias
+    fetchFeeds();
+  };
+
+const handleStoryNavigation = (direction) => {
     if (!selectedStory || !storiesToDisplay) return;
 
     const currentIndex = storiesToDisplay.findIndex(s => s.id === selectedStory.id);
@@ -3512,28 +3521,20 @@ export default function NewsOS_V12() {
 
     if (direction === 'next') {
         const nextIndex = currentIndex + 1;
-        // Se houver um próximo story na lista, atualiza o estado para exibi-lo
         if (nextIndex < storiesToDisplay.length) {
+            // Se houver um próximo, atualiza o estado para mostrar o novo story
             setSelectedStory(storiesToDisplay[nextIndex]);
         } else {
-            // Se for o último, fecha a visualização de stories
+            // Se for o último, simplesmente fecha a visualização de stories
             closeStory();
         }
     } else if (direction === 'prev') {
         const prevIndex = currentIndex - 1;
-        // Se houver um story anterior, atualiza o estado
         if (prevIndex >= 0) {
+            // Se houver um anterior, mostra
             setSelectedStory(storiesToDisplay[prevIndex]);
         }
     }
-};
-
-
-const handleHappeningRefresh = () => {
-    // Limpa a lista de IDs de stories vistos
-    setSeenStoryIds([]);
-    // Chama a função original para buscar novas notícias
-    fetchFeeds();
   };
 
   // 1. Verificar usuário ao carregar
@@ -3569,6 +3570,7 @@ const handleHappeningRefresh = () => {
           if (data.liked_items) setLikedItems(data.liked_items);
           if (data.api_key) setApiKey(data.api_key);
           if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
+          if (data.seen_story_ids) setSeenStoryIds(data.seen_story_ids);
       } else if (!error) {
           // Se não tem dados, cria a primeira entrada
           await supabase.from('user_preferences').insert([{ user_id: userId }]);
@@ -3589,6 +3591,7 @@ const handleHappeningRefresh = () => {
               liked_items: likedItems,
               api_key: apiKey,
               is_dark_mode: isDarkMode,
+              seen_story_ids: seenStoryIds, 
               updated_at: new Date()
           };
 
@@ -3604,7 +3607,7 @@ const handleHappeningRefresh = () => {
       }, 2000);
 
       return () => clearTimeout(timer);
-  }, [user, userFeeds, savedItems, readHistory, likedItems, apiKey, isDarkMode]);
+  }, [user, userFeeds, savedItems, readHistory, likedItems, apiKey, isDarkMode, seenStoryIds]);
 
 
   // --- FUNÇÕES DE AUXÍLIO ---
@@ -3614,6 +3617,7 @@ const handleHappeningRefresh = () => {
     }
   };
   
+
 
 
 
@@ -4234,7 +4238,6 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
 }
 
 function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, onNavigate }) {
-  // O estado interno de currentIndex não é mais necessário para a navegação principal
   
   useEffect(() => {
     if (story && story.id && onMarkAsSeen) {
@@ -4242,14 +4245,15 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
     }
   }, [story, onMarkAsSeen]);
 
-  // Lógica para saber se existem stories antes ou depois do atual
+  // Encontra o índice do story atual na lista completa
   const currentIndex = allStories.findIndex(s => s.id === story.id);
+  // Determina se há um story anterior ou próximo
   const hasPrevStory = currentIndex > 0;
   const hasNextStory = currentIndex >= 0 && currentIndex < allStories.length - 1;
 
   if (!story || !story.items || story.items.length === 0) return null;
 
-  const currentItem = story.items[0]; // Sempre pegamos o primeiro item do story atual
+  const currentItem = story.items[0];
 
   const handleOpenFullArticle = () => {
       onClose();
@@ -4277,9 +4281,8 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
 
         <div className="absolute top-0 left-0 right-0 p-4 pt-10 md:pt-8 z-30 space-y-4">
           <div className="flex gap-1.5 h-1">
-              {/* Barra de progresso agora reflete a lista total de stories */}
               {allStories.map((s, idx) => (
-                  <div key={s.id} className={`flex-1 rounded-full h-full ${idx <= currentIndex ? 'bg-white' : 'bg-white/20'}`} />
+                  <div key={s.id} className={`flex-1 rounded-full h-full ${idx < currentIndex ? 'bg-white' : (idx === currentIndex ? 'bg-white animate-[progress_5s_linear]' : 'bg-white/20')}`} />
               ))}
           </div>
           <div className="flex items-center justify-between">
@@ -4298,14 +4301,11 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
           </div>
         </div>
 
-        {/* Áreas de Toque Invisíveis para Navegação */}
         <div className="absolute inset-0 z-20 flex">
-            {/* O clique na esquerda navega para o anterior, na direita para o próximo */}
             <div className="w-[30%] h-full" onClick={() => onNavigate('prev')} />
             <div className="w-[70%] h-full" onClick={() => onNavigate('next')} />
         </div>
 
-        {/* --- BOTÕES DE SETA CORRIGIDOS --- */}
         {hasPrevStory && (
           <button 
             onClick={(e) => { e.stopPropagation(); onNavigate('prev'); }}
@@ -4341,7 +4341,12 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
 
        <div className="fixed inset-0 -z-10 bg-zinc-950/95 backdrop-blur-3xl md:block hidden" onClick={onClose} />
        
-       {/* A animação de progresso interna não é mais necessária aqui */}
+       <style jsx="true">{`
+          @keyframes progress {
+            0% { width: 0%; }
+            100% { width: 100%; }
+          }
+       `}</style>
     </div>
   );
 }
