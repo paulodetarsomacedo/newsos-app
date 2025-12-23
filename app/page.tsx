@@ -872,7 +872,7 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
   }, [videos]);
 
   return (
-    <div className="absolute left-15 top-2 z-[1001]">
+    <div className="absolute left-150 top-2 z-[1001]">
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-2 h-[42px] px-6 rounded-r-2xl border-y border-l border-r-0 backdrop-blur-xl shadow-sm transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
