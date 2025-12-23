@@ -4723,42 +4723,38 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                     <div className="w-full h-full flex flex-col">
                         <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative group cursor-pointer">
                             
-                            {/* 
-                               A MÁGICA DO CLIQUE INVISÍVEL (CLICK-THROUGH)
-                               1. Se for MODO AUDIO: O Iframe fica POR CIMA da capa (z-20), 
-                                  mas com opacidade quase zero. O clique pega nele.
-                               2. Se for MODO VIDEO: O Iframe fica NORMAL.
-                            */}
+                            {/* CORREÇÃO PARA IPAD PWA: 
+    Só renderiza o iframe se for Áudio (que precisa estar lá invisível) 
+    OU se o vídeo já estiver tocando (isPlayingAudio = true).
+    Isso impede que o iOS congele o vídeo carregado em segundo plano. 
+*/}
+{(article.forceAudioMode || isPlayingAudio) && (
+    <iframe 
+        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+        className={`w-full h-full absolute inset-0 
+            ${article.forceAudioMode 
+                ? 'opacity-[0.01] z-20' 
+                : 'z-20' // Mudei para z-20 para garantir que fique no topo ao aparecer
+            }
+        `}
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+        title="YouTube Video"
+    />
+)}
                             
-                            <iframe 
-                                src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
-                                className={`w-full h-full absolute inset-0 
-                                    ${article.forceAudioMode 
-                                        ? 'opacity-[0.01] z-20' // Invisível mas CLICÁVEL no topo
-                                        : 'z-0' // Normal
-                                    }
-                                `}
-                                frameBorder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                                title="YouTube Video"
-                                // Detecta que o usuário clicou (para mudar visual da capa)
-                                onLoad={() => {
-                                    // Truque: Em iframes cross-origin não detectamos click real, 
-                                    // então assumimos que se o iframe carregou e o usuário interagir, ok.
-                                }}
-                            />
 
                             {/* CAPA (Abaixo do Iframe se áudio, Acima se Vídeo esperando play) */}
                             {/* A div abaixo captura o clique visual apenas para feedback */}
                             <div 
-                                className={`absolute inset-0 w-full h-full 
-                                    ${article.forceAudioMode ? 'z-10' : (isPlayingAudio ? 'hidden' : 'z-10')}
-                                `}
-                                // Se for áudio, o clique VAZA para o iframe (pointer-events-none no container visual?)
-                                // NÃO! Se forceAudioMode, o iframe está por cima (z-20), então ele rouba o clique.
-                                // A capa fica apenas visual (z-10).
-                            >
+                                {(!isPlayingAudio || article.forceAudioMode) && (
+    <div 
+        className={`absolute inset-0 w-full h-full 
+            ${article.forceAudioMode ? 'z-10' : 'z-10'}
+        `}
+    >
+
                                 <img 
                                     src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
                                     className={`w-full h-full object-cover transition-opacity ${isPlayingAudio ? 'opacity-40' : 'opacity-80'}`}
