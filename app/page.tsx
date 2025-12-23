@@ -4528,6 +4528,10 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 // COMPONENTE ARTICLE PANEL (V30 - CORREÇÃO DE ÁUDIO VIA CLICK-THROUGH)
 // ==============================================================================
 
+// ==============================================================================
+// COMPONENTE ARTICLE PANEL (CORRIGIDO E FINAL)
+// ==============================================================================
+
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
@@ -4723,68 +4727,60 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                     <div className="w-full h-full flex flex-col">
                         <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative group cursor-pointer">
                             
-                            {/* CORREÇÃO PARA IPAD PWA: 
-    Só renderiza o iframe se for Áudio (que precisa estar lá invisível) 
-    OU se o vídeo já estiver tocando (isPlayingAudio = true).
-    Isso impede que o iOS congele o vídeo carregado em segundo plano. 
-*/}
-{(article.forceAudioMode || isPlayingAudio) && (
-    <iframe 
-        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-        className={`w-full h-full absolute inset-0 
-            ${article.forceAudioMode 
-                ? 'opacity-[0.01] z-20' 
-                : 'z-20' // Mudei para z-20 para garantir que fique no topo ao aparecer
-            }
-        `}
-        frameBorder="0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-        title="YouTube Video"
-    />
-)}
-                            
-
-                            {/* CAPA (Abaixo do Iframe se áudio, Acima se Vídeo esperando play) */}
-                            {/* A div abaixo captura o clique visual apenas para feedback */}
-                            <div 
-                                {(!isPlayingAudio || article.forceAudioMode) && (
-    <div 
-        className={`absolute inset-0 w-full h-full 
-            ${article.forceAudioMode ? 'z-10' : 'z-10'}
-        `}
-    >
-
-                                <img 
-                                    src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
-                                    className={`w-full h-full object-cover transition-opacity ${isPlayingAudio ? 'opacity-40' : 'opacity-80'}`}
-                                    alt="Video Thumbnail"
+                            {/* IFRAME: Renderiza apenas se áudio (hidden) OU se clicou no Play */}
+                            {(article.forceAudioMode || isPlayingAudio) && (
+                                <iframe 
+                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                                    className={`w-full h-full absolute inset-0 
+                                        ${article.forceAudioMode 
+                                            ? 'opacity-[0.01] z-20' 
+                                            : 'z-20' 
+                                        }
+                                    `}
+                                    frameBorder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                    title="YouTube Video"
                                 />
-                                
-                                {/* Overlay Visual (O que o usuário VÊ) */}
-                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
-                                    {article.forceAudioMode ? (
-                                        <>
-                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
-                                                <Headphones size={32} fill="white" className="text-white"/>
+                            )}
+                            
+                            {/* CAPA (Thumbnail): Renderiza se NÃO estiver tocando ou se for modo áudio */}
+                            {(!isPlayingAudio || article.forceAudioMode) && (
+                                <div 
+                                    className={`absolute inset-0 w-full h-full 
+                                        ${article.forceAudioMode ? 'z-10' : 'z-10'}
+                                    `}
+                                >
+                                    <img 
+                                        src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
+                                        className={`w-full h-full object-cover transition-opacity ${isPlayingAudio ? 'opacity-40' : 'opacity-80'}`}
+                                        alt="Video Thumbnail"
+                                    />
+                                    
+                                    {/* Overlay Visual (Botões) */}
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                                        {article.forceAudioMode ? (
+                                            <>
+                                                <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
+                                                    <Headphones size={32} fill="white" className="text-white"/>
+                                                </div>
+                                                <div className="bg-black/80 px-3 py-1 rounded-full text-xs font-bold text-white mt-2">
+                                                    Toque no centro para Ouvir
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div 
+                                                className="w-full h-full flex items-center justify-center pointer-events-auto" 
+                                                onClick={() => setIsPlayingAudio(true)}
+                                            >
+                                                <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
+                                                    <Play size={32} fill="white" className="text-white ml-1" />
+                                                </div>
                                             </div>
-                                            <div className="bg-black/80 px-3 py-1 rounded-full text-xs font-bold text-white mt-2">
-                                                Toque no centro para Ouvir
-                                            </div>
-                                        </>
-                                    ) : (
-                                        /* Modo Vídeo: O clique precisa ser tratado aqui para remover a capa */
-                                        <div 
-                                            className="w-full h-full flex items-center justify-center pointer-events-auto" 
-                                            onClick={() => setIsPlayingAudio(true)}
-                                        >
-                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
-                                                <Play size={32} fill="white" className="text-white ml-1" />
-                                            </div>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                         </div>
 
@@ -4808,7 +4804,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                             </div>
                             
                             <a 
-                                href={`https://www.youtube.com/watch?v=${videoId}`} 
+                                href={`https://www.youtube.com/watch?v=${videoId}`}
                                 target="_blank"
                                 className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-transform shadow-lg"
                             >
