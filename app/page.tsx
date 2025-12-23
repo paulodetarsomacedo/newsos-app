@@ -3385,18 +3385,20 @@ const MagicBubble = ({ style, isDarkMode }) => (
 
 
 
-// --- NOVO COMPONENTE: PLAYER NATIVO (IGUAL AO PRINT) ---
-const NativeVideoModal = ({ video, onClose }) => {
-  if (!video) return null;
 
-  // Extração robusta do ID do YouTube
-  let videoId = video.videoId;
-  if (!videoId && video.link) {
-      const match = video.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
-      if (match && match[2].length === 11) videoId = match[2];
-  }
 
-  // Se não achou ID, não renderiza nada para não dar erro
+
+// --- COMPONENTE: YOUTUBE BROWSER (SIMULADOR DE NATIVO) ---
+const YouTubeBrowser = ({ video, onClose }) => {
+  // 1. Extração de ID à prova de falhas
+  const getVideoId = (url) => {
+    if (!url) return null;
+    const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  const videoId = video.videoId || getVideoId(video.link);
+
   if (!videoId) return null;
 
   return (
@@ -3407,85 +3409,80 @@ const NativeVideoModal = ({ video, onClose }) => {
             left: 0,
             width: '100vw',
             height: '100vh',
-            zIndex: 9999999, // Máximo possível
-            backgroundColor: '#000000', // Fundo preto total
+            zIndex: 9999999, // Fica na frente de ABSOLUTAMENTE TUDO
+            backgroundColor: '#000000',
             display: 'flex',
             flexDirection: 'column',
-            transform: 'none', // Impede aceleração de GPU errada
-            willChange: 'auto'
+            // O SEGREDO: Desabilitar aceleração de GPU para o container para não conflitar com o vídeo
+            transform: 'none',
+            willChange: 'auto',
+            overscrollBehavior: 'none'
         }}
     >
-      {/* 1. Header estilo Browser (Igual ao Print) */}
+      {/* HEADER TIPO BROWSER (Igual ao Print) */}
       <div style={{
-          padding: '16px',
-          backgroundColor: '#1f1f1f', // Cinza escuro do YouTube
-          borderBottom: '1px solid #333',
+          height: '60px',
+          backgroundColor: '#1e1e1e', // Cor Dark Mode do YouTube
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 16px',
+          borderBottom: '1px solid #333',
           flexShrink: 0
       }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <span style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>
                   youtube.com
               </span>
-              <span style={{ color: '#aaa', fontSize: '12px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span style={{ color: '#aaa', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60vw' }}>
                   {video.title}
               </span>
           </div>
+          
           <button 
               onClick={onClose}
               style={{
-                  backgroundColor: '#333',
-                  color: 'white',
+                  backgroundColor: '#3ea6ff', // Azul do Link
+                  color: '#000',
                   border: 'none',
                   padding: '8px 16px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
+                  borderRadius: '18px',
+                  fontSize: '13px',
+                  fontWeight: '700',
                   cursor: 'pointer'
               }}
           >
-              FECHAR
+              Concluído
           </button>
       </div>
 
-      {/* 2. Área do Iframe - Centralizada */}
+      {/* ÁREA DO VIDEO (Embed Puro) */}
       <div style={{
           flex: 1,
+          position: 'relative',
+          backgroundColor: '#000',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: 'black'
+          justifyContent: 'center'
       }}>
-          {/* 
-             AQUI ESTÁ O SEGREDO: 
-             - Sem autoplay.
-             - playsinline=1 (Para não forçar tela cheia nativa bugada).
-             - key={videoId} (Força o React a recriar o player do zero se mudar o vídeo).
-          */}
           <iframe 
-              key={videoId}
-              src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1&autoplay=0`}
+              src={`https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&playsinline=1&rel=0&modestbranding=1`}
               style={{
                   width: '100%',
-                  aspectRatio: '16/9',
+                  height: '100%', // Ocupa tudo
                   border: 'none',
-                  maxHeight: '100%'
+                  position: 'absolute',
+                  top: 0,
+                  left: 0
               }}
-              allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
               title={video.title}
           />
       </div>
-      
-      {/* Rodapé falso para preencher espaço (opcional, igual ao print) */}
-      <div style={{ height: '40px', backgroundColor: '#0f0f0f' }} />
     </div>
   );
 };
-
-
 
 
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
@@ -3999,30 +3996,35 @@ const allAvailableStories = useMemo(() => {
 
 // --- FUNÇÃO DE ABERTURA INTELIGENTE (VIDEO vs ARTIGO) ---
 const handleOpenArticle = (article) => {
-    // Tenta detectar se é vídeo do YouTube
-    const isYoutube = article.videoId || 
-                      (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be')));
-    
-    // Se for Podcast marcado como vídeo
-    const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
+    if (!article) return;
 
-    if (isYoutube || isPodcastVideo) {
-        // MODO VIDEO: Limpa o artigo de texto e define o vídeo
-        // Isso vai ativar o nosso novo modal NativeVideoModal
-        setSelectedArticle(null); 
+    // Lógica Robusta de Detecção de Vídeo
+    let isVideo = false;
+
+    // 1. Tem ID explícito?
+    if (article.videoId) isVideo = true;
+    
+    // 2. É da categoria Vídeo?
+    if (article.category === 'Vídeo' || (article.category === 'Podcast' && article.type === 'video')) isVideo = true;
+
+    // 3. O Link é do YouTube?
+    if (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be'))) isVideo = true;
+
+    if (isVideo) {
+        // Zera o artigo de texto para garantir que o painel antigo feche
+        setSelectedArticle(null);
+        // Define o vídeo para abrir nosso novo Browser
         setSelectedVideo(article);
     } else {
-        // MODO TEXTO: Limpa o vídeo e define o artigo
         setSelectedVideo(null);
         setSelectedArticle(article);
     }
 
-    // Adiciona ao histórico (sem lógica complexa)
+    // Salva no histórico
     if (article.id && !readHistory.includes(article.id)) {
         setReadHistory(prev => [...prev, article.id]);
     }
   };
-
   // --- FUNÇÕES DE FECHAMENTO ---
   const closeArticle = () => setSelectedArticle(null);
   const closeOutlet = () => setSelectedOutlet(null);
@@ -4194,8 +4196,15 @@ const handleOpenArticle = (article) => {
           />
       )}
       
-
-    {/* RENDERIZAÇÃO DO ARTIGO DE TEXTO (Só se não tiver vídeo) */}
+{/* 1. SE FOR VÍDEO: Abre o "Navegador Falso" por cima de tudo */}
+      {selectedVideo && (
+          <YouTubeBrowser 
+              video={selectedVideo} 
+              onClose={() => setSelectedVideo(null)} 
+          />
+      )}
+      
+      {/* 2. SE FOR TEXTO: Abre o Painel de Artigo (só se não tiver vídeo) */}
       {!selectedVideo && (
           <ArticlePanel 
               key={selectedArticle?.id || 'empty-panel'} 
@@ -4211,14 +4220,7 @@ const handleOpenArticle = (article) => {
           />
       )}
 
-      {/* RENDERIZAÇÃO DO NOVO PLAYER NATIVO (O que imita o print) */}
-      {/* Ele está fora de tudo, com z-index máximo */}
-      {selectedVideo && (
-          <NativeVideoModal 
-              video={selectedVideo} 
-              onClose={() => setSelectedVideo(null)} 
-          />
-      )}
+     
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
       {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen} allStories={allAvailableStories}  onNavigate={handleStoryNavigation}/>}
