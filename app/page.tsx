@@ -4059,6 +4059,8 @@ export default function NewsOS_V12() {
   const [readHistory, setReadHistory] = useState([]);
   const [likedItems, setLikedItems] = useState([]); 
 
+
+  
   // --- ESTADOS DE UI ---
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -4072,6 +4074,20 @@ export default function NewsOS_V12() {
   const [realVideos, setRealVideos] = useState([]);
   const [isLoadingFeeds, setIsLoadingFeeds] = useState(false);
   const [realPodcasts, setRealPodcasts] = useState([]);
+
+
+  useEffect(() => {
+  if (process.env.NODE_ENV === 'development' || window.location.href.includes('debug=true')) {
+    const script = document.createElement('script');
+    script.src = "//cdn.jsdelivr.net/npm/eruda";
+    document.body.appendChild(script);
+    script.onload = () => {
+      window.eruda.init();
+    };
+  }
+}, []);
+
+
 
   // --- AUTENTICAÇÃO E SYNC ---
   const [user, setUser] = useState(null);
@@ -5008,16 +5024,7 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
   );
 }
 
-useEffect(() => {
-  if (process.env.NODE_ENV === 'development' || window.location.href.includes('debug=true')) {
-    const script = document.createElement('script');
-    script.src = "//cdn.jsdelivr.net/npm/eruda";
-    document.body.appendChild(script);
-    script.onload = () => {
-      window.eruda.init();
-    };
-  }
-}, []);
+
 
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
