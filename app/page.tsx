@@ -3139,7 +3139,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                             </div>
                         </div>
                         
-                        <p className={`text-sm font-bold leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                        <p className={`text-sm  leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>
                             {activeItem.summary}
                         </p>
                     </div>
