@@ -4415,38 +4415,35 @@ const allAvailableStories = useMemo(() => {
 
 
 
-const handleOpenArticle = (article) => {
+// --- FUNÇÃO DE ROTEAMENTO (VÍDEO vs TEXTO) ---
+  const handleOpenArticle = (article) => {
     if (!article) return;
 
-    // Lógica Robusta de Detecção de Vídeo
-    let isVideo = false;
-
-    // 1. Tem ID explícito?
-    if (article.videoId) isVideo = true;
+    // Detecção robusta de vídeo
+    const isYoutube = article.videoId || 
+                      (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be')));
     
-    // 2. É da categoria Vídeo?
-    if (article.category === 'Vídeo' || (article.category === 'Podcast' && article.type === 'video')) isVideo = true;
+    // Podcast marcado como vídeo também conta
+    const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
 
-    // 3. O Link é do YouTube?
-    if (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be'))) isVideo = true;
-
-    if (isVideo) {
-        // Zera o artigo de texto para garantir que o painel antigo feche
-        setSelectedArticle(null);
-        // Define o vídeo para abrir nosso novo Browser
-        setSelectedVideo(article);
+    if (isYoutube || isPodcastVideo) {
+        // É VÍDEO: Usa o novo Overlay Nativo
+        setSelectedArticle(null); // Fecha texto se houver
+        setSelectedVideo(article); // Abre vídeo
     } else {
+        // É TEXTO: Usa o ArticlePanel normal
         setSelectedVideo(null);
         setSelectedArticle(article);
     }
 
-    // Salva no histórico
+    // Histórico
     if (article.id && !readHistory.includes(article.id)) {
         setReadHistory(prev => [...prev, article.id]);
     }
   };
 
-
+  // Função para fechar o vídeo
+  const closeVideo = () => setSelectedVideo(null);
 
   // --- FUNÇÕES DE FECHAMENTO ---
   const closeArticle = () => setSelectedArticle(null);
@@ -4621,20 +4618,20 @@ const handleOpenArticle = (article) => {
           />
       )}
       
-     {/* 1. SE FOR VÍDEO: Abre o "Navegador Falso" por cima de tudo */}
+     {/* 1. PLAYER DE VÍDEO NOVO (Fica por cima de tudo) */}
       {selectedVideo && (
-          <YouTubeBrowser 
+          <YouTubePlayerOverlay 
               video={selectedVideo} 
-              onClose={() => setSelectedVideo(null)} 
+              onClose={closeVideo} 
           />
       )}
       
-      {/* 2. SE FOR TEXTO: Abre o Painel de Artigo (só se não tiver vídeo) */}
+      {/* 2. LEITOR DE TEXTO (Só aparece se NÃO tiver vídeo) */}
       {!selectedVideo && (
           <ArticlePanel 
               key={selectedArticle?.id || 'empty-panel'} 
               article={selectedArticle} 
-              feedItems={[...realNews, ...realVideos, ...realPodcasts]}          
+              feedItems={allFeedItems}          
               isOpen={!!selectedArticle} 
               onClose={closeArticle} 
               onArticleChange={handleOpenArticle} 
@@ -5139,6 +5136,112 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
           </div>
       </div>
 ));
+
+
+// --- NOVO COMPONENTE: PLAYER DE VÍDEO NATIVO (SOLUÇÃO PWA) ---
+const YouTubePlayerOverlay = ({ video, onClose }) => {
+  // Extração de ID garantida
+  const videoId = video.videoId || (video.link && video.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]);
+
+  if (!videoId) return null;
+
+  return (
+    <div 
+        style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            zIndex: 9999999, // Acima de tudo
+            backgroundColor: '#000000',
+            display: 'flex',
+            flexDirection: 'column',
+            transform: 'none', // Impede aceleração de GPU conflitante
+            willChange: 'auto',
+            overscrollBehavior: 'none'
+        }}
+    >
+      {/* Header estilo Browser (Igual ao Print) */}
+      <div style={{
+          padding: '12px 16px',
+          backgroundColor: '#1f1f1f',
+          borderBottom: '1px solid #333',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexShrink: 0,
+          safeAreaInsetTop: true
+      }}>
+          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingRight: '10px' }}>
+              <span style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Youtube size={14} className="text-red-600"/> youtube.com
+              </span>
+              <span style={{ color: '#aaa', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {video.title}
+              </span>
+          </div>
+          
+          <button 
+              onClick={onClose}
+              style={{
+                  backgroundColor: '#333',
+                  color: 'white',
+                  border: 'none',
+                  padding: '6px 14px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+              }}
+          >
+              Fechar
+          </button>
+      </div>
+
+      {/* ÁREA DO VIDEO */}
+      <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+          backgroundColor: 'black'
+      }}>
+          {/* 
+             CONFIGURAÇÃO OBRIGATÓRIA PARA IOS PWA:
+             - autoplay=0: O usuário TEM que clicar. Autoplay oculto trava o WebKit.
+             - playsinline=1: Impede o player nativo de roubar a tela e quebrar o layout.
+             - key={videoId}: Força o React a recriar o player se mudar o vídeo.
+          */}
+          <iframe 
+              key={videoId}
+              src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&controls=1&modestbranding=1&rel=0&showinfo=0`}
+              style={{
+                  width: '100%',
+                  aspectRatio: '16/9',
+                  border: 'none',
+                  maxHeight: '100%'
+              }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title={video.title}
+          />
+      </div>
+      
+      {/* Rodapé Informativo Simples */}
+      <div style={{ padding: '20px', backgroundColor: '#0f0f0f', paddingBottom: '40px' }}>
+          <h2 style={{ color: 'white', fontSize: '16px', fontWeight: 'bold', marginBottom: '8px', lineHeight: '1.4' }}>
+              {video.title}
+          </h2>
+          <span style={{ color: '#aaa', fontSize: '13px', fontWeight: '500' }}>
+              {video.source || video.channel}
+          </span>
+      </div>
+    </div>
+  );
+};
+
 
 // ==============================================================================
 // COMPONENTE ARTICLE PANEL - REFATORADO (MODO EMBED PURO / SEM AUTOPLAY)
