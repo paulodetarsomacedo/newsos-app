@@ -16,49 +16,6 @@ import {
   Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart
 } from 'lucide-react';
 
-
-// ===============================
-// PLAYER YOUTUBE SEGURO PARA PWA iOS
-// ===============================
-const playYoutubePWA = (videoId: string) => {
-  const container = document.getElementById('pwa-video-root');
-  if (!container) return;
-
-  container.style.display = 'block';
-
-  container.innerHTML = `
-    <iframe
-      src="https://www.youtube.com/embed/${videoId}?playsinline=1&controls=1&rel=0"
-      style="width:100%;height:100%;border:none;"
-      allow="accelerometer; encrypted-media; picture-in-picture"
-      allowfullscreen
-    ></iframe>
-
-    <button
-      onclick="
-        const root = document.getElementById('pwa-video-root');
-        root.style.display='none';
-        root.innerHTML='';
-      "
-      style="
-        position:absolute;
-        top:12px;
-        right:12px;
-        z-index:1000000;
-        background:#111;
-        color:#fff;
-        border:1px solid #444;
-        padding:8px 12px;
-        border-radius:6px;
-      "
-    >
-      Fechar
-    </button>
-  `;
-};
-
-
-
 // Função robusta para extrair o ID ou garantir que temos um link funcional
 const getVideoUrl = (video) => {
     if (!video) return null;
@@ -1431,7 +1388,7 @@ const YouTubeStoryModal = ({ story, onClose, onWatchVideo }) => {
                         {/* Overlay de Clique (Abre o Player Completo) */}
                         <div 
                             className="absolute inset-0 z-10 cursor-pointer" 
-                           onClick={() => playYoutubePWA(story.videoId)}
+                            onClick={() => onWatchVideo(story)}
                             title="Abrir Player Completo"
                         />
 
@@ -1462,7 +1419,7 @@ const YouTubeStoryModal = ({ story, onClose, onWatchVideo }) => {
                     // --- MODO VÍDEO NORMAL ---
                     <div 
                         className="w-full h-full relative cursor-pointer group bg-zinc-900"
-                       onClick={() => playYoutubePWA(story.videoId)}
+                        onClick={() => onWatchVideo(story)}
                     >
                         <img 
                             src={story.img} 
@@ -3805,7 +3762,7 @@ const SplashScreen = ({ onFinish }) => {
                 `}
             >
                 <div className={`p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-xl ${item.color}`}>
-                <item.Icon size={36} />
+                <item.Icon size={50} />
                 </div>
             </div>
             ))}
@@ -3833,7 +3790,7 @@ const SplashScreen = ({ onFinish }) => {
             transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
             ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
         `}>
-            <h1 className="text-9xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <h1 className="text-11xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
                 NewsOS
             </h1>
         </div>
@@ -3848,6 +3805,75 @@ const SplashScreen = ({ onFinish }) => {
 
 
 
+// --- PLAYER DE VÍDEO BLINDADO (MODO PWA) ---
+const SafeVideoPlayer = ({ video, onClose }) => {
+  // Extração de ID
+  const videoId = video.videoId || (video.link && video.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]);
+
+  if (!videoId) return null;
+
+  return (
+    <div 
+        style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            zIndex: 99999999,
+            backgroundColor: '#000000',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+        }}
+    >
+        {/* Header estilo Browser */}
+        <div style={{
+            height: '48px',
+            backgroundColor: '#212121',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 12px',
+            borderBottom: '1px solid #333'
+        }}>
+            <span style={{ color: '#fff', fontSize: '12px', fontFamily: 'sans-serif' }}>
+                youtube.com
+            </span>
+            <button 
+                onClick={onClose}
+                style={{
+                    background: 'transparent',
+                    color: '#fff',
+                    border: '1px solid #555',
+                    padding: '6px 12px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                }}
+            >
+                Fechar
+            </button>
+        </div>
+
+        {/* Iframe Puro - Sem API, Sem Origin, Sem Frescura */}
+        <div style={{ flex: 1, backgroundColor: '#000', position: 'relative', display: 'flex', alignItems:'center' }}>
+             <iframe 
+                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&playsinline=1&rel=0&modestbranding=1`}
+                style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none'
+                }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title="Video"
+             />
+        </div>
+    </div>
+  );
+};
+
 
 
 
@@ -3859,6 +3885,7 @@ export default function NewsOS_V12() {
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [selectedOutlet, setSelectedOutlet] = useState(null); 
   const [selectedStory, setSelectedStory] = useState(null);
+  const [selectedVideo, setSelectedVideo] = useState(null);
   
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
@@ -4246,7 +4273,9 @@ const allFeedItems = useMemo(() => {
       return combined.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
   }, [realNews, realVideos, realPodcasts]);
 
-  
+  // Função auxiliar para fechar vídeo (caso também esteja faltando)
+  const closeVideo = () => setSelectedVideo(null);
+
   // Adicione este bloco de código dentro de NewsOS_V12, antes do `return (`
 
 const storiesForHappeningTab = useMemo(() => {
@@ -4356,13 +4385,25 @@ const allAvailableStories = useMemo(() => {
 
 // --- FUNÇÃO DE ROTEAMENTO (VÍDEO vs TEXTO) ---
 const handleOpenArticle = (article) => {
-  if (article.videoId) {
-    playYoutubePWA(article.videoId);
-    return;
-  }
+    if (!article) return;
 
-  setSelectedArticle(article);
-};
+    // Detecta Vídeo
+    const isYoutube = article.videoId || 
+                      (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be')));
+    const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
+
+    if (isYoutube || isPodcastVideo) {
+        setSelectedArticle(null); // Fecha texto
+        setSelectedVideo(article); // Abre vídeo
+    } else {
+        setSelectedVideo(null);   // Fecha vídeo
+        setSelectedArticle(article); // Abre texto
+    }
+
+    if (article.id && !readHistory.includes(article.id)) {
+        setReadHistory(prev => [...prev, article.id]);
+    }
+  };
 
   // Função para fechar o vídeo
 
@@ -4373,13 +4414,24 @@ const handleOpenArticle = (article) => {
 
   // --- A VARIÁVEL QUE ESTAVA FALTANDO E QUEBROU O BUILD ---
   // Ela diz pro layout: "Se tiver qualquer coisa aberta (artigo, banca, story ou VIDEO), encolha o fundo."
-  const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
+  const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory || !!selectedVideo;
 
 
 
 
 
-  
+  // --- MODO EXCLUSIVO DE VÍDEO (PWA FIX) ---
+  // Se tiver vídeo, o App "some" e só o player renderiza. 
+  // Isso limpa a memória do WebKit e permite o vídeo rodar.
+  if (selectedVideo) {
+      return (
+          <SafeVideoPlayer 
+              video={selectedVideo} 
+              onClose={() => setSelectedVideo(null)} 
+          />
+      );
+  }
+
   
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
@@ -4540,11 +4592,6 @@ const handleOpenArticle = (article) => {
           />
       )}
       
-
-
-
-
-
       {/* 
          REMOVIDO: YouTubePlayerOverlay 
          (Agora é tratado no topo do return com renderização condicional exclusiva)
@@ -4575,20 +4622,8 @@ const handleOpenArticle = (article) => {
               isDarkMode={isDarkMode} 
           />
       )}
-{/* PLAYER FIXO PARA PWA iOS */}
-<div
-  id="pwa-video-root"
-  style={{
-    position: 'fixed',
-    inset: 0,
-    backgroundColor: '#000',
-    zIndex: 999999,
-    display: 'none'
-  }}
-/>
 
     </div>
-    
   );
 }
 
