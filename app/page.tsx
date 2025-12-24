@@ -3727,10 +3727,10 @@ const SplashScreen = ({ onFinish }) => {
   }, [onFinish]);
 
   const icons = [
-    { Icon: Rss, color: 'text-blue-500', pos: '-translate-x-12 -translate-y-12' },
-    { Icon: Youtube, color: 'text-red-500', pos: 'translate-x-12 -translate-y-12' },
-    { Icon: Mic, color: 'text-orange-500', pos: '-translate-x-12 translate-y-12' },
-    { Icon: Mail, color: 'text-purple-500', pos: 'translate-x-12 translate-y-12' },
+    { Icon: Rss, color: 'text-blue-500', pos: '-translate-x-15 -translate-y-15' },
+    { Icon: Youtube, color: 'text-red-500', pos: 'translate-x-15 -translate-y-15' },
+    { Icon: Mic, color: 'text-orange-500', pos: '-translate-x-15 translate-y-15' },
+    { Icon: Mail, color: 'text-purple-500', pos: 'translate-x-15 translate-y-15' },
   ];
 
   return (
@@ -3790,7 +3790,7 @@ const SplashScreen = ({ onFinish }) => {
             transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
             ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
         `}>
-            <h1 className="text-8xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <h1 className="text-9xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
                 NewsOS
             </h1>
         </div>
@@ -3805,8 +3805,9 @@ const SplashScreen = ({ onFinish }) => {
 
 
 
-// --- COMPONENTE: PLAYER EXCLUSIVO (SEM INTERFERÊNCIA DO APP) ---
+// --- PLAYER DE VÍDEO BLINDADO (MODO PWA) ---
 const SafeVideoPlayer = ({ video, onClose }) => {
+  // Extração de ID
   const videoId = video.videoId || (video.link && video.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]);
 
   if (!videoId) return null;
@@ -3818,9 +3819,9 @@ const SafeVideoPlayer = ({ video, onClose }) => {
             top: 0,
             left: 0,
             width: '100vw',
-            height: '100dvh', // Use dvh para iOS
+            height: '100vh',
+            zIndex: 99999999,
             backgroundColor: '#000000',
-            zIndex: 999999,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden'
@@ -3828,52 +3829,50 @@ const SafeVideoPlayer = ({ video, onClose }) => {
     >
         {/* Header estilo Browser */}
         <div style={{
-            height: '50px',
-            backgroundColor: '#202020',
+            height: '48px',
+            backgroundColor: '#212121',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0 16px',
+            padding: '0 12px',
             borderBottom: '1px solid #333'
         }}>
-            <span style={{ color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>youtube.com</span>
+            <span style={{ color: '#fff', fontSize: '12px', fontFamily: 'sans-serif' }}>
+                youtube.com
+            </span>
             <button 
                 onClick={onClose}
                 style={{
-                    background: '#333',
+                    background: 'transparent',
                     color: '#fff',
-                    border: 'none',
-                    padding: '6px 14px',
-                    borderRadius: '20px',
+                    border: '1px solid #555',
+                    padding: '6px 12px',
+                    borderRadius: '4px',
                     fontSize: '12px',
-                    fontWeight: 'bold'
+                    cursor: 'pointer'
                 }}
             >
                 Fechar
             </button>
         </div>
 
-        {/* Iframe Puro */}
-        <div style={{ flex: 1, backgroundColor: '#000', position: 'relative' }}>
+        {/* Iframe Puro - Sem API, Sem Origin, Sem Frescura */}
+        <div style={{ flex: 1, backgroundColor: '#000', position: 'relative', display: 'flex', alignItems:'center' }}>
              <iframe 
-                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&controls=1&rel=0&modestbranding=1`}
+                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&playsinline=1&rel=0&modestbranding=1`}
                 style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
                     width: '100%',
                     height: '100%',
                     border: 'none'
                 }}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
-                title={video.title}
+                title="Video"
              />
         </div>
     </div>
   );
 };
-
 
 
 
@@ -4385,31 +4384,22 @@ const allAvailableStories = useMemo(() => {
 
 
 // --- FUNÇÃO DE ROTEAMENTO (VÍDEO vs TEXTO) ---
-// --- FUNÇÃO DE ABERTURA INTELIGENTE (COM PROTEÇÃO PWA) ---
-  const handleOpenArticle = (article) => {
+const handleOpenArticle = (article) => {
     if (!article) return;
 
-    // Detecta Vídeo (YouTube Link, ID ou Categoria)
+    // Detecta Vídeo
     const isYoutube = article.videoId || 
                       (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be')));
-    
     const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
 
     if (isYoutube || isPodcastVideo) {
-        // ROTA DE VÍDEO: 
-        // 1. Limpa o artigo de texto (fecha ArticlePanel)
-        setSelectedArticle(null);
-        // 2. Define o vídeo (Vai abrir o IsolatedVideoPlayer)
-        setSelectedVideo(article);
+        setSelectedArticle(null); // Fecha texto
+        setSelectedVideo(article); // Abre vídeo
     } else {
-        // ROTA DE TEXTO:
-        // 1. Limpa o vídeo (fecha IsolatedVideoPlayer)
-        setSelectedVideo(null);
-        // 2. Define o artigo (abre ArticlePanel)
-        setSelectedArticle(article);
+        setSelectedVideo(null);   // Fecha vídeo
+        setSelectedArticle(article); // Abre texto
     }
 
-    // Histórico
     if (article.id && !readHistory.includes(article.id)) {
         setReadHistory(prev => [...prev, article.id]);
     }
@@ -4430,8 +4420,9 @@ const allAvailableStories = useMemo(() => {
 
 
 
-   // 1. SE TIVER VÍDEO, RENDERIZA SÓ O VÍDEO E MATA O RESTO
-  // Isso garante que o iOS dedique 100% da GPU para o iframe.
+  // --- MODO EXCLUSIVO DE VÍDEO (PWA FIX) ---
+  // Se tiver vídeo, o App "some" e só o player renderiza. 
+  // Isso limpa a memória do WebKit e permite o vídeo rodar.
   if (selectedVideo) {
       return (
           <SafeVideoPlayer 
