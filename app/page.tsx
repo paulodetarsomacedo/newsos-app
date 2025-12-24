@@ -4415,7 +4415,6 @@ const allAvailableStories = useMemo(() => {
 
 
 
-// --- FUNÇÃO DE ABERTURA INTELIGENTE (VIDEO vs ARTIGO) ---
 const handleOpenArticle = (article) => {
     if (!article) return;
 
@@ -4446,6 +4445,9 @@ const handleOpenArticle = (article) => {
         setReadHistory(prev => [...prev, article.id]);
     }
   };
+
+
+
   // --- FUNÇÕES DE FECHAMENTO ---
   const closeArticle = () => setSelectedArticle(null);
   const closeOutlet = () => setSelectedOutlet(null);
@@ -4619,7 +4621,7 @@ const handleOpenArticle = (article) => {
           />
       )}
       
-{/* 1. SE FOR VÍDEO: Abre o "Navegador Falso" por cima de tudo */}
+     {/* 1. SE FOR VÍDEO: Abre o "Navegador Falso" por cima de tudo */}
       {selectedVideo && (
           <YouTubeBrowser 
               video={selectedVideo} 
