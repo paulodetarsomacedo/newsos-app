@@ -4374,7 +4374,16 @@ const handleStoryNavigation = (direction) => {
         return [{ ...article, readProgress: 0, date: 'Agora', source: article.source || article.name }, ...prev];
     });
   }, []); // Sem dependências externas, super estável
-  
+  // --- FUNÇÃO DE NAVEGAÇÃO ENTRE ABAS (RESTAURADA) ---
+  const handleTabClick = useCallback((tab) => {
+    setActiveTab(tab);
+    
+    // Reseta o timer de inatividade da barra de navegação
+    if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    navTimerRef.current = setTimeout(() => setIsNavVisible(false), 4000);
+  }, []);
+
+
   useEffect(() => {
     const resetInactivityTimer = () => {
       if (navTimerRef.current) clearTimeout(navTimerRef.current);
