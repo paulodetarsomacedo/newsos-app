@@ -2461,6 +2461,9 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
 };
 
 
+
+
+
 // --- FUNÇÃO DE IA: ANÁLISE DE MERCADO (REFATORADA) ---
 const generateMarketAnalysis = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
@@ -2785,126 +2788,6 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                 </div>
             </div>
 
-        </div>
-    </div>
-  );
-};
-
-// --- WIDGET: ENQUANTO VOCÊ ESTAVA FORA (VERSÃO IA GENERATIVA) ---
-
-// --- WIDGET: CONTEXTO GLOBAL (V4 - ATUALIZAÇÃO ESTRITA: APENAS PUSH OU START) ---
-const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refreshTrigger }) => {
-  const [clusters, setClusters] = useState(null);
-  const [loading, setLoading] = useState(false);
-  
-  const [activeIndex, setActiveIndex] = useState(0);
-  const scrollRef = useRef(null);
-  
-  const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
-  const prevRefreshTrigger = useRef(refreshTrigger);
-
-  useEffect(() => {
-    if (!apiKey || !news || news.length < 5) return;
-
-    const isUserRefresh = refreshTrigger !== prevRefreshTrigger.current;
-    
-    if (!hasLoadedInitial) {
-      setHasLoadedInitial(true);
-      const initialLoadTimer = setTimeout(() => runAI(), 3000);
-      return () => clearTimeout(initialLoadTimer);
-    }
-    
-    if (isUserRefresh) {
-      prevRefreshTrigger.current = refreshTrigger;
-      runAI();
-    }
-  }, [news, apiKey, refreshTrigger]);
-
-  const runAI = async () => {
-      setLoading(true);
-      setClusters(null);
-      await new Promise(r => setTimeout(r, 1000));
-      const result = await generateSmartClustering(news, apiKey);
-      setClusters(result);
-      setLoading(false);
-  };
-
-  const handleScroll = () => {
-    if (scrollRef.current) {
-      const scrollLeft = scrollRef.current.scrollLeft;
-      const cardWidth = scrollRef.current.offsetWidth;
-      const newIndex = Math.round(scrollLeft / cardWidth);
-      if (newIndex !== activeIndex) setActiveIndex(newIndex);
-    }
-  };
-  
-  if (loading) {
-      return (
-        <div className="px-1 mt-8 animate-pulse">
-            <div className={`h-[420px] rounded-[32px] w-full ${isDarkMode ? 'bg-zinc-900' : 'bg-zinc-200'}`}></div>
-        </div>
-      );
-  }
-
-  if (!clusters || clusters.length === 0) return null;
-
-  return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
-        <div className="relative w-full">
-            <div className="relative z-10 flex items-center gap-3 mb-4 px-6">
-                <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                    
-                </div>
-            </div>
-
-            <div 
-              ref={scrollRef}
-              onScroll={handleScroll}
-              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-2" // Adicionado py-2 para a sombra não ser cortada
-            >
-                {clusters.map((cluster, idx) => (
-                    <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
-                        <div className={`
-                            group relative h-[420px] w-full rounded-[32px] overflow-hidden cursor-default 
-                            transition-all duration-300
-                            
-                            /* --- PADRÃO DE SOMBRA DO SMARTDIGEST APLICADO AQUI --- */
-                            shadow-2xl 
-                            ${!isDarkMode ? 'shadow-indigo-500/10' : 'shadow-black/50'}
-                        `}>
-                            <img src={cluster.representative_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={cluster.ai_title} />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
-                            <div className="absolute top-6 left-6 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-                               <Layers size={12} className="text-white/70" />
-                               <span className="text-white text-[10px] font-bold uppercase tracking-widest">{cluster.related_articles.length} FONTES</span>
-                            </div>
-                            <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full">
-                               <h2 className="text-2xl md:text-3xl font-black text-white leading-tight mb-6 min-h-[64px]">{cluster.ai_title}</h2>
-                               <div className="flex flex-wrap gap-4 items-center">
-                                   {cluster.related_articles.map(article => (
-                                       <button
-                                           key={article.id}
-                                           onClick={() => openArticle(article)}
-                                           className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md p-1.5 border-2 border-white/20 shadow-xl transition-all duration-300 hover:scale-110 active:scale-95 hover:border-purple-400 hover:shadow-purple-500/50"
-                                           title={`Ler no ${article.source}`}
-                                       >
-                                           <img src={article.logo} className="w-full h-full object-contain rounded-full bg-white" onError={(e) => e.target.style.display='none'} />
-                                       </button>
-                                   ))}
-                               </div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            
-            {clusters.length > 1 && (
-              <div className="flex justify-center gap-2 mt-2">
-                  {clusters.map((_, idx) => (
-                      <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${activeIndex === idx ? (isDarkMode ? 'bg-white w-6' : 'bg-zinc-800 w-6') : (isDarkMode ? 'bg-white/30 w-1.5' : 'bg-zinc-300 w-1.5')}`} />
-                  ))}
-              </div>
-            )}
         </div>
     </div>
   );
