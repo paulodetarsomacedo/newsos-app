@@ -5139,7 +5139,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL - REFATORADO (LAYOUT SPLIT VIEW - PWA SAFE)
+// COMPONENTE ARTICLE PANEL - CORREÇÃO DE CONGELAMENTO (CSS GROUNDING)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
@@ -5149,6 +5149,9 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
+  // Controle de estado da animação
+  const [isAnimationDone, setIsAnimationDone] = useState(false);
+
   // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -5160,21 +5163,29 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   }, [article]);
 
   useEffect(() => {
-      if (videoId) {
-          setViewMode('video');
-          setIsLoading(false);
+      let timer;
+      if (isOpen) {
+          // Espera a animação terminar para "aterrar" o componente
+          timer = setTimeout(() => setIsAnimationDone(true), 450); // 450ms para garantir
+          
+          if (videoId) {
+              setViewMode('video');
+              setIsLoading(false);
+          } else {
+              setViewMode('web');
+          }
       } else {
-          setViewMode('web');
+          setIsAnimationDone(false);
           setIframeUrl(null);
           setReaderContent(null);
           setTranslatedData(null);
           setIsTranslated(false);
       }
-  }, [article?.id, videoId]);
+      return () => clearTimeout(timer);
+  }, [isOpen, article?.id, videoId]);
 
   const scrollContainerRef = useRef(null); 
 
-  // (Lógica de domínios problemáticos e sanitizeHtml mantida...)
   const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
   const isProblematicSite = useMemo(() => {
       if (!article?.link) return false;
@@ -5193,15 +5204,10 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   };
 
   const handleClosePanel = useCallback(() => {
+      // Ao fechar, removemos o status de "Done" para reativar a animação de saída
+      setIsAnimationDone(false);
       onClose(); 
-      setTimeout(() => {
-        if (iframeUrl) URL.revokeObjectURL(iframeUrl);
-        setIframeUrl(null);
-        setReaderContent(null);
-        setViewMode('web');
-        setIsTranslated(false); 
-      }, 400); 
-  }, [onClose, iframeUrl]);
+  }, [onClose]);
 
   const handleOpenInBrowser = useCallback(() => {
     if (article?.link) window.open(article.link, '_blank');
@@ -5234,11 +5240,12 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   };
 
   useEffect(() => {
-    if (!isOpen || !article?.link || videoId) return;
+    // Só carrega conteúdo WEB se a animação acabou
+    if (!isOpen || !isAnimationDone || !article?.link || videoId) return;
+    
     setIsLoading(true);
     const fetchContent = async () => {
         try {
-            await new Promise(r => setTimeout(r, 10)); 
             const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
             if (error || !data) throw new Error();
             if (data.html && (data.html.startsWith('RIFF') || data.html.includes('WEBPVP8') || data.html.includes('PNG') || data.html.charCodeAt(0) > 65000)) throw new Error("Binário");
@@ -5254,7 +5261,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         }
     };
     fetchContent();
-  }, [isOpen, article?.id, videoId, isProblematicSite]);
+  }, [isOpen, isAnimationDone, article?.id, videoId, isProblematicSite]);
 
   const activeContent = (isTranslated && translatedData) ? translatedData : (readerContent || article);
   const safeContent = activeContent || {}; 
@@ -5262,108 +5269,105 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const activeArticleData = { ...safeArticle, ...safeContent };
   const activeReaderData = { content: safeContent.content, title: safeContent.title };
 
+  // --- A CORREÇÃO MÁGICA ESTÁ AQUI ---
+  // Se a animação acabou (isAnimationDone), REMOVEMOS 'transition', 'duration' e 'transform'.
+  // Deixamos apenas 'fixed inset-0'. Isso "desliga" a GPU de composição e libera o vídeo.
+  const containerClasses = isAnimationDone && isOpen
+      ? `fixed inset-0 z-[5000] flex flex-col ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')}`
+      : `fixed inset-0 z-[5000] flex flex-col transition-transform duration-300 ease-out will-change-transform ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`;
+
   return (
-    <div className={`fixed inset-0 z-[5000] flex flex-col transition-transform duration-300 ease-out ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        
-        {/* --- 1. CABEÇALHO FIXO --- */}
-        <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b backdrop-blur-xl z-50 ${videoId ? 'bg-black/90 border-white/10 text-white' : (isDarkMode ? 'bg-zinc-950/90 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-900')}`}>
-            <button onClick={handleClosePanel} className={`flex items-center gap-1 py-2 pr-3 text-sm font-black transition active:scale-95 ${videoId ? 'text-zinc-300 hover:text-white' : (isDarkMode ? 'text-zinc-300 hover:text-white' : 'text-zinc-600 hover:text-black')}`}><ChevronLeft size={24} /> <span className="hidden md:inline">VOLTAR</span></button>
+    <div className={containerClasses}>
+        <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
-            {!videoId && (
-                <>
-                    <div className={`flex p-1 rounded-xl relative border shadow-sm ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}>
-                        <div className={`absolute top-1 bottom-1 w-[48%] rounded-lg shadow-sm transition-all duration-300 ease-out ${viewMode === 'ai' ? 'left-[50%]' : 'left-1'} ${isDarkMode ? 'bg-zinc-800' : 'bg-white'} ${viewMode === 'magic' || viewMode === 'reader' ? 'opacity-0' : 'opacity-100'}`} />
-                        <button onClick={() => setViewMode('web')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'web' && viewMode !== 'magic' && viewMode !== 'reader' ? (isDarkMode ? 'text-white' : 'text-black') : 'text-zinc-500'}`}>WEB VIEW</button>
-                        <button onClick={() => setViewMode('ai')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'ai' ? 'text-purple-500' : 'text-zinc-500'}`}><Sparkles size={10} /> AI ANALYSIS</button>
-                    </div>
+            {/* TOP BAR */}
+            <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b z-50 ${videoId ? 'bg-black/90 border-white/10 text-white' : (isDarkMode ? 'bg-zinc-950 border-white/10 text-zinc-300' : 'bg-white border-zinc-200 text-zinc-900')}`}>
+                <button onClick={handleClosePanel} className={`flex items-center gap-1 py-2 pr-3 text-sm font-black transition active:scale-95 ${videoId ? 'text-zinc-300 hover:text-white' : (isDarkMode ? 'text-zinc-300 hover:text-white' : 'text-zinc-600 hover:text-black')}`}><ChevronLeft size={24} /> <span className="hidden md:inline">VOLTAR</span></button>
+                
+                {!videoId && (
+                    <>
+                        <div className={`flex p-1 rounded-xl relative border shadow-sm ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}>
+                            <div className={`absolute top-1 bottom-1 w-[48%] rounded-lg shadow-sm transition-all duration-300 ease-out ${viewMode === 'ai' ? 'left-[50%]' : 'left-1'} ${isDarkMode ? 'bg-zinc-800' : 'bg-white'} ${viewMode === 'magic' || viewMode === 'reader' ? 'opacity-0' : 'opacity-100'}`} />
+                            <button onClick={() => setViewMode('web')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'web' && viewMode !== 'magic' && viewMode !== 'reader' ? (isDarkMode ? 'text-white' : 'text-black') : 'text-zinc-500'}`}>WEB</button>
+                            <button onClick={() => setViewMode('ai')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'ai' ? 'text-purple-500' : 'text-zinc-500'}`}><Sparkles size={10} /> AI</button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <button onClick={() => setViewMode(viewMode === 'magic' ? 'web' : 'magic')} className={`p-2.5 rounded-xl border ${viewMode === 'magic' ? 'bg-purple-600 text-white border-purple-500' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><Wand2 size={20} /></button>
+                             <button onClick={handleToggleTranslation} className={`p-2.5 rounded-xl border ${isTranslated ? 'bg-blue-600 text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}>{isTranslating ? <Loader2 size={20} className="animate-spin" /> : <Languages size={20} />}</button>
+                             <button onClick={() => setViewMode(viewMode === 'reader' ? 'web' : 'reader')} className={`p-2.5 rounded-xl border ${viewMode === 'reader' ? 'bg-black text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><ALargeSmall size={20} /></button>
+                             <button onClick={handleOpenInBrowser} className={`p-2.5 rounded-xl border ${isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200'}`}><Globe size={20} /></button>
+                             <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                        </div>
+                    </>
+                )}
+
+                {videoId && (
                     <div className="flex items-center gap-2">
-                            <button onClick={() => setViewMode(viewMode === 'magic' ? 'web' : 'magic')} className={`p-2.5 rounded-xl border ${viewMode === 'magic' ? 'bg-purple-600 text-white border-purple-500' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><Wand2 size={20} /></button>
-                            <button onClick={handleToggleTranslation} className={`p-2.5 rounded-xl border ${isTranslated ? 'bg-blue-600 text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}>{isTranslating ? <Loader2 size={20} className="animate-spin" /> : <Languages size={20} />}</button>
-                            <button onClick={() => setViewMode(viewMode === 'reader' ? 'web' : 'reader')} className={`p-2.5 rounded-xl border ${viewMode === 'reader' ? 'bg-black text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><ALargeSmall size={20} /></button>
-                            <button onClick={handleOpenInBrowser} className={`p-2.5 rounded-xl border ${isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200'}`}><Globe size={20} /></button>
-                            <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                        <span className="text-xs font-bold uppercase tracking-widest opacity-60 mr-2">{article.source}</span>
+                        <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
                     </div>
-                </>
-            )}
-
-            {videoId && (
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold uppercase tracking-widest opacity-60 mr-2">{article.source}</span>
-                    <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
-                </div>
-            )}
-             <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
-        </div>
-
-        {/* --- 2. ÁREA DO VÍDEO (FIXA NO TOPO, FORA DO SCROLL DO TEXTO) --- */}
-        {/* MUDANÇA CRÍTICA: O vídeo agora é um irmão do container de scroll, não um filho. Isso isola o render. */}
-        {viewMode === 'video' && videoId && (
-            <div className="w-full flex-shrink-0 bg-black z-40 shadow-xl" style={{ aspectRatio: '16/9' }}>
-                <iframe 
-                    src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&modestbranding=1&rel=0&controls=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                    className="w-full h-full"
-                    frameBorder="0"
-                    allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    title="YouTube Video"
-                />
+                )}
+                 <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading && isAnimationDone ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
             </div>
-        )}
 
-        {/* --- 3. CONTEÚDO SCROLLÁVEL (TEXTO E OUTROS MODOS) --- */}
-        <div ref={scrollContainerRef} className={`flex-1 relative w-full overflow-y-auto overscroll-contain ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
-            
-            {viewMode === 'video' && videoId ? (
-                // Conteúdo de texto abaixo do vídeo (rolável)
-                <div className="p-6 max-w-3xl mx-auto pb-20">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10">
-                            <img src={article.logo} className="w-full h-full object-cover" />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-sm">{article.source}</h3>
-                            <p className="text-xs opacity-60">{article.time}</p>
-                        </div>
+            <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
+                
+                {/* SÓ RENDERIZA O PESADO SE A ANIMAÇÃO ACABAR */}
+                {!isAnimationDone ? (
+                    <div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50">
+                        <Loader2 size={32} className="animate-spin text-zinc-500" />
                     </div>
-                    <h1 className="text-2xl md:text-3xl font-black leading-tight mb-4 tracking-tight">{article.title}</h1>
-                    <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode || videoId ? 'bg-white/5 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}>
-                        {article.summary || "Sem descrição disponível."}
-                    </div>
-                    <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-transform shadow-lg">
-                        <Youtube size={18} /> Abrir no App YouTube
-                    </a>
-                </div>
-            ) : (
-                // Modos não vídeo
-                <>
-                    {isLoading && (<div className="absolute inset-0 flex flex-col items-center justify-center bg-inherit z-50"><Loader2 size={48} className="animate-spin text-purple-600 mb-4" /><p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40 animate-pulse">Carregando...</p></div>)}
-                    {viewMode === 'web' && (
-                        <div className="w-full h-full">
-                            {iframeUrl ? (
-                                <iframe src={iframeUrl} className="w-full h-full border-none" sandbox={isProblematicSite ? "allow-same-origin allow-popups" : "allow-same-origin allow-scripts allow-popups allow-forms"} title="Web" loading="lazy" />
-                            ) : !isLoading && (
-                                <div className="flex flex-col items-center justify-center h-full p-12 text-center text-zinc-500"><div className="p-6 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-6"><Globe size={40} className="opacity-40" /></div><h3 className="font-black text-xl mb-2">Web Indisponível</h3><p className="max-w-xs text-sm opacity-60 mb-6">Conteúdo bloqueado.</p></div>
+                ) : (
+                    <>
+                    {viewMode === 'video' && videoId ? (
+                        <div className="w-full h-full flex flex-col">
+                            <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative">
+                                <iframe 
+                                    src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&modestbranding=1&rel=0&controls=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                                    className="w-full h-full absolute inset-0 z-10"
+                                    frameBorder="0"
+                                    allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                    title="YouTube Video"
+                                />
+                            </div>
+                            <div className="p-6 max-w-3xl mx-auto pb-20">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10"><img src={article.logo} className="w-full h-full object-cover" /></div>
+                                    <div><h3 className="font-bold text-sm">{article.source}</h3><p className="text-xs opacity-60">{article.time}</p></div>
+                                </div>
+                                <h1 className="text-2xl md:text-3xl font-black leading-tight mb-4 tracking-tight">{article.title}</h1>
+                                <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode || videoId ? 'bg-white/5 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}>{article.summary}</div>
+                                <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-transform shadow-lg">
+                                    <Youtube size={18} /> Abrir no App YouTube
+                                </a>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            {viewMode === 'web' && (
+                                <div className="w-full h-full">
+                                    {iframeUrl ? (
+                                        <iframe src={iframeUrl} className="w-full h-full border-none" sandbox={isProblematicSite ? "allow-same-origin allow-popups" : "allow-same-origin allow-scripts allow-popups allow-forms"} title="Web" loading="lazy" />
+                                    ) : !isLoading && (
+                                        <div className="flex flex-col items-center justify-center h-full p-12 text-center text-zinc-500"><div className="p-6 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-6"><Globe size={40} className="opacity-40" /></div><h3 className="font-black text-xl mb-2">Web Indisponível</h3><p className="max-w-xs text-sm opacity-60 mb-6">Conteúdo bloqueado.</p></div>
+                                    )}
+                                </div>
                             )}
-                        </div>
+                            {viewMode === 'ai' && <AIAnalysisView article={activeArticleData} isDarkMode={isDarkMode} />}
+                            {viewMode === 'magic' && <MagicPremiumView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
+                            {viewMode === 'reader' && <AppleReaderView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
+                        </>
                     )}
-                    {viewMode === 'ai' && <AIAnalysisView article={activeArticleData} isDarkMode={isDarkMode} />}
-                    {viewMode === 'magic' && <MagicPremiumView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
-                    {viewMode === 'reader' && <AppleReaderView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
-                </>
+                    </>
+                )}
+            </div>
+
+            {/* Feed Navigator */}
+            {isOpen && isAnimationDone && article && feedItems && (
+                <FeedNavigator article={article} feedItems={feedItems} onArticleChange={onArticleChange} isDarkMode={isDarkMode} />
             )}
         </div>
-
-        {(!videoId && (viewMode === 'magic' || viewMode === 'reader')) && (
-            <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 rounded-2xl backdrop-blur-xl border shadow-2xl animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-black/80 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
-                <button onClick={() => setFontSize(s => Math.max(14, s - 2))} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition active:scale-90 bg-zinc-100 dark:bg-white/5"><Minus size={16}/></button>
-                <span className="text-xs font-black w-8 text-center">{fontSize}px</span>
-                <button onClick={() => setFontSize(s => Math.min(32, s + 2))} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition active:scale-90 bg-zinc-100 dark:bg-white/5"><Plus size={16}/></button>
-            </div>
-        )}
-        
-        {isOpen && article && feedItems && (
-            <FeedNavigator article={article} feedItems={feedItems} onArticleChange={onArticleChange} isDarkMode={isDarkMode} />
-        )}
         <style jsx="true">{`@keyframes progress-aura { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } } .animate-progress-aura { animation: progress-aura 1.5s infinite linear; }`}</style>
     </div>
   );
