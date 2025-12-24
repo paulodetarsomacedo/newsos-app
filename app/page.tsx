@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js'
+import { createPortal } from 'react-dom';
 
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
@@ -3929,6 +3930,117 @@ const YouTubeBrowser = ({ video, onClose }) => {
   );
 };
 
+
+
+// --- COMPONENTE NUCLEAR: PLAYER ISOLADO (PORTAL) ---
+// Este componente renderiza FORA da árvore do React principal.
+// Ele se anexa direto ao <body> do navegador, livrando-se de qualquer
+// interferência de CSS ou memória do App.
+const IsolatedVideoPlayer = ({ video, onClose }) => {
+  // 1. Garante que só rodamos no cliente (browser)
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+    // Trava a rolagem do corpo do site original enquanto o vídeo está aberto
+    document.body.style.overflow = 'hidden'; 
+    return () => {
+      document.body.style.overflow = ''; // Destrava ao fechar
+    };
+  }, []);
+
+  if (!mounted || !video) return null;
+
+  // 2. Extração de ID (Segurança Máxima)
+  const videoId = video.videoId || (video.link && video.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]);
+
+  if (!videoId) return null;
+
+  // 3. O Conteúdo do Portal (HTML Puro e Cru)
+  const portalContent = (
+    <div 
+        style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 2147483647, // Z-Index Máximo (32-bit int)
+            backgroundColor: '#000000',
+            display: 'flex',
+            flexDirection: 'column',
+            // Zera qualquer herança
+            margin: 0,
+            padding: 0,
+            transform: 'none',
+            isolation: 'isolate' 
+        }}
+    >
+        {/* Header estilo Browser Nativo */}
+        <div style={{
+            height: '60px',
+            backgroundColor: '#202020',
+            borderBottom: '1px solid #333',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 16px',
+            paddingTop: 'env(safe-area-inset-top)', // Respeita Notch
+            flexShrink: 0
+        }}>
+            <span style={{ 
+                color: '#fff', 
+                fontFamily: '-apple-system, system-ui, sans-serif', 
+                fontSize: '14px', 
+                fontWeight: '600'
+            }}>
+                youtube.com
+            </span>
+            <button 
+                onClick={onClose}
+                style={{
+                    background: '#333',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '16px',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                }}
+            >
+                Fechar
+            </button>
+        </div>
+
+        {/* Área do Iframe (100% livre) */}
+        <div style={{ flex: 1, position: 'relative', backgroundColor: '#000' }}>
+            <iframe
+                key={videoId} // Força recriação limpa se mudar ID
+                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&controls=1&rel=0&modestbranding=1&html5=1`}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 'none'
+                }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title="YouTube Video"
+            />
+        </div>
+    </div>
+  );
+
+  // A MÁGICA: Teletransporta esse HTML direto para o <body>
+  return createPortal(portalContent, document.body);
+};
+
+
+
+
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
 export default function NewsOS_V12() {
   const [showSplash, setShowSplash] = useState(true);
@@ -4436,23 +4548,27 @@ const allAvailableStories = useMemo(() => {
 
 
 // --- FUNÇÃO DE ROTEAMENTO (VÍDEO vs TEXTO) ---
+// --- FUNÇÃO DE ABERTURA INTELIGENTE (COM PROTEÇÃO PWA) ---
   const handleOpenArticle = (article) => {
     if (!article) return;
 
-    // Detecção robusta de vídeo
+    // Detecta Vídeo (YouTube Link, ID ou Categoria)
     const isYoutube = article.videoId || 
                       (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be')));
     
-    // Podcast marcado como vídeo também conta
     const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
 
     if (isYoutube || isPodcastVideo) {
-        // É VÍDEO: Usa o novo Overlay Nativo
-        setSelectedArticle(null); // Fecha texto se houver
-        setSelectedVideo(article); // Abre vídeo
+        // ROTA DE VÍDEO: 
+        // 1. Limpa o artigo de texto (fecha ArticlePanel)
+        setSelectedArticle(null);
+        // 2. Define o vídeo (Vai abrir o IsolatedVideoPlayer)
+        setSelectedVideo(article);
     } else {
-        // É TEXTO: Usa o ArticlePanel normal
+        // ROTA DE TEXTO:
+        // 1. Limpa o vídeo (fecha IsolatedVideoPlayer)
         setSelectedVideo(null);
+        // 2. Define o artigo (abre ArticlePanel)
         setSelectedArticle(article);
     }
 
@@ -4637,15 +4753,22 @@ const allAvailableStories = useMemo(() => {
           />
       )}
       
-     {/* 1. PLAYER DE VÍDEO NOVO (Fica por cima de tudo) */}
+
+      
+   {/* 
+          PLAYER ISOLADO (PORTAL) 
+          Este componente sai do React root e vai pro body.
+          É a "tela única" que você pediu.
+      */}
       {selectedVideo && (
-          <YouTubePlayerOverlay 
+          <IsolatedVideoPlayer 
               video={selectedVideo} 
-              onClose={closeVideo} 
+              onClose={() => setSelectedVideo(null)} 
           />
       )}
       
-      {/* 2. LEITOR DE TEXTO (Só aparece se NÃO tiver vídeo) */}
+      {/* PAINEL DE ARTIGO (TEXTO) */}
+      {/* Só renderiza se NÃO tiver vídeo selecionado, para economizar memória */}
       {!selectedVideo && (
           <ArticlePanel 
               key={selectedArticle?.id || 'empty-panel'} 
@@ -5157,109 +5280,6 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 
-// --- NOVO COMPONENTE: PLAYER DE VÍDEO NATIVO (SOLUÇÃO PWA) ---
-const YouTubePlayerOverlay = ({ video, onClose }) => {
-  // Extração de ID garantida
-  const videoId = video.videoId || (video.link && video.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]);
-
-  if (!videoId) return null;
-
-  return (
-    <div 
-        style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            zIndex: 9999999, // Acima de tudo
-            backgroundColor: '#000000',
-            display: 'flex',
-            flexDirection: 'column',
-            transform: 'none', // Impede aceleração de GPU conflitante
-            willChange: 'auto',
-            overscrollBehavior: 'none'
-        }}
-    >
-      {/* Header estilo Browser (Igual ao Print) */}
-      <div style={{
-          padding: '12px 16px',
-          backgroundColor: '#1f1f1f',
-          borderBottom: '1px solid #333',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexShrink: 0,
-          safeAreaInsetTop: true
-      }}>
-          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingRight: '10px' }}>
-              <span style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Youtube size={14} className="text-red-600"/> youtube.com
-              </span>
-              <span style={{ color: '#aaa', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {video.title}
-              </span>
-          </div>
-          
-          <button 
-              onClick={onClose}
-              style={{
-                  backgroundColor: '#333',
-                  color: 'white',
-                  border: 'none',
-                  padding: '6px 14px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-              }}
-          >
-              Fechar
-          </button>
-      </div>
-
-      {/* ÁREA DO VIDEO */}
-      <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          backgroundColor: 'black'
-      }}>
-          {/* 
-             CONFIGURAÇÃO OBRIGATÓRIA PARA IOS PWA:
-             - autoplay=0: O usuário TEM que clicar. Autoplay oculto trava o WebKit.
-             - playsinline=1: Impede o player nativo de roubar a tela e quebrar o layout.
-             - key={videoId}: Força o React a recriar o player se mudar o vídeo.
-          */}
-          <iframe 
-              key={videoId}
-              src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&controls=1&modestbranding=1&rel=0&showinfo=0`}
-              style={{
-                  width: '100%',
-                  aspectRatio: '16/9',
-                  border: 'none',
-                  maxHeight: '100%'
-              }}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title={video.title}
-          />
-      </div>
-      
-      {/* Rodapé Informativo Simples */}
-      <div style={{ padding: '20px', backgroundColor: '#0f0f0f', paddingBottom: '40px' }}>
-          <h2 style={{ color: 'white', fontSize: '16px', fontWeight: 'bold', marginBottom: '8px', lineHeight: '1.4' }}>
-              {video.title}
-          </h2>
-          <span style={{ color: '#aaa', fontSize: '13px', fontWeight: '500' }}>
-              {video.source || video.channel}
-          </span>
-      </div>
-    </div>
-  );
-};
 
 
 // ==============================================================================
