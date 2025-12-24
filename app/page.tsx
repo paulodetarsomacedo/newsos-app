@@ -671,7 +671,7 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
         pointer-events-auto
         flex overflow-x-auto scrollbar-hide snap-x items-center
         max-w-[95%] 
-        rounded-full border gap-1 
+        rounded-2xl border gap-1 
         p-1.5
         shadow-lg
         /* AQUI: Removido backdrop-blur-xl e aumentado opacidade do bg */
@@ -687,7 +687,7 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
               key={cat} 
               onClick={() => onChange(cat)} 
               className={`
-                relative px-6 py-1.5 rounded-full text-sm transition-all duration-200 whitespace-nowrap snap-center min-w-fit font-bold
+                relative px-6 py-1.5 rounded-2xl text-sm transition-all duration-200 whitespace-nowrap snap-center min-w-fit font-bold
                 ${isActive 
                   ? 'bg-purple-600 text-white shadow-sm'
                   : (isDarkMode ? 'text-zinc-400 hover:text-white hover:bg-white/10' : 'text-zinc-600 hover:text-black hover:bg-zinc-100')}
