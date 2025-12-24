@@ -4077,30 +4077,27 @@ export default function NewsOS_V12() {
 
 
   useEffect(() => {
-    // Removi a verificação de ?debug=true para aparecer no PWA
-    if (typeof window !== 'undefined') {
-      const script = document.createElement('script');
-      script.src = "//cdn.jsdelivr.net/npm/eruda";
-      document.body.appendChild(script);
-      script.onload = () => {
-        // @ts-ignore
-        if (window.eruda) {
-            window.eruda.init();
-            
-            // HACK VISUAL: Força a bolinha do Eruda a ficar ACIMA do player de vídeo
-            // O player tem z-index 2147483647, então colocamos mais alto ainda no CSS injetado
-            const style = document.createElement('style');
-            style.innerHTML = `
-                #eruda-btn { z-index: 2147483650 !important; }
-                .eruda-container { z-index: 2147483650 !important; }
-            `;
-            document.head.appendChild(style);
-            
-            console.log("NewsOS Debug Iniciado no PWA");
+  if (process.env.NODE_ENV === 'development' || window.location.href.includes('debug=true')) {
+    const script = document.createElement('script');
+    script.src = "//cdn.jsdelivr.net/npm/eruda";
+    document.body.appendChild(script);
+    script.onload = () => {
+      window.eruda.init();
+      
+      // --- ADICIONE ESTE BLOCO AQUI PARA SUBIR A ENGRENAGEM ---
+      const erudaStyle = document.createElement('style');
+      erudaStyle.innerHTML = `
+        .eruda-container { z-index: 100001 !important; }
+        .eruda-entry-btn { 
+          z-index: 100002 !important; 
+          bottom: 100px !important; /* Sobe um pouco para não atrapalhar a navbar */
+          opacity: 0.8;
         }
-      };
-    }
-  }, []);
+      `;
+      document.head.appendChild(erudaStyle);
+    };
+  }
+}, []);
 
 
 
