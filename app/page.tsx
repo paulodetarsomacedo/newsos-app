@@ -4471,7 +4471,7 @@ const allAvailableStories = useMemo(() => {
 }, [realNews]); // Depende apenas de 'realNews', não de 'seenStoryIds'
 
 
-
+const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
 
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
