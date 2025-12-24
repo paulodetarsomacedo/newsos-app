@@ -3790,7 +3790,7 @@ const SplashScreen = ({ onFinish }) => {
             transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
             ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
         `}>
-            <h1 className="text-6xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <h1 className="text-8xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
                 NewsOS
             </h1>
         </div>
@@ -3801,242 +3801,12 @@ const SplashScreen = ({ onFinish }) => {
 };
 
 
-const MagicBubble = ({ style, isDarkMode }) => (
-  <div 
-    className={`
-      absolute top-0 h-full rounded-full 
-      transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-      ${isDarkMode ? 'bg-white' : 'bg-blue-500'}
-    `}
-    style={style}
-  />
-);
 
 
 
 
 
 
-
-
-// --- COMPONENTE: YOUTUBE BROWSER (COM HACKS DE GPU PARA IOS) ---
-const YouTubeBrowser = ({ video, onClose }) => {
-  // 1. Extração de ID
-  const getVideoId = (url) => {
-    if (!url) return null;
-    const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
-    return (match && match[2].length === 11) ? match[2] : null;
-  };
-
-  const videoId = video.videoId || getVideoId(video.link);
-
-  if (!videoId) return null;
-
-  return (
-    <div 
-        style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%', // Use % em vez de vh para evitar bugs da barra de endereço
-            zIndex: 2147483647, // Max Int 32-bit
-            backgroundColor: '#000000',
-            display: 'flex',
-            flexDirection: 'column',
-            
-            // --- OS HACKS PARA O IOS PWA NÃO CONGELAR ---
-            transform: 'translate3d(0, 0, 0)', // Força aceleração de Hardware
-            WebkitTransform: 'translate3d(0, 0, 0)',
-            perspective: '1000px', // Isola o contexto 3D
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-            overscrollBehavior: 'none',
-            touchAction: 'none'
-        }}
-    >
-      {/* HEADER ESTILO BROWSER */}
-      <div style={{
-          height: '60px',
-          backgroundColor: '#1e1e1e',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 16px',
-          borderBottom: '1px solid #333',
-          flexShrink: 0,
-          paddingTop: 'env(safe-area-inset-top)', // Respeita o notch
-          boxSizing: 'content-box'
-      }}>
-          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <span style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>
-                  youtube.com
-              </span>
-              <span style={{ color: '#aaa', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60vw' }}>
-                  {video.title}
-              </span>
-          </div>
-          
-          <button 
-              onClick={onClose}
-              style={{
-                  backgroundColor: '#333',
-                  color: '#fff',
-                  border: '1px solid #555',
-                  padding: '6px 16px',
-                  borderRadius: '18px',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-              }}
-          >
-              Fechar
-          </button>
-      </div>
-
-      {/* ÁREA DO VIDEO COM SCROLLING HABILITADO NO IOS */}
-      <div style={{
-          flex: 1,
-          position: 'relative',
-          backgroundColor: '#000',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          WebkitOverflowScrolling: 'touch', // Permite scroll suave nativo dentro do container
-          overflowY: 'auto'
-      }}>
-          {/* 
-             ATENÇÃO AOS PARÂMETROS DE URL:
-             - playsinline=1: CRUCIAL para não travar
-             - html5=1: Força player moderno
-          */}
-          <iframe 
-              key={videoId} // Força remontagem se mudar o ID
-              src={`https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&playsinline=1&rel=0&modestbranding=1&html5=1`}
-              style={{
-                  width: '100%',
-                  height: '100%',
-                  border: 'none',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0
-              }}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title={video.title}
-          />
-      </div>
-    </div>
-  );
-};
-
-
-
-// --- COMPONENTE NUCLEAR: PLAYER ISOLADO (PORTAL) ---
-// Este componente renderiza FORA da árvore do React principal.
-// Ele se anexa direto ao <body> do navegador, livrando-se de qualquer
-// interferência de CSS ou memória do App.
-const IsolatedVideoPlayer = ({ video, onClose }) => {
-  // 1. Garante que só rodamos no cliente (browser)
-  const [mounted, setMounted] = useState(false);
-  
-  useEffect(() => {
-    setMounted(true);
-    // Trava a rolagem do corpo do site original enquanto o vídeo está aberto
-    document.body.style.overflow = 'hidden'; 
-    return () => {
-      document.body.style.overflow = ''; // Destrava ao fechar
-    };
-  }, []);
-
-  if (!mounted || !video) return null;
-
-  // 2. Extração de ID (Segurança Máxima)
-  const videoId = video.videoId || (video.link && video.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]);
-
-  if (!videoId) return null;
-
-  // 3. O Conteúdo do Portal (HTML Puro e Cru)
-  const portalContent = (
-    <div 
-        style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            zIndex: 2147483647, // Z-Index Máximo (32-bit int)
-            backgroundColor: '#000000',
-            display: 'flex',
-            flexDirection: 'column',
-            // Zera qualquer herança
-            margin: 0,
-            padding: 0,
-            transform: 'none',
-            isolation: 'isolate' 
-        }}
-    >
-        {/* Header estilo Browser Nativo */}
-        <div style={{
-            height: '60px',
-            backgroundColor: '#202020',
-            borderBottom: '1px solid #333',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 16px',
-            paddingTop: 'env(safe-area-inset-top)', // Respeita Notch
-            flexShrink: 0
-        }}>
-            <span style={{ 
-                color: '#fff', 
-                fontFamily: '-apple-system, system-ui, sans-serif', 
-                fontSize: '14px', 
-                fontWeight: '600'
-            }}>
-                youtube.com
-            </span>
-            <button 
-                onClick={onClose}
-                style={{
-                    background: '#333',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: '16px',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                }}
-            >
-                Fechar
-            </button>
-        </div>
-
-        {/* Área do Iframe (100% livre) */}
-        <div style={{ flex: 1, position: 'relative', backgroundColor: '#000' }}>
-            <iframe
-                key={videoId} // Força recriação limpa se mudar ID
-                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&controls=1&rel=0&modestbranding=1&html5=1`}
-                style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    border: 'none'
-                }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title="YouTube Video"
-            />
-        </div>
-    </div>
-  );
-
-  // A MÁGICA: Teletransporta esse HTML direto para o <body>
-  return createPortal(portalContent, document.body);
-};
 
 
 
@@ -4059,8 +3829,6 @@ export default function NewsOS_V12() {
   const [readHistory, setReadHistory] = useState([]);
   const [likedItems, setLikedItems] = useState([]); 
 
-
-  
   // --- ESTADOS DE UI ---
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -4074,10 +3842,6 @@ export default function NewsOS_V12() {
   const [realVideos, setRealVideos] = useState([]);
   const [isLoadingFeeds, setIsLoadingFeeds] = useState(false);
   const [realPodcasts, setRealPodcasts] = useState([]);
-
-
-
-
 
   // --- AUTENTICAÇÃO E SYNC ---
   const [user, setUser] = useState(null);
@@ -4761,20 +4525,7 @@ const allAvailableStories = useMemo(() => {
       
 
       
-   {/* 
-          PLAYER ISOLADO (PORTAL) 
-          Este componente sai do React root e vai pro body.
-          É a "tela única" que você pediu.
-      */}
-      {selectedVideo && (
-          <IsolatedVideoPlayer 
-              video={selectedVideo} 
-              onClose={() => setSelectedVideo(null)} 
-          />
-      )}
-      
-      {/* PAINEL DE ARTIGO (TEXTO) */}
-      {/* Só renderiza se NÃO tiver vídeo selecionado, para economizar memória */}
+      {/* 2. LEITOR DE TEXTO (Só aparece se NÃO tiver vídeo) */}
       {!selectedVideo && (
           <ArticlePanel 
               key={selectedArticle?.id || 'empty-panel'} 
@@ -5013,9 +4764,6 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
     </div>
   );
 }
-
-
-
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
 // Usa a API 'gtx' do Google (gratuita/pública) para traduzir textos mantendo estrutura
@@ -5302,27 +5050,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-
-// --- COLE ESTE BLOCO AQUI EMBAIXO ---
-  const [debugClicks, setDebugClicks] = useState(0);
-
-  useEffect(() => {
-    if (debugClicks >= 5) {
-      const script = document.createElement('script');
-      script.src = "//cdn.jsdelivr.net/npm/eruda";
-      document.body.appendChild(script);
-      script.onload = () => {
-        window.eruda.init();
-        window.eruda.show();
-        const style = document.createElement('style');
-        style.innerHTML = `.eruda-container { z-index: 999999 !important; } .eruda-entry-btn { z-index: 999999 !important; }`;
-        document.head.appendChild(style);
-      };
-      setDebugClicks(0);
-    }
-  }, [debugClicks]);
-
-
   // Controle de Áudio (Mantido apenas para MP3/Podcast nativo, não afeta YouTube)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
@@ -5330,18 +5057,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedData, setTranslatedData] = useState(null);
-
-
-
-
-
-
-
-
-
-
-
-
 
   const videoId = useMemo(() => {
       if (!article) return null;
@@ -5477,23 +5192,12 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                     </>
                 )}
 
-                {/* PROCURE ESTE BLOCO ABAIXO NO SEU CÓDIGO E SUBSTITUA */}
-
-{videoId && (
-    <div className="flex items-center gap-2">
-        {/* O NOME DA FONTE AGORA É UM BOTÃO SECRETO */}
-        <span 
-            onClick={() => setDebugClicks(prev => prev + 1)} 
-            className="text-xs font-bold uppercase tracking-widest opacity-60 mr-2 cursor-pointer p-1 active:opacity-100"
-        >
-            {article.source}
-        </span>
-        
-        <button onClick={() => onToggleSave(article)} title="Salvar" className={`p-2.5 rounded-xl transition active:scale-75 ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}>
-            <Bookmark size={22} fill={isSaved ? "currentColor" : "none"} />
-        </button>
-    </div>
-)}
+                {videoId && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-widest opacity-60 mr-2">{article.source}</span>
+                        <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                    </div>
+                )}
                  <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
             </div>
 
@@ -5534,7 +5238,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                                 </div>
                             </div>
                             <h1 className="text-2xl md:text-3xl font-black leading-tight mb-4 tracking-tight">{article.title}</h1>
-                            
                             <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode || videoId ? 'bg-white/5 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}>
                                 {article.summary || "Sem descrição disponível."}
                             </div>
