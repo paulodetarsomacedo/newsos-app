@@ -3818,7 +3818,7 @@ const SplashScreen = ({ onFinish }) => {
       <div className="flex flex-col items-center justify-center z-20">
         
         {/* ÁREA DO LOGO */}
-        <div className="relative w-90 h-90 flex items-center justify-center mb-2">
+        <div className="relative w-60 h-60 flex items-center justify-center mb-2">
             {/* Ícones Orbitando */}
             {icons.map((item, i) => (
             <div
@@ -3831,7 +3831,7 @@ const SplashScreen = ({ onFinish }) => {
                 `}
             >
                 <div className={`p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-xl ${item.color}`}>
-                <item.Icon size={48} />
+                <item.Icon size={24} />
                 </div>
             </div>
             ))}
@@ -3859,7 +3859,7 @@ const SplashScreen = ({ onFinish }) => {
             transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
             ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
         `}>
-            <h1 className="text-8xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <h1 className="text-6xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
                 NewsOS
             </h1>
         </div>
@@ -4341,34 +4341,36 @@ const handleStoryNavigation = (direction) => {
     setSavedItems((prevItems) => prevItems.filter((item) => item.id !== idToRemove));
   };
 
-  const handleOpenArticle = useCallback((article) => {
+  const handleOpenArticle = (article) => {
     if (!article) return;
-    
-    // Lógica do Player PWA (Vídeo)
-    const vId = article.videoId || getVideoId(article.link);
-    if (vId) {
-        playYoutubePWA(vId);
-        return;
+
+    // Tenta extrair ID do Youtube
+    const yId = article.videoId || getVideoId(article.link);
+
+    // SE FOR VÍDEO DO YOUTUBE:
+    // Chama o player leve e NÃO abre o painel pesado
+    if (yId) {
+        playYoutubePWA(yId);
+        return; // <--- O PULO DO GATO: Para aqui e não abre mais nada
     }
 
+    // SE FOR NOTÍCIA NORMAL:
+    // Segue o fluxo antigo
     setSelectedArticle(article);
-    // Atualiza histórico sem recriar a função inteira (usando prev)
-    if (!readHistory.includes(article.id)) {
-        setReadHistory((prev) => [...prev, article.id]);
-    }
-  }, [readHistory]); // Dependências mínimas
+    if (!readHistory.includes(article.id)) setReadHistory((prev) => [...prev, article.id]);
+  };
 
-  const closeArticle = useCallback(() => {
-      setSelectedArticle(null);
-  }, []);
-
-  const handleToggleSave = useCallback((article) => {
-    setSavedItems((prev) => {
-        const exists = prev.find((i) => i.id === article.id);
-        if (exists) return prev.filter((i) => i.id !== article.id);
-        return [{ ...article, readProgress: 0, date: 'Agora', source: article.source || article.name }, ...prev];
-    });
-  }, []); // Sem dependências externas, super estável
+  const closeArticle = () => setSelectedArticle(null);
+  const closeOutlet = () => setSelectedOutlet(null);
+  const closeStory = () => setSelectedStory(null);
+  const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
+  
+  const navTimerRef = useRef(null);
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+    if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    navTimerRef.current = setTimeout(() => setIsNavVisible(false), 4000);
+  };
   
   useEffect(() => {
     const resetInactivityTimer = () => {
@@ -4641,16 +4643,17 @@ const allAvailableStories = useMemo(() => {
       )}
       
       <ArticlePanel 
-          // SEM KEY! O React vai reaproveitar a mesma instância
-    article={selectedArticle} 
-    feedItems={[...realNews, ...realVideos, ...realPodcasts]} // Passa array novo, mas o memo vai tratar
-    isOpen={!!selectedArticle} 
-    onClose={closeArticle} 
-    onArticleChange={handleOpenArticle} 
-    onToggleSave={handleToggleSave}
-    isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-    isDarkMode={isDarkMode} 
-    // Remova props que não usamos mais, como setIsExpanded
+          key={selectedArticle?.id || 'empty-panel'} 
+          article={selectedArticle} 
+feedItems={[...realNews, ...realVideos, ...realPodcasts]}          isOpen={!!selectedArticle} 
+          onClose={closeArticle} 
+          onArticleChange={handleOpenArticle} 
+          onToggleSave={handleToggleSave}
+          isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
+          isExpanded={isExpanded} 
+          setIsExpanded={setIsExpanded} 
+          isDarkMode={isDarkMode} 
+          onSaveToArchive={handleSaveToArchive}
       />
       
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
@@ -5152,143 +5155,348 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 // COMPONENTE ARTICLE PANEL (V30 - CORREÇÃO DE ÁUDIO VIA CLICK-THROUGH)
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
+const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
   const [readerContent, setReaderContent] = useState(null); 
   const [isLoading, setIsLoading] = useState(false);
+  const [fontSize, setFontSize] = useState(19); 
   
-  // Efeito 1: Resetar estado visual quando fecha
+  // Controle visual para saber se o player já "começou" (para mudar a UI da capa)
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+
+  // --- LÓGICA DE TRADUÇÃO ---
+  const [isTranslated, setIsTranslated] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translatedData, setTranslatedData] = useState(null);
+
+  const videoId = useMemo(() => {
+      if (!article) return null;
+      return article.videoId || getVideoId(article.link);
+  }, [article]);
+
   useEffect(() => {
-      if (!isOpen) {
-          // Pequeno delay para não piscar enquanto a animação de saída acontece
-          const timer = setTimeout(() => {
-              if (iframeUrl) URL.revokeObjectURL(iframeUrl);
-              setIframeUrl(null);
-              setReaderContent(null);
-              setViewMode('web');
-          }, 300);
-          return () => clearTimeout(timer);
+      if (videoId) {
+          setViewMode('video');
+          setIsLoading(false);
+          setIsPlayingAudio(false);
+      } else {
+          setViewMode('web');
+          setIframeUrl(null);
+          setReaderContent(null);
+          setTranslatedData(null);
+          setIsTranslated(false);
       }
-  }, [isOpen]);
+  }, [article?.id, videoId]);
 
-  // Efeito 2: Carregar conteúdo novo quando o ARTIGO muda (não quando o componente monta)
+  // Se sair do app, reseta o estado visual (o player morre e renasce pelo visibilitychange)
   useEffect(() => {
-    if (!isOpen || !article?.link) return;
+      const handleVisibilityChange = () => {
+          if (document.visibilityState === 'hidden') {
+              setIsPlayingAudio(false);
+          }
+      };
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
-    // Reseta imediato para mostrar loading
+  const scrollContainerRef = useRef(null); 
+
+  const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
+
+  const isProblematicSite = useMemo(() => {
+      if (!article?.link) return false;
+      return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
+  }, [article?.link]);
+
+  const sanitizeHtml = (html) => {
+      if (!html) return "";
+      let clean = html;
+      const headInjection = `
+        <base href="${article.link}" target="_blank">
+        <meta name="referrer" content="no-referrer">
+        <style>
+            .onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, 
+            [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; }
+            body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }
+        </style>
+      `;
+      if (isProblematicSite) {
+          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
+          clean = clean.replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "");
+          clean = clean.replace(/data-src=/gi, 'src=');
+          clean = clean.replace(/data-srcset=/gi, 'srcset=');
+          clean = clean.replace(/loading="lazy"/gi, ''); 
+      }
+      if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
+      return `${headInjection}${clean}`;
+  };
+
+  const handleClosePanel = useCallback(() => {
+      onClose(); 
+      setTimeout(() => {
+        if (iframeUrl) URL.revokeObjectURL(iframeUrl);
+        setIframeUrl(null);
+        setReaderContent(null);
+        setViewMode('web');
+        setIsTranslated(false); 
+        setIsPlayingAudio(false);
+      }, 400); 
+  }, [onClose, iframeUrl]);
+
+  const handleOpenInBrowser = useCallback(() => {
+    if (article?.link) window.open(article.link, '_blank');
+  }, [article]);
+
+  const handleToggleTranslation = async () => {
+      if (translatedData) { setIsTranslated(!isTranslated); return; }
+      const contentToTranslate = readerContent || article;
+      if (!contentToTranslate) return;
+      setIsTranslating(true);
+      try {
+          const newTitle = await translateText(contentToTranslate.title);
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(contentToTranslate.content || article.summary || '', 'text/html');
+          const textNodes = [];
+          const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+          let node;
+          while (node = walker.nextNode()) { if (node.nodeValue.trim().length > 0) textNodes.push(node); }
+          const BATCH_SIZE = 5; 
+          for (let i = 0; i < textNodes.length; i += BATCH_SIZE) {
+              const batch = textNodes.slice(i, i + BATCH_SIZE);
+              await Promise.all(batch.map(async (textNode) => {
+                  try { const translated = await translateText(textNode.nodeValue); textNode.nodeValue = translated; } catch(e){}
+              }));
+          }
+          setTranslatedData({ title: newTitle, content: doc.body.innerHTML });
+          setIsTranslated(true);
+          if (viewMode === 'web') setViewMode('magic');
+      } catch (err) { console.error(err); } finally { setIsTranslating(false); }
+  };
+
+  useEffect(() => {
+    if (!isOpen || !article?.link || videoId) return;
     setIsLoading(true);
-    setIframeUrl(null); 
-    
     const fetchContent = async () => {
         try {
-            // Pequeno delay para o navegador respirar na animação de entrada
-            await new Promise(r => setTimeout(r, 300));
-            
+            await new Promise(r => setTimeout(r, 10)); 
             const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-            
-            // Verificação de segurança: Se o usuário já fechou ou trocou de artigo, cancela
-            if (!isOpen) return; 
-
             if (error || !data) throw new Error();
-            
-            // Sanitização básica
-            let cleanHtml = data.html || "";
-            cleanHtml = cleanHtml.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
-            
+            const header = data.html.substring(0, 50); 
+
+if (header.includes('RIFF') || header.includes('WEBP') || (data.html.charCodeAt(0) > 65000)) {
+    throw new Error("Conteúdo binário detectado");
+}
+            const cleanHtml = sanitizeHtml(data.html);
             const blob = new Blob([cleanHtml], { type: 'text/html' });
             setIframeUrl(URL.createObjectURL(blob));
             setReaderContent(data.reader);
         } catch (err) {
-            if (isOpen) setViewMode('magic'); // Fallback se falhar
+            console.warn("Falha no Web View, indo para Magic:", err);
+            setViewMode('magic');
         } finally {
-            if (isOpen) setIsLoading(false);
+            setIsLoading(false);
         }
     };
-    
     fetchContent();
-    
-    // Cleanup ao trocar de artigo
-    return () => {
-        if (iframeUrl) URL.revokeObjectURL(iframeUrl);
-    };
-  }, [article?.id, isOpen]); // Dispara apenas se o ID do artigo mudar ou abrir
+  }, [isOpen, article?.id, videoId, isProblematicSite]);
 
-  // Se não estiver aberto, renderiza um DIV vazio para manter o componente montado (mas invisível)
-  // ou retorna null se preferir desmontar. 
-  // Para performance máxima no slide-in, manter montado com display:none é melhor, 
-  // mas retornar null com AnimatePresence é mais comum. 
-  // Dado o problema do iPad, vamos usar a estratégia CSS Transform.
-  
+  const activeContent = (isTranslated && translatedData) ? translatedData : (readerContent || article);
+  const safeContent = activeContent || {}; 
+  const safeArticle = article || {};
+  const activeArticleData = { ...safeArticle, ...safeContent };
+  const activeReaderData = { content: safeContent.content, title: safeContent.title };
+
   return (
-    <div 
-        className={`
-            fixed inset-0 z-[5000] flex flex-col 
-            transition-transform duration-300 ease-out will-change-transform 
-            ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} 
-            ${isOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'}
-        `}
-        // Força aceleração de hardware
-        style={{ transform: isOpen ? 'translate3d(0,0,0)' : 'translate3d(100%,0,0)' }}
-    >
-        {/* HEADER (Mantido Simples) */}
-        <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b z-50 ${isDarkMode ? 'bg-zinc-950/90 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-900'} backdrop-blur-md`}>
-            <button onClick={onClose} className="flex items-center gap-1 py-2 pr-4 text-sm font-black active:opacity-50">
-                <ChevronLeft size={24} /> VOLTAR
-            </button>
+    <div className={`fixed inset-0 z-[5000] flex flex-col transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) will-change-transform transform-gpu backface-hidden ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
-            {/* Controles de Visualização */}
-            <div className={`flex p-1 rounded-lg border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-zinc-100 border-zinc-200'}`}>
-                 <button onClick={() => setViewMode('web')} className={`px-4 py-1.5 text-[10px] font-black rounded-md transition-all ${viewMode === 'web' ? (isDarkMode ? 'bg-zinc-700 text-white' : 'bg-white shadow text-black') : 'opacity-50'}`}>WEB</button>
-                 <button onClick={() => setViewMode('reader')} className={`px-4 py-1.5 text-[10px] font-black rounded-md transition-all ${viewMode === 'reader' ? (isDarkMode ? 'bg-zinc-700 text-white' : 'bg-white shadow text-black') : 'opacity-50'}`}>LEITOR</button>
+            <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b backdrop-blur-xl z-50 
+                ${videoId 
+                    ? 'bg-black/90 border-white/10 text-white' 
+                    : (isDarkMode ? 'bg-zinc-950/90 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-900')
+                }`}
+            >
+                <button onClick={handleClosePanel} className={`flex items-center gap-1 py-2 pr-3 text-sm font-black transition active:scale-95 ${videoId ? 'text-zinc-300 hover:text-white' : (isDarkMode ? 'text-zinc-300 hover:text-white' : 'text-zinc-600 hover:text-black')}`}><ChevronLeft size={24} /> <span className="hidden md:inline">VOLTAR</span></button>
+                
+                {!videoId && (
+                    <>
+                        <div className={`flex p-1 rounded-xl relative border shadow-sm ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}>
+                            <div className={`absolute top-1 bottom-1 w-[48%] rounded-lg shadow-sm transition-all duration-300 ease-out ${viewMode === 'ai' ? 'left-[50%]' : 'left-1'} ${isDarkMode ? 'bg-zinc-800' : 'bg-white'} ${viewMode === 'magic' || viewMode === 'reader' ? 'opacity-0' : 'opacity-100'}`} />
+                            <button onClick={() => setViewMode('web')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'web' && viewMode !== 'magic' && viewMode !== 'reader' ? (isDarkMode ? 'text-white' : 'text-black') : 'text-zinc-500'}`}>WEB VIEW</button>
+                            <button onClick={() => setViewMode('ai')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'ai' ? 'text-purple-500' : 'text-zinc-500'}`}><Sparkles size={10} /> AI ANALYSIS</button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setViewMode(viewMode === 'magic' ? 'web' : 'magic')} title="Reconstrução Editorial" className={`p-2.5 rounded-xl transition-all border active:scale-90 ${viewMode === 'magic' ? 'bg-purple-600 text-white border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : (isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100')}`}><Wand2 size={20} className={viewMode === 'magic' ? 'animate-pulse' : ''} /></button>
+                            <button onClick={handleToggleTranslation} disabled={isTranslating} className={`p-2.5 rounded-xl transition-all border active:scale-90 relative overflow-hidden ${isTranslated ? 'bg-blue-600 text-white border-blue-500 shadow-md' : (isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100')}`}>{isTranslating ? <Loader2 size={20} className="animate-spin" /> : <Languages size={20} />}</button>
+                            <button onClick={() => setViewMode(viewMode === 'reader' ? 'web' : 'reader')} title="Modo Leitura Limpo" className={`p-2.5 rounded-xl transition border active:scale-90 ${viewMode === 'reader' ? 'bg-black text-white dark:bg-white dark:text-black border-transparent' : (isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100')}`}><ALargeSmall size={20} /></button>
+                            <button onClick={handleOpenInBrowser} title="Abrir no Browser" className={`p-2.5 rounded-xl transition border active:scale-90 ${isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10 hover:text-white' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100 hover:text-blue-600'}`}><Globe size={20} /></button>
+                            <button onClick={() => onToggleSave(article)} title="Salvar" className={`p-2.5 rounded-xl transition active:scale-75 ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                        </div>
+                    </>
+                )}
+
+                {videoId && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-widest opacity-60 mr-2">{article.source}</span>
+                        <button onClick={() => onToggleSave(article)} title="Salvar" className={`p-2.5 rounded-xl transition active:scale-75 ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                    </div>
+                )}
+
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
             </div>
 
-            <button onClick={() => onToggleSave(article)} className={`p-2 rounded-full ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"}/></button>
-        </div>
+            <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain transform-gpu ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
+                
+                {viewMode === 'video' && videoId ? (
+                    <div className="w-full h-full flex flex-col">
+                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative group cursor-pointer">
+                            
+                            {/* 
+                               A MÁGICA DO CLIQUE INVISÍVEL (CLICK-THROUGH)
+                               1. Se for MODO AUDIO: O Iframe fica POR CIMA da capa (z-20), 
+                                  mas com opacidade quase zero. O clique pega nele.
+                               2. Se for MODO VIDEO: O Iframe fica NORMAL.
+                            */}
+                            
+                            <iframe 
+                                src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
+                                className={`w-full h-full absolute inset-0 
+                                    ${article.forceAudioMode 
+                                        ? 'opacity-[0.01] z-20' // Invisível mas CLICÁVEL no topo
+                                        : 'z-0' // Normal
+                                    }
+                                `}
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                title="YouTube Video"
+                                // Detecta que o usuário clicou (para mudar visual da capa)
+                                onLoad={() => {
+                                    // Truque: Em iframes cross-origin não detectamos click real, 
+                                    // então assumimos que se o iframe carregou e o usuário interagir, ok.
+                                }}
+                            />
 
-        {/* ÁREA DE CONTEÚDO */}
-        <div className="flex-1 relative w-full h-full overflow-y-auto overscroll-contain">
-            {isLoading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-inherit">
-                    <Loader2 size={32} className="animate-spin text-purple-600 mb-2" />
-                    <span className="text-[10px] font-bold opacity-50">CARREGANDO...</span>
+                            {/* CAPA (Abaixo do Iframe se áudio, Acima se Vídeo esperando play) */}
+                            {/* A div abaixo captura o clique visual apenas para feedback */}
+                            <div 
+                                className={`absolute inset-0 w-full h-full 
+                                    ${article.forceAudioMode ? 'z-10' : (isPlayingAudio ? 'hidden' : 'z-10')}
+                                `}
+                                // Se for áudio, o clique VAZA para o iframe (pointer-events-none no container visual?)
+                                // NÃO! Se forceAudioMode, o iframe está por cima (z-20), então ele rouba o clique.
+                                // A capa fica apenas visual (z-10).
+                            >
+                                <img 
+                                    src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
+                                    className={`w-full h-full object-cover transition-opacity ${isPlayingAudio ? 'opacity-40' : 'opacity-80'}`}
+                                    alt="Video Thumbnail"
+                                />
+                                
+                                {/* Overlay Visual (O que o usuário VÊ) */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                                    {article.forceAudioMode ? (
+                                        <>
+                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
+                                                <Headphones size={32} fill="white" className="text-white"/>
+                                            </div>
+                                            <div className="bg-black/80 px-3 py-1 rounded-full text-xs font-bold text-white mt-2">
+                                                Toque no centro para Ouvir
+                                            </div>
+                                        </>
+                                    ) : (
+                                        /* Modo Vídeo: O clique precisa ser tratado aqui para remover a capa */
+                                        <div 
+                                            className="w-full h-full flex items-center justify-center pointer-events-auto" 
+                                            onClick={() => setIsPlayingAudio(true)}
+                                        >
+                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
+                                                <Play size={32} fill="white" className="text-white ml-1" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div className="p-6 max-w-3xl mx-auto pb-20">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10">
+                                    <img src={article.logo} className="w-full h-full object-cover" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm">{article.source}</h3>
+                                    <p className="text-xs opacity-60">{article.time}</p>
+                                </div>
+                            </div>
+
+                            <h1 className="text-2xl md:text-3xl font-black leading-tight mb-4 tracking-tight">
+                                {article.title}
+                            </h1>
+
+                            <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode || videoId ? 'bg-white/5 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}>
+                                {article.summary || "Sem descrição disponível."}
+                            </div>
+                            
+                            <a 
+                                href={`https://www.youtube.com/watch?v=${videoId}`} 
+                                target="_blank"
+                                className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-transform shadow-lg"
+                            >
+                                <Youtube size={18} /> Abrir no App YouTube
+                            </a>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {isLoading && (<div className="absolute inset-0 flex flex-col items-center justify-center bg-inherit z-50"><Loader2 size={48} className="animate-spin text-purple-600 mb-4" /><p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40 animate-pulse">Carregando...</p></div>)}
+                        
+                        {viewMode === 'web' && (
+                            <div className="w-full h-full">
+                                {iframeUrl ? (
+                                    <iframe 
+                                        src={iframeUrl} 
+                                        className="w-full h-full border-none" 
+                                        sandbox={isProblematicSite ? "allow-same-origin allow-popups" : "allow-same-origin allow-scripts allow-popups allow-forms"}
+                                        title="Web" 
+                                        loading="lazy"
+                                    />
+                                ) : !isLoading && (
+                                    <div className="flex flex-col items-center justify-center h-full p-12 text-center text-zinc-500"><div className="p-6 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-6"><Globe size={40} className="opacity-40" /></div><h3 className="font-black text-xl mb-2">Web Indisponível</h3><p className="max-w-xs text-sm opacity-60 mb-6">Conteúdo bloqueado. Use os modos de leitura.</p><div className="flex gap-2"><button onClick={() => setViewMode('magic')} className="px-6 py-3 bg-purple-600 text-white rounded-full font-bold shadow-xl hover:bg-purple-500 transition active:scale-95 flex items-center gap-2"><Wand2 size={16}/> Varinha</button></div></div>
+                                )}
+                            </div>
+                        )}
+                        
+                        {viewMode === 'ai' && <AIAnalysisView article={activeArticleData} isDarkMode={isDarkMode} />}
+                        {viewMode === 'magic' && <MagicPremiumView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
+                        {viewMode === 'reader' && <AppleReaderView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
+                    </>
+                )}
+            </div>
+
+            {(!videoId && (viewMode === 'magic' || viewMode === 'reader')) && (
+                <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 rounded-2xl backdrop-blur-xl border shadow-2xl animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-black/80 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
+                    <button onClick={() => setFontSize(s => Math.max(14, s - 2))} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition active:scale-90 bg-zinc-100 dark:bg-white/5"><Minus size={16}/></button>
+                    <span className="text-xs font-black w-8 text-center">{fontSize}px</span>
+                    <button onClick={() => setFontSize(s => Math.min(32, s + 2))} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition active:scale-90 bg-zinc-100 dark:bg-white/5"><Plus size={16}/></button>
                 </div>
             )}
-
-            {/* IFRAME: Só renderiza se tiver URL e estiver no modo WEB */}
-            {viewMode === 'web' && iframeUrl && (
-                <iframe 
-                    src={iframeUrl} 
-                    className="w-full h-full border-none bg-white" 
-                    sandbox="allow-same-origin" // Sem scripts externos para leveza
-                    title="Web View" 
+            
+            {isOpen && article && feedItems && (
+                <FeedNavigator 
+                    article={article} 
+                    feedItems={feedItems} 
+                    onArticleChange={onArticleChange} 
+                    isDarkMode={isDarkMode} 
                 />
             )}
             
-            {viewMode === 'reader' && article && (
-                <div className={`max-w-3xl mx-auto px-6 py-10 ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                    <h1 className="text-3xl font-bold mb-6">{article.title}</h1>
-                    <div className="prose prose-lg dark:prose-invert" dangerouslySetInnerHTML={{ __html: readerContent?.content || `<p>${article.summary}</p>` }} />
-                </div>
-            )}
         </div>
+        <style jsx="true">{`@keyframes progress-aura { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } } .animate-progress-aura { animation: progress-aura 1.5s infinite linear; } .backface-hidden { backface-visibility: hidden; }`}</style>
     </div>
   );
-}, (prev, next) => {
-    // FUNÇÃO DE COMPARAÇÃO DO REACT MEMO (CRUCIAL!)
-    // Retorna TRUE se não precisa renderizar, FALSE se precisa.
-    
-    // Só re-renderiza se:
-    // 1. O estado de abertura mudou
-    // 2. O ID do artigo mudou
-    // 3. O estado de salvo mudou
-    // 4. O tema mudou
-    return (
-        prev.isOpen === next.isOpen &&
-        prev.article?.id === next.article?.id &&
-        prev.isSaved === next.isSaved &&
-        prev.isDarkMode === next.isDarkMode
-    );
 });
 
 function PodNewsModal({ onClose, isDarkMode }) {
