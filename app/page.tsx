@@ -2704,7 +2704,7 @@ const AssetCard = ({ mover, allNews, openArticle, isDarkMode }) => {
     );
 };
 
-// --- WIDGET PRINCIPAL: MARKET PULSE (COM SUPORTE A EXPANSÃO) ---
+// --- WIDGET: MARKET PULSE (DESIGN "TRADER PRO" - BORDAS VIVAS & FUNDO ESCURO) ---
 const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2722,7 +2722,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
     const load = async () => {
         setLoading(true);
         if (isUserRefresh) setData(null);
-        await new Promise(r => setTimeout(r, 800)); 
+        await new Promise(r => setTimeout(r, 1000)); 
         const result = await generateMarketAnalysis(newsData, apiKey);
         if (result) {
             setData(result);
@@ -2736,77 +2736,168 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
   if (loading) {
       return (
           <div className="px-2 mb-6 animate-pulse">
-              <div className={`h-[380px] rounded-[2.5rem] border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200'}`}></div>
+              <div className={`h-[450px] rounded-[2.5rem] border ${isDarkMode ? 'bg-zinc-950 border-white/5' : 'bg-white border-zinc-200'}`}></div>
           </div>
       );
   }
 
   if (!data) return null;
 
+  // --- HELPERS DE ESTILO ---
+
+  // Cor do Score Geral
   const getScoreColor = (score) => {
-      if (score > 60) return 'text-emerald-500';
+      if (score > 60) return 'text-emerald-400';
       if (score < 40) return 'text-rose-500';
-      return 'text-yellow-500';
+      return 'text-blue-400';
+  };
+
+  // Ícone Gigante de Fundo (Marca d'água)
+  const BigTrendIcon = () => {
+      const style = "absolute bottom-[-20px] right-[-20px] opacity-10 transform -rotate-12 pointer-events-none";
+      const size = 220;
+      
+      if (data.trend_direction === 'bullish') return <TrendingUp size={size} className={`text-emerald-500 ${style}`} />;
+      if (data.trend_direction === 'bearish') return <TrendingDown size={size} className={`text-rose-600 ${style}`} />;
+      return <Activity size={size} className={`text-blue-500 ${style}`} />;
+  };
+
+  // Estilos Dinâmicos para os Cards Pequenos (Movers)
+  const getMoverStyles = (trend) => {
+      if (trend === 'up') return {
+          border: 'border-emerald-500',
+          text: 'text-emerald-400',
+          bg: isDarkMode ? 'bg-emerald-500/5' : 'bg-emerald-50',
+          icon: <TrendingUp size={14} className="text-emerald-500" />
+      };
+      if (trend === 'down') return {
+          border: 'border-rose-600',
+          text: 'text-rose-500',
+          bg: isDarkMode ? 'bg-rose-500/5' : 'bg-rose-50',
+          icon: <TrendingDown size={14} className="text-rose-600" />
+      };
+      // Neutro
+      return {
+          border: 'border-blue-500',
+          text: 'text-blue-400',
+          bg: isDarkMode ? 'bg-blue-500/5' : 'bg-blue-50',
+          icon: <Minus size={14} className="text-blue-500" />
+      };
+  };
+
+  // Cores para o Ticker (Rodapé)
+  const getTrendColorTicker = (trend) => {
+      if (trend === 'bullish') return 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.6)]';
+      if (trend === 'bearish') return 'bg-rose-600 shadow-[0_0_15px_rgba(225,29,72,0.6)]';
+      return 'bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.6)]';
   };
 
   return (
-    <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
-        <div className={`relative rounded-[2.5rem] overflow-hidden border transition-all hover:shadow-2xl ${isDarkMode ? 'bg-zinc-950 border-white/10 shadow-black/50' : 'bg-white border-zinc-200 shadow-xl'}`}>
+    <div className="px-2 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className={`
+            rounded-[2.5rem] border relative overflow-hidden transition-all hover:shadow-2xl 
+            /* FUNDO MAIS ESCURO E SÓLIDO */
+            ${isDarkMode ? 'bg-[#050505] border-white/10 shadow-black/80' : 'bg-white border-zinc-200 shadow-xl'}
+        `}>
             
-            {/* Background Glow */}
-            <div className={`absolute -top-20 -right-20 w-80 h-80 bg-gradient-to-br opacity-10 rounded-full blur-[80px] ${data.market_score > 50 ? 'from-emerald-500 to-transparent' : 'from-rose-500 to-transparent'}`} />
+            {/* --- CORPO PRINCIPAL --- */}
+            <div className="p-7 pb-8 relative z-10 overflow-hidden">
+                
+                {/* ÍCONE GIGANTE (WATERMARK) */}
+                <BigTrendIcon />
 
-            <div className="p-6 pb-0 relative z-10">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-6">
+                {/* Header: Score e Status */}
+                <div className="flex items-end justify-between mb-6 relative z-20">
                     <div>
-                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-2 border ${isDarkMode ? 'bg-white/5 border-white/10 text-zinc-400' : 'bg-zinc-100 border-zinc-200 text-zinc-500'}`}>
-                            <Activity size={10} className={getScoreColor(data.market_score)} />
-                            Market Pulse
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <Activity size={18} className={getScoreColor(data.market_score)} />
+                            <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Market Pulse</span>
                         </div>
-                        <h2 className={`text-xl md:text-2xl font-black leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                        <h2 className={`text-3xl font-black leading-none tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                             {data.market_status}
                         </h2>
                     </div>
-                    
-                    {/* Gauge Visual */}
                     <div className="text-right">
-                        <div className="relative flex items-center justify-center">
-                            <svg className="w-14 h-14 transform -rotate-90">
-                                <circle cx="28" cy="28" r="24" stroke="currentColor" strokeWidth="4" fill="transparent" className={`${isDarkMode ? 'text-zinc-800' : 'text-zinc-100'}`} />
-                                <circle cx="28" cy="28" r="24" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={24 * 2 * Math.PI} strokeDashoffset={24 * 2 * Math.PI - (data.market_score / 100) * (24 * 2 * Math.PI)} className={`${getScoreColor(data.market_score)} transition-all duration-1000`} strokeLinecap="round" />
-                            </svg>
-                            <span className={`absolute text-sm font-black ${isDarkMode ? 'text-white' : 'text-black'}`}>{data.market_score}</span>
-                        </div>
+                        <span className={`text-4xl font-black ${getScoreColor(data.market_score)}`}>{data.market_score}</span>
+                        <span className="text-[10px] font-bold opacity-40 block text-zinc-500">INDEX</span>
                     </div>
                 </div>
 
-                <p className={`text-xs font-medium leading-relaxed mb-6 opacity-80 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                {/* Barra de Termômetro */}
+                <div className={`w-full h-1.5 rounded-full mb-6 overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+                    <div 
+                        className={`h-full rounded-full transition-all duration-1000 ${data.market_score > 60 ? 'bg-emerald-500' : (data.market_score < 40 ? 'bg-rose-600' : 'bg-blue-500')}`} 
+                        style={{ width: `${data.market_score}%` }} 
+                    />
+                </div>
+
+                {/* Resumo */}
+                <p className={`text-sm font-medium leading-relaxed mb-8 relative z-20 max-w-[90%] ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
                     {data.summary}
                 </p>
 
-                {/* --- GRID DE CARDS COM ACORDEÃO --- */}
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                    {data.movers?.map((mover, idx) => (
-                        <AssetCard 
-                            key={idx} 
-                            mover={mover} 
-                            allNews={newsData} // Passamos TODAS as notícias para o card filtrar
-                            openArticle={openArticle}
-                            isDarkMode={isDarkMode} 
-                        />
-                    ))}
+                {/* --- GRID DE MOVERS (VISUAL REFORÇADO) --- */}
+                <div className="grid grid-cols-2 gap-4 relative z-20">
+                    {data.movers?.map((mover, idx) => {
+                        const styles = getMoverStyles(mover.trend);
+                        return (
+                            <button 
+                                key={idx}
+                                disabled={!mover.article}
+                                onClick={() => mover.article && openArticle(mover.article)}
+                                className={`
+                                    text-left p-4 rounded-2xl transition-all duration-200
+                                    ${mover.article ? 'hover:scale-[1.03] active:scale-95 cursor-pointer hover:shadow-lg' : 'cursor-default opacity-80'}
+                                    ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}
+                                    
+                                    /* BORDAS GROSSAS E VIVAS */
+                                    border-2 ${styles.border}
+                                    ${styles.bg}
+                                `}
+                            >
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className={`text-sm font-black truncate pr-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                                        {mover.asset}
+                                    </span>
+                                    {/* Badge de Variação */}
+                                    <div className="flex items-center gap-1">
+                                        {styles.icon}
+                                        <span className={`text-[10px] font-black ${styles.text}`}>
+                                            {mover.change_label || (mover.trend === 'up' ? 'Alta' : 'Baixa')}
+                                        </span>
+                                    </div>
+                                </div>
+                                <p className={`text-[10px] font-medium leading-tight line-clamp-2 opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                                    {mover.reason}
+                                </p>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
-            {/* Ticker Bottom */}
-            <div className={`relative border-t py-3 px-5 flex items-center gap-4 ${isDarkMode ? 'bg-black/30 border-white/5' : 'bg-zinc-50/80 border-zinc-100'}`}>
-                <div className={`w-2 h-2 rounded-full animate-pulse flex-shrink-0 ${data.market_state === 'CLOSED' ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                <div className="flex-1 overflow-hidden relative h-8 flex flex-col justify-center">
-                    <p className={`text-[10px] font-mono leading-tight whitespace-pre-wrap line-clamp-2 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                         <span className="font-bold mr-2">{data.market_state === 'CLOSED' ? 'FECHAMENTO:' : 'AGORA:'}</span>
-                         {data.bottom_summary.replace(/\n/g, ' • ')}
-                    </p>
+            {/* --- ÁREA DO TICKER FINANCEIRO --- */}
+            <div className={`relative border-t border-white/5 p-5 flex gap-4 items-start ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-zinc-50'}`}>
+                
+                {/* Indicador Visual Futurista (Ponto de Luz) */}
+                <div className="flex-shrink-0 flex flex-col items-center justify-start pt-1.5 gap-1 w-8">
+                    <div className={`w-3 h-3 rounded-full mb-1 animate-pulse ${getTrendColorTicker(data.trend_direction)}`} />
+                </div>
+
+                {/* Texto do Ticker */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${data.market_state === 'CLOSED' ? 'text-rose-500' : 'text-emerald-500'}`}>
+                            {data.market_state === 'CLOSED' ? 'Mercado Encerrado' : 'Pregão Ao Vivo'}
+                        </span>
+                        <span className="text-[10px] font-mono opacity-40">
+                            {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                    </div>
+                    
+                    <div className={`text-xs font-mono leading-relaxed whitespace-pre-line ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                        {data.bottom_summary}
+                    </div>
                 </div>
             </div>
 
@@ -2816,8 +2907,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 };
 
 
-
-// --- COMPONENTE TREND RADAR (EFEITO BISEL / VIDRO 3D) ---
+// --- COMPONENTE TREND RADAR (GLOW PROPORCIONAL À TEMPERATURA) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2826,11 +2916,37 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
   const prevRefreshTrigger = useRef(refreshTrigger);
 
-  const getHeatColor = (score) => {
-      if (score >= 9) return '#ef4444'; // Vermelho
-      if (score >= 7) return '#f97316'; // Laranja
-      if (score >= 5) return '#10b981'; // Verde
-      return '#3b82f6';                 // Azul
+  // --- LÓGICA DE ESTILO FÍSICO ---
+  const getTrendStyle = (score) => {
+      // 1. FERVENDO (Vermelho)
+      if (score >= 9) return {
+          color: '#ef4444',
+          borderWidth: '3px',
+          // Glow forte externo + Glow interno para dar "volume"
+          shadow: '0 0 20px rgba(239, 68, 68, 0.6), inset 0 0 10px rgba(239, 68, 68, 0.2)',
+          scale: 'scale(1.05)'
+      };
+      // 2. QUENTE (Laranja)
+      if (score >= 7) return {
+          color: '#f97316',
+          borderWidth: '2.5px',
+          shadow: '0 0 12px rgba(249, 115, 22, 0.5), inset 0 0 5px rgba(249, 115, 22, 0.1)',
+          scale: 'scale(1.02)'
+      };
+      // 3. MORNO (Verde)
+      if (score >= 5) return {
+          color: '#10b981',
+          borderWidth: '2px',
+          shadow: '0 0 8px rgba(16, 185, 129, 0.3)',
+          scale: 'scale(1)'
+      };
+      // 4. FRIO (Azul)
+      return {
+          color: '#3b82f6',
+          borderWidth: '1px',
+          shadow: 'none', // Sem glow, apenas estrutura
+          scale: 'scale(0.98)'
+      };
   };
 
   useEffect(() => {
@@ -2866,7 +2982,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
     <div className="relative z-[50] mb-4 animate-in fade-in duration-1000 slide-in-from-right-8">
       
       {/* Cabeçalho */}
-      <div className={`flex items-center justify-center gap-2 mb-4 transition-all duration-500 ${loading ? 'opacity-100' : 'opacity-70'}`}>
+      <div className={`flex items-center justify-center gap-2 mb-5 transition-all duration-500 ${loading ? 'opacity-100' : 'opacity-70'}`}>
          {loading ? (
              <Activity size={14} className="text-orange-500 animate-spin" />
          ) : (
@@ -2887,9 +3003,9 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
          <div className="flex flex-col w-full">
              
              {/* 1. LISTA DE PÍLULAS (Scroll Horizontal) */}
-             <div className="flex justify-start md:justify-center items-center gap-3 overflow-x-auto scrollbar-hide px-4 pt-2 pb-6 snap-x relative z-20">
+             <div className="flex justify-start md:justify-center items-center gap-4 overflow-x-auto scrollbar-hide px-4 pt-2 pb-8 snap-x relative z-20">
                 {trends.map((item, idx) => {
-                    const color = getHeatColor(item.score);
+                    const style = getTrendStyle(item.score);
                     const isActive = activeIndex === idx;
                     
                     return (
@@ -2898,32 +3014,31 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                                 onClick={() => handleToggle(idx)}
                                 className={`
                                     relative group cursor-pointer transition-all duration-300 flex items-center gap-2 rounded-full
-                                    ${isDarkMode ? 'bg-zinc-900/80 text-white' : 'bg-white/80 text-zinc-800'}
+                                    ${isDarkMode ? 'bg-zinc-900/90 text-white' : 'bg-white/90 text-zinc-800'}
                                     backdrop-blur-md
                                 `}
                                 style={{ 
-                                    // BORDA MAIS GROSSA E COLORIDA
-                                    border: `2px solid ${color}`,
+                                    // APLICAÇÃO DOS ESTILOS DINÂMICOS
+                                    border: `${style.borderWidth} solid ${style.color}`,
+                                    boxShadow: isActive ? `0 0 30px ${style.color}` : style.shadow, // Se ativo, explode o glow
+                                    transform: isActive ? 'scale(1.1) translateY(-2px)' : style.scale,
                                     padding: '8px 20px',
-
-                                    // EFEITO BISEL (BEVEL) 3D - SEM SOMBRA FEIA EMBAIXO
-                                    boxShadow: isActive 
-                                        ? `inset 2px 2px 5px rgba(0,0,0,0.4), 0 0 10px ${color}60` // Clicado (Afundado + Brilho)
-                                        : `
-                                            inset 1px 1px 1px rgba(255,255,255,0.3),  /* Luz Topo */
-                                            inset -1px -1px 2px rgba(0,0,0,0.2),      /* Sombra Base */
-                                            0 2px 10px ${color}20                     /* Aura Suave (Glow) */
-                                          `,
-                                    
-                                    transform: isActive ? 'scale(0.95)' : 'scale(1)',
                                 }}
                             >
                                 {item.score >= 9 && <span className="text-[10px] animate-bounce">🔥</span>}
                                 <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
                                 
-                                {/* Indicador (Ponto de Luz) */}
-                                <div className="w-2 h-2 rounded-full shadow-[0_0_5px_currentColor]" style={{ backgroundColor: color, color: color }} />
+                                {/* Indicador de Nível (Ponto Sólido) */}
+                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: style.color }} />
                             </button>
+
+                            {/* Seta indicativa quando ativo */}
+                            {isActive && (
+                                <div 
+                                    className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] animate-in fade-in zoom-in duration-300 z-30"
+                                    style={{ borderBottomColor: style.color }}
+                                />
+                            )}
                         </div>
                     )
                 })}
@@ -2939,26 +3054,29 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                 {activeItem && (
                     <div 
                         className={`
-                            w-full md:max-w-md mx-auto p-5 rounded-3xl border-2 backdrop-blur-xl flex flex-col gap-2 animate-in slide-in-from-top-4 duration-300
+                            w-full md:max-w-md mx-auto p-5 rounded-3xl border-2 shadow-2xl backdrop-blur-xl flex flex-col gap-2 animate-in slide-in-from-top-4 duration-300
                             ${isDarkMode ? 'bg-zinc-950/95 text-zinc-200' : 'bg-white/95 text-zinc-800'}
                         `}
                         style={{ 
-                            borderColor: getHeatColor(activeItem.score),
-                            // Sombra suave colorida apenas no balão
-                            boxShadow: `0 10px 40px -10px ${getHeatColor(activeItem.score)}30`
+                            borderColor: getTrendStyle(activeItem.score).color,
+                            // O balão também ganha um glow suave da cor do tema
+                            boxShadow: `0 10px 40px -10px ${getTrendStyle(activeItem.score).color}20`
                         }}
                     >
                         <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
                             <span 
                                 className="text-[10px] font-black uppercase tracking-widest"
-                                style={{ color: getHeatColor(activeItem.score) }}
+                                style={{ color: getTrendStyle(activeItem.score).color }}
                             >
                                 Impacto: {activeItem.score}/10
                             </span>
                             <div className="h-1.5 w-20 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
                                 <div 
                                     className="h-full rounded-full" 
-                                    style={{ width: `${activeItem.score * 10}%`, backgroundColor: getHeatColor(activeItem.score) }} 
+                                    style={{ 
+                                        width: `${activeItem.score * 10}%`, 
+                                        backgroundColor: getTrendStyle(activeItem.score).color 
+                                    }} 
                                 />
                             </div>
                         </div>
