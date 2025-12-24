@@ -2410,9 +2410,13 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                     <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
                         <div className={`
                             group relative h-[480px] w-full rounded-[2.5rem] overflow-hidden cursor-default 
-                            transition-all duration-500 hover:scale-[1.01]
-                            shadow-2xl shadow-black/40 border border-white/10
-                        `}>
+    transition-all duration-500 hover:scale-[1.01]
+    
+    /* --- EFEITO 3D / BISEL AQUI --- */
+    border-[3px] border-white/10
+    /* A mágica do bisel: uma linha de luz interna no topo + sombra externa */
+    shadow-[inset_1px_1px_0_0_rgba(255,255,255,0.2),0_20px_50px_-12px_rgba(0,0,0,0.6)]
+`}>
                             <img 
                                 src={cluster.representative_image} 
                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" 
@@ -2813,68 +2817,47 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 
 
 
-// --- COMPONENTE TREND RADAR (V4 - ATUALIZAÇÃO ESTRITA: APENAS PUSH OU START) ---
+// --- COMPONENTE TREND RADAR (VISUAL 3D FÍSICO - SEM AURA) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
 
-  // TRAVAS LÓGICAS (IGUAL AO CONTEXTO GLOBAL)
   const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
   const prevRefreshTrigger = useRef(refreshTrigger);
 
   const getHeatColor = (score) => {
-      if (score >= 9) return '#ef4444'; 
-      if (score >= 7) return '#f97316'; 
-      if (score >= 5) return '#10b981'; 
-      return '#3b82f6';                 
+      if (score >= 9) return '#ef4444'; // Vermelho (Muito Quente)
+      if (score >= 7) return '#f97316'; // Laranja (Quente)
+      if (score >= 5) return '#10b981'; // Verde (Morno)
+      return '#3b82f6';                 // Azul (Frio)
   };
 
   useEffect(() => {
-    // 1. Validações Básicas
     if (!apiKey || !newsData || newsData.length === 0) return;
-
-    // 2. Verifica se é um comando de Refresh do Usuário
     const isUserRefresh = refreshTrigger !== prevRefreshTrigger.current;
 
-    // 3. A REGRA DE OURO:
-    // Se JÁ carregou a primeira vez E NÃO foi um refresh do usuário... PARE.
-    if (hasLoadedInitial && !isUserRefresh) {
-        return;
-    }
+    if (hasLoadedInitial && !isUserRefresh) return;
 
-    // Atualiza referências
     prevRefreshTrigger.current = refreshTrigger;
     if (!hasLoadedInitial) setHasLoadedInitial(true);
     
     const loadTrends = async () => {
         setLoading(true);
         setActiveIndex(null);
-        
-        // Limpa visualmente apenas se for refresh manual
         if (isUserRefresh) setTrends(null);
-
-        // Delay visual
         await new Promise(r => setTimeout(r, isUserRefresh ? 1000 : 600)); 
-        
         const data = await generateTrendRadar(newsData, apiKey);
-        
-        if (data && Array.isArray(data)) {
-            setTrends(data);
-        }
+        if (data && Array.isArray(data)) setTrends(data);
         setLoading(false);
     };
-
     loadTrends();
-    
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newsData, apiKey, refreshTrigger]);
 
   const handleToggle = (idx) => {
       setActiveIndex(activeIndex === idx ? null : idx);
   };
 
-  // Pega o item ativo
   const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
 
   if ((!trends || !Array.isArray(trends)) && !loading) return null;
@@ -2882,39 +2865,16 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   return (
     <div className="relative z-[50] mb-4 animate-in fade-in duration-1000 slide-in-from-right-8">
       
-      <style>{`
-        @keyframes shimmer-text {
-            0% { background-position: 200% center; }
-            100% { background-position: -200% center; }
-        }
-        .animate-shimmer-text {
-            background-size: 200% auto;
-            animation: shimmer-text 3s linear infinite;
-        }
-      `}</style>
-
-      {/* --- CABEÇALHO --- */}
-      <div className={`flex items-center justify-center gap-2 mb-3 transition-all duration-500 ${loading ? 'opacity-100 scale-105' : 'opacity-70 scale-100'}`}>
-         <div className="relative">
-            {loading ? (
-                <>
-                    <Activity size={14} className="text-orange-500 animate-[spin_3s_linear_infinite]" />
-                    <div className="absolute inset-0 bg-orange-500 rounded-full animate-ping opacity-30" />
-                </>
-            ) : (
-                <Activity size={14} className="text-orange-500" />
-            )}
-         </div>
-
+      {/* Cabeçalho */}
+      <div className={`flex items-center justify-center gap-2 mb-4 transition-all duration-500 ${loading ? 'opacity-100' : 'opacity-70'}`}>
          {loading ? (
-             <span className="text-[10px] font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-orange-600 via-yellow-200 to-orange-600 animate-shimmer-text">
-                 Detecting Trends...
-             </span>
+             <Activity size={14} className="text-orange-500 animate-spin" />
          ) : (
-             <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                 Trend Radar
-             </span>
+             <Activity size={14} className="text-orange-500" />
          )}
+         <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+             {loading ? 'Detecting Trends...' : 'Trend Radar'}
+         </span>
       </div>
 
       {loading ? (
@@ -2927,88 +2887,89 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
          <div className="flex flex-col w-full">
              
              {/* 1. LISTA DE PÍLULAS (Scroll Horizontal) */}
-             <div className="flex justify-start md:justify-center items-start gap-3 overflow-x-auto scrollbar-hide px-4 pt-6 pb-2 snap-x relative z-20">
+             <div className="flex justify-start md:justify-center items-center gap-4 overflow-x-auto scrollbar-hide px-4 pt-2 pb-6 snap-x relative z-20">
                 {trends.map((item, idx) => {
                     const color = getHeatColor(item.score);
                     const isActive = activeIndex === idx;
-                    const isExplosive = item.score >= 9;
-                    const scale = isActive ? 'scale-105' : 'scale-100 hover:scale-105';
+                    const isHot = item.score >= 7; // Define se é "Quente/Alto" ou "Frio/Baixo"
 
                     return (
                         <div key={idx} className="relative flex-shrink-0 snap-center flex flex-col items-center">
                             <button 
                                 onClick={() => handleToggle(idx)}
                                 className={`
-                                    relative group cursor-pointer transition-all duration-300 ${scale} z-10
+                                    relative group cursor-pointer transition-all duration-300 flex items-center gap-2 rounded-full
+                                    ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-800'}
                                 `}
+                                style={{ 
+                                    // AQUI ESTÁ A MÁGICA 3D:
+                                    
+                                    // 1. Borda Colorida Grossa
+                                    border: `${isHot ? '3px' : '2px'} solid ${color}`,
+                                    
+                                    // 2. Padding
+                                    padding: '8px 18px',
+
+                                    // 3. EFEITO 3D FISICO
+                                    // Se for QUENTE: Sobe (-4px), Sombra forte embaixo, Brilho interno em cima (Bisel)
+                                    // Se for FRIO: Fica baixo, Sombra interna (Inset) parecendo afundado
+                                    boxShadow: isActive 
+                                        ? `inset 0 4px 8px rgba(0,0,0,0.3)` // Clicado (Afunda)
+                                        : isHot 
+                                            ? `0 8px 0 ${color}40, 0 10px 10px rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.3)` // Saltado 3D
+                                            : `0 2px 0 ${color}20, inset 0 1px 2px rgba(0,0,0,0.05)`, // Plano/Baixo
+                                    
+                                    // 4. Movimento físico
+                                    transform: isActive ? 'translateY(4px)' : (isHot ? 'translateY(-4px)' : 'translateY(0)'),
+                                }}
                             >
-                                <div 
-                                    className="absolute inset-0 rounded-full blur-md opacity-50 animate-pulse"
-                                    style={{ backgroundColor: color }}
-                                />
-                                <div 
-                                    className={`
-                                        relative px-5 py-2.5 rounded-full border flex items-center gap-2 shadow-sm backdrop-blur-md transition-colors
-                                        ${isDarkMode ? 'bg-zinc-900/90 text-white' : 'bg-white/90 text-zinc-800'}
-                                        ${isActive ? 'ring-2 ring-offset-2 ring-offset-transparent' : 'border'}
-                                    `}
-                                    style={{ 
-                                        borderColor: isActive ? color : color, 
-                                        boxShadow: `0 4px 15px ${color}30`,
-                                        '--tw-ring-color': color 
-                                    }}
-                                >
-                                    {isExplosive && <span className="text-[10px] animate-bounce">🔥</span>}
-                                    <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
-                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                                </div>
+                                {item.score >= 9 && <span className="text-[10px] animate-bounce">🔥</span>}
+                                <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
+                                
+                                {/* Indicador de Nível (Bolinha Sólida) */}
+                                <div className="w-2 h-2 rounded-full border border-black/10" style={{ backgroundColor: color }} />
                             </button>
-                            
-                            {isActive && (
-                                <div 
-                                    className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] animate-in fade-in zoom-in duration-300 z-30"
-                                    style={{ borderBottomColor: color }}
-                                />
-                            )}
                         </div>
                     )
                 })}
              </div>
 
-             {/* 2. ÁREA DE DETALHES (O BALÃO CENTRAL) */}
+             {/* 2. ÁREA DE DETALHES (O BALÃO) */}
              <div 
                 className={`
                     relative w-full px-4 transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden
-                    ${activeItem ? 'max-h-[200px] opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'}
+                    ${activeItem ? 'max-h-[200px] opacity-100 mt-0' : 'max-h-0 opacity-0 mt-0'}
                 `}
              >
                 {activeItem && (
                     <div 
                         className={`
-                            w-full md:max-w-md mx-auto p-5 rounded-3xl border shadow-2xl backdrop-blur-xl flex flex-col gap-2 animate-in slide-in-from-top-4 duration-500
+                            w-full md:max-w-md mx-auto p-5 rounded-3xl border-2 shadow-xl backdrop-blur-xl flex flex-col gap-2 animate-in slide-in-from-top-4 duration-300
                             ${isDarkMode ? 'bg-zinc-950/95 text-zinc-200' : 'bg-white/95 text-zinc-800'}
                         `}
                         style={{ 
-                            borderColor: getHeatColor(activeItem.score), 
-                            boxShadow: `0 10px 40px -10px ${getHeatColor(activeItem.score)}40` 
+                            borderColor: getHeatColor(activeItem.score),
+                            // Sombra combinando com a cor do item ativo
+                            boxShadow: `0 10px 30px -10px ${getHeatColor(activeItem.score)}40`
                         }}
                     >
                         <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor: getHeatColor(activeItem.score)}}/>
-                                <span 
-                                    className="text-[10px] font-black uppercase tracking-widest opacity-80"
-                                    style={{ color: getHeatColor(activeItem.score) }}
-                                >
-                                    Nível de Impacto: {activeItem.score}/10
-                                </span>
-                            </div>
-                            <div className="h-1.5 w-16 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-                                <div className="h-full rounded-full transition-all duration-1000 ease-out w-0 animate-[progress_1s_ease-out_forwards]" style={{ width: `${activeItem.score * 10}%`, backgroundColor: getHeatColor(activeItem.score), animationFillMode: 'forwards' }} />
+                            <span 
+                                className="text-[10px] font-black uppercase tracking-widest"
+                                style={{ color: getHeatColor(activeItem.score) }}
+                            >
+                                Impacto: {activeItem.score}/10
+                            </span>
+                            {/* Barra de Progresso Mini */}
+                            <div className="h-1.5 w-20 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                                <div 
+                                    className="h-full rounded-full" 
+                                    style={{ width: `${activeItem.score * 10}%`, backgroundColor: getHeatColor(activeItem.score) }} 
+                                />
                             </div>
                         </div>
                         
-                        <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                        <p className={`text-sm font-bold leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>
                             {activeItem.summary}
                         </p>
                     </div>
@@ -3016,12 +2977,9 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
              </div>
          </div>
       )}
-      <style jsx="true">{`@keyframes progress { from { width: 0%; } }`}</style>
     </div>
   );
 };
-
-
 
 
 
