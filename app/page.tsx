@@ -687,7 +687,7 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
               key={cat} 
               onClick={() => onChange(cat)} 
               className={`
-                relative px-6 py-1.5 rounded-2xl text-sm transition-all duration-200 whitespace-nowrap snap-center min-w-fit font-bold
+                relative px-7 py-1.5 rounded-xl text-sm transition-all duration-200 whitespace-nowrap snap-center min-w-fit font-bold
                 ${isActive 
                   ? 'bg-purple-600 text-white shadow-sm'
                   : (isDarkMode ? 'text-zinc-400 hover:text-white hover:bg-white/10' : 'text-zinc-600 hover:text-black hover:bg-zinc-100')}
