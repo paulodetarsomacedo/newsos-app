@@ -35,63 +35,8 @@ const STORIES = [
   { id: 3, name: 'CNN', avatar: 'https://ui-avatars.com/api/?name=CN&background=e74c3c&color=fff', items: [{ id: 301, type: 'image', img: 'https://images.unsplash.com/photo-1526304640152-d4619684e484?w=600&q=80', title: 'Bolsas asiáticas', time: '3h' }] },
 ];
 
-const FEED_NEWS = [
-  { 
-    id: 1, 
-    source: 'The Verge', 
-    logo: 'https://ui-avatars.com/api/?name=TV&background=000&color=fff&rounded=false&font-size=0.5', 
-    time: '2h', 
-    title: 'Apple Vision Pro ganha versão mais leve e barata', 
-    summary: 'A gigante de Cupertino planeja lançar uma versão "Air" do seu headset espacial focado no consumo de mídia e conforto prolongado.',
-    category: 'Tecnologia', 
-    img: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&q=80',
-    readTime: '4 min'
-  },
-  { 
-    id: 2, 
-    source: 'CNN Market', 
-    logo: 'https://ui-avatars.com/api/?name=CN&background=e74c3c&color=fff&rounded=false&font-size=0.5', 
-    time: '3h', 
-    title: 'Dólar cai abaixo de R$ 4,90 com otimismo fiscal', 
-    summary: 'Investidores estrangeiros voltam a aportar capital no Brasil após a aprovação das novas metas fiscais pelo Senado.',
-    category: 'Economia', 
-    img: 'https://images.unsplash.com/photo-1611974765270-ca12586343bb?w=800&q=80',
-    readTime: '2 min' 
-  },
-  { 
-    id: 3, 
-    source: 'BBC Science', 
-    logo: 'https://ui-avatars.com/api/?name=BB&background=000&color=fff&rounded=false&font-size=0.5', 
-    time: '5h', 
-    title: 'Telescópio Webb descobre vapor d\'água em exoplaneta', 
-    summary: 'A descoberta no planeta K2-18b reacende o debate sobre a possibilidade de vida fora do sistema solar em zonas habitáveis.',
-    category: 'Tecnologia', 
-    img: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80',
-    readTime: '3 min' 
-  },
-  { 
-    id: 4, 
-    source: 'Vogue', 
-    logo: 'https://ui-avatars.com/api/?name=VG&background=000&color=fff&rounded=false&font-size=0.5', 
-    time: '6h', 
-    title: 'As tendências de inverno que dominaram Paris', 
-    summary: 'Casacos oversized e tons terrosos foram os protagonistas da Fashion Week, ditando o que veremos nas vitrines.',
-    category: 'Local', 
-    img: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80', 
-    readTime: '4 min' 
-  },
-  { 
-    id: 5, 
-    source: 'Politico', 
-    logo: 'https://ui-avatars.com/api/?name=PO&background=000&color=fff', 
-    time: '7h', 
-    title: 'Senado aprova nova lei de trânsito para elétricos', 
-    summary: 'Novas regras exigem adaptação de postos de recarga e criam incentivos fiscais para a troca de frota nas capitais.',
-    category: 'Política', 
-    img: 'https://images.unsplash.com/photo-1555848960-8c3fd4479802?w=800&q=80', 
-    readTime: '5 min' 
-  },
-];
+const FEED_NEWS = []; // Limpo para evitar dados fantasmas
+
 
 const BANCA_ITEMS = [
   { id: 1, name: 'Folha de S.Paulo', category: 'Jornais', color: 'bg-[#004990]', layoutType: 'standard', logo: 'FOLHA', headline: 'Reforma Tributária avança no Senado' },
@@ -3364,6 +3309,7 @@ export default function NewsOS_V12() {
       { id: 2, name: 'G1', url: 'https://g1.globo.com/dynamo/rss2.xml', category: 'Local', display: { feed: true } }
   ]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
+  const [articleHistory, setArticleHistory] = useState({});
   const [readHistory, setReadHistory] = useState([]);
   const [likedItems, setLikedItems] = useState([]); 
 
@@ -3521,7 +3467,8 @@ const handleStoryNavigation = (direction) => {
     });
   };
 
-  // --- FETCH FEEDS (V15 - COMPLETA, SEM ABREVIAÇÕES) ---
+ 
+  // --- FETCH FEEDS (V17 - COM PERSISTÊNCIA DE HORÁRIO E INTERVALO DE 10 MIN) ---
   const fetchFeeds = async () => {
     if (userFeeds.length === 0) {
         setRealNews([]);
@@ -3531,56 +3478,45 @@ const handleStoryNavigation = (direction) => {
     }
 
     setIsLoadingFeeds(true);
+    
     let allNewsItems = [];
     let allVideoItems = [];
     let allPodcastItems = [];
     let feedsThatNeedUpdate = [];
+    
+    // Objeto temporário para acumular novos históricos sem causar re-renders no loop
+    // Iniciamos com uma cópia do histórico atual para não perder o que já existe
+    let newHistoryBuffer = { ...articleHistory };
 
     const promises = userFeeds.map(async (feed) => {
         if (!feed.url) return;
 
         try {
             let feedItems = [];
-            
-            // TÍTULO PADRÃO (Respeita edição do usuário)
             let currentFeedTitle = feed.name; 
             let detectedXmlTitle = "";
-            
             let feedLogo = null;
             let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
             
             const isLegacySource = feed.url.includes('uol.com.br') || feed.url.includes('folha.uol.com.br');
 
+            // --- FETCH E PARSE ---
             if (isLegacySource) {
-                // --- MODO LEGADO (UOL/FOLHA) ---
                 try {
                     const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
                     const res = await fetch(proxyUrl);
                     if (!res.ok) throw new Error(`Proxy error: ${res.status}`);
-                    
                     const buffer = await res.arrayBuffer();
                     const decoder = new TextDecoder('iso-8859-1'); 
                     const xmlText = decoder.decode(buffer);
-                    
                     const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
                     feedItems = parsedData.items;
                     detectedXmlTitle = parsedData.realTitle; 
-
-                    if (feed.url.includes('folha')) {
-                        feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
-                    } else {
-                        feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
-                    }
-                } catch (legacyErr) {
-                    console.error(`Erro legado (${feed.name}):`, legacyErr);
-                }
-
+                    if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
+                    else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
+                } catch (legacyErr) { console.error(`Erro legado (${feed.name}):`, legacyErr); }
             } else {
-                // --- MODO MODERNO ---
-                const { data, error } = await supabase.functions.invoke('parse-feed', {
-                    body: { url: feed.url }
-                });
-
+                const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
                 if (!error && data && data.items) {
                     feedItems = data.items;
                     detectedXmlTitle = data.title;
@@ -3589,13 +3525,11 @@ const handleStoryNavigation = (direction) => {
                 }
             }
 
-            // Atualiza nome apenas se for genérico
             if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
                 currentFeedTitle = detectedXmlTitle || feed.name;
                 feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
             }
 
-            // Fallbacks de Logo
             let finalLogo = feedLogo;
             if (isFeedYoutube && !finalLogo) {
                 finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
@@ -3609,51 +3543,95 @@ const handleStoryNavigation = (direction) => {
             }
 
             let LIMIT = 15; 
-            if (feed.type === 'podcast') LIMIT = 1; 
-            else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
+            if (feed.type === 'podcast') LIMIT = 5; 
+            else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 5;
 
-            const processedItems = feedItems.slice(0, LIMIT).map(item => {
-                // 1. LINK PRINCIPAL
-                let primaryLink = item.link;
+            // --- LÓGICA DE DEDUPLICAÇÃO TEMPORAL ---
+            
+            // 1. Variável de controle para este feed específico.
+            // Inicializamos com uma data futura segura ou a data do primeiro item.
+            // O truque: vamos iterar e "empurrar" para trás se necessário.
+            let lastAssignedTime = 0;
+
+            const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
+                // Geração de ID estável
+                const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
+
+                // Definição de data base crua vinda do XML
+                const rawDateString = item.pubDate || item.date || item.isoDate;
+                let originalTimestamp = rawDateString ? new Date(rawDateString).getTime() : new Date().getTime();
+                if (isNaN(originalTimestamp)) originalTimestamp = new Date().getTime();
+
+                let finalTimestamp;
+
+                // PASSO A: VERIFICAR HISTÓRICO (Memória)
+                // Se já processamos essa notícia antes, usamos o horário gravado.
+                // Isso garante que ela não mude de posição no refresh.
+                if (newHistoryBuffer[uniqueId]) {
+                    finalTimestamp = newHistoryBuffer[uniqueId];
+                } 
+                else {
+                    // PASSO B: CALCULAR NOVO HORÁRIO (Se for notícia nova)
+                    
+                    // Constante de 10 minutos em milissegundos
+                    const TEN_MINUTES_MS = 10 * 60 * 1000;
+
+                    // Se for o primeiro item do loop, aceitamos a data dele (ou a data atual se for inválida)
+                    if (index === 0) {
+                        finalTimestamp = originalTimestamp;
+                    } else {
+                        // Compara com a data atribuída ao item anterior
+                        // Se a data deste item for IGUAL ou MAIOR (mais recente/futuro) que o anterior (o que é ilógico num feed decrescente),
+                        // ou se a diferença for muito pequena, nós forçamos o recuo.
+                        
+                        // Lógica: O item anterior (index-1) deve ser mais recente. Este item (index) deve ser mais antigo.
+                        // Se lastAssignedTime (do anterior) <= originalTimestamp (deste), temos uma colisão de horários.
+                        
+                        if (lastAssignedTime <= originalTimestamp + 1000) { // +1000ms de tolerância
+                             // Força este item a ser 10 minutos MAIS VELHO que o anterior
+                             finalTimestamp = lastAssignedTime - TEN_MINUTES_MS;
+                        } else {
+                             // A data original é válida e respeita a ordem cronológica
+                             finalTimestamp = originalTimestamp;
+                        }
+                    }
+
+                    // Salva no buffer para persistir no próximo refresh
+                    newHistoryBuffer[uniqueId] = finalTimestamp;
+                }
+
+                // Atualiza a referência para a próxima iteração do loop
+                lastAssignedTime = finalTimestamp;
                 
-                // 2. DETECÇÃO DE ENCLOSURE (Anexo)
+                const finalDateObj = new Date(finalTimestamp);
+
+                // --- Montagem do Objeto (Mantido Igual) ---
+                let primaryLink = item.link;
                 const enclosureUrl = item.enclosure?.url || item.audio;
                 let hasPlayableMedia = false;
                 
                 if (enclosureUrl) {
                     const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || 
-                                    enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i);
-
-                    if (isImage) {
-                        item.img = enclosureUrl; 
-                    } else {
-                        primaryLink = enclosureUrl;
-                        hasPlayableMedia = true;
-                    }
+                                    (enclosureUrl && enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i));
+                    if (isImage) { item.img = enclosureUrl; } 
+                    else { primaryLink = enclosureUrl; hasPlayableMedia = true; }
                 }
 
-                // 3. IMAGEM DE CAPA FINAL
                 const itemImg = item.img || item.image || finalLogo;
                 const itemSummary = item.summary || item.description || '';
-                const itemDate = item.pubDate || item.date || item.isoDate || new Date();
 
-                // 4. DETECÇÃO DE TIPO
                 const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
-                
                 let finalType = 'link'; 
-                if (isYoutubeItem) {
-                    finalType = 'video';
-                } else if (hasPlayableMedia || (primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a')))) {
-                    finalType = 'audio'; 
-                }
+                if (isYoutubeItem) finalType = 'video';
+                else if (hasPlayableMedia || (primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a')))) finalType = 'audio'; 
 
                 return {
-                    id: `${feed.id}-${item.id || Math.random().toString(36).substr(2, 9)}`,
+                    id: uniqueId,
                     source: currentFeedTitle, 
                     show: currentFeedTitle,
                     logo: finalLogo, 
-                    time: new Date(itemDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    rawDate: new Date(itemDate),
+                    time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    rawDate: finalDateObj, 
                     title: item.title,
                     summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
                     category: feed.type === 'podcast' ? 'Podcast' : (item.category || 'Geral'),
@@ -3663,33 +3641,30 @@ const handleStoryNavigation = (direction) => {
                     link: primaryLink, 
                     url: item.link,
                     videoId: item.videoId || getVideoId(item.link),
-                    date: new Date(itemDate).toLocaleDateString(),
+                    date: finalDateObj.toLocaleDateString(),
                 };
             });
 
-            if (feed.type === 'podcast') {
-                allPodcastItems.push(...processedItems);
-            } else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) {
-                allVideoItems.push(...processedItems);
-            } else {
-                allNewsItems.push(...processedItems);
-            }
+            if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
+            else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) allVideoItems.push(...processedItems);
+            else allNewsItems.push(...processedItems);
 
         } catch (err) { console.error(`Erro no feed ${feed.name}`, err); }
     });
 
     await Promise.all(promises);
 
-   if (feedsThatNeedUpdate.length > 0) {
+    // Atualiza nomes de feeds genéricos
+    if (feedsThatNeedUpdate.length > 0) {
         setUserFeeds(prev => prev.map(f => {
             const update = feedsThatNeedUpdate.find(u => u.id === f.id);
             return update ? { ...f, name: update.name } : f;
         }));
     }
 
-    // --- CORREÇÃO DE ORDENAÇÃO: FUNÇÃO SEGURA ---
-    // Converte qualquer formato de data para Timestamp numérico. 
-    // Se der erro, joga para o final (0)
+    // Salva o histórico atualizado no estado do React para persistir na sessão
+    setArticleHistory(newHistoryBuffer);
+
     const getSafeTime = (dateInput) => {
         if (!dateInput) return 0;
         const time = new Date(dateInput).getTime();
@@ -3698,13 +3673,14 @@ const handleStoryNavigation = (direction) => {
 
     const sortFn = (a, b) => getSafeTime(b.rawDate) - getSafeTime(a.rawDate);
     
-    // Força a ordenação aqui para garantir que o estado já entre misturado
     setRealNews([...allNewsItems].sort(sortFn));
     setRealVideos([...allVideoItems].sort(sortFn));
     setRealPodcasts([...allPodcastItems].sort(sortFn));
     
     setIsLoadingFeeds(false);
   };
+
+
   
   useEffect(() => { fetchFeeds(); }, [userFeeds]);
 
