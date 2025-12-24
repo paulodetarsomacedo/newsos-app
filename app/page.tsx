@@ -5008,6 +5008,18 @@ function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, o
   );
 }
 
+useEffect(() => {
+  if (process.env.NODE_ENV === 'development' || window.location.href.includes('debug=true')) {
+    const script = document.createElement('script');
+    script.src = "//cdn.jsdelivr.net/npm/eruda";
+    document.body.appendChild(script);
+    script.onload = () => {
+      window.eruda.init();
+    };
+  }
+}, []);
+
+
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
 // Usa a API 'gtx' do Google (gratuita/pública) para traduzir textos mantendo estrutura
 const translateText = async (text, targetLang = 'pt') => {
