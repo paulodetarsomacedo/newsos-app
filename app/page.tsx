@@ -4246,9 +4246,7 @@ const allFeedItems = useMemo(() => {
       return combined.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
   }, [realNews, realVideos, realPodcasts]);
 
-  // Função auxiliar para fechar vídeo (caso também esteja faltando)
-  const closeVideo = () => setSelectedVideo(null);
-
+  
   // Adicione este bloco de código dentro de NewsOS_V12, antes do `return (`
 
 const storiesForHappeningTab = useMemo(() => {
@@ -4375,7 +4373,7 @@ const handleOpenArticle = (article) => {
 
   // --- A VARIÁVEL QUE ESTAVA FALTANDO E QUEBROU O BUILD ---
   // Ela diz pro layout: "Se tiver qualquer coisa aberta (artigo, banca, story ou VIDEO), encolha o fundo."
-  const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory || !!selectedVideo;
+  const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
 
 
 
