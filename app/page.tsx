@@ -3869,10 +3869,8 @@ export default function NewsOS_V12() {
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
   const [apiKey, setApiKey] = useState('');
-  const [userFeeds, setUserFeeds] = useState([
-      { id: 1, name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', category: 'Tech', display: { feed: true } },
-      { id: 2, name: 'G1', url: 'https://g1.globo.com/dynamo/rss2.xml', category: 'Local', display: { feed: true } }
-  ]);
+  
+const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
   const [articleHistory, setArticleHistory] = useState({});
   const [readHistory, setReadHistory] = useState([]);
