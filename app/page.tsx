@@ -664,7 +664,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
 
 // --- LIQUID FILTER ---
 
-function LiquidFilterBar({ categories, active, onChange, isDarkMode, accentColor = 'blue', borderColor = { light: 'border-white', dark: 'border-white/5' } }) {
+function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
   return (
     <div className="w-full flex justify-center sticky top-0 z-30 py-2 pointer-events-none">
       <div className={`
@@ -673,11 +673,11 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode, accentColor
         max-w-[95%] 
         rounded-full border gap-1 
         p-1.5
-        shadow-sm
-        backdrop-blur-xl
+        shadow-lg
+        /* AQUI: Removido backdrop-blur-xl e aumentado opacidade do bg */
         ${isDarkMode 
-          ? `bg-blue/60 ${borderColor.dark}`
-          : `bg-blue/70 ${borderColor.light}`
+          ? 'bg-zinc-900/95 border-white/10'
+          : 'bg-white/95 border-zinc-200'
         }
       `}>
         {categories.map((cat) => {
@@ -687,10 +687,10 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode, accentColor
               key={cat} 
               onClick={() => onChange(cat)} 
               className={`
-                relative px-6 py-1.5 rounded-full text-sm transition-all duration-300 whitespace-nowrap snap-center min-w-fit font-bold
+                relative px-6 py-1.5 rounded-full text-sm transition-all duration-200 whitespace-nowrap snap-center min-w-fit font-bold
                 ${isActive 
-                  ? 'bg-[#4c1d95] text-white shadow-md shadow-purple-500/20'
-                  : (isDarkMode ? 'text-zinc-900 hover:text-white hover:bg-white/10' : 'text-zinc-600 hover:text-blue hover:bg-blue-50')}
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : (isDarkMode ? 'text-zinc-400 hover:text-white hover:bg-white/10' : 'text-zinc-600 hover:text-black hover:bg-zinc-100')}
               `}
             >
               {cat}
@@ -951,11 +951,9 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
 const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike }) => {
-  // --- CORREÇÃO APLICADA AQUI ---
   const displayTime = news.rawDate 
     ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
     : '...';
-  // --- FIM DA CORREÇÃO ---
 
   return (
     <div 
@@ -963,57 +961,45 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       style={{ zIndex: isSelected ? 50 : 1 }}
       className={`
         group relative cursor-pointer 
-        transition-transform duration-300 ease-out will-change-transform
-        flex flex-col overflow-hidden rounded-3xl
+        flex flex-col overflow-hidden rounded-2xl
+        transition-colors duration-200
         ${isSelected 
-          ? (isDarkMode 
-              ? 'bg-zinc-900 scale-[1.02] border-2 border-purple-500 shadow-2xl shadow-black/50' 
-              : 'bg-white scale-[1.02] border-2 border-purple-500 shadow-2xl shadow-purple-900/10')
+          ? (isDarkMode ? 'bg-zinc-800 ring-2 ring-purple-500' : 'bg-zinc-50 ring-2 ring-purple-500')
           : (isDarkMode 
-              ? 'bg-zinc-900 border border-white/5 active:scale-[0.98]' 
-              : 'bg-white border border-zinc-200 shadow-sm active:scale-[0.98]')
+              ? 'bg-zinc-900 border border-white/5' 
+              : 'bg-white border border-zinc-200 shadow-sm')
         }
       `}
     >
-      <div className={`absolute -top-10 -right-10 w-48 h-48 rounded-full blur-[60px] pointer-events-none transition-opacity duration-700 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-40'} ${isDarkMode ? 'bg-blue-600/20' : 'bg-blue-200/50'}`} />
-      <div className={`absolute -bottom-10 -left-10 w-32 h-32 rounded-full blur-[50px] pointer-events-none transition-opacity duration-700 ${isSelected ? 'opacity-80' : 'opacity-0'} ${isDarkMode ? 'bg-purple-600/20' : 'bg-purple-200/50'}`} />
+      {/* REMOVIDO: As divs de 'blur-[60px]' (Auras) foram apagadas aqui para salvar GPU */}
 
-      <div className="relative z-10 flex flex-row gap-5 w-full p-3 items-start">
-          <div className={`relative overflow-hidden rounded-2xl flex-shrink-0 shadow-sm w-28 h-28 md:w-36 md:h-36 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-            <SmartImage src={news.img} title={news.title} logo={news.logo} sourceName={news.source} isDarkMode={isDarkMode} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"/>
-            {isSelected && <div className="absolute inset-0 bg-[#4c1d95]/10 mix-blend-overlay pointer-events-none" />}
+      <div className="relative z-10 flex flex-row gap-4 w-full p-3 items-start">
+          <div className={`relative overflow-hidden rounded-xl flex-shrink-0 w-24 h-24 md:w-32 md:h-32 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+            <SmartImage src={news.img} title={news.title} logo={news.logo} sourceName={news.source} isDarkMode={isDarkMode} className="w-full h-full object-cover"/>
           </div>
 
-          <div className="flex-1 flex flex-col justify-start gap-1 py-1 min-w-0">
+          <div className="flex-1 flex flex-col justify-start gap-1 py-0.5 min-w-0">
             <div>
-                <div className="flex justify-between items-center mb-2">
-                    <div className="flex items-center">
-                        <div className={`relative z-20 w-8 h-8 rounded-lg overflow-hidden border shadow-sm shrink-0 ${isDarkMode ? 'border-zinc-700 bg-zinc-800' : 'border-zinc-200 bg-white'}`}>
-                            <img src={news.logo} className="w-full h-full object-cover" alt="" onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${news.source}&background=random`}/>
-                        </div>
-                        <div className={`relative z-10 -ml-3 pl-4 pr-3 py-1 rounded-lg border-y border-r border-l-0 text-[10px] font-bold tracking-tight uppercase flex items-center h-7.5 mt-0.6 ${isDarkMode ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300' : 'bg-white/80 border-zinc-300 text-zinc-600'}`}>
+                <div className="flex justify-between items-center mb-1.5">
+                    <div className="flex items-center gap-2">
+                        <div className={`flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border ${isDarkMode ? 'bg-zinc-800 border-zinc-700 text-zinc-400' : 'bg-zinc-100 border-zinc-200 text-zinc-600'}`}>
                             {news.source}
                         </div>
                     </div>
-
-                    <div className="flex items-center gap-1">
-                      {isRead && !isSelected && (<div className="flex items-center gap-1 bg-red-500 px-1.5 py-0.5 rounded text-white" title="Notícia já lida"><CheckCircle size={10} /><span className="text-[9px] font-bold uppercase">Lido</span></div>)}
-                      {/* USA A NOVA VARIÁVEL 'displayTime' */}
-                      <span className={`text-[10px] font-bold tracking-wide ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{displayTime}</span>
-                    </div>
+                    <span className={`text-[10px] font-medium opacity-60 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{displayTime}</span>
                 </div>
-                {isSelected && (<div className="flex items-center gap-2 mb-1.5 animate-pulse"><Sparkles size={16} className="text-[#047857] dark:text-[#4ade80]" /><span className="text-[16px] font-black font-bold uppercase tracking-widest text-[green] dark:text-[#4ade80] drop-shadow-sm">Lendo Agora</span></div>)}
-                <h3 className={`text-lg font-bold leading-snug tracking-tight transition-colors line-clamp-3 ${isSelected ? 'text-[purple] dark:text-[#4ade80]' : isRead ? (isDarkMode ? 'text-zinc-500' : 'text-zinc-400') : (isDarkMode ? 'text-zinc-100 group-hover:text-purple-400' : 'text-zinc-800 group-hover:text-[#4c1d95]')}`}>{news.title}</h3>
+                
+                <h3 className={`text-base font-bold leading-tight line-clamp-3 mb-1 ${isRead ? 'opacity-60' : ''} ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>
+                    {news.title}
+                </h3>
             </div>
-            <p className={`text-sm leading-relaxed line-clamp-2 font-medium mt-0 ${isRead ? 'text-zinc-500/60' : (isSelected ? (isDarkMode ? 'text-zinc-300' : 'text-zinc-600') : (isDarkMode ? 'text-zinc-500' : 'text-zinc-500'))}`}>{news.summary}</p>
+            <p className={`text-xs leading-relaxed line-clamp-2 font-medium opacity-60 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{news.summary}</p>
           </div>
       </div>
 
-      <div className="absolute bottom-3 right-3 flex items-center gap-2 z-30">
-          <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border select-none ${isDarkMode ? 'bg-black/20 border-white/5 text-zinc-400' : 'bg-white/40 border-black/5 text-zinc-500'}`}><Clock size={10} className={isDarkMode ? 'text-zinc-500' : 'text-zinc-400'} /><span className="text-[9px] font-bold uppercase tracking-wider">{news.readTime || '3 min'}</span></div>
-          <button onClick={(e) => { e.stopPropagation(); if (onToggleLike) onToggleLike(news);}} className={`p-2 rounded-full transition-all duration-300 active:scale-75 group/like ${isLiked ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' : (isDarkMode ? 'bg-black/20 text-zinc-400 hover:text-rose-500' : 'bg-white/40 text-zinc-500 hover:text-rose-500')}`} title="Curtir"><Heart size={18} fill={isLiked ? "currentColor" : "none"} className="transition-transform group-hover/like:scale-110" /></button>
-          <button onClick={(e) => { e.stopPropagation(); alert(`Iniciando leitura por IA de: ${news.title}`); }} className={`p-2 rounded-full transition-all duration-300 active:scale-90 group/audio ${isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95] text-zinc-400 hover:text-white' : 'bg-white/40 hover:bg-[#4c1d95] text-zinc-500 hover:text-white'}`} title="Ouvir Resumo"><Headphones size={18} /></button>
-          <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2 rounded-full transition-all duration-300 active:scale-75 group/save ${isSaved ? 'bg-[#4c1d95] text-white shadow-lg shadow-purple-500/30' : (isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95]/20 text-zinc-400 hover:text-[#a78bfa]' : 'bg-white/40 hover:bg-[#4c1d95]/10 text-zinc-500 hover:text-[#4c1d95]')}`} title="Salvar para ler depois"><Bookmark size={18} fill={isSaved ? "currentColor" : "none"} className="transition-transform group-hover/save:scale-110" /></button>
+      <div className="px-3 pb-3 flex items-center justify-end gap-3 z-30">
+          <button onClick={(e) => { e.stopPropagation(); if (onToggleLike) onToggleLike(news);}} className={`p-1.5 rounded-full transition-colors ${isLiked ? 'text-rose-500' : (isDarkMode ? 'text-zinc-600 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600')}`} title="Curtir"><Heart size={16} fill={isLiked ? "currentColor" : "none"} /></button>
+          <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-1.5 rounded-full transition-colors ${isSaved ? 'text-purple-500' : (isDarkMode ? 'text-zinc-600 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600')}`} title="Salvar"><Bookmark size={16} fill={isSaved ? "currentColor" : "none"} /></button>
       </div>
     </div>
   );
@@ -1075,13 +1061,15 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
   // 3. Remove duplicatas (mantendo a ordem do sort acima)
   const uniqueNews = useMemo(() => {
       const seen = new Set();
-      return sortedFeed.filter(item => {
+      const filtered = sortedFeed.filter(item => {
           if (seen.has(item.id)) return false;
           seen.add(item.id);
           return true;
       });
+      // SEGURANÇA PWA: Renderiza no máximo 50 notícias por vez na aba Feed.
+      // Isso impede que a memória estoure ao renderizar listas infinitas.
+      return filtered.slice(0, 50); 
   }, [sortedFeed]);
-
   // Funções de Toque
   const handleTouchStart = (e) => {
     if (window.scrollY <= 5 && !isRefreshing) {
