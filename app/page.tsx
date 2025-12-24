@@ -706,12 +706,18 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
 function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // 1. Extrai fontes únicas das notícias para montar o menu
-  // (Num app real, viria do seu userFeeds, mas aqui extraímos do que temos na tela)
-  const uniqueSources = Array.from(new Set(news.map(n => n.source)))
-    .map(sourceName => {
-      return news.find(n => n.source === sourceName);
+  // Extrai fontes únicas (mantido)
+  const uniqueSources = useMemo(() => {
+    const seen = new Set();
+    const sources = [];
+    news.forEach(n => {
+        if (!seen.has(n.source)) {
+            seen.add(n.source);
+            sources.push(n);
+        }
     });
+    return sources;
+  }, [news]);
 
   return (
     <div className="absolute left-0 top-2 z-[1001]">
@@ -722,7 +728,7 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
         className={`
           flex items-center justify-center
           h-[42px] w-12 pl-1
-          rounded-r-2xl rounded-l-none /* Arredonda só a direita */
+          rounded-r-2xl rounded-l-none
           border-y border-r border-l-0
           backdrop-blur-xl shadow-sm transition-all duration-300
           ${isDarkMode 
@@ -734,11 +740,11 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
         {selectedSource === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
-           // Se tiver uma fonte selecionada, tenta mostrar o logo pequeno
            <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
               <img 
                 src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
                 className="w-full h-full object-cover"
+                onError={(e) => e.target.style.display = 'none'}
               />
            </div>
         )}
@@ -748,21 +754,21 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
       {isOpen && (
         <>
           {/* Backdrop invisível para fechar ao clicar fora */}
-          <div className="fixed inset-0 z-[1000" onClick={() => setIsOpen(false)} />
+          <div className="fixed inset-0 z-[1000]" onClick={() => setIsOpen(false)} />
 
           <div className={`
-             absolute top-[50px] left-2 z-[101]
+             absolute top-[50px] left-2 z-[1001]
              flex flex-col gap-2 p-2
              rounded-2xl border shadow-xl backdrop-blur-xl
              animate-in slide-in-from-left-2 duration-200
              ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
           `}>
              
-             {/* Opção "Todas" */}
+             {/* Opção "Todas" (FIXA NO TOPO) */}
              <button
                onClick={() => { onSelect('all'); setIsOpen(false); }}
                className={`
-                 w-10 h-10 rounded-full flex items-center justify-center transition-all
+                 w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center transition-all
                  ${selectedSource === 'all' 
                     ? 'bg-purple-600 text-white shadow-lg' 
                     : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}
@@ -772,26 +778,29 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
                 <LayoutGrid size={20} />
              </button>
 
-             <div className={`h-[1px] w-full ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
+             <div className={`h-[1px] w-full flex-shrink-0 ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
 
-             {/* Lista de Logos */}
-             {uniqueSources.map((item) => (
-               <button
-                 key={item.source}
-                 onClick={() => { onSelect(item.source); setIsOpen(false); }}
-                 className={`
-                   relative w-10 h-10 rounded-full p-[2px] transition-transform hover:scale-110
-                   ${selectedSource === item.source ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
-                 `}
-                 title={item.source}
-               >
-                 <img 
-                   src={item.logo} 
-                   alt={item.source} 
-                   className="w-full h-full rounded-full object-cover border border-black/10"
-                 />
-               </button>
-             ))}
+             {/* --- ÁREA DE ROLAGEM PARA OS LOGOS --- */}
+             <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto scrollbar-hide pt-1 pb-1">
+                 {uniqueSources.map((item) => (
+                   <button
+                     key={item.source}
+                     onClick={() => { onSelect(item.source); setIsOpen(false); }}
+                     className={`
+                       relative w-10 h-10 rounded-full p-[2px] transition-transform hover:scale-110 flex-shrink-0
+                       ${selectedSource === item.source ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
+                     `}
+                     title={item.source}
+                   >
+                     <img 
+                       src={item.logo} 
+                       alt={item.source} 
+                       className="w-full h-full rounded-full object-cover border border-black/10 bg-white"
+                       onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${item.source}&background=random`}
+                     />
+                   </button>
+                 ))}
+             </div>
           </div>
         </>
       )}
@@ -2950,7 +2959,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
   );
 };
 
-// --- COMPONENTE TREND RADAR (GLOW PROPORCIONAL À TEMPERATURA) ---
+// --- COMPONENTE TREND RADAR (EFEITO 3D FÍSICO / BOTÃO) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2961,33 +2970,32 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
 
   // --- LÓGICA DE ESTILO FÍSICO ---
   const getTrendStyle = (score) => {
-      // 1. FERVENDO (Vermelho)
+      // 1. FERVENDO (Vermelho): Alto relevo (4px) + Glow
       if (score >= 9) return {
           color: '#ef4444',
-          borderWidth: '3px',
-          // Glow forte externo + Glow interno para dar "volume"
-          shadow: '0 0 20px rgba(239, 68, 68, 0.6), inset 0 0 10px rgba(239, 68, 68, 0.2)',
+          bottomHeight: '4px', // Base grossa
+          shadow: '0 0 15px rgba(239, 68, 68, 0.4), inset 0 2px 0 rgba(255,255,255,0.2)',
           scale: 'scale(1.05)'
       };
-      // 2. QUENTE (Laranja)
+      // 2. QUENTE (Laranja): Relevo médio (3px)
       if (score >= 7) return {
           color: '#f97316',
-          borderWidth: '2.5px',
-          shadow: '0 0 12px rgba(249, 115, 22, 0.5), inset 0 0 5px rgba(249, 115, 22, 0.1)',
+          bottomHeight: '3px',
+          shadow: '0 0 10px rgba(249, 115, 22, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)',
           scale: 'scale(1.02)'
       };
-      // 3. MORNO (Verde)
+      // 3. MORNO (Verde): Relevo normal (2px)
       if (score >= 5) return {
           color: '#10b981',
-          borderWidth: '2px',
-          shadow: '0 0 8px rgba(16, 185, 129, 0.3)',
+          bottomHeight: '2px',
+          shadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
           scale: 'scale(1)'
       };
-      // 4. FRIO (Azul)
+      // 4. FRIO (Azul): Baixo relevo (2px)
       return {
           color: '#3b82f6',
-          borderWidth: '1px',
-          shadow: 'none', // Sem glow, apenas estrutura
+          bottomHeight: '2px',
+          shadow: 'none',
           scale: 'scale(0.98)'
       };
   };
@@ -3056,29 +3064,37 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                             <button 
                                 onClick={() => handleToggle(idx)}
                                 className={`
-                                    relative group cursor-pointer transition-all duration-300 flex items-center gap-2 rounded-full
-                                    ${isDarkMode ? 'bg-zinc-900/90 text-white' : 'bg-white/90 text-zinc-800'}
-                                    backdrop-blur-md
+                                    relative group cursor-pointer transition-all duration-200 flex items-center gap-2 rounded-full
+                                    ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-800'}
                                 `}
                                 style={{ 
-                                    // APLICAÇÃO DOS ESTILOS DINÂMICOS
-                                    border: `${style.borderWidth} solid ${style.color}`,
-                                    boxShadow: isActive ? `0 0 30px ${style.color}` : style.shadow, // Se ativo, explode o glow
-                                    transform: isActive ? 'scale(1.1) translateY(-2px)' : style.scale,
+                                    // AQUI ESTÁ A LÓGICA DO BORDER BOTTOM
+                                    borderColor: style.color,
+                                    borderStyle: 'solid',
+                                    borderWidth: '1px', // Bordas laterais e topo finas
+                                    borderBottomWidth: isActive ? '1px' : style.bottomHeight, // Borda grossa embaixo (some ao clicar)
+                                    
+                                    // Efeito visual
+                                    boxShadow: style.shadow,
                                     padding: '8px 20px',
+                                    
+                                    // Movimento Físico (Afunda ao clicar ou ativar)
+                                    transform: isActive 
+                                        ? `translateY(${parseInt(style.bottomHeight) - 1}px)` // Desce a altura da borda
+                                        : 'translateY(0)',
                                 }}
                             >
                                 {item.score >= 9 && <span className="text-[10px] animate-bounce">🔥</span>}
                                 <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
                                 
-                                {/* Indicador de Nível (Ponto Sólido) */}
+                                {/* Indicador de Nível */}
                                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: style.color }} />
                             </button>
 
-                            {/* Seta indicativa quando ativo */}
+                            {/* Seta indicativa (Só aparece se ativo) */}
                             {isActive && (
                                 <div 
-                                    className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] animate-in fade-in zoom-in duration-300 z-30"
+                                    className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] animate-in fade-in zoom-in duration-300 z-30"
                                     style={{ borderBottomColor: style.color }}
                                 />
                             )}
@@ -3102,7 +3118,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                         `}
                         style={{ 
                             borderColor: getTrendStyle(activeItem.score).color,
-                            // O balão também ganha um glow suave da cor do tema
                             boxShadow: `0 10px 40px -10px ${getTrendStyle(activeItem.score).color}20`
                         }}
                     >
@@ -3124,7 +3139,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                             </div>
                         </div>
                         
-                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                        <p className={`text-sm  leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>
                             {activeItem.summary}
                         </p>
                     </div>
@@ -3135,7 +3150,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
     </div>
   );
 };
-
 
 
 
@@ -5302,104 +5316,130 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// ARTICLE PANEL COMPLETO (V-FINAL: TODAS AS FUNÇÕES + PROTEÇÃO ANTI-CRASH)
+// COMPONENTE ARTICLE PANEL - OTIMIZADO PARA NAVEGAÇÃO RÁPIDA (FEED NAVIGATOR)
 // ==============================================================================
+
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
-  // --- ESTADOS ---
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
   const [readerContent, setReaderContent] = useState(null); 
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // Estado de Proteção do iPad (Trava renderização pesada durante animação)
-  const [isAnimating, setIsAnimating] = useState(false);
+  // Estado da Animação de Entrada do Painel
+  const [isAnimationDone, setIsAnimationDone] = useState(false);
 
-  // --- LÓGICA DE TRADUÇÃO (RESTAURADA) ---
+  const scrollContainerRef = useRef(null); 
+
+  // --- LÓGICA DE TRADUÇÃO ---
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedData, setTranslatedData] = useState(null);
 
-  // --- 1. GERENCIAMENTO DE MEMÓRIA E ANIMAÇÃO ---
+  const videoId = useMemo(() => {
+      if (!article) return null;
+      return article.videoId || getVideoId(article.link);
+  }, [article]);
+
+  // 1. EFEITO DE ABERTURA DO PAINEL (Só roda quando isOpen muda)
   useEffect(() => {
+      let timer;
       if (isOpen) {
-          setIsAnimating(true);
-          // Espera a animação de slide (500ms) terminar antes de liberar o processamento pesado
-          const timer = setTimeout(() => setIsAnimating(false), 500);
-          return () => clearTimeout(timer);
+          // Inicia a animação de entrada
+          timer = setTimeout(() => setIsAnimationDone(true), 450);
       } else {
-          // Limpeza imediata ao fechar para liberar RAM
-          if (iframeUrl) URL.revokeObjectURL(iframeUrl);
+          // Se fechar, reseta tudo
+          setIsAnimationDone(false);
           setIframeUrl(null);
           setReaderContent(null);
-          setViewMode('web');
-          setTranslatedData(null);
-          setIsTranslated(false);
-          setIsLoading(false);
       }
-  }, [isOpen]);
+      return () => clearTimeout(timer);
+  }, [isOpen]); // ATENÇÃO: removi article.id daqui para não re-animar na troca
 
-  // --- 2. CARREGAMENTO DE CONTEÚDO (PROTEGIDO) ---
+  // 2. EFEITO DE CARREGAMENTO DO CONTEÚDO (Roda quando article.id muda)
   useEffect(() => {
-    // Só carrega se estiver aberto E se a animação já tiver terminado
-    if (!isOpen || !article?.link || isAnimating) return;
+    if (!isOpen || !article?.link || videoId) return;
+    
+    // --- O SEGREDO DA FLUIDEZ NO NAVIGATOR ---
+    // 1. Reseta o scroll para o topo imediatamente
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+    
+    // 2. Limpa o conteúdo anterior para mostrar que está carregando o novo
+    setReaderContent(null);
+    setIframeUrl(null);
+    setTranslatedData(null);
+    setIsTranslated(false);
+    setIsLoading(true);
 
-    // Se já tiver URL carregada para este artigo, não recarrega
-    if (iframeUrl) return; 
-
-    const loadData = async () => {
-        setIsLoading(true);
+    const fetchContent = async () => {
         try {
             const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-            
-            if (!isOpen) return; 
-
             if (error || !data) throw new Error();
             
-            // Sanitização básica
-            let cleanHtml = data.html || "";
-            cleanHtml = cleanHtml.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
-            
-            const blob = new Blob([cleanHtml], { type: 'text/html' });
-            const objUrl = URL.createObjectURL(blob);
-            setIframeUrl(objUrl);
+            // Verifica se o artigo ainda é o mesmo (caso o usuário clique muito rápido em outro)
+            setIframeUrl((current) => {
+                 // Lógica simples de blob
+                 const cleanHtml = sanitizeHtml(data.html);
+                 const blob = new Blob([cleanHtml], { type: 'text/html' });
+                 return URL.createObjectURL(blob);
+            });
             setReaderContent(data.reader);
         } catch (err) {
-            setViewMode('magic'); // Fallback automático
+            console.warn("Falha no Web View, indo para Magic:", err);
+            setViewMode('magic');
         } finally {
-            if (isOpen) setIsLoading(false);
+            setIsLoading(false);
         }
     };
+    
+    // Pequeno delay se a animação do painel ainda estiver rolando (primeira abertura)
+    if (!isAnimationDone) {
+        setTimeout(fetchContent, 500);
+    } else {
+        fetchContent(); // Troca instantânea se já estiver aberto (Navigator)
+    }
 
-    loadData();
+  }, [article?.id, isOpen, videoId]); // Depende do ID do artigo
 
-  }, [article?.link, isOpen, isAnimating]); // Depende da animação terminar
+  // ... (Mantenha sanitizeHtml, handleClosePanel, handleOpenInBrowser, handleToggleTranslation inalterados) ...
+  const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
+  const isProblematicSite = useMemo(() => {
+      if (!article?.link) return false;
+      return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
+  }, [article?.link]);
 
-  // --- 3. FUNÇÕES AUXILIARES (RESTAURADAS) ---
+  const sanitizeHtml = (html) => {
+      if (!html) return "";
+      let clean = html;
+      const headInjection = `<base href="${article.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
+      if (isProblematicSite) {
+          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "").replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "").replace(/data-src=/gi, 'src=').replace(/data-srcset=/gi, 'srcset=').replace(/loading="lazy"/gi, ''); 
+      }
+      if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
+      return `${headInjection}${clean}`;
+  };
+
+  const handleClosePanel = useCallback(() => {
+      onClose(); 
+  }, [onClose]);
+
   const handleOpenInBrowser = useCallback(() => {
     if (article?.link) window.open(article.link, '_blank');
   }, [article]);
 
   const handleToggleTranslation = async () => {
       if (translatedData) { setIsTranslated(!isTranslated); return; }
-      
       const contentToTranslate = readerContent || article;
       if (!contentToTranslate) return;
-      
       setIsTranslating(true);
       try {
-          // Tradução do Título
           const newTitle = await translateText(contentToTranslate.title);
-          
-          // Tradução do Conteúdo (Parse HTML)
           const parser = new DOMParser();
           const doc = parser.parseFromString(contentToTranslate.content || article.summary || '', 'text/html');
           const textNodes = [];
           const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
           let node;
           while (node = walker.nextNode()) { if (node.nodeValue.trim().length > 0) textNodes.push(node); }
-          
-          // Tradução em Lotes (Batch)
           const BATCH_SIZE = 5; 
           for (let i = 0; i < textNodes.length; i += BATCH_SIZE) {
               const batch = textNodes.slice(i, i + BATCH_SIZE);
@@ -5407,141 +5447,94 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                   try { const translated = await translateText(textNode.nodeValue); textNode.nodeValue = translated; } catch(e){}
               }));
           }
-          
           setTranslatedData({ title: newTitle, content: doc.body.innerHTML });
           setIsTranslated(true);
-          
-          // Força modo Magic se estiver em Web (Web não traduz via injeção fácil)
           if (viewMode === 'web') setViewMode('magic');
-          
       } catch (err) { console.error(err); } finally { setIsTranslating(false); }
   };
 
-  // Prepara dados para renderização
   const activeContent = (isTranslated && translatedData) ? translatedData : (readerContent || article);
   const safeContent = activeContent || {}; 
   const safeArticle = article || {};
   const activeArticleData = { ...safeArticle, ...safeContent };
   const activeReaderData = { content: safeContent.content, title: safeContent.title };
 
-  if (!isOpen) return null;
+  // Define classes baseadas no estado da animação para performance
+  const containerClasses = isAnimationDone && isOpen
+      ? `fixed inset-0 z-[5000] flex flex-col ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')}`
+      : `fixed inset-0 z-[5000] flex flex-col transition-transform duration-300 ease-out will-change-transform ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`;
 
   return (
-    <div 
-        className={`
-            fixed inset-0 z-[5000] flex flex-col 
-            transition-transform duration-300 ease-out will-change-transform 
-            ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} 
-            ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-        `}
-        style={{ contentVisibility: 'auto', contain: 'strict' }}
-    >
-        {/* HEADER COMPLETO (RESTAURADO) - SEM BLUR PARA PERFORMANCE */}
-        <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b z-50 ${isDarkMode ? 'bg-zinc-950 border-white/10 text-zinc-300' : 'bg-white border-zinc-200 text-zinc-900'}`}>
-            <button onClick={onClose} className="flex items-center gap-1 py-2 pr-3 text-sm font-black active:opacity-50 transition-opacity">
-                <ChevronLeft size={24} /> <span className="hidden md:inline">VOLTAR</span>
-            </button>
+    <div className={containerClasses}>
+        <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
-            <div className={`flex p-1 rounded-xl relative border shadow-sm ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}>
-                {/* Botão Web */}
-                <button onClick={() => setViewMode('web')} className={`relative px-3 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'web' && viewMode !== 'magic' && viewMode !== 'reader' && viewMode !== 'ai' ? (isDarkMode ? 'bg-zinc-700 text-white' : 'bg-white shadow text-black') : 'opacity-50'} rounded-lg`}>WEB</button>
+            {/* TOP BAR */}
+            <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b z-50 ${videoId ? 'bg-black/90 border-white/10 text-white' : (isDarkMode ? 'bg-zinc-950 border-white/10 text-zinc-300' : 'bg-white border-zinc-200 text-zinc-900')}`}>
+                <button onClick={handleClosePanel} className={`flex items-center gap-1 py-2 pr-3 text-sm font-black transition active:scale-95 ${videoId ? 'text-zinc-300 hover:text-white' : (isDarkMode ? 'text-zinc-300 hover:text-white' : 'text-zinc-600 hover:text-black')}`}><ChevronLeft size={24} /> <span className="hidden md:inline">VOLTAR</span></button>
                 
-                {/* Botão AI */}
-                <button onClick={() => setViewMode('ai')} className={`relative px-3 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'ai' ? (isDarkMode ? 'bg-zinc-700 text-purple-400' : 'bg-white shadow text-purple-600') : 'opacity-50'} rounded-lg`}>
-                    <Sparkles size={10} /> <span className="hidden md:inline">AI ANALYSIS</span>
-                </button>
+                {!videoId && (
+                    <>
+                        <div className={`flex p-1 rounded-xl relative border shadow-sm ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}>
+                            <div className={`absolute top-1 bottom-1 w-[48%] rounded-lg shadow-sm transition-all duration-300 ease-out ${viewMode === 'ai' ? 'left-[50%]' : 'left-1'} ${isDarkMode ? 'bg-zinc-800' : 'bg-white'} ${viewMode === 'magic' || viewMode === 'reader' ? 'opacity-0' : 'opacity-100'}`} />
+                            <button onClick={() => setViewMode('web')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'web' && viewMode !== 'magic' && viewMode !== 'reader' ? (isDarkMode ? 'text-white' : 'text-black') : 'text-zinc-500'}`}>WEB</button>
+                            <button onClick={() => setViewMode('ai')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'ai' ? 'text-purple-500' : 'text-zinc-500'}`}><Sparkles size={10} /> AI</button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <button onClick={() => setViewMode(viewMode === 'magic' ? 'web' : 'magic')} className={`p-2.5 rounded-xl border ${viewMode === 'magic' ? 'bg-purple-600 text-white border-purple-500' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><Wand2 size={20} /></button>
+                             <button onClick={handleToggleTranslation} className={`p-2.5 rounded-xl border ${isTranslated ? 'bg-blue-600 text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}>{isTranslating ? <Loader2 size={20} className="animate-spin" /> : <Languages size={20} />}</button>
+                             <button onClick={() => setViewMode(viewMode === 'reader' ? 'web' : 'reader')} className={`p-2.5 rounded-xl border ${viewMode === 'reader' ? 'bg-black text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><ALargeSmall size={20} /></button>
+                             <button onClick={handleOpenInBrowser} className={`p-2.5 rounded-xl border ${isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200'}`}><Globe size={20} /></button>
+                             <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                        </div>
+                    </>
+                )}
+                 {/* Barra de progresso */}
+                 <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading && isAnimationDone ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
             </div>
 
-            <div className="flex items-center gap-2">
-                {/* Botão Magic */}
-                <button onClick={() => setViewMode(viewMode === 'magic' ? 'web' : 'magic')} title="Modo Revista" className={`p-2 rounded-xl transition-all border active:scale-90 ${viewMode === 'magic' ? 'bg-purple-600 text-white border-purple-500' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><Wand2 size={20} /></button>
+            {/* ÁREA DE CONTEÚDO */}
+            <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
                 
-                {/* Botão Tradução */}
-                <button onClick={handleToggleTranslation} disabled={isTranslating} className={`p-2 rounded-xl transition-all border active:scale-90 ${isTranslated ? 'bg-blue-600 text-white border-blue-500' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}>
-                    {isTranslating ? <Loader2 size={20} className="animate-spin" /> : <Languages size={20} />}
-                </button>
-                
-                {/* Botão Reader */}
-                <button onClick={() => setViewMode(viewMode === 'reader' ? 'web' : 'reader')} title="Leitor" className={`p-2 rounded-xl transition border active:scale-90 ${viewMode === 'reader' ? 'bg-black text-white dark:bg-white dark:text-black' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><ALargeSmall size={20} /></button>
-                
-                {/* Botão Browser */}
-                <button onClick={handleOpenInBrowser} title="Navegador" className={`p-2 rounded-xl transition border active:scale-90 ${isDarkMode ? 'text-zinc-400 border-white/10 hover:text-white' : 'text-zinc-500 border-zinc-200 hover:text-blue-600'}`}><Globe size={20} /></button>
-                
-                {/* Botão Salvar */}
-                <button onClick={() => onToggleSave(article)} title="Salvar" className={`p-2 rounded-xl transition active:scale-75 ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                {/* Só mostra loading se estiver sem conteúdo ou carregando */}
+                {(!isAnimationDone || (isLoading && !readerContent && !iframeUrl)) ? (
+                    <div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50">
+                        <Loader2 size={32} className="animate-spin text-zinc-500" />
+                    </div>
+                ) : (
+                    <>
+                        {/* Conteúdo Web */}
+                        {viewMode === 'web' && (
+                            <div className="w-full h-full">
+                                {iframeUrl ? (
+                                    <iframe src={iframeUrl} className="w-full h-full border-none" sandbox={isProblematicSite ? "allow-same-origin allow-popups" : "allow-same-origin allow-scripts allow-popups allow-forms"} title="Web" loading="lazy" />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-full p-12 text-center text-zinc-500"><div className="p-6 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-6"><Globe size={40} className="opacity-40" /></div><h3 className="font-black text-xl mb-2">Web Indisponível</h3><p className="max-w-xs text-sm opacity-60 mb-6">Conteúdo bloqueado.</p></div>
+                                )}
+                            </div>
+                        )}
+                        {viewMode === 'ai' && <AIAnalysisView article={activeArticleData} isDarkMode={isDarkMode} />}
+                        {viewMode === 'magic' && <MagicPremiumView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
+                        {viewMode === 'reader' && <AppleReaderView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
+                    </>
+                )}
             </div>
-        </div>
 
-        {/* ÁREA DE CONTEÚDO */}
-        <div className="flex-1 relative w-full h-full overflow-y-auto overscroll-contain">
-            
-            {/* LOADING STATE (Enquanto Anima ou Carrega) */}
-            {(isAnimating || isLoading) && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-inherit">
-                    {isAnimating ? null : <Loader2 size={32} className="animate-spin text-purple-600 mb-2" />}
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 animate-pulse">
-                        {isAnimating ? "ABRINDO..." : "PROCESSANDO..."}
-                    </span>
+            {isAnimationDone && !videoId && (viewMode === 'magic' || viewMode === 'reader') && (
+                <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 rounded-2xl backdrop-blur-xl border shadow-2xl animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-black/80 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
+                    <button onClick={() => setFontSize(s => Math.max(14, s - 2))} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition active:scale-90 bg-zinc-100 dark:bg-white/5"><Minus size={16}/></button>
+                    <span className="text-xs font-black w-8 text-center">{fontSize}px</span>
+                    <button onClick={() => setFontSize(s => Math.min(32, s + 2))} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition active:scale-90 bg-zinc-100 dark:bg-white/5"><Plus size={16}/></button>
                 </div>
             )}
-
-            {/* CONTEÚDO REAL (Só renderiza se a animação acabou) */}
-            {!isAnimating && (
-                <>
-                    {viewMode === 'web' && iframeUrl && (
-                        <iframe 
-                            src={iframeUrl} 
-                            className="w-full h-full border-none bg-white" 
-                            sandbox="allow-same-origin allow-scripts allow-forms"
-                            title="Web View" 
-                            loading="lazy"
-                        />
-                    )}
-                    
-                    {viewMode === 'web' && !iframeUrl && !isLoading && (
-                        <div className="flex flex-col items-center justify-center h-full p-12 text-center opacity-50">
-                            <Globe size={48} className="mb-4" />
-                            <p>Modo Web indisponível. Tente o modo Mágico.</p>
-                        </div>
-                    )}
-
-                    {viewMode === 'ai' && <AIAnalysisView article={activeArticleData} isDarkMode={isDarkMode} />}
-                    
-                    {viewMode === 'magic' && <MagicPremiumView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
-                    
-                    {viewMode === 'reader' && <AppleReaderView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
-                </>
+            
+            {/* Feed Navigator */}
+            {isOpen && isAnimationDone && article && feedItems && (
+                <FeedNavigator article={article} feedItems={feedItems} onArticleChange={onArticleChange} isDarkMode={isDarkMode} />
             )}
         </div>
-
-        {/* CONTROLES DE FONTE FLUTUANTES (RESTAURADOS) */}
-        {!isAnimating && (viewMode === 'magic' || viewMode === 'reader') && (
-            <div className={`absolute bottom-20 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 rounded-2xl border shadow-2xl animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-black/90 border-white/10' : 'bg-white/95 border-zinc-200'}`}>
-                <button onClick={() => setFontSize(s => Math.max(14, s - 2))} className="p-2 hover:bg-white/10 rounded-lg"><Minus size={16}/></button>
-                <span className="text-xs font-black w-8 text-center">{fontSize}px</span>
-                <button onClick={() => setFontSize(s => Math.min(32, s + 2))} className="p-2 hover:bg-white/10 rounded-lg"><Plus size={16}/></button>
-            </div>
-        )}
-
-        {/* NAVEGAÇÃO ENTRE ARTIGOS (RESTAURADA) */}
-        {!isAnimating && isOpen && article && feedItems && (
-            <FeedNavigator 
-                article={article} 
-                feedItems={feedItems} 
-                onArticleChange={onArticleChange} 
-                isDarkMode={isDarkMode} 
-            />
-        )}
+        <style jsx="true">{`@keyframes progress-aura { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } } .animate-progress-aura { animation: progress-aura 1.5s infinite linear; }`}</style>
     </div>
   );
-}, (prev, next) => {
-    // FUNÇÃO DE COMPARAÇÃO MEMO (CRUCIAL PARA PERFORMANCE)
-    return (
-        prev.isOpen === next.isOpen &&
-        prev.article?.id === next.article?.id &&
-        prev.isSaved === next.isSaved &&
-        prev.isDarkMode === next.isDarkMode
-    );
 });
 
 function PodNewsModal({ onClose, isDarkMode }) {
