@@ -1783,46 +1783,39 @@ const generateBriefingFallback = async (news, apiKey) => {
     }
 };
 
-// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (CORRIGIDA) ---
+// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V4 - PREENCHIMENTO OBRIGATÓRIO) ---
 const generateSmartClustering = async (news, apiKey) => {
+  // Verificação básica
   if (!news || news.length < 10 || !apiKey) return null;
 
-  // --- CORREÇÃO AQUI: Adicionei o campo IMG para a IA conseguir ler a url ---
-  const context = news.slice(0, 150).map(n => 
+  // Contexto expandido para 300 itens para garantir variedade
+  const context = news.slice(0, 300).map(n => 
     `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img || ''}`
   ).join('\n');
 
   const prompt = `
-  Você é um Editor-Chefe de Inteligência Global.
+  Você é o Editor-Chefe de um App de Notícias Premium no Brasil.
   
-  OBJETIVO:
-  Identifique os 3 (TRÊS) maiores eventos globais noticiados massivamente agora.
+  SUA MISSÃO CRÍTICA:
+  Gerar EXATAMENTE 3 (TRÊS) cards para o carrossel "Contexto Global".
   
-  REGRA RÍGIDA:
-  Um evento SÓ é válido se tiver NO MÍNIMO 4 (QUATRO) FONTES DIFERENTES.
-  IGNORE eventos com menos fontes.
+  HIERARQUIA DE SELEÇÃO (Siga esta ordem para preencher os 3 espaços):
+  1. PRIORIDADE MÁXIMA: Eventos com 4 ou mais fontes diferentes falando sobre o mesmo assunto.
+  2. PRIORIDADE MÉDIA: Se não houver eventos suficientes com 4 fontes, use eventos com 3 fontes.
+  3. ÚLTIMO RECURSO: Se ainda faltar para completar 3 cards, use os eventos mais importantes com 2 fontes.
+  
+  REGRA DE OURO:
+  Você NUNCA deve retornar menos de 3 cards. Cave nos dados até encontrar 3 tópicos distintos.
 
-  PARA CADA EVENTO:
-  1. Título: Jornalístico, curto, impactante (máx 12 palavras). Sem citar fontes.
-  2. Imagem: OBRIGATÓRIO pegar a URL do campo 'IMG' de uma das notícias. Não invente URLs.
-  3. Fontes: Analise o viés de cada uma ('positive', 'negative', 'neutral').
+  ESTRUTURA DO JSON (Para cada um dos 3 cards):
+  - ai_title: Título em Português do Brasil. Curto, direto e impactante (Máx 10 palavras).
+  - representative_image: Copie a URL do campo 'IMG' de uma das notícias. Se todas forem vazias, deixe null.
+  - related_articles: Liste os IDs das notícias que formam esse cluster. Analise o sentimento ('positive', 'negative', 'neutral').
 
-  DADOS:
+  DADOS BRUTOS:
   ${context}
 
-  RETORNE APENAS JSON:
-  [
-    {
-      "ai_title": "Título aqui",
-      "representative_image": "url_da_imagem_aqui",
-      "related_articles": [
-        { "id": "id_1", "sentiment": "neutral" },
-        { "id": "id_2", "sentiment": "negative" },
-        { "id": "id_3", "sentiment": "positive" },
-        { "id": "id_4", "sentiment": "neutral" }
-      ]
-    }
-  ]
+  RETORNE APENAS O ARRAY JSON COM OS 3 OBJETOS.
   `;
 
   try {
@@ -1837,13 +1830,17 @@ const generateSmartClustering = async (news, apiKey) => {
 
     const data = await response.json();
     
-    if (!response.ok || data.error) return null;
+    if (!response.ok || data.error) {
+        console.error("Erro API IA:", data.error?.message);
+        return null;
+    }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
+    // --- HIDRATAÇÃO ---
     const hydratedJson = json.map(cluster => {
         const hydratedArticles = cluster.related_articles
             .map(ref => {
@@ -1851,19 +1848,31 @@ const generateSmartClustering = async (news, apiKey) => {
                 if (!originalArticle) return null;
                 return { ...originalArticle, ai_sentiment: ref.sentiment }; 
             })
-            .filter(Boolean);
+            .filter(Boolean); // Remove nulos se a IA alucinar ID
 
-        return { ...cluster, related_articles: hydratedArticles };
-    }).filter(c => c.related_articles.length >= 3); 
+        // Deduplicação visual (evita dois logos iguais)
+        const uniqueArticles = [];
+        const seenSources = new Set();
+        hydratedArticles.forEach(art => {
+            if (!seenSources.has(art.source)) {
+                seenSources.add(art.source);
+                uniqueArticles.push(art);
+            }
+        });
+
+        return { ...cluster, related_articles: uniqueArticles };
+    })
+    // REMOVIDO O FILTRO QUE MATAVA CARDS COM MENOS DE 3 FONTES
+    // Agora aceitamos qualquer cluster que a IA julgar importante, desde que tenha pelo menos 1 fonte real.
+    .filter(c => c.related_articles.length > 0); 
 
     return Array.isArray(hydratedJson) ? hydratedJson : null;
 
   } catch (error) {
-    console.error("Erro Smart Clustering:", error);
+    console.error("Erro Smart Clustering V4:", error);
     return null;
   }
 };
-
 
 // --- FUNÇÃO DE IA: SMART DIGEST (COM RASTREABILIDADE) ---
 const generateBriefing = async (news, apiKey) => {
@@ -2419,40 +2428,61 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 
 
 
-// --- WIDGET: CONTEXTO GLOBAL (MANUAL, PERSISTENTE E FUTURISTA) ---
+// --- WIDGET: CONTEXTO GLOBAL (ECONOMIA DE IA + CONTROLE MANUAL + VISUAL FUTURISTA) ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters }) => {
-  // Removemos o estado local 'clusters' pois agora vem via props
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
+  
+  // Trava para garantir que o Auto-Start só aconteça uma vez por sessão do App
+  const hasAutoRunRef = useRef(false);
 
-  // A função que chama a IA
+  // A função que chama a IA (Agora isolada para uso manual ou automático)
   const runAI = async () => {
       if (!apiKey) {
           alert("Configure sua API Key nas configurações primeiro.");
           return;
       }
-      if (!news || news.length < 5) {
+      if (!news || news.length < 10) {
           alert("Aguarde o carregamento das notícias...");
           return;
       }
 
       setLoading(true);
-      // Limpa clusters antigos se for um refresh forçado
+      
+      // Limpa os clusters antigos visualmente para indicar que está "pensando"
       setClusters(null); 
       
-      // Pequeno delay para UX
+      // Pequeno delay para a animação de saída/entrada ficar suave
       await new Promise(r => setTimeout(r, 800));
       
+      // Chama a função de geração (certifique-se que generateSmartClustering está definida no seu arquivo)
       const result = await generateSmartClustering(news, apiKey);
       
-      if (result) {
+      if (result && result.length > 0) {
           setClusters(result);
       } else {
-          alert("A IA não encontrou correlações suficientes no momento.");
+          // Se der erro ou não encontrar nada, apenas avisa e para o loading
+          alert("A IA não encontrou correlações suficientes no momento ou houve um erro.");
       }
       setLoading(false);
   };
+
+  // --- EFEITO: AUTO-START ÚNICO ---
+  useEffect(() => {
+      // Regra Estrita de Economia de Tokens:
+      // 1. Temos notícias carregadas na memória.
+      // 2. Ainda NÃO temos clusters gerados (está vazio).
+      // 3. Nunca rodamos automaticamente antes nesta sessão (hasAutoRunRef).
+      
+      const shouldRun = news && news.length > 10 && (!clusters || clusters.length === 0) && !hasAutoRunRef.current;
+
+      if (shouldRun) {
+          hasAutoRunRef.current = true; // Marca imediatamente que já rodou para não duplicar
+          runAI();
+      }
+      // Dependências: Só roda se mudar notícias, apiKey ou se clusters for limpo externamente
+  }, [news, apiKey, clusters]); 
 
   const handleScroll = () => {
     if (scrollRef.current) {
@@ -2463,86 +2493,52 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     }
   };
 
+  // Função auxiliar para o brilho Neon baseado no sentimento
   const getSentimentGlow = (sentiment) => {
-      if (sentiment === 'positive') return 'border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]';
-      if (sentiment === 'negative') return 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]';
-      return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]';
+      if (sentiment === 'positive') return 'border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]'; 
+      if (sentiment === 'negative') return 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]';    
+      return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]'; 
   };
   
-  // --- RENDERIZAÇÃO: ESTADO DE LOADING ---
-  if (loading) {
+  // --- RENDERIZAÇÃO: LOADING (SKELETON ANIMADO) ---
+  // Mostra isso enquanto a IA pensa ou no primeiro carregamento automático
+  if (loading || (!clusters && news && news.length > 0 && !hasAutoRunRef.current)) {
       return (
-        <div className="relative w-full px-2">
-            <div className="relative z-10 flex items-center gap-3 mb-5 px-4">
-                <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white' : 'bg-white text-indigo-600'}`}><Layers size={18} /></div>
-                <h3 className="text-lg font-black tracking-tight opacity-50">Gerando Contexto...</h3>
-            </div>
-            <div className={`h-[480px] rounded-[2.5rem] w-full flex flex-col items-center justify-center relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-zinc-100 border-zinc-200'}`}>
-                {/* Efeito de Scanline */}
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-500/10 to-transparent h-full w-full animate-[shimmer_2s_infinite] translate-y-[-100%]" />
-                <div className="flex flex-col items-center gap-4 z-10">
-                    <Loader2 size={48} className="animate-spin text-purple-500" />
-                    <span className="text-xs font-bold uppercase tracking-[0.2em] animate-pulse opacity-60">Analisando 300 Fontes</span>
-                </div>
-            </div>
-        </div>
-      );
-  }
-
-  // --- RENDERIZAÇÃO: ESTADO VAZIO (BOTÃO SMARTNEWS) ---
-  if (!clusters || clusters.length === 0) {
-      return (
-        <div className="relative w-full px-2">
-            {/* Header Estático */}
-            <div className="relative z-10 flex items-center gap-3 mb-5 px-4">
-                <div className={`p-2 rounded-xl shadow-lg transition-all ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                    <Layers size={18} />
-                </div>
-                <div>
-                    <h3 className="text-lg font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-zinc-400 to-zinc-600">
-                        Contexto Global
-                    </h3>
-                </div>
+        <div className="relative w-full px-2 animate-in fade-in duration-500">
+            {/* Header Fake (Skeleton) */}
+            <div className="relative z-10 flex items-center gap-3 mb-5 px-4 opacity-50">
+                <div className={`p-2 rounded-xl bg-zinc-200 dark:bg-white/5`}><Layers size={18} /></div>
+                <div className="h-4 w-32 bg-zinc-200 dark:bg-white/5 rounded-full" />
             </div>
 
-            {/* O QUADRADO CINZA COM O BOTÃO MÁGICO */}
-            <div className={`h-[480px] rounded-[2.5rem] w-full flex flex-col items-center justify-center relative overflow-hidden transition-all ${isDarkMode ? 'bg-zinc-900/50 border border-white/5' : 'bg-zinc-100 border border-zinc-200'}`}>
+            {/* Card Skeleton Principal */}
+            <div className={`h-[480px] rounded-[2.5rem] w-full relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-zinc-200 border border-zinc-300'}`}>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 w-full animate-[shimmer_1.5s_infinite]" />
                 
-                {/* Decoração de Fundo */}
-                <div className="absolute inset-0 opacity-30 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] mix-blend-overlay"></div>
-                <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/20 rounded-full blur-[100px] animate-pulse`} />
-
-                {/* O BOTÃO SMARTNEWS */}
-                <button 
-                    onClick={runAI}
-                    className="group relative px-8 py-4 rounded-full transition-all duration-300 hover:scale-105 active:scale-95 shadow-[0_0_40px_rgba(168,85,247,0.3)] hover:shadow-[0_0_60px_rgba(168,85,247,0.6)]"
-                >
-                    {/* Borda Gradiente Animada */}
-                    <div className="absolute -inset-[2px] rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 animate-spin-slow opacity-70 blur-sm group-hover:opacity-100 transition-opacity"></div>
-                    
-                    {/* Miolo do Botão */}
-                    <div className={`relative px-8 py-4 rounded-full flex items-center gap-3 ${isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900'}`}>
-                        <Sparkles size={20} className="text-purple-500 animate-pulse" />
-                        <span className="text-sm font-black uppercase tracking-[0.15em]">
-                            Ativar SmartNews
-                        </span>
+                {/* Elementos Falsos dentro do card */}
+                <div className="absolute bottom-8 left-8 right-8">
+                    <div className="h-8 w-3/4 bg-white/10 rounded-lg mb-4" />
+                    <div className="h-8 w-1/2 bg-white/10 rounded-lg mb-6" />
+                    <div className="flex gap-4">
+                        <div className="w-12 h-12 rounded-full bg-white/10" />
+                        <div className="w-12 h-12 rounded-full bg-white/10" />
+                        <div className="w-12 h-12 rounded-full bg-white/10" />
                     </div>
-                </button>
-                
-                <p className="mt-6 text-[10px] font-medium uppercase tracking-widest opacity-40 max-w-[200px] text-center">
-                    IA analisará os fatos mais relevantes do momento
-                </p>
+                </div>
             </div>
         </div>
       );
   }
 
-  // --- RENDERIZAÇÃO: ESTADO CARREGADO (CARROSSEL) ---
+  // Se não tem dados e já tentou rodar (ou falhou), não mostra nada para não poluir a tela
+  if (!clusters || clusters.length === 0) return null;
+
+  // --- RENDERIZAÇÃO: CONTEÚDO FINAL (CARROSSEL) ---
   return (
     <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000">
         <div className="relative w-full">
             
-            {/* Header da Seção COM BOTÃO DE REFRESH DISCRETO */}
+            {/* Header com Botão Manual de Atualização */}
             <div className="relative z-10 flex items-center justify-between mb-5 px-6">
                 <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
@@ -2550,22 +2546,27 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                     </div>
                     <div>
                         <h3 className="text-lg font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-                            Contexto Global
+                            SmartNews
                         </h3>
                     </div>
                 </div>
 
-                {/* BOTÃO ATUALIZAR (Discreto e Moderno) */}
+                {/* BOTÃO DE ATUALIZAÇÃO MANUAL (Para economizar IA, o user clica se quiser renovar) */}
                 <button 
                     onClick={runAI}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 border ${isDarkMode ? 'border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10' : 'border-black/5 bg-black/5 text-zinc-600 hover:text-black hover:bg-black/10'}`}
+                    className={`
+                        flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 border backdrop-blur-md
+                        ${isDarkMode 
+                            ? 'border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10' 
+                            : 'border-black/5 bg-black/5 text-zinc-600 hover:text-black hover:bg-black/10'}
+                    `}
                 >
                     <RefreshCw size={12} />
-                    <span>Atualizar</span>
+                    <span>Atualizar IA</span>
                 </button>
             </div>
 
-            {/* Scroll Horizontal */}
+            {/* Scroll Horizontal dos Cards */}
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
@@ -2578,9 +2579,20 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                             transition-all duration-500 hover:scale-[1.01]
                             shadow-2xl shadow-black/40 border border-white/10
                         `}>
-                            <img src={cluster.representative_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" alt="" />
+                            {/* Imagem de Fundo com Fallback */}
+                            <img 
+                                src={cluster.representative_image} 
+                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" 
+                                alt="" 
+                                onError={(e) => { e.target.style.display = 'none'; }} 
+                            />
+                            {/* Fallback visual (gradiente) se a imagem falhar */}
+                            <div className={`absolute inset-0 -z-10 bg-gradient-to-br from-indigo-900 to-purple-900`} /> 
+
+                            {/* Gradiente Preto para legibilidade */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
 
+                            {/* Tag de Quantidade de Fontes (Topo Esquerda) */}
                             <div className="absolute top-6 left-6">
                                 <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg">
                                    <Globe size={14} className="text-blue-400" />
@@ -2590,11 +2602,13 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                                 </div>
                             </div>
 
+                            {/* Conteúdo Inferior */}
                             <div className="absolute bottom-0 left-0 w-full p-8 flex flex-col justify-end">
                                 <h2 className="text-3xl md:text-4xl font-black text-white leading-[1.1] mb-6 drop-shadow-2xl tracking-tight">
                                    {cluster.ai_title}
                                 </h2>
                                 
+                                {/* Lista de Fontes com Brilho Neon (Indicador de Sentimento) */}
                                 <div className="flex flex-wrap items-center gap-4">
                                    {cluster.related_articles.map(article => (
                                        <button
@@ -2607,7 +2621,11 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                                            `}
                                            title={`${article.source}: ${article.title}`}
                                        >
-                                           <img src={article.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.style.display='none'} />
+                                           <img 
+                                                src={article.logo} 
+                                                className="w-full h-full object-cover rounded-full" 
+                                                onError={(e) => e.target.style.display='none'} 
+                                           />
                                        </button>
                                    ))}
                                 </div>
@@ -2624,7 +2642,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                 ))}
             </div>
             
-            {/* Indicador de Paginação */}
+            {/* Paginação (Bolinhas) */}
             {clusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-2">
                   {clusters.map((_, idx) => (
