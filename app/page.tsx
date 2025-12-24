@@ -56,63 +56,7 @@ const STORIES = [
   { id: 3, name: 'CNN', avatar: 'https://ui-avatars.com/api/?name=CN&background=e74c3c&color=fff', items: [{ id: 301, type: 'image', img: 'https://images.unsplash.com/photo-1526304640152-d4619684e484?w=600&q=80', title: 'Bolsas asiáticas', time: '3h' }] },
 ];
 
-const FEED_NEWS = [
-  { 
-    id: 1, 
-    source: 'The Verge', 
-    logo: 'https://ui-avatars.com/api/?name=TV&background=000&color=fff&rounded=false&font-size=0.5', 
-    time: '2h', 
-    title: 'Apple Vision Pro ganha versão mais leve e barata', 
-    summary: 'A gigante de Cupertino planeja lançar uma versão "Air" do seu headset espacial focado no consumo de mídia e conforto prolongado.',
-    category: 'Tecnologia', 
-    img: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&q=80',
-    readTime: '4 min'
-  },
-  { 
-    id: 2, 
-    source: 'CNN Market', 
-    logo: 'https://ui-avatars.com/api/?name=CN&background=e74c3c&color=fff&rounded=false&font-size=0.5', 
-    time: '3h', 
-    title: 'Dólar cai abaixo de R$ 4,90 com otimismo fiscal', 
-    summary: 'Investidores estrangeiros voltam a aportar capital no Brasil após a aprovação das novas metas fiscais pelo Senado.',
-    category: 'Economia', 
-    img: 'https://images.unsplash.com/photo-1611974765270-ca12586343bb?w=800&q=80',
-    readTime: '2 min' 
-  },
-  { 
-    id: 3, 
-    source: 'BBC Science', 
-    logo: 'https://ui-avatars.com/api/?name=BB&background=000&color=fff&rounded=false&font-size=0.5', 
-    time: '5h', 
-    title: 'Telescópio Webb descobre vapor d\'água em exoplaneta', 
-    summary: 'A descoberta no planeta K2-18b reacende o debate sobre a possibilidade de vida fora do sistema solar em zonas habitáveis.',
-    category: 'Tecnologia', 
-    img: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80',
-    readTime: '3 min' 
-  },
-  { 
-    id: 4, 
-    source: 'Vogue', 
-    logo: 'https://ui-avatars.com/api/?name=VG&background=000&color=fff&rounded=false&font-size=0.5', 
-    time: '6h', 
-    title: 'As tendências de inverno que dominaram Paris', 
-    summary: 'Casacos oversized e tons terrosos foram os protagonistas da Fashion Week, ditando o que veremos nas vitrines.',
-    category: 'Local', 
-    img: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80', 
-    readTime: '4 min' 
-  },
-  { 
-    id: 5, 
-    source: 'Politico', 
-    logo: 'https://ui-avatars.com/api/?name=PO&background=000&color=fff', 
-    time: '7h', 
-    title: 'Senado aprova nova lei de trânsito para elétricos', 
-    summary: 'Novas regras exigem adaptação de postos de recarga e criam incentivos fiscais para a troca de frota nas capitais.',
-    category: 'Política', 
-    img: 'https://images.unsplash.com/photo-1555848960-8c3fd4479802?w=800&q=80', 
-    readTime: '5 min' 
-  },
-];
+const FEED_NEWS = []; // Limpo para evitar dados fantasmas
 
 const BANCA_ITEMS = [
   { id: 1, name: 'Folha de S.Paulo', category: 'Jornais', color: 'bg-[#004990]', layoutType: 'standard', logo: 'FOLHA', headline: 'Reforma Tributária avança no Senado' },
@@ -3985,10 +3929,7 @@ export default function NewsOS_V12() {
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
   const [apiKey, setApiKey] = useState('');
-  const [userFeeds, setUserFeeds] = useState([
-      { id: 1, name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', category: 'Tech', display: { feed: true } },
-      { id: 2, name: 'G1', url: 'https://g1.globo.com/dynamo/rss2.xml', category: 'Local', display: { feed: true } }
-  ]);
+  const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
   const [readHistory, setReadHistory] = useState([]);
   const [likedItems, setLikedItems] = useState([]); 
