@@ -3805,7 +3805,74 @@ const SplashScreen = ({ onFinish }) => {
 
 
 
+// --- COMPONENTE: PLAYER EXCLUSIVO (SEM INTERFERÊNCIA DO APP) ---
+const SafeVideoPlayer = ({ video, onClose }) => {
+  const videoId = video.videoId || (video.link && video.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]);
 
+  if (!videoId) return null;
+
+  return (
+    <div 
+        style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100dvh', // Use dvh para iOS
+            backgroundColor: '#000000',
+            zIndex: 999999,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+        }}
+    >
+        {/* Header estilo Browser */}
+        <div style={{
+            height: '50px',
+            backgroundColor: '#202020',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 16px',
+            borderBottom: '1px solid #333'
+        }}>
+            <span style={{ color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>youtube.com</span>
+            <button 
+                onClick={onClose}
+                style={{
+                    background: '#333',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                }}
+            >
+                Fechar
+            </button>
+        </div>
+
+        {/* Iframe Puro */}
+        <div style={{ flex: 1, backgroundColor: '#000', position: 'relative' }}>
+             <iframe 
+                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&controls=1&rel=0&modestbranding=1`}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 'none'
+                }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={video.title}
+             />
+        </div>
+    </div>
+  );
+};
 
 
 
@@ -4359,6 +4426,21 @@ const allAvailableStories = useMemo(() => {
   // Ela diz pro layout: "Se tiver qualquer coisa aberta (artigo, banca, story ou VIDEO), encolha o fundo."
   const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory || !!selectedVideo;
 
+
+
+
+
+   // 1. SE TIVER VÍDEO, RENDERIZA SÓ O VÍDEO E MATA O RESTO
+  // Isso garante que o iOS dedique 100% da GPU para o iframe.
+  if (selectedVideo) {
+      return (
+          <SafeVideoPlayer 
+              video={selectedVideo} 
+              onClose={() => setSelectedVideo(null)} 
+          />
+      );
+  }
+
   
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
@@ -4379,17 +4461,15 @@ const allAvailableStories = useMemo(() => {
             {activeTab === 'happening' && (
                 <HappeningTab 
                     openArticle={handleOpenArticle} 
-        openStory={setSelectedStory} 
-        isDarkMode={isDarkMode} 
-        newsData={realNews} // Garanta que esta linha está presente
-        onRefresh={handleHappeningRefresh}
-        
-        onMarkAsSeen={markStoryAsSeen}
-        apiKey={apiKey}
-        storiesToDisplay={storiesForHappeningTab}
-        savedClusters={globalClusters}
+                    openStory={setSelectedStory} 
+                    isDarkMode={isDarkMode} 
+                    newsData={realNews}
+                    onRefresh={handleHappeningRefresh}
+                    onMarkAsSeen={markStoryAsSeen}
+                    apiKey={apiKey}
+                    storiesToDisplay={storiesForHappeningTab}
+                    savedClusters={globalClusters}
                     setSavedClusters={setGlobalClusters}
-                    
                 />
             )}
 
@@ -4427,6 +4507,7 @@ const allAvailableStories = useMemo(() => {
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}
                     onToggleLike={handleToggleLike}
+                    onRefresh={fetchFeeds}
                 />
             )}
             
@@ -4503,9 +4584,6 @@ const allAvailableStories = useMemo(() => {
                     <TabButton icon={<Mail size={24} />} label="News" active={activeTab === 'newsletter'} onClick={() => handleTabClick('newsletter')} isDarkMode={isDarkMode} />
                     <TabButton icon={<Bookmark size={24} />} label="Salvos" active={activeTab === 'saved'} onClick={() => handleTabClick('saved')} isDarkMode={isDarkMode} />
                 </div>
-
-                <div className="absolute top-[-50%] left-[-10%] w-[50%] h-[200%] bg-blue-600/20 blur-[60px] rounded-full pointer-events-none" />
-                <div className="absolute bottom-[-50%] right-[-10%] w-[50%] h-[200%] bg-purple-600/10 blur-[50px] rounded-full pointer-events-none" />
             </nav>
           </div>
         </div>
@@ -4523,25 +4601,25 @@ const allAvailableStories = useMemo(() => {
           />
       )}
       
-
+      {/* 
+         REMOVIDO: YouTubePlayerOverlay 
+         (Agora é tratado no topo do return com renderização condicional exclusiva)
+      */}
       
-      {/* 2. LEITOR DE TEXTO (Só aparece se NÃO tiver vídeo) */}
-      {!selectedVideo && (
-          <ArticlePanel 
-              key={selectedArticle?.id || 'empty-panel'} 
-              article={selectedArticle} 
-              feedItems={allFeedItems}          
-              isOpen={!!selectedArticle} 
-              onClose={closeArticle} 
-              onArticleChange={handleOpenArticle} 
-              onToggleSave={handleToggleSave}
-              isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-              isDarkMode={isDarkMode} 
-              onSaveToArchive={handleSaveToArchive}
-          />
-      )}
+      {/* ArticlePanel (Apenas para texto) */}
+      <ArticlePanel 
+          key={selectedArticle?.id || 'empty-panel'} 
+          article={selectedArticle} 
+          feedItems={allFeedItems}          
+          isOpen={!!selectedArticle} 
+          onClose={closeArticle} 
+          onArticleChange={handleOpenArticle} 
+          onToggleSave={handleToggleSave}
+          isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
+          isDarkMode={isDarkMode} 
+          onSaveToArchive={handleSaveToArchive}
+      />
 
-     
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
       {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen} allStories={allAvailableStories}  onNavigate={handleStoryNavigation}/>}
@@ -4557,7 +4635,6 @@ const allAvailableStories = useMemo(() => {
     </div>
   );
 }
-
 
 
 
