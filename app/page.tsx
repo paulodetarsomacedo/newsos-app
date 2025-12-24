@@ -4450,7 +4450,6 @@ const allAvailableStories = useMemo(() => {
   };
 
   // Função para fechar o vídeo
-  const closeVideo = () => setSelectedVideo(null);
 
   // --- FUNÇÕES DE FECHAMENTO ---
   const closeArticle = () => setSelectedArticle(null);
