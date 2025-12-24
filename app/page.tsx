@@ -2427,61 +2427,73 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 };
 
 
-
-// --- WIDGET: CONTEXTO GLOBAL (ECONOMIA DE IA + CONTROLE MANUAL + VISUAL FUTURISTA) ---
+// --- WIDGET: CONTEXTO GLOBAL (COM AUTO-START SILENCIOSO E INTELIGENTE) ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
   
-  // Trava para garantir que o Auto-Start só aconteça uma vez por sessão do App
+  // Trava para garantir que o Auto-Start só aconteça uma vez com sucesso
   const hasAutoRunRef = useRef(false);
 
-  // A função que chama a IA (Agora isolada para uso manual ou automático)
-  const runAI = async () => {
+  // A função que chama a IA. Agora aceita um argumento 'isManual'
+  const runAI = async (isManual = false) => {
+      // 1. Validação de API Key
       if (!apiKey) {
-          alert("Configure sua API Key nas configurações primeiro.");
+          if (isManual) alert("Configure sua API Key nas configurações primeiro.");
           return;
       }
-      if (!news || news.length < 10) {
-          alert("Aguarde o carregamento das notícias...");
-          return;
+
+      // 2. Validação de Dados (Notícias)
+      // Se for automático e tiver pouca notícia, abortamos silenciosamente para tentar depois
+      if (!news || news.length < 15) {
+          if (isManual) alert("Aguardando mais notícias para uma análise precisa...");
+          return; // Aborta sem travar o auto-run futuro
       }
 
       setLoading(true);
       
-      // Limpa os clusters antigos visualmente para indicar que está "pensando"
-      setClusters(null); 
+      // Se for manual, limpamos visualmente. Se for auto, o user já vê o skeleton.
+      if (isManual) setClusters(null); 
       
-      // Pequeno delay para a animação de saída/entrada ficar suave
-      await new Promise(r => setTimeout(r, 800));
+      // Delay visual apenas se for manual ou se já houver clusters (refresh)
+      if (isManual) await new Promise(r => setTimeout(r, 800));
       
-      // Chama a função de geração (certifique-se que generateSmartClustering está definida no seu arquivo)
       const result = await generateSmartClustering(news, apiKey);
       
       if (result && result.length > 0) {
           setClusters(result);
+          // Sucesso! Marcamos que já rodou para não rodar de novo sozinho
+          hasAutoRunRef.current = true;
       } else {
-          // Se der erro ou não encontrar nada, apenas avisa e para o loading
-          alert("A IA não encontrou correlações suficientes no momento ou houve um erro.");
+          // Falhou.
+          if (isManual) {
+              alert("A IA não encontrou correlações suficientes no momento. Tente novamente em alguns instantes.");
+          } else {
+              // Se falhou no automático, deixamos hasAutoRunRef como FALSE.
+              // Isso permite que o useEffect tente de novo quando 'news' atualizar com mais dados.
+              console.log("Tentativa automática falhou silenciosamente (dados insuficientes ou erro IA).");
+              hasAutoRunRef.current = false; 
+          }
       }
       setLoading(false);
   };
 
-  // --- EFEITO: AUTO-START ÚNICO ---
+  // --- EFEITO: AUTO-START INTELIGENTE ---
   useEffect(() => {
-      // Regra Estrita de Economia de Tokens:
-      // 1. Temos notícias carregadas na memória.
-      // 2. Ainda NÃO temos clusters gerados (está vazio).
-      // 3. Nunca rodamos automaticamente antes nesta sessão (hasAutoRunRef).
+      // Condições para disparo automático:
+      // 1. Temos notícias suficientes (> 15).
+      // 2. O container de clusters está vazio.
+      // 3. Ainda não tivemos um sucesso automático (hasAutoRunRef é false).
       
-      const shouldRun = news && news.length > 10 && (!clusters || clusters.length === 0) && !hasAutoRunRef.current;
+      const shouldRun = news && news.length > 15 && (!clusters || clusters.length === 0) && !hasAutoRunRef.current;
 
       if (shouldRun) {
-          hasAutoRunRef.current = true; // Marca imediatamente que já rodou para não duplicar
-          runAI();
+          // Marcamos como true provisoriamente para evitar disparos duplos em milissegundos
+          hasAutoRunRef.current = true; 
+          // Chamamos com isManual = false (Modo Silencioso)
+          runAI(false);
       }
-      // Dependências: Só roda se mudar notícias, apiKey ou se clusters for limpo externamente
   }, [news, apiKey, clusters]); 
 
   const handleScroll = () => {
@@ -2493,7 +2505,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     }
   };
 
-  // Função auxiliar para o brilho Neon baseado no sentimento
   const getSentimentGlow = (sentiment) => {
       if (sentiment === 'positive') return 'border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]'; 
       if (sentiment === 'negative') return 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]';    
@@ -2501,8 +2512,10 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
   };
   
   // --- RENDERIZAÇÃO: LOADING (SKELETON ANIMADO) ---
-  // Mostra isso enquanto a IA pensa ou no primeiro carregamento automático
-  if (loading || (!clusters && news && news.length > 0 && !hasAutoRunRef.current)) {
+  // Mostra o loading se:
+  // 1. O estado 'loading' for true.
+  // 2. OU se não tiver clusters E tiver notícias (está esperando o auto-start ou processando).
+  if (loading || (!clusters && news && news.length > 0)) {
       return (
         <div className="relative w-full px-2 animate-in fade-in duration-500">
             {/* Header Fake (Skeleton) */}
@@ -2530,7 +2543,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       );
   }
 
-  // Se não tem dados e já tentou rodar (ou falhou), não mostra nada para não poluir a tela
+  // Se não tem dados, não tem loading e não rodou ainda (ex: inicio vazio), não retorna nada
   if (!clusters || clusters.length === 0) return null;
 
   // --- RENDERIZAÇÃO: CONTEÚDO FINAL (CARROSSEL) ---
@@ -2546,14 +2559,14 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                     </div>
                     <div>
                         <h3 className="text-lg font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-                            SmartNews
+                            Smart News
                         </h3>
                     </div>
                 </div>
 
-                {/* BOTÃO DE ATUALIZAÇÃO MANUAL (Para economizar IA, o user clica se quiser renovar) */}
+                {/* BOTÃO DE ATUALIZAÇÃO MANUAL (Chama com true) */}
                 <button 
-                    onClick={runAI}
+                    onClick={() => runAI(true)}
                     className={`
                         flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 border backdrop-blur-md
                         ${isDarkMode 
@@ -2562,7 +2575,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                     `}
                 >
                     <RefreshCw size={12} />
-                    <span>Atualizar IA</span>
+                    <span>Atualizar</span>
                 </button>
             </div>
 
@@ -2654,6 +2667,9 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     </div>
   );
 };
+
+
+
 
 // --- COMPONENTE TREND RADAR (V4 - ATUALIZAÇÃO ESTRITA: APENAS PUSH OU START) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
