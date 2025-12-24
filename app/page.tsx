@@ -2410,13 +2410,13 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                     <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
                         <div className={`
                             group relative h-[480px] w-full rounded-[2.5rem] overflow-hidden cursor-default 
-    transition-all duration-500 hover:scale-[1.01]
-    
-    /* --- EFEITO 3D / BISEL AQUI --- */
-    border-[3px] border-white/10
-    /* A mágica do bisel: uma linha de luz interna no topo + sombra externa */
-    shadow-[inset_1px_1px_0_0_rgba(255,255,255,0.2),0_20px_50px_-12px_rgba(0,0,0,0.6)]
-`}>
+                            transition-all duration-500 hover:scale-[1.01]
+                            
+                            /* --- AQUI: REMOVIDA A SOMBRA CINZA FEIA --- */
+                            border border-white/10
+                            /* Apenas uma leve sombra escura interna para dar profundidade */
+                            shadow-[inset_0_0_40px_rgba(0,0,0,0.5)]
+                        `}>
                             <img 
                                 src={cluster.representative_image} 
                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" 
@@ -2817,7 +2817,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 
 
 
-// --- COMPONENTE TREND RADAR (VISUAL 3D FÍSICO - SEM AURA) ---
+// --- COMPONENTE TREND RADAR (EFEITO BISEL / VIDRO 3D) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2827,10 +2827,10 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const prevRefreshTrigger = useRef(refreshTrigger);
 
   const getHeatColor = (score) => {
-      if (score >= 9) return '#ef4444'; // Vermelho (Muito Quente)
-      if (score >= 7) return '#f97316'; // Laranja (Quente)
-      if (score >= 5) return '#10b981'; // Verde (Morno)
-      return '#3b82f6';                 // Azul (Frio)
+      if (score >= 9) return '#ef4444'; // Vermelho
+      if (score >= 7) return '#f97316'; // Laranja
+      if (score >= 5) return '#10b981'; // Verde
+      return '#3b82f6';                 // Azul
   };
 
   useEffect(() => {
@@ -2887,54 +2887,49 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
          <div className="flex flex-col w-full">
              
              {/* 1. LISTA DE PÍLULAS (Scroll Horizontal) */}
-             <div className="flex justify-start md:justify-center items-center gap-4 overflow-x-auto scrollbar-hide px-4 pt-2 pb-6 snap-x relative z-20">
+             <div className="flex justify-start md:justify-center items-center gap-3 overflow-x-auto scrollbar-hide px-4 pt-2 pb-6 snap-x relative z-20">
                 {trends.map((item, idx) => {
                     const color = getHeatColor(item.score);
                     const isActive = activeIndex === idx;
-                    const isHot = item.score >= 7; // Define se é "Quente/Alto" ou "Frio/Baixo"
-
+                    
                     return (
                         <div key={idx} className="relative flex-shrink-0 snap-center flex flex-col items-center">
                             <button 
                                 onClick={() => handleToggle(idx)}
                                 className={`
                                     relative group cursor-pointer transition-all duration-300 flex items-center gap-2 rounded-full
-                                    ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-800'}
+                                    ${isDarkMode ? 'bg-zinc-900/80 text-white' : 'bg-white/80 text-zinc-800'}
+                                    backdrop-blur-md
                                 `}
                                 style={{ 
-                                    // AQUI ESTÁ A MÁGICA 3D:
-                                    
-                                    // 1. Borda Colorida Grossa
-                                    border: `${isHot ? '3px' : '2px'} solid ${color}`,
-                                    
-                                    // 2. Padding
-                                    padding: '8px 18px',
+                                    // BORDA MAIS GROSSA E COLORIDA
+                                    border: `2px solid ${color}`,
+                                    padding: '8px 20px',
 
-                                    // 3. EFEITO 3D FISICO
-                                    // Se for QUENTE: Sobe (-4px), Sombra forte embaixo, Brilho interno em cima (Bisel)
-                                    // Se for FRIO: Fica baixo, Sombra interna (Inset) parecendo afundado
+                                    // EFEITO BISEL (BEVEL) 3D - SEM SOMBRA FEIA EMBAIXO
                                     boxShadow: isActive 
-                                        ? `inset 0 4px 8px rgba(0,0,0,0.3)` // Clicado (Afunda)
-                                        : isHot 
-                                            ? `0 8px 0 ${color}40, 0 10px 10px rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.3)` // Saltado 3D
-                                            : `0 2px 0 ${color}20, inset 0 1px 2px rgba(0,0,0,0.05)`, // Plano/Baixo
+                                        ? `inset 2px 2px 5px rgba(0,0,0,0.4), 0 0 10px ${color}60` // Clicado (Afundado + Brilho)
+                                        : `
+                                            inset 1px 1px 1px rgba(255,255,255,0.3),  /* Luz Topo */
+                                            inset -1px -1px 2px rgba(0,0,0,0.2),      /* Sombra Base */
+                                            0 2px 10px ${color}20                     /* Aura Suave (Glow) */
+                                          `,
                                     
-                                    // 4. Movimento físico
-                                    transform: isActive ? 'translateY(4px)' : (isHot ? 'translateY(-4px)' : 'translateY(0)'),
+                                    transform: isActive ? 'scale(0.95)' : 'scale(1)',
                                 }}
                             >
                                 {item.score >= 9 && <span className="text-[10px] animate-bounce">🔥</span>}
                                 <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
                                 
-                                {/* Indicador de Nível (Bolinha Sólida) */}
-                                <div className="w-2 h-2 rounded-full border border-black/10" style={{ backgroundColor: color }} />
+                                {/* Indicador (Ponto de Luz) */}
+                                <div className="w-2 h-2 rounded-full shadow-[0_0_5px_currentColor]" style={{ backgroundColor: color, color: color }} />
                             </button>
                         </div>
                     )
                 })}
              </div>
 
-             {/* 2. ÁREA DE DETALHES (O BALÃO) */}
+             {/* 2. ÁREA DE DETALHES */}
              <div 
                 className={`
                     relative w-full px-4 transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden
@@ -2944,13 +2939,13 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                 {activeItem && (
                     <div 
                         className={`
-                            w-full md:max-w-md mx-auto p-5 rounded-3xl border-2 shadow-xl backdrop-blur-xl flex flex-col gap-2 animate-in slide-in-from-top-4 duration-300
+                            w-full md:max-w-md mx-auto p-5 rounded-3xl border-2 backdrop-blur-xl flex flex-col gap-2 animate-in slide-in-from-top-4 duration-300
                             ${isDarkMode ? 'bg-zinc-950/95 text-zinc-200' : 'bg-white/95 text-zinc-800'}
                         `}
                         style={{ 
                             borderColor: getHeatColor(activeItem.score),
-                            // Sombra combinando com a cor do item ativo
-                            boxShadow: `0 10px 30px -10px ${getHeatColor(activeItem.score)}40`
+                            // Sombra suave colorida apenas no balão
+                            boxShadow: `0 10px 40px -10px ${getHeatColor(activeItem.score)}30`
                         }}
                     >
                         <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
@@ -2960,7 +2955,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                             >
                                 Impacto: {activeItem.score}/10
                             </span>
-                            {/* Barra de Progresso Mini */}
                             <div className="h-1.5 w-20 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
                                 <div 
                                     className="h-full rounded-full" 
