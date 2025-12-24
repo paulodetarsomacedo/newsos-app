@@ -2367,7 +2367,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                     
                     <div className="flex flex-col">
                         <h3 className="text-lg font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 leading-none">
-                            Contexto Global
+                            SmartNews
                         </h3>
                         
                         {/* TEXTO ANIMADO DE UPGRADE */}
