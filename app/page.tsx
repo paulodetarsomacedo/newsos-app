@@ -5374,7 +5374,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                         <iframe 
                             src={iframeUrl} 
                             className="w-full h-full border-none bg-white" 
-                            sandbox="allow-same-origin"
+                            sandbox="allow-same-origin allow-scripts allow-forms"
                             title="Web View" 
                             loading="lazy"
                         />
