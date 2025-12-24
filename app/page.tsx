@@ -3818,10 +3818,9 @@ const MagicBubble = ({ style, isDarkMode }) => (
 
 
 
-
-// --- COMPONENTE: YOUTUBE BROWSER (SIMULADOR DE NATIVO) ---
+// --- COMPONENTE: YOUTUBE BROWSER (COM HACKS DE GPU PARA IOS) ---
 const YouTubeBrowser = ({ video, onClose }) => {
-  // 1. Extração de ID à prova de falhas
+  // 1. Extração de ID
   const getVideoId = (url) => {
     if (!url) return null;
     const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
@@ -3838,28 +3837,35 @@ const YouTubeBrowser = ({ video, onClose }) => {
             position: 'fixed',
             top: 0,
             left: 0,
-            width: '100vw',
-            height: '100vh',
-            zIndex: 9999999, // Fica na frente de ABSOLUTAMENTE TUDO
+            width: '100%',
+            height: '100%', // Use % em vez de vh para evitar bugs da barra de endereço
+            zIndex: 2147483647, // Max Int 32-bit
             backgroundColor: '#000000',
             display: 'flex',
             flexDirection: 'column',
-            // O SEGREDO: Desabilitar aceleração de GPU para o container para não conflitar com o vídeo
-            transform: 'none',
-            willChange: 'auto',
-            overscrollBehavior: 'none'
+            
+            // --- OS HACKS PARA O IOS PWA NÃO CONGELAR ---
+            transform: 'translate3d(0, 0, 0)', // Força aceleração de Hardware
+            WebkitTransform: 'translate3d(0, 0, 0)',
+            perspective: '1000px', // Isola o contexto 3D
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+            overscrollBehavior: 'none',
+            touchAction: 'none'
         }}
     >
-      {/* HEADER TIPO BROWSER (Igual ao Print) */}
+      {/* HEADER ESTILO BROWSER */}
       <div style={{
           height: '60px',
-          backgroundColor: '#1e1e1e', // Cor Dark Mode do YouTube
+          backgroundColor: '#1e1e1e',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 16px',
           borderBottom: '1px solid #333',
-          flexShrink: 0
+          flexShrink: 0,
+          paddingTop: 'env(safe-area-inset-top)', // Respeita o notch
+          boxSizing: 'content-box'
       }}>
           <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <span style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>
@@ -3873,34 +3879,42 @@ const YouTubeBrowser = ({ video, onClose }) => {
           <button 
               onClick={onClose}
               style={{
-                  backgroundColor: '#3ea6ff', // Azul do Link
-                  color: '#000',
-                  border: 'none',
-                  padding: '8px 16px',
+                  backgroundColor: '#333',
+                  color: '#fff',
+                  border: '1px solid #555',
+                  padding: '6px 16px',
                   borderRadius: '18px',
-                  fontSize: '13px',
+                  fontSize: '12px',
                   fontWeight: '700',
                   cursor: 'pointer'
               }}
           >
-              Concluído
+              Fechar
           </button>
       </div>
 
-      {/* ÁREA DO VIDEO (Embed Puro) */}
+      {/* ÁREA DO VIDEO COM SCROLLING HABILITADO NO IOS */}
       <div style={{
           flex: 1,
           position: 'relative',
           backgroundColor: '#000',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          WebkitOverflowScrolling: 'touch', // Permite scroll suave nativo dentro do container
+          overflowY: 'auto'
       }}>
+          {/* 
+             ATENÇÃO AOS PARÂMETROS DE URL:
+             - playsinline=1: CRUCIAL para não travar
+             - html5=1: Força player moderno
+          */}
           <iframe 
-              src={`https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&playsinline=1&rel=0&modestbranding=1`}
+              key={videoId} // Força remontagem se mudar o ID
+              src={`https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&playsinline=1&rel=0&modestbranding=1&html5=1`}
               style={{
                   width: '100%',
-                  height: '100%', // Ocupa tudo
+                  height: '100%',
                   border: 'none',
                   position: 'absolute',
                   top: 0,
@@ -3914,7 +3928,6 @@ const YouTubeBrowser = ({ video, onClose }) => {
     </div>
   );
 };
-
 
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
 export default function NewsOS_V12() {
