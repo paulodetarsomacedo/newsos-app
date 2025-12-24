@@ -4151,7 +4151,7 @@ const handleStoryNavigation = (direction) => {
     });
   };
 
-  // --- FETCH FEEDS (V15 - COMPLETA, SEM ABREVIAÇÕES) ---
+  // --- FETCH FEEDS (V16 - COM CORREÇÃO DE HORÁRIOS DUPLICADOS) ---
   const fetchFeeds = async () => {
     if (userFeeds.length === 0) {
         setRealNews([]);
@@ -4171,46 +4171,30 @@ const handleStoryNavigation = (direction) => {
 
         try {
             let feedItems = [];
-            
-            // TÍTULO PADRÃO (Respeita edição do usuário)
             let currentFeedTitle = feed.name; 
             let detectedXmlTitle = "";
-            
             let feedLogo = null;
             let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
             
             const isLegacySource = feed.url.includes('uol.com.br') || feed.url.includes('folha.uol.com.br');
 
+            // --- FETCH E PARSE (Mantido igual) ---
             if (isLegacySource) {
-                // --- MODO LEGADO (UOL/FOLHA) ---
                 try {
                     const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
                     const res = await fetch(proxyUrl);
                     if (!res.ok) throw new Error(`Proxy error: ${res.status}`);
-                    
                     const buffer = await res.arrayBuffer();
                     const decoder = new TextDecoder('iso-8859-1'); 
                     const xmlText = decoder.decode(buffer);
-                    
                     const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
                     feedItems = parsedData.items;
                     detectedXmlTitle = parsedData.realTitle; 
-
-                    if (feed.url.includes('folha')) {
-                        feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
-                    } else {
-                        feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
-                    }
-                } catch (legacyErr) {
-                    console.error(`Erro legado (${feed.name}):`, legacyErr);
-                }
-
+                    if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
+                    else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
+                } catch (legacyErr) { console.error(`Erro legado (${feed.name}):`, legacyErr); }
             } else {
-                // --- MODO MODERNO ---
-                const { data, error } = await supabase.functions.invoke('parse-feed', {
-                    body: { url: feed.url }
-                });
-
+                const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
                 if (!error && data && data.items) {
                     feedItems = data.items;
                     detectedXmlTitle = data.title;
@@ -4219,13 +4203,11 @@ const handleStoryNavigation = (direction) => {
                 }
             }
 
-            // Atualiza nome apenas se for genérico
             if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
                 currentFeedTitle = detectedXmlTitle || feed.name;
                 feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
             }
 
-            // Fallbacks de Logo
             let finalLogo = feedLogo;
             if (isFeedYoutube && !finalLogo) {
                 finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
@@ -4242,48 +4224,64 @@ const handleStoryNavigation = (direction) => {
             if (feed.type === 'podcast') LIMIT = 1; 
             else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
 
-            const processedItems = feedItems.slice(0, LIMIT).map(item => {
-                // 1. LINK PRINCIPAL
+            // --- A MÁGICA DA CORREÇÃO DE TEMPO COMEÇA AQUI ---
+            
+            // 1. Define um ponto de partida (Agora ou a data do primeiro item se existir)
+            let runningTime = new Date().getTime();
+            
+            // Tenta pegar a data do primeiro item para usar como âncora inicial correta
+            if (feedItems.length > 0) {
+                const firstRaw = feedItems[0].pubDate || feedItems[0].date || feedItems[0].isoDate;
+                if (firstRaw) {
+                    const parsedFirst = new Date(firstRaw).getTime();
+                    if (!isNaN(parsedFirst)) runningTime = parsedFirst + 1000; // +1s para a lógica abaixo funcionar no item 0
+                }
+            }
+
+            const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
                 let primaryLink = item.link;
-                
-                // 2. DETECÇÃO DE ENCLOSURE (Anexo)
                 const enclosureUrl = item.enclosure?.url || item.audio;
                 let hasPlayableMedia = false;
                 
                 if (enclosureUrl) {
-                    const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || 
-                                    enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i);
-
-                    if (isImage) {
-                        item.img = enclosureUrl; 
-                    } else {
-                        primaryLink = enclosureUrl;
-                        hasPlayableMedia = true;
-                    }
+                    const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i);
+                    if (isImage) { item.img = enclosureUrl; } 
+                    else { primaryLink = enclosureUrl; hasPlayableMedia = true; }
                 }
 
-                // 3. IMAGEM DE CAPA FINAL
                 const itemImg = item.img || item.image || finalLogo;
                 const itemSummary = item.summary || item.description || '';
-                const itemDate = item.pubDate || item.date || item.isoDate || new Date();
 
-                // 4. DETECÇÃO DE TIPO
-                const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
-                
-                let finalType = 'link'; 
-                if (isYoutubeItem) {
-                    finalType = 'video';
-                } else if (hasPlayableMedia || (primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a')))) {
-                    finalType = 'audio'; 
+                // --- LÓGICA DE ESCALONAMENTO DE TEMPO (5 MINUTOS) ---
+                const rawDateString = item.pubDate || item.date || item.isoDate;
+                let itemTimestamp = rawDateString ? new Date(rawDateString).getTime() : NaN;
+                const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
+                // Se a data for inválida OU se for maior/igual à data anterior (o que indica colisão ou falta de ordem)
+                // Nós forçamos o tempo a ser 5 minutos ANTES do item anterior.
+                if (isNaN(itemTimestamp) || itemTimestamp >= runningTime) {
+                    // Força recuo de 5 minutos em relação ao último processado
+                    itemTimestamp = runningTime - FIVE_MINUTES_MS;
                 }
+                
+                // Atualiza o "Tempo Corrente" para a próxima iteração
+                runningTime = itemTimestamp;
+                
+                const finalDateObj = new Date(itemTimestamp);
+                // -----------------------------------------------------
+
+                const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
+                let finalType = 'link'; 
+                if (isYoutubeItem) finalType = 'video';
+                else if (hasPlayableMedia || (primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a')))) finalType = 'audio'; 
 
                 return {
                     id: `${feed.id}-${item.id || Math.random().toString(36).substr(2, 9)}`,
                     source: currentFeedTitle, 
                     show: currentFeedTitle,
                     logo: finalLogo, 
-                    time: new Date(itemDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    rawDate: new Date(itemDate),
+                    time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    rawDate: finalDateObj, // Data corrigida
                     title: item.title,
                     summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
                     category: feed.type === 'podcast' ? 'Podcast' : (item.category || 'Geral'),
@@ -4293,17 +4291,13 @@ const handleStoryNavigation = (direction) => {
                     link: primaryLink, 
                     url: item.link,
                     videoId: item.videoId || getVideoId(item.link),
-                    date: new Date(itemDate).toLocaleDateString(),
+                    date: finalDateObj.toLocaleDateString(),
                 };
             });
 
-            if (feed.type === 'podcast') {
-                allPodcastItems.push(...processedItems);
-            } else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) {
-                allVideoItems.push(...processedItems);
-            } else {
-                allNewsItems.push(...processedItems);
-            }
+            if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
+            else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) allVideoItems.push(...processedItems);
+            else allNewsItems.push(...processedItems);
 
         } catch (err) { console.error(`Erro no feed ${feed.name}`, err); }
     });
@@ -4317,9 +4311,6 @@ const handleStoryNavigation = (direction) => {
         }));
     }
 
-    // --- CORREÇÃO DE ORDENAÇÃO: FUNÇÃO SEGURA ---
-    // Converte qualquer formato de data para Timestamp numérico. 
-    // Se der erro, joga para o final (0)
     const getSafeTime = (dateInput) => {
         if (!dateInput) return 0;
         const time = new Date(dateInput).getTime();
@@ -4328,13 +4319,14 @@ const handleStoryNavigation = (direction) => {
 
     const sortFn = (a, b) => getSafeTime(b.rawDate) - getSafeTime(a.rawDate);
     
-    // Força a ordenação aqui para garantir que o estado já entre misturado
     setRealNews([...allNewsItems].sort(sortFn));
     setRealVideos([...allVideoItems].sort(sortFn));
     setRealPodcasts([...allPodcastItems].sort(sortFn));
     
     setIsLoadingFeeds(false);
   };
+
+
   
   useEffect(() => { fetchFeeds(); }, [userFeeds]);
 
