@@ -1783,36 +1783,32 @@ const generateBriefingFallback = async (news, apiKey) => {
     }
 };
 
-// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V4 - PREENCHIMENTO OBRIGATÓRIO) ---
-const generateSmartClustering = async (news, apiKey) => {
-  // Verificação básica
+// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (COM LIMITE DINÂMICO) ---
+const generateSmartClustering = async (news, apiKey, limit = 300) => {
+  // Verificação básica (Limite mínimo de 10 notícias para rodar)
   if (!news || news.length < 10 || !apiKey) return null;
 
-  // Contexto expandido para 300 itens para garantir variedade
-  const context = news.slice(0, 300).map(n => 
+  // AGORA O LIMITE É DINÂMICO (30 no início, 300 depois)
+  const context = news.slice(0, limit).map(n => 
     `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img || ''}`
   ).join('\n');
 
   const prompt = `
-  Você é o Editor-Chefe de um App de Notícias Premium no Brasil.
+  Você é um Editor-Chefe de um App de Notícias Premium no Brasil.
   
   SUA MISSÃO CRÍTICA:
   Gerar EXATAMENTE 3 (TRÊS) cards para o carrossel "Contexto Global".
   
-  HIERARQUIA DE SELEÇÃO (Siga esta ordem para preencher os 3 espaços):
-  1. PRIORIDADE MÁXIMA: Eventos com 4 ou mais fontes diferentes falando sobre o mesmo assunto.
-  2. PRIORIDADE MÉDIA: Se não houver eventos suficientes com 4 fontes, use eventos com 3 fontes.
-  3. ÚLTIMO RECURSO: Se ainda faltar para completar 3 cards, use os eventos mais importantes com 2 fontes.
+  HIERARQUIA DE SELEÇÃO:
+  1. Tente agrupar eventos com múltiplas fontes.
+  2. Se a lista de notícias for pequena, aceite eventos com menos fontes, mas GARANTA 3 TÓPICOS DISTINTOS.
   
-  REGRA DE OURO:
-  Você NUNCA deve retornar menos de 3 cards. Cave nos dados até encontrar 3 tópicos distintos.
-
   ESTRUTURA DO JSON (Para cada um dos 3 cards):
-  - ai_title: Título em Português do Brasil. Curto, direto e impactante (Máx 10 palavras).
-  - representative_image: Copie a URL do campo 'IMG' de uma das notícias. Se todas forem vazias, deixe null.
-  - related_articles: Liste os IDs das notícias que formam esse cluster. Analise o sentimento ('positive', 'negative', 'neutral').
+  - ai_title: Título em Português do Brasil. Curto e impactante (Máx 12 palavras).
+  - representative_image: Copie a URL do campo 'IMG' de uma das notícias.
+  - related_articles: Liste os IDs das notícias do cluster. Analise o sentimento ('positive', 'negative', 'neutral').
 
-  DADOS BRUTOS:
+  DADOS BRUTOS (${limit} itens):
   ${context}
 
   RETORNE APENAS O ARRAY JSON COM OS 3 OBJETOS.
@@ -1830,17 +1826,13 @@ const generateSmartClustering = async (news, apiKey) => {
 
     const data = await response.json();
     
-    if (!response.ok || data.error) {
-        console.error("Erro API IA:", data.error?.message);
-        return null;
-    }
+    if (!response.ok || data.error) return null;
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
-    // --- HIDRATAÇÃO ---
     const hydratedJson = json.map(cluster => {
         const hydratedArticles = cluster.related_articles
             .map(ref => {
@@ -1848,9 +1840,8 @@ const generateSmartClustering = async (news, apiKey) => {
                 if (!originalArticle) return null;
                 return { ...originalArticle, ai_sentiment: ref.sentiment }; 
             })
-            .filter(Boolean); // Remove nulos se a IA alucinar ID
+            .filter(Boolean);
 
-        // Deduplicação visual (evita dois logos iguais)
         const uniqueArticles = [];
         const seenSources = new Set();
         hydratedArticles.forEach(art => {
@@ -1861,104 +1852,13 @@ const generateSmartClustering = async (news, apiKey) => {
         });
 
         return { ...cluster, related_articles: uniqueArticles };
-    })
-    // REMOVIDO O FILTRO QUE MATAVA CARDS COM MENOS DE 3 FONTES
-    // Agora aceitamos qualquer cluster que a IA julgar importante, desde que tenha pelo menos 1 fonte real.
-    .filter(c => c.related_articles.length > 0); 
+    }).filter(c => c.related_articles.length > 0); 
 
     return Array.isArray(hydratedJson) ? hydratedJson : null;
 
   } catch (error) {
-    console.error("Erro Smart Clustering V4:", error);
+    console.error("Erro Smart Clustering:", error);
     return null;
-  }
-};
-
-// --- FUNÇÃO DE IA: SMART DIGEST (COM RASTREABILIDADE) ---
-const generateBriefing = async (news, apiKey) => {
-  if (!news || news.length === 0) return null;
-  if (!apiKey) {
-      alert("API Key não configurada! Vá em Ajustes > Inteligência IA.");
-      return null;
-  }
-
-  // Preparamos o contexto com ID para a IA saber o que referenciar
-  const context = news.slice(0, 40).map(n => {
-      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 300) : "Sem detalhes.";
-      return `ID: ${n.id} | [FONTE: ${n.source}] TÍTULO: ${n.title} | CONTEXTO: ${cleanSummary}`;
-  }).join('\n\n');
-
-  const prompt = `
-  Você é o Editor-Chefe de uma newsletter premium (estilo Morning Brew).
-  
-  SUA MISSÃO:
-  Ler as notícias fornecidas abaixo, identificar os 4 (QUATRO) maiores temas do momento e escrever resumos EXPLICATIVOS, fluídos e concatenados.
-  
-  REGRAS EDITORIAIS:
-  1. CONTEXTUALIZE: Não apenas repita o título. Explique o "porquê".
-  2. AGRUPE: Junte notícias parecidas no mesmo tópico.
-  3. TOM DE VOZ: Profissional, direto, mas conversacional.
-  4. TAMANHO: O campo "summary" deve ter entre 40 a 55 palavras.
-
-  REGRAS OBRIGATÓRIAS:
-  1. Identifique quais notícias (pelos IDs) compõem cada tópico.
-  2. O resumo deve explicar o "porquê" do fato ser importante.
-  3. JSON Estrito.
-
-  MATÉRIA PRIMA:
-  ${context}
-
-  RETORNE APENAS ESTE JSON:
-  {
-    "vibe_emoji": "Um único emoji que defina o humor global",
-    "vibe_title": "Uma manchete de capa impactante (3 a 6 palavras)",
-    "topics": [
-      { 
-        "tag": "Categoria (Ex: Política, Tech)", 
-        "summary": "Texto explicativo rico (30-40 palavras)...",
-        "source_ids": ["id_da_noticia_1", "id_da_noticia_2"] 
-      }
-    ]
-  }
-  `;
-
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-        console.warn(`Erro IA: ${data.error.message}`);
-        return await generateBriefingFallback(news, apiKey); // Mantém seu fallback existente
-    }
-
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return await generateBriefingFallback(news, apiKey);
-
-    const finalData = parseAndNormalize(text);
-    
-    if (!finalData || !finalData.topics) return await generateBriefingFallback(news, apiKey);
-
-    // --- HIDRATAÇÃO: Cruzar IDs com as notícias reais ---
-    finalData.topics = finalData.topics.map(topic => {
-        const relatedArticles = topic.source_ids
-            ? topic.source_ids.map(id => news.find(n => n.id === id)).filter(Boolean)
-            : [];
-        return { ...topic, articles: relatedArticles };
-    });
-
-    return finalData;
-
-  } catch (error) {
-    console.warn("Erro fatal SmartDigest:", error);
-    return await generateBriefingFallback(news, apiKey);
   }
 };
 
@@ -2427,74 +2327,67 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 };
 
 
-// --- WIDGET: CONTEXTO GLOBAL (COM AUTO-START SILENCIOSO E INTELIGENTE) ---
+// --- WIDGET: CONTEXTO GLOBAL (PROGRESSIVE LOADING - 30 -> 300) ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters }) => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // Loading Inicial (Tela vazia)
+  const [isUpgrading, setIsUpgrading] = useState(false); // Loading Secundário (Aprimorando)
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
   
-  // Trava para garantir que o Auto-Start só aconteça uma vez com sucesso
-  const hasAutoRunRef = useRef(false);
+  // Controle de estados da execução
+  const hasStartedRef = useRef(false);
 
-  // A função que chama a IA. Agora aceita um argumento 'isManual'
-  const runAI = async (isManual = false) => {
-      // 1. Validação de API Key
-      if (!apiKey) {
-          if (isManual) alert("Configure sua API Key nas configurações primeiro.");
-          return;
-      }
+  // Função Mestra de Execução
+  const runAISequence = async () => {
+      if (!apiKey || !news || news.length < 10) return;
 
-      // 2. Validação de Dados (Notícias)
-      // Se for automático e tiver pouca notícia, abortamos silenciosamente para tentar depois
-      if (!news || news.length < 15) {
-          if (isManual) alert("Aguardando mais notícias para uma análise precisa...");
-          return; // Aborta sem travar o auto-run futuro
-      }
-
+      // --- FASE 1: RÁPIDA (30 Notícias) ---
       setLoading(true);
+      // Chama a função com limite 30 (Resposta em ~1.5s)
+      const quickResult = await generateSmartClustering(news, apiKey, 30);
       
-      // Se for manual, limpamos visualmente. Se for auto, o user já vê o skeleton.
-      if (isManual) setClusters(null); 
-      
-      // Delay visual apenas se for manual ou se já houver clusters (refresh)
-      if (isManual) await new Promise(r => setTimeout(r, 800));
-      
-      const result = await generateSmartClustering(news, apiKey);
-      
-      if (result && result.length > 0) {
-          setClusters(result);
-          // Sucesso! Marcamos que já rodou para não rodar de novo sozinho
-          hasAutoRunRef.current = true;
-      } else {
-          // Falhou.
-          if (isManual) {
-              alert("A IA não encontrou correlações suficientes no momento. Tente novamente em alguns instantes.");
-          } else {
-              // Se falhou no automático, deixamos hasAutoRunRef como FALSE.
-              // Isso permite que o useEffect tente de novo quando 'news' atualizar com mais dados.
-              console.log("Tentativa automática falhou silenciosamente (dados insuficientes ou erro IA).");
-              hasAutoRunRef.current = false; 
-          }
+      if (quickResult && quickResult.length > 0) {
+          setClusters(quickResult);
       }
       setLoading(false);
+
+      // --- FASE 2: PROFUNDA (300 Notícias) ---
+      // Só inicia a fase 2 se tivermos notícias suficientes para valer a pena
+      if (news.length > 50) {
+          setIsUpgrading(true); // Ativa o texto animado
+          
+          // Delay técnico para dar respiro à API e permitir que o usuário veja o primeiro resultado
+          await new Promise(r => setTimeout(r, 2000)); 
+
+          // Chama a função com limite 300 (Pode demorar ~4-6s)
+          const deepResult = await generateSmartClustering(news, apiKey, 300);
+
+          if (deepResult && deepResult.length > 0) {
+              setClusters(deepResult); // Substitui suavemente
+          }
+          setIsUpgrading(false); // Desliga o texto animado
+      }
   };
 
-  // --- EFEITO: AUTO-START INTELIGENTE ---
+  // --- EFEITO: DISPARO ÚNICO ---
   useEffect(() => {
-      // Condições para disparo automático:
-      // 1. Temos notícias suficientes (> 15).
-      // 2. O container de clusters está vazio.
-      // 3. Ainda não tivemos um sucesso automático (hasAutoRunRef é false).
-      
-      const shouldRun = news && news.length > 15 && (!clusters || clusters.length === 0) && !hasAutoRunRef.current;
-
-      if (shouldRun) {
-          // Marcamos como true provisoriamente para evitar disparos duplos em milissegundos
-          hasAutoRunRef.current = true; 
-          // Chamamos com isManual = false (Modo Silencioso)
-          runAI(false);
+      // Dispara apenas se tiver notícias, clusters vazio e nunca tiver rodado antes
+      if (news && news.length > 10 && (!clusters || clusters.length === 0) && !hasStartedRef.current) {
+          hasStartedRef.current = true;
+          runAISequence();
       }
   }, [news, apiKey, clusters]); 
+
+  // Função Manual (Botão Atualizar) - Roda direto a completa
+  const handleManualRefresh = async () => {
+      if (!apiKey) return alert("Configure a API Key.");
+      setLoading(true);
+      setClusters(null);
+      const result = await generateSmartClustering(news, apiKey, 300);
+      if (result) setClusters(result);
+      else alert("Falha ao atualizar.");
+      setLoading(false);
+  };
 
   const handleScroll = () => {
     if (scrollRef.current) {
@@ -2511,64 +2404,56 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]'; 
   };
   
-  // --- RENDERIZAÇÃO: LOADING (SKELETON ANIMADO) ---
-  // Mostra o loading se:
-  // 1. O estado 'loading' for true.
-  // 2. OU se não tiver clusters E tiver notícias (está esperando o auto-start ou processando).
-  if (loading || (!clusters && news && news.length > 0)) {
+  // --- RENDERIZAÇÃO: LOADING INICIAL (SKELETON) ---
+  if (loading || (!clusters && news && news.length > 0 && !hasStartedRef.current)) {
       return (
         <div className="relative w-full px-2 animate-in fade-in duration-500">
-            {/* Header Fake (Skeleton) */}
             <div className="relative z-10 flex items-center gap-3 mb-5 px-4 opacity-50">
                 <div className={`p-2 rounded-xl bg-zinc-200 dark:bg-white/5`}><Layers size={18} /></div>
                 <div className="h-4 w-32 bg-zinc-200 dark:bg-white/5 rounded-full" />
             </div>
-
-            {/* Card Skeleton Principal */}
             <div className={`h-[480px] rounded-[2.5rem] w-full relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-zinc-200 border border-zinc-300'}`}>
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 w-full animate-[shimmer_1.5s_infinite]" />
-                
-                {/* Elementos Falsos dentro do card */}
-                <div className="absolute bottom-8 left-8 right-8">
-                    <div className="h-8 w-3/4 bg-white/10 rounded-lg mb-4" />
-                    <div className="h-8 w-1/2 bg-white/10 rounded-lg mb-6" />
-                    <div className="flex gap-4">
-                        <div className="w-12 h-12 rounded-full bg-white/10" />
-                        <div className="w-12 h-12 rounded-full bg-white/10" />
-                        <div className="w-12 h-12 rounded-full bg-white/10" />
-                    </div>
-                </div>
             </div>
         </div>
       );
   }
 
-  // Se não tem dados, não tem loading e não rodou ainda (ex: inicio vazio), não retorna nada
+  // Se falhou tudo
   if (!clusters || clusters.length === 0) return null;
 
-  // --- RENDERIZAÇÃO: CONTEÚDO FINAL (CARROSSEL) ---
+  // --- RENDERIZAÇÃO: CONTEÚDO FINAL ---
   return (
     <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000">
         <div className="relative w-full">
             
-            {/* Header com Botão Manual de Atualização */}
+            {/* Header Inteligente */}
             <div className="relative z-10 flex items-center justify-between mb-5 px-6">
                 <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                        <Layers size={18} />
+                        {isUpgrading ? <Loader2 size={18} className="animate-spin text-purple-400" /> : <Layers size={18} />}
                     </div>
-                    <div>
-                        <h3 className="text-lg font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-                            Smart News
+                    
+                    <div className="flex flex-col">
+                        <h3 className="text-lg font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 leading-none">
+                            Contexto Global
                         </h3>
+                        
+                        {/* TEXTO ANIMADO DE UPGRADE */}
+                        {isUpgrading && (
+                            <span className="text-[10px] font-bold text-purple-500 animate-pulse mt-1 tracking-wider uppercase">
+                                Analisando 300 fontes em tempo real...
+                            </span>
+                        )}
                     </div>
                 </div>
 
-                {/* BOTÃO DE ATUALIZAÇÃO MANUAL (Chama com true) */}
                 <button 
-                    onClick={() => runAI(true)}
+                    onClick={handleManualRefresh}
+                    disabled={isUpgrading}
                     className={`
                         flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 border backdrop-blur-md
+                        ${isUpgrading ? 'opacity-0 pointer-events-none' : 'opacity-100'}
                         ${isDarkMode 
                             ? 'border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10' 
                             : 'border-black/5 bg-black/5 text-zinc-600 hover:text-black hover:bg-black/10'}
@@ -2579,7 +2464,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                 </button>
             </div>
 
-            {/* Scroll Horizontal dos Cards */}
+            {/* Scroll Horizontal */}
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
@@ -2592,20 +2477,15 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                             transition-all duration-500 hover:scale-[1.01]
                             shadow-2xl shadow-black/40 border border-white/10
                         `}>
-                            {/* Imagem de Fundo com Fallback */}
                             <img 
                                 src={cluster.representative_image} 
                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" 
                                 alt="" 
                                 onError={(e) => { e.target.style.display = 'none'; }} 
                             />
-                            {/* Fallback visual (gradiente) se a imagem falhar */}
                             <div className={`absolute inset-0 -z-10 bg-gradient-to-br from-indigo-900 to-purple-900`} /> 
-
-                            {/* Gradiente Preto para legibilidade */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
 
-                            {/* Tag de Quantidade de Fontes (Topo Esquerda) */}
                             <div className="absolute top-6 left-6">
                                 <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg">
                                    <Globe size={14} className="text-blue-400" />
@@ -2615,13 +2495,11 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                                 </div>
                             </div>
 
-                            {/* Conteúdo Inferior */}
                             <div className="absolute bottom-0 left-0 w-full p-8 flex flex-col justify-end">
                                 <h2 className="text-3xl md:text-4xl font-black text-white leading-[1.1] mb-6 drop-shadow-2xl tracking-tight">
                                    {cluster.ai_title}
                                 </h2>
                                 
-                                {/* Lista de Fontes com Brilho Neon (Indicador de Sentimento) */}
                                 <div className="flex flex-wrap items-center gap-4">
                                    {cluster.related_articles.map(article => (
                                        <button
@@ -2634,11 +2512,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                                            `}
                                            title={`${article.source}: ${article.title}`}
                                        >
-                                           <img 
-                                                src={article.logo} 
-                                                className="w-full h-full object-cover rounded-full" 
-                                                onError={(e) => e.target.style.display='none'} 
-                                           />
+                                           <img src={article.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.style.display='none'} />
                                        </button>
                                    ))}
                                 </div>
@@ -2646,7 +2520,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                                 <div className="mt-4 flex items-center gap-2 opacity-50">
                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
                                     <span className="text-[9px] font-bold text-white uppercase tracking-widest">
-                                        Análise de Viés em Tempo Real
+                                        {isUpgrading ? 'Aprimorando dados...' : 'Análise de Viés em Tempo Real'}
                                     </span>
                                 </div>
                             </div>
@@ -2655,7 +2529,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                 ))}
             </div>
             
-            {/* Paginação (Bolinhas) */}
+            {/* Paginação */}
             {clusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-2">
                   {clusters.map((_, idx) => (
@@ -2667,7 +2541,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     </div>
   );
 };
-
 
 
 
