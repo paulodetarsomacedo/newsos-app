@@ -1010,7 +1010,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       </div>
 
       <div className="absolute bottom-3 right-3 flex items-center gap-2 z-30">
-          <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border backdrop-blur-md select-none ${isDarkMode ? 'bg-black/20 border-white/5 text-zinc-400' : 'bg-white/40 border-black/5 text-zinc-500'}`}><Clock size={10} className={isDarkMode ? 'text-zinc-500' : 'text-zinc-400'} /><span className="text-[9px] font-bold uppercase tracking-wider">{news.readTime || '3 min'}</span></div>
+          <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border select-none ${isDarkMode ? 'bg-black/20 border-white/5 text-zinc-400' : 'bg-white/40 border-black/5 text-zinc-500'}`}><Clock size={10} className={isDarkMode ? 'text-zinc-500' : 'text-zinc-400'} /><span className="text-[9px] font-bold uppercase tracking-wider">{news.readTime || '3 min'}</span></div>
           <button onClick={(e) => { e.stopPropagation(); if (onToggleLike) onToggleLike(news);}} className={`p-2 rounded-full transition-all duration-300 active:scale-75 group/like ${isLiked ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' : (isDarkMode ? 'bg-black/20 text-zinc-400 hover:text-rose-500' : 'bg-white/40 text-zinc-500 hover:text-rose-500')}`} title="Curtir"><Heart size={18} fill={isLiked ? "currentColor" : "none"} className="transition-transform group-hover/like:scale-110" /></button>
           <button onClick={(e) => { e.stopPropagation(); alert(`Iniciando leitura por IA de: ${news.title}`); }} className={`p-2 rounded-full transition-all duration-300 active:scale-90 group/audio ${isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95] text-zinc-400 hover:text-white' : 'bg-white/40 hover:bg-[#4c1d95] text-zinc-500 hover:text-white'}`} title="Ouvir Resumo"><Headphones size={18} /></button>
           <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2 rounded-full transition-all duration-300 active:scale-75 group/save ${isSaved ? 'bg-[#4c1d95] text-white shadow-lg shadow-purple-500/30' : (isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95]/20 text-zinc-400 hover:text-[#a78bfa]' : 'bg-white/40 hover:bg-[#4c1d95]/10 text-zinc-500 hover:text-[#4c1d95]')}`} title="Salvar para ler depois"><Bookmark size={18} fill={isSaved ? "currentColor" : "none"} className="transition-transform group-hover/save:scale-110" /></button>
@@ -5044,7 +5044,7 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
               </div>
 
               {/* BOTÃO FLUTUANTE */}
-              <div onClick={handleToggle} className={`flex items-center justify-between p-2 pl-2 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-transform active:scale-95 group select-none ${isDarkMode ? 'bg-zinc-900/90' : 'bg-black/80'}`}>
+              <div onClick={handleToggle} className={`flex items-center justify-between p-2 pl-2 backdrop-blur-md border border-white/10 rounded-full shadow-2xl transition-transform active:scale-95 group select-none ${isDarkMode ? 'bg-zinc-900/90' : 'bg-black/80'}`}>
                   <div className="flex items-center gap-3 min-w-0 pointer-events-none">
                       <div className="relative">
                           <div className={`absolute inset-0 rounded-full animate-pulse opacity-20 ${isPodcast ? 'bg-orange-500' : (isVideo ? 'bg-red-500' : 'bg-green-500')}`}></div>
