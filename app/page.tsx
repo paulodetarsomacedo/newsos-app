@@ -1784,6 +1784,8 @@ const generateSmartClustering = async (news, apiKey) => {
   }
 };
 
+
+
 // --- FUNÇÃO DE IA: SMART DIGEST (COM RASTREABILIDADE) ---
 const generateBriefing = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
@@ -1865,6 +1867,73 @@ const generateBriefing = async (news, apiKey) => {
     return await generateBriefingFallback(news, apiKey);
   }
 };
+
+
+
+// --- FUNÇÃO TREND RADAR (V4 - SINGLE FACT FOCUS) ---
+const generateTrendRadar = async (news, apiKey) => {
+  if (!news || news.length === 0) return null;
+
+  // Enviamos Título + Snippet para a IA ter contexto
+  const context = news.slice(0, 40).map(n => `- ${n.title} (${n.summary ? n.summary.slice(0, 80) : ''})`).join('\n');
+
+  const prompt = `
+  Analise estas manchetes. Agrupe por temas e identifique os 6 Tópicos mais quentes.
+  
+  Para cada tópico, siga esta lógica OBRIGATÓRIA:
+  1. Identifique a notícia "Capitânia" (a mais importante/impactante daquele grupo).
+  2. Esqueça as outras notícias menores do grupo. Foco total na Capitânia.
+  3. Escreva um resumo de 2 a 3 linhas explicando ESSE FATO específico.
+  
+  Gere este JSON:
+  - "topic": Nome curto do tema (Ex: "Mercosul", "SpaceX").
+  - "score": 1 a 10.
+  - "hex": Cor hexadecimal.
+  - "summary": O texto explicando o fato principal.
+  
+  EXEMPLO DE SUMMARY (O que eu quero):
+  "Lula endurece discurso e exige que União Europeia retire taxas ambientais para fechar o acordo ainda hoje."
+  
+  EXEMPLO DO QUE NÃO FAZER (Genérico):
+  "Discussões sobre taxas e clima continuam no bloco econômico."
+
+  DADOS:
+  ${context}
+
+  RETORNE APENAS A LISTA JSON:
+  [ { "topic": "...", "score": 9, "hex": "#...", "summary": "..." } ]
+  `;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
+      })
+    });
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!text) return null;
+    
+    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const json = JSON.parse(cleanText);
+
+    if (Array.isArray(json)) return json;
+    const possibleArray = Object.values(json).find(val => Array.isArray(val));
+    if (possibleArray) return possibleArray;
+
+    return []; 
+
+  } catch (error) {
+    console.warn("Erro Trend Radar:", error);
+    return []; 
+  }
+};
+
 
 
 // --- WIDGET: SMART DIGEST (COM ÁUDIO NATIVO E FONTES EXPANSÍVEIS) ---
