@@ -4443,8 +4443,8 @@ const handleOpenArticle = (article) => {
       {/* O SPLASH AGORA FICA SEMPRE NO DOM, MAS SÓ SOME QUANDO isReady FOR TRUE */}
       <SplashScreen isReady={isAIReady} />
 
-      {/* O APP RENDERIZA IMEDIATAMENTE NO FUNDO (Oculto pelo Splash) */}
-      <div className={`transition-all duration-500 ...`}>
+      {/* --- AQUI ESTÁ A DIV QUE PRECISA DO overflow-hidden --- */}
+      <div className={`transition-all duration-500 transform h-[100dvh] flex flex-col overflow-hidden ${isMainViewReceded ? `scale-[0.9] pointer-events-none` : 'scale-100 opacity-100'}`}>
          
           <HeaderDashboard 
              isDarkMode={isDarkMode} 
