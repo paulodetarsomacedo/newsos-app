@@ -2950,7 +2950,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
   );
 };
 
-// --- COMPONENTE TREND RADAR (EFEITO 3D FÍSICO / BOTÃO) ---
+// --- COMPONENTE TREND RADAR (GLOW PROPORCIONAL À TEMPERATURA) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2961,32 +2961,33 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
 
   // --- LÓGICA DE ESTILO FÍSICO ---
   const getTrendStyle = (score) => {
-      // 1. FERVENDO (Vermelho): Alto relevo (4px) + Glow
+      // 1. FERVENDO (Vermelho)
       if (score >= 9) return {
           color: '#ef4444',
-          bottomHeight: '4px', // Base grossa
-          shadow: '0 0 15px rgba(239, 68, 68, 0.4), inset 0 2px 0 rgba(255,255,255,0.2)',
+          borderWidth: '3px',
+          // Glow forte externo + Glow interno para dar "volume"
+          shadow: '0 0 20px rgba(239, 68, 68, 0.6), inset 0 0 10px rgba(239, 68, 68, 0.2)',
           scale: 'scale(1.05)'
       };
-      // 2. QUENTE (Laranja): Relevo médio (3px)
+      // 2. QUENTE (Laranja)
       if (score >= 7) return {
           color: '#f97316',
-          bottomHeight: '3px',
-          shadow: '0 0 10px rgba(249, 115, 22, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)',
+          borderWidth: '2.5px',
+          shadow: '0 0 12px rgba(249, 115, 22, 0.5), inset 0 0 5px rgba(249, 115, 22, 0.1)',
           scale: 'scale(1.02)'
       };
-      // 3. MORNO (Verde): Relevo normal (2px)
+      // 3. MORNO (Verde)
       if (score >= 5) return {
           color: '#10b981',
-          bottomHeight: '2px',
-          shadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
+          borderWidth: '2px',
+          shadow: '0 0 8px rgba(16, 185, 129, 0.3)',
           scale: 'scale(1)'
       };
-      // 4. FRIO (Azul): Baixo relevo (2px)
+      // 4. FRIO (Azul)
       return {
           color: '#3b82f6',
-          bottomHeight: '2px',
-          shadow: 'none',
+          borderWidth: '1px',
+          shadow: 'none', // Sem glow, apenas estrutura
           scale: 'scale(0.98)'
       };
   };
@@ -3055,37 +3056,29 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                             <button 
                                 onClick={() => handleToggle(idx)}
                                 className={`
-                                    relative group cursor-pointer transition-all duration-200 flex items-center gap-2 rounded-full
-                                    ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-800'}
+                                    relative group cursor-pointer transition-all duration-300 flex items-center gap-2 rounded-full
+                                    ${isDarkMode ? 'bg-zinc-900/90 text-white' : 'bg-white/90 text-zinc-800'}
+                                    backdrop-blur-md
                                 `}
                                 style={{ 
-                                    // AQUI ESTÁ A LÓGICA DO BORDER BOTTOM
-                                    borderColor: style.color,
-                                    borderStyle: 'solid',
-                                    borderWidth: '1px', // Bordas laterais e topo finas
-                                    borderBottomWidth: isActive ? '1px' : style.bottomHeight, // Borda grossa embaixo (some ao clicar)
-                                    
-                                    // Efeito visual
-                                    boxShadow: style.shadow,
+                                    // APLICAÇÃO DOS ESTILOS DINÂMICOS
+                                    border: `${style.borderWidth} solid ${style.color}`,
+                                    boxShadow: isActive ? `0 0 30px ${style.color}` : style.shadow, // Se ativo, explode o glow
+                                    transform: isActive ? 'scale(1.1) translateY(-2px)' : style.scale,
                                     padding: '8px 20px',
-                                    
-                                    // Movimento Físico (Afunda ao clicar ou ativar)
-                                    transform: isActive 
-                                        ? `translateY(${parseInt(style.bottomHeight) - 1}px)` // Desce a altura da borda
-                                        : 'translateY(0)',
                                 }}
                             >
                                 {item.score >= 9 && <span className="text-[10px] animate-bounce">🔥</span>}
                                 <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
                                 
-                                {/* Indicador de Nível */}
+                                {/* Indicador de Nível (Ponto Sólido) */}
                                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: style.color }} />
                             </button>
 
-                            {/* Seta indicativa (Só aparece se ativo) */}
+                            {/* Seta indicativa quando ativo */}
                             {isActive && (
                                 <div 
-                                    className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] animate-in fade-in zoom-in duration-300 z-30"
+                                    className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] animate-in fade-in zoom-in duration-300 z-30"
                                     style={{ borderBottomColor: style.color }}
                                 />
                             )}
@@ -3109,6 +3102,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                         `}
                         style={{ 
                             borderColor: getTrendStyle(activeItem.score).color,
+                            // O balão também ganha um glow suave da cor do tema
                             boxShadow: `0 10px 40px -10px ${getTrendStyle(activeItem.score).color}20`
                         }}
                     >
@@ -3130,7 +3124,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                             </div>
                         </div>
                         
-                        <p className={`text-sm font-bold leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>
                             {activeItem.summary}
                         </p>
                     </div>
