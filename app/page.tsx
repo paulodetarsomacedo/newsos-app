@@ -4076,28 +4076,6 @@ export default function NewsOS_V12() {
   const [realPodcasts, setRealPodcasts] = useState([]);
 
 
-  useEffect(() => {
-  if (process.env.NODE_ENV === 'development' || window.location.href.includes('debug=true')) {
-    const script = document.createElement('script');
-    script.src = "//cdn.jsdelivr.net/npm/eruda";
-    document.body.appendChild(script);
-    script.onload = () => {
-      window.eruda.init();
-      
-      // --- ADICIONE ESTE BLOCO AQUI PARA SUBIR A ENGRENAGEM ---
-      const erudaStyle = document.createElement('style');
-      erudaStyle.innerHTML = `
-        .eruda-container { z-index: 100001 !important; }
-        .eruda-entry-btn { 
-          z-index: 100002 !important; 
-          bottom: 100px !important; /* Sobe um pouco para não atrapalhar a navbar */
-          opacity: 0.8;
-        }
-      `;
-      document.head.appendChild(erudaStyle);
-    };
-  }
-}, []);
 
 
 
@@ -5324,6 +5302,27 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
+
+// --- COLE ESTE BLOCO AQUI EMBAIXO ---
+  const [debugClicks, setDebugClicks] = useState(0);
+
+  useEffect(() => {
+    if (debugClicks >= 5) {
+      const script = document.createElement('script');
+      script.src = "//cdn.jsdelivr.net/npm/eruda";
+      document.body.appendChild(script);
+      script.onload = () => {
+        window.eruda.init();
+        window.eruda.show();
+        const style = document.createElement('style');
+        style.innerHTML = `.eruda-container { z-index: 999999 !important; } .eruda-entry-btn { z-index: 999999 !important; }`;
+        document.head.appendChild(style);
+      };
+      setDebugClicks(0);
+    }
+  }, [debugClicks]);
+
+
   // Controle de Áudio (Mantido apenas para MP3/Podcast nativo, não afeta YouTube)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
@@ -5331,6 +5330,18 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedData, setTranslatedData] = useState(null);
+
+
+
+
+
+\
+
+
+
+
+
+
 
   const videoId = useMemo(() => {
       if (!article) return null;
@@ -5466,12 +5477,23 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                     </>
                 )}
 
-                {videoId && (
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold uppercase tracking-widest opacity-60 mr-2">{article.source}</span>
-                        <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
-                    </div>
-                )}
+                {/* PROCURE ESTE BLOCO ABAIXO NO SEU CÓDIGO E SUBSTITUA */}
+
+{videoId && (
+    <div className="flex items-center gap-2">
+        {/* O NOME DA FONTE AGORA É UM BOTÃO SECRETO */}
+        <span 
+            onClick={() => setDebugClicks(prev => prev + 1)} 
+            className="text-xs font-bold uppercase tracking-widest opacity-60 mr-2 cursor-pointer p-1 active:opacity-100"
+        >
+            {article.source}
+        </span>
+        
+        <button onClick={() => onToggleSave(article)} title="Salvar" className={`p-2.5 rounded-xl transition active:scale-75 ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}>
+            <Bookmark size={22} fill={isSaved ? "currentColor" : "none"} />
+        </button>
+    </div>
+)}
                  <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
             </div>
 
@@ -5512,6 +5534,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                                 </div>
                             </div>
                             <h1 className="text-2xl md:text-3xl font-black leading-tight mb-4 tracking-tight">{article.title}</h1>
+                            
                             <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode || videoId ? 'bg-white/5 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}>
                                 {article.summary || "Sem descrição disponível."}
                             </div>
