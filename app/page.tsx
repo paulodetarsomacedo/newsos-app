@@ -4188,9 +4188,9 @@ const handleStoryNavigation = (direction) => {
                }
             }
 
-            let LIMIT = 15; 
-            if (feed.type === 'podcast') LIMIT = 5; 
-            else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 5;
+            let LIMIT = 20; 
+            if (feed.type === 'podcast') LIMIT = 1; 
+            else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
 
             // --- LÓGICA DE DEDUPLICAÇÃO TEMPORAL ---
             
@@ -4331,11 +4331,7 @@ const handleStoryNavigation = (direction) => {
   useEffect(() => { fetchFeeds(); }, [userFeeds]);
 
   // FUNÇÕES GLOBAIS DE INTERFACE
-  const handleToggleSave = (article) => {
-    const exists = savedItems.find((i) => i.id === article.id);
-    if (exists) { setSavedItems((prev) => prev.filter((i) => i.id !== article.id)); } 
-    else { setSavedItems((prev) => [{ ...article, readProgress: 0, date: 'Agora', source: article.source || article.name }, ...prev]); }
-  };
+  
 
   const handleRemoveSavedItem = (idToRemove) => {
     setSavedItems((prevItems) => prevItems.filter((item) => item.id !== idToRemove));
