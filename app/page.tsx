@@ -2704,11 +2704,12 @@ const AssetCard = ({ mover, allNews, openArticle, isDarkMode }) => {
     );
 };
 
-// --- WIDGET: MARKET PULSE (DESIGN "TRADER PRO" - BORDAS VIVAS & FUNDO ESCURO) ---
+// --- WIDGET: MARKET PULSE (COM ACORDEÃO E FONTES) ---
 const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [expandedMover, setExpandedMover] = useState(null); // Controla qual card está aberto
   const prevTrigger = useRef(refreshTrigger);
 
   useEffect(() => {
@@ -2733,6 +2734,10 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
     load();
   }, [newsData, apiKey, refreshTrigger]);
 
+  const toggleMover = (idx) => {
+      setExpandedMover(expandedMover === idx ? null : idx);
+  };
+
   if (loading) {
       return (
           <div className="px-2 mb-6 animate-pulse">
@@ -2744,25 +2749,20 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
   if (!data) return null;
 
   // --- HELPERS DE ESTILO ---
-
-  // Cor do Score Geral
   const getScoreColor = (score) => {
       if (score > 60) return 'text-emerald-400';
       if (score < 40) return 'text-rose-500';
       return 'text-blue-400';
   };
 
-  // Ícone Gigante de Fundo (Marca d'água)
   const BigTrendIcon = () => {
       const style = "absolute bottom-[-20px] right-[-20px] opacity-10 transform -rotate-12 pointer-events-none";
       const size = 220;
-      
       if (data.trend_direction === 'bullish') return <TrendingUp size={size} className={`text-emerald-500 ${style}`} />;
       if (data.trend_direction === 'bearish') return <TrendingDown size={size} className={`text-rose-600 ${style}`} />;
       return <Activity size={size} className={`text-blue-500 ${style}`} />;
   };
 
-  // Estilos Dinâmicos para os Cards Pequenos (Movers)
   const getMoverStyles = (trend) => {
       if (trend === 'up') return {
           border: 'border-emerald-500',
@@ -2776,7 +2776,6 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
           bg: isDarkMode ? 'bg-rose-500/5' : 'bg-rose-50',
           icon: <TrendingDown size={14} className="text-rose-600" />
       };
-      // Neutro
       return {
           border: 'border-blue-500',
           text: 'text-blue-400',
@@ -2785,28 +2784,30 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
       };
   };
 
-  // Cores para o Ticker (Rodapé)
   const getTrendColorTicker = (trend) => {
       if (trend === 'bullish') return 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.6)]';
       if (trend === 'bearish') return 'bg-rose-600 shadow-[0_0_15px_rgba(225,29,72,0.6)]';
       return 'bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.6)]';
+  };
+  
+  const getTrendIcon = (trend) => {
+      if (trend === 'bullish') return <TrendingUp size={18} className="text-emerald-500" />;
+      if (trend === 'bearish') return <TrendingDown size={18} className="text-rose-500" />;
+      return <Minus size={18} className="text-yellow-500" />;
   };
 
   return (
     <div className="px-2 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className={`
             rounded-[2.5rem] border relative overflow-hidden transition-all hover:shadow-2xl 
-            /* FUNDO MAIS ESCURO E SÓLIDO */
             ${isDarkMode ? 'bg-[#050505] border-white/10 shadow-black/80' : 'bg-white border-zinc-200 shadow-xl'}
         `}>
             
-            {/* --- CORPO PRINCIPAL --- */}
-            <div className="p-7 pb-8 relative z-10 overflow-hidden">
-                
-                {/* ÍCONE GIGANTE (WATERMARK) */}
+            {/* CORPO PRINCIPAL */}
+            <div className="p-7 pb-8 relative z-10">
                 <BigTrendIcon />
 
-                {/* Header: Score e Status */}
+                {/* Header */}
                 <div className="flex items-end justify-between mb-6 relative z-20">
                     <div>
                         <div className="flex items-center gap-2 mb-1.5">
@@ -2823,7 +2824,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                     </div>
                 </div>
 
-                {/* Barra de Termômetro */}
+                {/* Barra */}
                 <div className={`w-full h-1.5 rounded-full mb-6 overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
                     <div 
                         className={`h-full rounded-full transition-all duration-1000 ${data.market_score > 60 ? 'bg-emerald-500' : (data.market_score < 40 ? 'bg-rose-600' : 'bg-blue-500')}`} 
@@ -2831,81 +2832,123 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                     />
                 </div>
 
-                {/* Resumo */}
                 <p className={`text-sm font-medium leading-relaxed mb-8 relative z-20 max-w-[90%] ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
                     {data.summary}
                 </p>
 
-                {/* --- GRID DE MOVERS (VISUAL REFORÇADO) --- */}
-                <div className="grid grid-cols-2 gap-4 relative z-20">
+                {/* --- GRID DE MOVERS (TIPO ACORDEÃO) --- */}
+                <div className="grid grid-cols-1 gap-3 relative z-20">
                     {data.movers?.map((mover, idx) => {
                         const styles = getMoverStyles(mover.trend);
+                        const isExpanded = expandedMover === idx;
+
                         return (
-                            <button 
+                            <div 
                                 key={idx}
-                                disabled={!mover.article}
-                                onClick={() => mover.article && openArticle(mover.article)}
                                 className={`
-                                    text-left p-4 rounded-2xl transition-all duration-200
-                                    ${mover.article ? 'hover:scale-[1.03] active:scale-95 cursor-pointer hover:shadow-lg' : 'cursor-default opacity-80'}
+                                    rounded-2xl transition-all duration-300 overflow-hidden
                                     ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}
-                                    
-                                    /* BORDAS GROSSAS E VIVAS */
                                     border-2 ${styles.border}
                                     ${styles.bg}
                                 `}
                             >
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className={`text-sm font-black truncate pr-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                                        {mover.asset}
-                                    </span>
-                                    {/* Badge de Variação */}
-                                    <div className="flex items-center gap-1">
-                                        {styles.icon}
-                                        <span className={`text-[10px] font-black ${styles.text}`}>
-                                            {mover.change_label || (mover.trend === 'up' ? 'Alta' : 'Baixa')}
-                                        </span>
+                                {/* Cabeçalho do Card (Clicável para expandir) */}
+                                <button 
+                                    onClick={() => toggleMover(idx)}
+                                    className="w-full text-left p-4 flex items-center justify-between"
+                                >
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                                                {mover.asset}
+                                            </span>
+                                            <div className="flex items-center gap-1">
+                                                {styles.icon}
+                                                <span className={`text-[10px] font-black ${styles.text}`}>
+                                                    {mover.change_label}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <p className={`text-[10px] font-medium leading-tight opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                                            {mover.reason}
+                                        </p>
+                                    </div>
+                                    <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} opacity-50`}>
+                                        <ChevronDown size={18} />
+                                    </div>
+                                </button>
+
+                                {/* Conteúdo Expandido (Manchetes/Fontes) */}
+                                <div 
+                                    className={`
+                                        transition-all duration-300 ease-in-out overflow-hidden
+                                        ${isExpanded ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'}
+                                    `}
+                                >
+                                    <div className={`p-3 pt-0 border-t ${isDarkMode ? 'border-white/10' : 'border-black/5'}`}>
+                                        <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2 mt-2">Fonte Relacionada:</p>
+                                        
+                                        {/* Card da Notícia Linkada */}
+                                        {mover.article ? (
+                                            <button 
+                                                onClick={() => openArticle(mover.article)}
+                                                className={`
+                                                    w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all active:scale-95
+                                                    ${isDarkMode ? 'bg-black/20 border-white/10 hover:bg-white/5' : 'bg-white/60 border-zinc-200 hover:bg-white'}
+                                                `}
+                                            >
+                                                <img 
+                                                    src={mover.article.logo} 
+                                                    className="w-8 h-8 rounded-lg object-cover shadow-sm" 
+                                                    onError={(e) => e.target.style.display='none'}
+                                                />
+                                                <div className="flex-1 text-left min-w-0">
+                                                    <span className={`text-[9px] font-bold uppercase block mb-0.5 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                                                        {mover.article.source}
+                                                    </span>
+                                                    <span className={`text-xs font-bold leading-tight line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
+                                                        {mover.article.title}
+                                                    </span>
+                                                </div>
+                                                <ArrowRight size={14} className="opacity-50" />
+                                            </button>
+                                        ) : (
+                                            <span className="text-xs opacity-50 italic">Nenhuma fonte direta vinculada.</span>
+                                        )}
                                     </div>
                                 </div>
-                                <p className={`text-[10px] font-medium leading-tight line-clamp-2 opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                                    {mover.reason}
-                                </p>
-                            </button>
+                            </div>
                         );
                     })}
                 </div>
             </div>
 
-            {/* --- ÁREA DO TICKER FINANCEIRO --- */}
+            {/* --- Ticker Financeiro --- */}
             <div className={`relative border-t border-white/5 p-5 flex gap-4 items-start ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-zinc-50'}`}>
-                
-                {/* Indicador Visual Futurista (Ponto de Luz) */}
                 <div className="flex-shrink-0 flex flex-col items-center justify-start pt-1.5 gap-1 w-8">
                     <div className={`w-3 h-3 rounded-full mb-1 animate-pulse ${getTrendColorTicker(data.trend_direction)}`} />
+                    {getTrendIcon(data.trend_direction)}
                 </div>
-
-                {/* Texto do Ticker */}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-2">
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${data.market_state === 'CLOSED' ? 'text-rose-500' : 'text-emerald-500'}`}>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${data.market_state === 'CLOSED' ? 'text-rose-500' : 'text-emerald-500'}`}>
                             {data.market_state === 'CLOSED' ? 'Mercado Encerrado' : 'Pregão Ao Vivo'}
                         </span>
                         <span className="text-[10px] font-mono opacity-40">
                             {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
                     </div>
-                    
-                    <div className={`text-xs font-mono leading-relaxed whitespace-pre-line ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                    <div className={`text-xs font-mono leading-relaxed whitespace-pre-line ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
                         {data.bottom_summary}
                     </div>
                 </div>
+                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5 pointer-events-none mix-blend-overlay"></div>
             </div>
 
         </div>
     </div>
   );
 };
-
 
 // --- COMPONENTE TREND RADAR (GLOW PROPORCIONAL À TEMPERATURA) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
@@ -3081,7 +3124,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
                             </div>
                         </div>
                         
-                        <p className={`text-sm font-bold leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>
                             {activeItem.summary}
                         </p>
                     </div>
