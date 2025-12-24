@@ -4397,6 +4397,16 @@ const allAvailableStories = useMemo(() => {
 
 
 
+// --- OTIMIZAÇÃO DE MEMÓRIA: ARRAY ÚNICO MEMORIZADO ---
+  // Evita criar arrays gigantes no meio da renderização, prevenindo crashes no iOS
+  const allFeedItems = useMemo(() => {
+      // Combina e ordena por data (garantia extra)
+      const combined = [...realNews, ...realVideos, ...realPodcasts];
+      return combined.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+  }, [realNews, realVideos, realPodcasts]);
+
+
+
 // --- FUNÇÃO DE ABERTURA INTELIGENTE (VIDEO vs ARTIGO) ---
 const handleOpenArticle = (article) => {
     if (!article) return;
@@ -4616,8 +4626,8 @@ const handleOpenArticle = (article) => {
           <ArticlePanel 
               key={selectedArticle?.id || 'empty-panel'} 
               article={selectedArticle} 
-              feedItems={[...realNews, ...realVideos, ...realPodcasts]}          
-              isOpen={!!selectedArticle} 
+feedItems={allFeedItems}              
+isOpen={!!selectedArticle} 
               onClose={closeArticle} 
               onArticleChange={handleOpenArticle} 
               onToggleSave={handleToggleSave}
@@ -4887,35 +4897,46 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
 
     // --- FILTRAGEM INTELIGENTE E DEDUPLICAÇÃO ---
     const relatedNews = useMemo(() => {
-        if (!feedItems) return [];
+        if (!feedItems || feedItems.length === 0) return [];
         
-        let filteredList = [];
+        // 1. OTIMIZAÇÃO: Trabalhar com um subconjunto se a lista for monstro
+        // Se tiver mais de 500 itens, pegamos apenas os 500 primeiros (mais recentes)
+        // para evitar travar o loop de renderização do iOS.
+        const sourceList = feedItems.length > 500 ? feedItems.slice(0, 500) : feedItems;
 
-        // 1. Filtra pelo tipo correto
-        if (isPodcast) {
-            filteredList = feedItems.filter(item => item.category === 'Podcast' || item.type === 'audio' || item.forceAudioMode);
-        } 
-        else if (isVideo) {
-            filteredList = feedItems.filter(item => (item.videoId || (item.link && item.link.includes('youtu'))) && item.category !== 'Podcast');
-        } 
-        else {
-            filteredList = feedItems.filter(item => !item.videoId && (!item.link || !item.link.includes('youtu')) && item.category !== 'Podcast');
-        }
-
-        // 2. Remove Duplicatas (O CORRETOR DO ERRO DE KEY)
         const uniqueList = [];
         const seenIds = new Set();
         
-        for (const item of filteredList) {
-            // Se ainda não vimos esse ID, adiciona. Se já vimos, ignora.
-            if (!seenIds.has(item.id)) {
-                seenIds.add(item.id);
-                uniqueList.push(item);
+        // Lógica de filtro simplificada para performance
+        for (let i = 0; i < sourceList.length; i++) {
+            const item = sourceList[i];
+            
+            // Filtro rápido de tipo
+            let isMatch = false;
+            if (isPodcast) {
+                isMatch = item.category === 'Podcast' || item.type === 'audio' || item.forceAudioMode;
+            } else if (isVideo) {
+                // Verificação otimizada de vídeo (evita includes pesados se não tiver ID)
+                isMatch = !!item.videoId || (item.category === 'Vídeo'); 
+            } else {
+                // Notícia normal
+                isMatch = !item.videoId && item.category !== 'Podcast' && item.category !== 'Vídeo';
             }
+
+            if (isMatch) {
+                if (!seenIds.has(item.id)) {
+                    seenIds.add(item.id);
+                    uniqueList.push(item);
+                }
+            }
+            
+            // Segurança: Se já achamos 50 itens relacionados, PARA.
+            // Ninguém navega por 50 itens no rodapé. Isso salva muita memória.
+            if (uniqueList.length >= 50) break;
         }
 
         return uniqueList;
-    }, [feedItems, isPodcast, isVideo]);
+    }, [feedItems, isPodcast, isVideo]); // Dependências estáveis
 
     const currentIndex = relatedNews.findIndex(item => item && item.id === article.id);
     const hasPrev = currentIndex > 0;
