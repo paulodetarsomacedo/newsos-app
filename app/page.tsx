@@ -4306,7 +4306,14 @@ const handleStoryNavigation = (direction) => {
     }
   }, [activeTab]);
 
+const allFeedItems = useMemo(() => {
+      const combined = [...realNews, ...realVideos, ...realPodcasts];
+      // Ordena por data para garantir que o feed fique misturado corretamente
+      return combined.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+  }, [realNews, realVideos, realPodcasts]);
 
+  // Função auxiliar para fechar vídeo (caso também esteja faltando)
+  const closeVideo = () => setSelectedVideo(null);
 
   // Adicione este bloco de código dentro de NewsOS_V12, antes do `return (`
 
