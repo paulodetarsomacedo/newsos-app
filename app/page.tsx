@@ -706,12 +706,18 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
 function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // 1. Extrai fontes únicas das notícias para montar o menu
-  // (Num app real, viria do seu userFeeds, mas aqui extraímos do que temos na tela)
-  const uniqueSources = Array.from(new Set(news.map(n => n.source)))
-    .map(sourceName => {
-      return news.find(n => n.source === sourceName);
+  // Extrai fontes únicas (mantido)
+  const uniqueSources = useMemo(() => {
+    const seen = new Set();
+    const sources = [];
+    news.forEach(n => {
+        if (!seen.has(n.source)) {
+            seen.add(n.source);
+            sources.push(n);
+        }
     });
+    return sources;
+  }, [news]);
 
   return (
     <div className="absolute left-0 top-2 z-[1001]">
@@ -722,7 +728,7 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
         className={`
           flex items-center justify-center
           h-[42px] w-12 pl-1
-          rounded-r-2xl rounded-l-none /* Arredonda só a direita */
+          rounded-r-2xl rounded-l-none
           border-y border-r border-l-0
           backdrop-blur-xl shadow-sm transition-all duration-300
           ${isDarkMode 
@@ -734,11 +740,11 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
         {selectedSource === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
-           // Se tiver uma fonte selecionada, tenta mostrar o logo pequeno
            <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
               <img 
                 src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
                 className="w-full h-full object-cover"
+                onError={(e) => e.target.style.display = 'none'}
               />
            </div>
         )}
@@ -748,21 +754,21 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
       {isOpen && (
         <>
           {/* Backdrop invisível para fechar ao clicar fora */}
-          <div className="fixed inset-0 z-[1000" onClick={() => setIsOpen(false)} />
+          <div className="fixed inset-0 z-[1000]" onClick={() => setIsOpen(false)} />
 
           <div className={`
-             absolute top-[50px] left-2 z-[101]
+             absolute top-[50px] left-2 z-[1001]
              flex flex-col gap-2 p-2
              rounded-2xl border shadow-xl backdrop-blur-xl
              animate-in slide-in-from-left-2 duration-200
              ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
           `}>
              
-             {/* Opção "Todas" */}
+             {/* Opção "Todas" (FIXA NO TOPO) */}
              <button
                onClick={() => { onSelect('all'); setIsOpen(false); }}
                className={`
-                 w-10 h-10 rounded-full flex items-center justify-center transition-all
+                 w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center transition-all
                  ${selectedSource === 'all' 
                     ? 'bg-purple-600 text-white shadow-lg' 
                     : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}
@@ -772,26 +778,29 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
                 <LayoutGrid size={20} />
              </button>
 
-             <div className={`h-[1px] w-full ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
+             <div className={`h-[1px] w-full flex-shrink-0 ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
 
-             {/* Lista de Logos */}
-             {uniqueSources.map((item) => (
-               <button
-                 key={item.source}
-                 onClick={() => { onSelect(item.source); setIsOpen(false); }}
-                 className={`
-                   relative w-10 h-10 rounded-full p-[2px] transition-transform hover:scale-110
-                   ${selectedSource === item.source ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
-                 `}
-                 title={item.source}
-               >
-                 <img 
-                   src={item.logo} 
-                   alt={item.source} 
-                   className="w-full h-full rounded-full object-cover border border-black/10"
-                 />
-               </button>
-             ))}
+             {/* --- ÁREA DE ROLAGEM PARA OS LOGOS --- */}
+             <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto scrollbar-hide pt-1 pb-1">
+                 {uniqueSources.map((item) => (
+                   <button
+                     key={item.source}
+                     onClick={() => { onSelect(item.source); setIsOpen(false); }}
+                     className={`
+                       relative w-10 h-10 rounded-full p-[2px] transition-transform hover:scale-110 flex-shrink-0
+                       ${selectedSource === item.source ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
+                     `}
+                     title={item.source}
+                   >
+                     <img 
+                       src={item.logo} 
+                       alt={item.source} 
+                       className="w-full h-full rounded-full object-cover border border-black/10 bg-white"
+                       onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${item.source}&background=random`}
+                     />
+                   </button>
+                 ))}
+             </div>
           </div>
         </>
       )}
