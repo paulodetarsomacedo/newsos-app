@@ -15,27 +15,6 @@ import {
   Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart
 } from 'lucide-react';
 
-// Função robusta para extrair o ID ou garantir que temos um link funcional
-const getVideoUrl = (video) => {
-    if (!video) return null;
-    
-    // Se já temos o ID, montamos a URL de embed simples (mais leve que o site completo)
-    if (video.videoId) {
-        return `https://www.youtube.com/embed/${video.videoId}?playsinline=1&controls=1&autoplay=0`;
-    }
-    
-    // Se temos o link completo, tentamos extrair o ID
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = video.link?.match(regExp);
-    const id = (match && match[2].length === 11) ? match[2] : null;
-    
-    if (id) {
-        return `https://www.youtube.com/embed/${id}?playsinline=1&controls=1&autoplay=0`;
-    }
-    
-    // Fallback: Se não achou ID, usa o link original (pode abrir o site full)
-    return video.link; 
-};
 
 const stringToHash = (str) => {
   let hash = 0;
@@ -56,7 +35,63 @@ const STORIES = [
   { id: 3, name: 'CNN', avatar: 'https://ui-avatars.com/api/?name=CN&background=e74c3c&color=fff', items: [{ id: 301, type: 'image', img: 'https://images.unsplash.com/photo-1526304640152-d4619684e484?w=600&q=80', title: 'Bolsas asiáticas', time: '3h' }] },
 ];
 
-const FEED_NEWS = []; // Limpo para evitar dados fantasmas
+const FEED_NEWS = [
+  { 
+    id: 1, 
+    source: 'The Verge', 
+    logo: 'https://ui-avatars.com/api/?name=TV&background=000&color=fff&rounded=false&font-size=0.5', 
+    time: '2h', 
+    title: 'Apple Vision Pro ganha versão mais leve e barata', 
+    summary: 'A gigante de Cupertino planeja lançar uma versão "Air" do seu headset espacial focado no consumo de mídia e conforto prolongado.',
+    category: 'Tecnologia', 
+    img: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&q=80',
+    readTime: '4 min'
+  },
+  { 
+    id: 2, 
+    source: 'CNN Market', 
+    logo: 'https://ui-avatars.com/api/?name=CN&background=e74c3c&color=fff&rounded=false&font-size=0.5', 
+    time: '3h', 
+    title: 'Dólar cai abaixo de R$ 4,90 com otimismo fiscal', 
+    summary: 'Investidores estrangeiros voltam a aportar capital no Brasil após a aprovação das novas metas fiscais pelo Senado.',
+    category: 'Economia', 
+    img: 'https://images.unsplash.com/photo-1611974765270-ca12586343bb?w=800&q=80',
+    readTime: '2 min' 
+  },
+  { 
+    id: 3, 
+    source: 'BBC Science', 
+    logo: 'https://ui-avatars.com/api/?name=BB&background=000&color=fff&rounded=false&font-size=0.5', 
+    time: '5h', 
+    title: 'Telescópio Webb descobre vapor d\'água em exoplaneta', 
+    summary: 'A descoberta no planeta K2-18b reacende o debate sobre a possibilidade de vida fora do sistema solar em zonas habitáveis.',
+    category: 'Tecnologia', 
+    img: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80',
+    readTime: '3 min' 
+  },
+  { 
+    id: 4, 
+    source: 'Vogue', 
+    logo: 'https://ui-avatars.com/api/?name=VG&background=000&color=fff&rounded=false&font-size=0.5', 
+    time: '6h', 
+    title: 'As tendências de inverno que dominaram Paris', 
+    summary: 'Casacos oversized e tons terrosos foram os protagonistas da Fashion Week, ditando o que veremos nas vitrines.',
+    category: 'Local', 
+    img: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80', 
+    readTime: '4 min' 
+  },
+  { 
+    id: 5, 
+    source: 'Politico', 
+    logo: 'https://ui-avatars.com/api/?name=PO&background=000&color=fff', 
+    time: '7h', 
+    title: 'Senado aprova nova lei de trânsito para elétricos', 
+    summary: 'Novas regras exigem adaptação de postos de recarga e criam incentivos fiscais para a troca de frota nas capitais.',
+    category: 'Política', 
+    img: 'https://images.unsplash.com/photo-1555848960-8c3fd4479802?w=800&q=80', 
+    readTime: '5 min' 
+  },
+];
 
 const BANCA_ITEMS = [
   { id: 1, name: 'Folha de S.Paulo', category: 'Jornais', color: 'bg-[#004990]', layoutType: 'standard', logo: 'FOLHA', headline: 'Reforma Tributária avança no Senado' },
@@ -840,7 +875,7 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
     <div className="absolute left-150 top-2 z-[1001]">
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 h-[42px] px-6 rounded-r-2xl border-y border-l border-r-0 backdrop-blur-xl shadow-sm transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
+        className={`flex items-center gap-2 h-[42px] px-3 rounded-r-2xl border-y border-l border-r-0 backdrop-blur-xl shadow-sm transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
       >
         {selectedChannel === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
@@ -1674,8 +1709,6 @@ const parseAndNormalize = (text) => {
     }
 }
 
-
-
 // --- FALLBACK (ATUALIZADO PARA 4 TÓPICOS) ---
 const generateBriefingFallback = async (news, apiKey) => {
     console.log("Iniciando Fallback (Gemini 1.5)...");
@@ -1727,35 +1760,41 @@ const generateBriefingFallback = async (news, apiKey) => {
     }
 };
 
-// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (COM LIMITE DINÂMICO) ---
-const generateSmartClustering = async (news, apiKey, limit = 300) => {
-  // Verificação básica (Limite mínimo de 10 notícias para rodar)
-  if (!news || news.length < 10 || !apiKey) return null;
+// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V1 - CONTEXTO REAL) ---
+const generateSmartClustering = async (news, apiKey) => {
+  if (!news || news.length < 4 || !apiKey) return null;
 
-  // AGORA O LIMITE É DINÂMICO (30 no início, 300 depois)
-  const context = news.slice(0, limit).map(n => 
-    `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img || ''}`
+  const context = news.slice(0, 50).map(n => 
+    `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img}`
   ).join('\n');
 
   const prompt = `
-  Você é um Editor-Chefe de um App de Notícias Premium no Brasil.
-  
-  SUA MISSÃO CRÍTICA:
-  Gerar EXATAMENTE 3 (TRÊS) cards para o carrossel "Contexto Global".
-  
-  HIERARQUIA DE SELEÇÃO:
-  1. Tente agrupar eventos com múltiplas fontes.
-  2. Se a lista de notícias for pequena, aceite eventos com menos fontes, mas GARANTA 3 TÓPICOS DISTINTOS.
-  
-  ESTRUTURA DO JSON (Para cada um dos 3 cards):
-  - ai_title: Título em Português do Brasil. Curto e impactante (Máx 10 palavras).
-  - representative_image: Copie a URL do campo 'IMG' de uma das notícias.
-  - related_articles: Liste os IDs das notícias do cluster. Analise o sentimento ('positive', 'negative', 'neutral').
+  Você é um Editor-Chefe e Diretor de Arte de uma publicação jornalística de ponta.
 
-  DADOS BRUTOS (${limit} itens):
+  TAREFA PRINCIPAL:
+  Analise a lista de notícias abaixo e identifique até 3 (três) eventos principais que estão sendo cobertos por, no mínimo, 3 (três) ou mais fontes diferentes. Para cada evento, aja como um curador de conteúdo de elite.
+
+  PARA CADA EVENTO IDENTIFICADO, SIGA ESTAS REGRAS:
+  1.  **CRIE UMA MANCHETE:** Escreva um título jornalístico, curto e impactante (máximo de 8 palavras) que resuma a essência do evento. Não mencione os nomes das fontes no título.
+  2.  **SELECIONE A IMAGEM-CHAVE:** Das imagens disponíveis para o evento (\`IMG\`), escolha a URL daquela que for mais representativa, poderosa e de melhor qualidade visual. Forneça apenas uma URL de imagem por evento.
+  3.  **LISTE AS FONTES:** Agrupe todas as notícias (com seus IDs e logos) que cobrem este mesmo evento. Proibido repetir fontes.
+
+  INPUT (LISTA DE NOTÍCIAS):
   ${context}
 
-  RETORNE APENAS O ARRAY JSON COM OS 3 OBJETOS.
+  FORMATO JSON DE SAÍDA OBRIGATÓRIO (Array de até 3 objetos):
+  [
+    {
+      "ai_title": "Senado Aprova Marco Regulatório para Inteligência Artificial em Votação Histórica",
+      "representative_image": "https://images.unsplash.com/photo-1555848960-8c3fd4479802?w=800&q=80",
+      "related_articles": [
+        { "id": "id_da_noticia_1", "source": "Politico", "logo": "https://...logo_politico.png" },
+        { "id": "id_da_noticia_2", "source": "G1", "logo": "https://...logo_g1.png" },
+        { "id": "id_da_noticia_3", "source": "Folha", "logo": "https://...logo_folha.png" },
+        { "id": "id_da_noticia_4", "source": "CNN", "logo": "https://...logo_cnn.png" }
+      ]
+    }
+  ]
   `;
 
   try {
@@ -1770,43 +1809,37 @@ const generateSmartClustering = async (news, apiKey, limit = 300) => {
 
     const data = await response.json();
     
-    if (!response.ok || data.error) return null;
+    if (!response.ok || data.error) {
+        console.error("Erro da API Gemini:", data.error?.message || response.statusText);
+        return null;
+    }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
+    // --- LÓGICA DE HIDRATAÇÃO CORRIGIDA E SIMPLIFICADA ---
     const hydratedJson = json.map(cluster => {
         const hydratedArticles = cluster.related_articles
-            .map(ref => {
-                const originalArticle = news.find(n => n.id === ref.id);
-                if (!originalArticle) return null;
-                return { ...originalArticle, ai_sentiment: ref.sentiment }; 
-            })
-            .filter(Boolean);
+            .map(ref => news.find(n => n.id === ref.id)) // Encontra o artigo completo na lista 'news'
+            .filter(Boolean); // Remove quaisquer resultados 'undefined' (caso um artigo não seja encontrado)
 
-        const uniqueArticles = [];
-        const seenSources = new Set();
-        hydratedArticles.forEach(art => {
-            if (!seenSources.has(art.source)) {
-                seenSources.add(art.source);
-                uniqueArticles.push(art);
-            }
-        });
-
-        return { ...cluster, related_articles: uniqueArticles };
-    }).filter(c => c.related_articles.length > 0); 
+        return {
+            ...cluster,
+            related_articles: hydratedArticles
+        };
+    });
 
     return Array.isArray(hydratedJson) ? hydratedJson : null;
 
   } catch (error) {
-    console.error("Erro Smart Clustering:", error);
+    console.error("Erro no novo Smart Clustering:", error);
     return null;
   }
 };
 
-// --- FUNÇÃO DE IA: SMART DIGEST (COM RASTREABILIDADE) ---
+// --- PRINCIPAL (ATUALIZADO PARA 4 TÓPICOS) ---
 const generateBriefing = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
   if (!apiKey) {
@@ -1814,14 +1847,13 @@ const generateBriefing = async (news, apiKey) => {
       return null;
   }
 
-  // Preparamos o contexto com ID para a IA saber o que referenciar
-  const context = news.slice(0, 40).map(n => {
-      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 300) : "Sem detalhes.";
-      return `ID: ${n.id} | [FONTE: ${n.source}] TÍTULO: ${n.title} | CONTEXTO: ${cleanSummary}`;
+  const context = news.slice(0, 30).map(n => {
+      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 400) : "Sem detalhes.";
+      return `[FONTE: ${n.source}] MANCHETE: ${n.title} | CONTEXTO: ${cleanSummary}`;
   }).join('\n\n');
 
   const prompt = `
-  Você é o Editor-Chefe de uma newsletter premium (estilo Morning Brew).
+  Você é o Editor-Chefe de uma newsletter premium e inteligente (estilo Morning Brew ou Axios).
   
   SUA MISSÃO:
   Ler as notícias fornecidas abaixo, identificar os 4 (QUATRO) maiores temas do momento e escrever resumos EXPLICATIVOS, fluídos e concatenados.
@@ -1830,25 +1862,31 @@ const generateBriefing = async (news, apiKey) => {
   1. CONTEXTUALIZE: Não apenas repita o título. Explique o "porquê".
   2. AGRUPE: Junte notícias parecidas no mesmo tópico.
   3. TOM DE VOZ: Profissional, direto, mas conversacional.
-  4. TAMANHO: O campo "summary" deve ter entre 40 a 55 palavras.
-
-  REGRAS OBRIGATÓRIAS:
-  1. Identifique quais notícias (pelos IDs) compõem cada tópico.
-  2. O resumo deve explicar o "porquê" do fato ser importante.
-  3. JSON Estrito.
+  4. TAMANHO: O campo "summary" deve ter entre 25 a 40 palavras.
 
   MATÉRIA PRIMA:
   ${context}
 
-  RETORNE APENAS ESTE JSON:
+  RETORNE APENAS ESTE JSON (Exatamente 4 itens em 'topics'):
   {
     "vibe_emoji": "Um único emoji que defina o humor global",
-    "vibe_title": "Uma manchete de capa impactante (3 a 6 palavras)",
+    "vibe_title": "Uma manchete de capa impactante e curta (3 a 6 palavras)",
     "topics": [
       { 
-        "tag": "Categoria (Ex: Política, Tech)", 
-        "summary": "Texto explicativo rico (30-40 palavras)...",
-        "source_ids": ["id_da_noticia_1", "id_da_noticia_2"] 
+        "tag": "Categoria 1 (Ex: Política)", 
+        "summary": "Texto explicativo rico..." 
+      },
+      { 
+        "tag": "Categoria 2 (Ex: Economia)", 
+        "summary": "Texto explicativo rico..." 
+      },
+      { 
+        "tag": "Categoria 3 (Ex: Tech/Mundo)", 
+        "summary": "Texto explicativo rico..." 
+      },
+      { 
+        "tag": "Categoria 4 (Ex: Brasil/Cultura)", 
+        "summary": "Texto explicativo rico..." 
       }
     ]
   }
@@ -1867,34 +1905,29 @@ const generateBriefing = async (news, apiKey) => {
     const data = await response.json();
 
     if (data.error) {
-        console.warn(`Erro IA: ${data.error.message}`);
-        return await generateBriefingFallback(news, apiKey); // Mantém seu fallback existente
+        console.warn(`Erro Principal (${data.error.message}). Fallback...`);
+        return await generateBriefingFallback(news, apiKey);
     }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return await generateBriefingFallback(news, apiKey);
+    
+    if (!text) {
+        return await generateBriefingFallback(news, apiKey);
+    }
 
     const finalData = parseAndNormalize(text);
     
-    if (!finalData || !finalData.topics) return await generateBriefingFallback(news, apiKey);
-
-    // --- HIDRATAÇÃO: Cruzar IDs com as notícias reais ---
-    finalData.topics = finalData.topics.map(topic => {
-        const relatedArticles = topic.source_ids
-            ? topic.source_ids.map(id => news.find(n => n.id === id)).filter(Boolean)
-            : [];
-        return { ...topic, articles: relatedArticles };
-    });
+    if (!finalData || !finalData.topics || finalData.topics.length === 0) {
+        return await generateBriefingFallback(news, apiKey);
+    }
 
     return finalData;
 
   } catch (error) {
-    console.warn("Erro fatal SmartDigest:", error);
+    console.warn("Erro fatal. Fallback...", error);
     return await generateBriefingFallback(news, apiKey);
   }
 };
-
-
 
 // --- FUNÇÃO TREND RADAR (V4 - SINGLE FACT FOCUS) ---
 const generateTrendRadar = async (news, apiKey) => {
@@ -1960,120 +1993,17 @@ const generateTrendRadar = async (news, apiKey) => {
   }
 };
 
-// --- FUNÇÃO DE IA: ANÁLISE DE MERCADO (COM FOCO EM DÓLAR/BOVESPA) ---
-const generateMarketAnalysis = async (news, apiKey) => {
-  if (!news || news.length === 0) return null;
-
-  // Filtra notícias de mercado com mais abrangência
-  const marketNews = news.filter(n => 
-      n.category === 'Economia' || 
-      n.category === 'Finanças' || 
-      n.category === 'Mercados' ||
-      n.category === 'Tech' ||
-      n.title.toLowerCase().includes('dólar') ||
-      n.title.toLowerCase().includes('ibovespa') ||
-      n.title.toLowerCase().includes('bolsa') ||
-      n.title.toLowerCase().includes('bitcoin') ||
-      n.title.toLowerCase().includes('juros')
-  ).slice(0, 35);
-
-  if (marketNews.length === 0) return null;
-
-  const context = marketNews.map(n => `FONTE: ${n.source} | TÍTULO: ${n.title}`).join('\n');
-  
-  // Detecta hora (Brasília aproximada pelo client)
-  const currentHour = new Date().getHours();
-  // Lógica simples: Fechado antes das 9h ou depois das 18h
-  const isLikelyClosed = currentHour >= 18 || currentHour < 9; 
-
-  const prompt = `
-  Atue como um Analista de Mercado Sênior (ex: Bloomberg/Valor).
-  Hora atual: ${currentHour}h. Status provável: ${isLikelyClosed ? "FECHADO" : "ABERTO"}.
-
-  MANCHETES:
-  ${context}
-
-  TAREFAS OBRIGATÓRIAS:
-  1. Calcule o "Market Score" (0=Pânico, 100=Euforia).
-  2. Resumo Executivo (2 frases) para o corpo principal.
-  3. "Movers": Identifique 4 ativos principais. Tente incluir Dólar e Ibovespa se houver menção.
-  4. RODAPÉ TIPO TICKER (Bottom Summary):
-     - Se FECHADO: Crie um texto de 3 linhas. A primeira linha DEVE conter o fechamento do Ibovespa e Dólar (ex: "Ibovespa -0.5% (126k) | Dólar +0.2% (5.10)"). As outras linhas resumem os destaques.
-     - Se ABERTO: Resuma a tendência atual e a perspectiva de fechamento. Cite Dólar e Bolsa.
-
-  RETORNE APENAS JSON ESTRITO:
-  {
-    "market_score": 60,
-    "market_status": "Cautela",
-    "summary": "Texto do resumo principal...",
-    "market_state": "${isLikelyClosed ? 'CLOSED' : 'OPEN'}",
-    "trend_direction": "bullish" | "bearish" | "neutral",
-    "bottom_summary": "Linha 1: Ibovespa e Dólar...\\nLinha 2: Destaque corporativo...\\nLinha 3: Cenário macro...",
-    "movers": [
-      { "asset": "Dólar", "trend": "up", "change_label": "+0.5%", "news_id": "...", "reason": "Motivo curto" },
-      { "asset": "IBOV", "trend": "down", "change_label": "-1.0%", "news_id": "...", "reason": "Realização de lucros" }
-    ]
-  }
-  `;
-
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
-    });
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return null;
-    
-    const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-    
-    // Hidratação dos links
-    if (json.movers) {
-        json.movers = json.movers.map(mover => {
-            const article = news.find(n => n.id === mover.news_id);
-            return { ...mover, article }; // Pode ser null se a IA alucinar ID
-        }); 
-        // Mantemos mesmo sem artigo para mostrar o dado visual, mas sem clique se falhar
-    }
-
-    return json;
-
-  } catch (error) {
-    console.error("Erro Market Analysis:", error);
-    return null;
-  }
-};
-
-
-// --- WIDGET: SMART DIGEST (COM ÁUDIO NATIVO E FONTES EXPANSÍVEIS) ---
-const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
+// --- SMART DIGEST WIDGET (V3 - COM RELEVO 3D PREMIUM) ---
+const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [digest, setDigest] = useState(null);
   const [status, setStatus] = useState('idle'); 
-  
-  // Estado para controlar qual tópico está expandido (Accordion)
-  const [expandedIndex, setExpandedIndex] = useState(null);
-  
-  // Estado para o Áudio
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
 
   useEffect(() => {
     if (refreshTrigger > 0) {
         setDigest(null);
         setStatus('idle');
-        cancelSpeech(); // Para o áudio se recarregar
     }
   }, [refreshTrigger]);
-
-  // Garante que o áudio pare se o componente desmontar
-  useEffect(() => {
-      return () => cancelSpeech();
-  }, []);
 
   const handleGenerate = async () => {
     if (!apiKey) {
@@ -2093,48 +2023,11 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
     }
   };
 
-  // --- LÓGICA DE ÁUDIO NATIVO (TTS) ---
-  const cancelSpeech = () => {
-      if (synthRef.current) {
-          synthRef.current.cancel();
-          setIsSpeaking(false);
-      }
-  };
-
-  const handlePlayBriefing = () => {
-      if (!synthRef.current || !digest) return;
-
-      if (isSpeaking) {
-          cancelSpeech();
-          return;
-      }
-
-      setIsSpeaking(true);
-
-      // Monta o texto para leitura fluida
-      const intro = `Resumo do News O S. ${digest.vibe_title}.`;
-      const content = digest.topics.map(t => `${t.tag}. ${t.summary}`).join('. Próximo: ');
-      const finalText = `${intro} ${content}. Fim do resumo.`;
-
-      const utterance = new SpeechSynthesisUtterance(finalText);
-      utterance.lang = 'pt-BR'; // Força português
-      utterance.rate = 1.1; // Um pouco mais dinâmico
-      utterance.pitch = 1;
-
-      // Evento quando termina de falar
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-
-      synthRef.current.speak(utterance);
-  };
-
-  const toggleExpand = (index) => {
-      setExpandedIndex(expandedIndex === index ? null : index);
-  };
-
-  // Estilo 3D das tags (Mantido da sua versão anterior)
+  // --- NOVA LÓGICA DE ESTILO 3D PARA AS TAGS ---
   const getTag3DStyle = (index) => {
+      // Base: Gradiente sutil + Borda de Luz (Topo) + Borda de Sombra (Base)
       const base3D = "shadow-[0_2px_5px_-1px_rgba(0,0,0,0.2)] border-t border-b";
+      
       if (isDarkMode) {
           const styles = [
               `bg-gradient-to-b from-blue-500/20 to-blue-600/10 text-blue-200 border-t-blue-400/30 border-b-blue-900/50 ${base3D}`,
@@ -2154,8 +2047,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
       }
   };
 
-  // --- RENDERIZAÇÃO ---
-
+  // 1. IDLE
   if (status === 'idle') {
     return (
       <div className="px-1 mb-6">
@@ -2179,6 +2071,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
     );
   }
 
+  // 2. LOADING
   if (status === 'loading') {
     return (
       <div className="px-1 mb-6">
@@ -2194,6 +2087,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
     );
   }
 
+  // 3. ERROR
   if (status === 'error' || !digest) {
       return (
         <div className="px-1 mb-6">
@@ -2205,6 +2099,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
       );
   }
 
+  // 4. ESTADO FINAL (AURA + 3D RELIEF)
   return (
     <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
       <div className={`
@@ -2223,7 +2118,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
          {/* CONTEÚDO */}
          <div className="relative z-10">
              
-             {/* Cabeçalho com Botão de Áudio */}
+             {/* Cabeçalho */}
              <div className="flex flex-col items-center text-center mb-8 pt-2">
                 <div className="text-5xl mb-3 animate-bounce drop-shadow-xl select-none grayscale-0">
                     {digest.vibe_emoji}
@@ -2231,111 +2126,38 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500 mb-1">
                     Vibe do Momento
                 </span>
-                <h2 className={`text-2xl md:text-3xl font-black leading-tight max-w-sm mb-4 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                <h2 className={`text-2xl md:text-3xl font-black leading-tight max-w-sm ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                     {digest.vibe_title}
                 </h2>
-                
-                {/* BOTÃO DE AUDIO BRIEFING (TTS Nativo) */}
-                <button 
-                    onClick={handlePlayBriefing}
-                    className={`
-                        flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all active:scale-95
-                        ${isSpeaking 
-                            ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' 
-                            : (isDarkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-zinc-100 text-zinc-800 hover:bg-zinc-200')}
-                    `}
-                >
-                    {isSpeaking ? (
-                        <> <Pause size={12} fill="currentColor" /> Parar Briefing </>
-                    ) : (
-                        <> <Play size={12} fill="currentColor" /> Ouvir Resumo </>
-                    )}
-                </button>
              </div>
 
-             {/* GRID DE TÓPICOS (ACORDEÃO) */}
+             {/* GRID DE TÓPICOS (COM EFEITO 3D NOS CARDS) */}
              <div className="grid grid-cols-1 gap-4">
-                {digest.topics?.map((topic, i) => {
-                    const isExpanded = expandedIndex === i;
-                    
-                    return (
-                        <div 
-                            key={i} 
-                            onClick={() => toggleExpand(i)}
-                            className={`
-                                group relative p-5 rounded-3xl transition-all duration-300 backdrop-blur-md cursor-pointer
-                                ${isDarkMode 
-                                    ? 'bg-zinc-900/60 border-t border-l border-white/10 border-b border-r border-black/40' 
-                                    : 'bg-white/70 border-t border-l border-white border-b border-r border-zinc-200/60'}
-                                ${isExpanded ? 'ring-2 ring-purple-500/30 scale-[1.02] z-20' : 'hover:scale-[1.01]'}
-                            `}
-                        >
-                            <div className="flex justify-between items-start mb-3">
-                                <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-xl backdrop-blur-sm ${getTag3DStyle(i)}`}>
-                                    {topic.tag}
-                                </span>
-                                
-                                <div className={`flex items-center gap-2`}>
-                                    {/* Indicador de Quantidade de Fontes */}
-                                    {topic.articles && topic.articles.length > 0 && (
-                                        <span className="text-[9px] font-bold opacity-40 uppercase tracking-wide">
-                                            {topic.articles.length} {topic.articles.length === 1 ? 'Fonte' : 'Fontes'}
-                                        </span>
-                                    )}
-                                    <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} opacity-50`}>
-                                        <ChevronRight size={14} />
-                                    </div>
-                                </div>
-                            </div>
+                {digest.topics?.map((topic, i) => (
+                    <div 
+                        key={i} 
+                        className={`
+                            group relative p-5 rounded-3xl transition-all duration-300 hover:scale-[1.01] backdrop-blur-md
                             
-                            <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
-                                {topic.summary}
-                            </p>
-
-                            {/* ÁREA EXPANDIDA (FONTES ORIGINAIS) */}
-                            <div className={`grid transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'grid-rows-[1fr] mt-4 opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-                                <div className="min-h-0">
-                                    <div className={`h-px w-full mb-3 ${isDarkMode ? 'bg-white/10' : 'bg-black/5'}`} />
-                                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Baseado em:</p>
-                                    
-                                    <div className="space-y-2">
-                                        {topic.articles && topic.articles.length > 0 ? (
-                                            topic.articles.map((article, idx) => (
-                                                <div 
-                                                    key={idx}
-                                                    onClick={(e) => { e.stopPropagation(); openArticle(article); }}
-                                                    className={`
-                                                        flex items-center gap-3 p-2 rounded-xl border transition-colors hover:scale-[1.01] active:scale-95
-                                                        ${isDarkMode ? 'bg-black/20 border-white/5 hover:bg-white/5' : 'bg-white/50 border-black/5 hover:bg-white'}
-                                                    `}
-                                                >
-                                                    <img 
-                                                        src={article.logo} 
-                                                        className="w-6 h-6 rounded-lg object-cover" 
-                                                        onError={(e) => e.target.style.display = 'none'}
-                                                    />
-                                                    <div className="min-w-0">
-                                                        <div className={`text-[9px] font-bold uppercase mb-0.5 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                                                            {article.source}
-                                                        </div>
-                                                        <div className={`text-xs font-bold leading-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                                                            {article.title}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="text-[10px] opacity-50 italic pl-1">
-                                                Fontes não identificadas diretamente.
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
+                            /* --- AQUI ESTÁ O SEGREDO DO 3D NO CARD --- */
+                            ${isDarkMode 
+                                ? 'bg-zinc-900/60 border-t border-l border-white/10 border-b border-r border-black/40 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.5)]' 
+                                : 'bg-white/70 border-t border-l border-white border-b border-r border-zinc-200/60 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.05),_0_2px_4px_-1px_rgba(0,0,0,0.02)]'}
+                        `}
+                    >
+                        <div className="flex justify-between items-start mb-3">
+                            {/* TAG COM EFEITO 3D (CHAMADA DA FUNÇÃO getTag3DStyle) */}
+                            <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-xl backdrop-blur-sm ${getTag3DStyle(i)}`}>
+                                {topic.tag}
+                            </span>
+                            
+                            <div className={`w-1.5 h-1.5 rounded-full opacity-30 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'bg-white' : 'bg-black'}`} />
                         </div>
-                    );
-                })}
+                        <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
+                            {topic.summary}
+                        </p>
+                    </div>
+                ))}
              </div>
 
              {/* Rodapé */}
@@ -2359,65 +2181,43 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 };
 
 
-// --- WIDGET: CONTEXTO GLOBAL (PROGRESSIVE LOADING - 30 -> 300) ---
-const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters }) => {
-  const [loading, setLoading] = useState(false); // Loading Inicial (Tela vazia)
-  const [isUpgrading, setIsUpgrading] = useState(false); // Loading Secundário (Aprimorando)
+
+// --- WIDGET: ENQUANTO VOCÊ ESTAVA FORA (VERSÃO IA GENERATIVA) ---
+
+// --- WIDGET: CONTEXTO GLOBAL (V4 - ATUALIZAÇÃO ESTRITA: APENAS PUSH OU START) ---
+const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, refreshTrigger }) => {
+  const [clusters, setClusters] = useState(null);
+  const [loading, setLoading] = useState(false);
+  
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
   
-  // Controle de estados da execução
-  const hasStartedRef = useRef(false);
+  const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
+  const prevRefreshTrigger = useRef(refreshTrigger);
 
-  // Função Mestra de Execução
-  const runAISequence = async () => {
-      if (!apiKey || !news || news.length < 10) return;
-
-      // --- FASE 1: RÁPIDA (30 Notícias) ---
-      setLoading(true);
-      // Chama a função com limite 30 (Resposta em ~1.5s)
-      const quickResult = await generateSmartClustering(news, apiKey, 30);
-      
-      if (quickResult && quickResult.length > 0) {
-          setClusters(quickResult);
-      }
-      setLoading(false);
-
-      // --- FASE 2: PROFUNDA (300 Notícias) ---
-      // Só inicia a fase 2 se tivermos notícias suficientes para valer a pena
-      if (news.length > 50) {
-          setIsUpgrading(true); // Ativa o texto animado
-          
-          // Delay técnico para dar respiro à API e permitir que o usuário veja o primeiro resultado
-          await new Promise(r => setTimeout(r, 2000)); 
-
-          // Chama a função com limite 300 (Pode demorar ~4-6s)
-          const deepResult = await generateSmartClustering(news, apiKey, 300);
-
-          if (deepResult && deepResult.length > 0) {
-              setClusters(deepResult); // Substitui suavemente
-          }
-          setIsUpgrading(false); // Desliga o texto animado
-      }
-  };
-
-  // --- EFEITO: DISPARO ÚNICO ---
   useEffect(() => {
-      // Dispara apenas se tiver notícias, clusters vazio e nunca tiver rodado antes
-      if (news && news.length > 10 && (!clusters || clusters.length === 0) && !hasStartedRef.current) {
-          hasStartedRef.current = true;
-          runAISequence();
-      }
-  }, [news, apiKey, clusters]); 
+    if (!apiKey || !news || news.length < 5) return;
 
-  // Função Manual (Botão Atualizar) - Roda direto a completa
-  const handleManualRefresh = async () => {
-      if (!apiKey) return alert("Configure a API Key.");
+    const isUserRefresh = refreshTrigger !== prevRefreshTrigger.current;
+    
+    if (!hasLoadedInitial) {
+      setHasLoadedInitial(true);
+      const initialLoadTimer = setTimeout(() => runAI(), 3000);
+      return () => clearTimeout(initialLoadTimer);
+    }
+    
+    if (isUserRefresh) {
+      prevRefreshTrigger.current = refreshTrigger;
+      runAI();
+    }
+  }, [news, apiKey, refreshTrigger]);
+
+  const runAI = async () => {
       setLoading(true);
       setClusters(null);
-      const result = await generateSmartClustering(news, apiKey, 300);
-      if (result) setClusters(result);
-      else alert("Falha ao atualizar.");
+      await new Promise(r => setTimeout(r, 1000));
+      const result = await generateSmartClustering(news, apiKey);
+      setClusters(result);
       setLoading(false);
   };
 
@@ -2429,143 +2229,71 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       if (newIndex !== activeIndex) setActiveIndex(newIndex);
     }
   };
-
-  const getSentimentGlow = (sentiment) => {
-      if (sentiment === 'positive') return 'border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]'; 
-      if (sentiment === 'negative') return 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]';    
-      return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]'; 
-  };
   
-  // --- RENDERIZAÇÃO: LOADING INICIAL (SKELETON) ---
-  if (loading || (!clusters && news && news.length > 0 && !hasStartedRef.current)) {
+  if (loading) {
       return (
-        <div className="relative w-full px-2 animate-in fade-in duration-500">
-            <div className="relative z-10 flex items-center gap-3 mb-5 px-4 opacity-50">
-                <div className={`p-2 rounded-xl bg-zinc-200 dark:bg-white/5`}><Layers size={18} /></div>
-                <div className="h-4 w-32 bg-zinc-200 dark:bg-white/5 rounded-full" />
-            </div>
-            <div className={`h-[480px] rounded-[2.5rem] w-full relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-zinc-200 border border-zinc-300'}`}>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 w-full animate-[shimmer_1.5s_infinite]" />
-            </div>
+        <div className="px-1 mt-8 animate-pulse">
+            <div className={`h-[420px] rounded-[32px] w-full ${isDarkMode ? 'bg-zinc-900' : 'bg-zinc-200'}`}></div>
         </div>
       );
   }
 
-  // Se falhou tudo
   if (!clusters || clusters.length === 0) return null;
 
-  // --- RENDERIZAÇÃO: CONTEÚDO FINAL ---
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
         <div className="relative w-full">
-            
-            {/* Header Inteligente */}
-            <div className="relative z-10 flex items-center justify-between mb-5 px-6">
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                        {isUpgrading ? <Loader2 size={18} className="animate-spin text-purple-400" /> : <Layers size={18} />}
-                    </div>
+            <div className="relative z-10 flex items-center gap-3 mb-4 px-6">
+                <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
                     
-                    <div className="flex flex-col">
-                        <h3 className="text-lg font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 leading-none">
-                            Contexto Global
-                        </h3>
-                        
-                        {/* TEXTO ANIMADO DE UPGRADE */}
-                        {isUpgrading && (
-                            <span className="text-[10px] font-bold text-purple-500 animate-pulse mt-1 tracking-wider uppercase">
-                                Analisando 300 fontes em tempo real...
-                            </span>
-                        )}
-                    </div>
                 </div>
-
-                <button 
-                    onClick={handleManualRefresh}
-                    disabled={isUpgrading}
-                    className={`
-                        flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 border backdrop-blur-md
-                        ${isUpgrading ? 'opacity-0 pointer-events-none' : 'opacity-100'}
-                        ${isDarkMode 
-                            ? 'border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10' 
-                            : 'border-black/5 bg-black/5 text-zinc-600 hover:text-black hover:bg-black/10'}
-                    `}
-                >
-                    <RefreshCw size={12} />
-                    <span>Atualizar</span>
-                </button>
             </div>
 
-            {/* Scroll Horizontal */}
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
-              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-4 px-2"
+              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-2" // Adicionado py-2 para a sombra não ser cortada
             >
                 {clusters.map((cluster, idx) => (
                     <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
                         <div className={`
-                            group relative h-[480px] w-full rounded-[2.5rem] overflow-hidden cursor-default 
-                            transition-all duration-500 hover:scale-[1.01]
-                            shadow-2xl shadow-black/40 border border-white/10
+                            group relative h-[420px] w-full rounded-[32px] overflow-hidden cursor-default 
+                            transition-all duration-300
+                            
+                            /* --- PADRÃO DE SOMBRA DO SMARTDIGEST APLICADO AQUI --- */
+                            shadow-2xl 
+                            ${!isDarkMode ? 'shadow-indigo-500/10' : 'shadow-black/50'}
                         `}>
-                            <img 
-                                src={cluster.representative_image} 
-                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" 
-                                alt="" 
-                                onError={(e) => { e.target.style.display = 'none'; }} 
-                            />
-                            <div className={`absolute inset-0 -z-10 bg-gradient-to-br from-indigo-900 to-purple-900`} /> 
-                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
-
-                            <div className="absolute top-6 left-6">
-                                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg">
-                                   <Globe size={14} className="text-blue-400" />
-                                   <span className="text-white text-[10px] font-black uppercase tracking-[0.15em]">
-                                       {cluster.related_articles.length} Fontes
-                                   </span>
-                                </div>
+                            <img src={cluster.representative_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={cluster.ai_title} />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+                            <div className="absolute top-6 left-6 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                               <Layers size={12} className="text-white/70" />
+                               <span className="text-white text-[10px] font-bold uppercase tracking-widest">{cluster.related_articles.length} FONTES</span>
                             </div>
-
-                            <div className="absolute bottom-0 left-0 w-full p-8 flex flex-col justify-end">
-                                <h2 className="text-3xl md:text-4xl font-black text-white leading-[1.1] mb-6 drop-shadow-2xl tracking-tight">
-                                   {cluster.ai_title}
-                                </h2>
-                                
-                                <div className="flex flex-wrap items-center gap-4">
+                            <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full">
+                               <h2 className="text-2xl md:text-3xl font-black text-white leading-tight mb-6 min-h-[64px]">{cluster.ai_title}</h2>
+                               <div className="flex flex-wrap gap-4 items-center">
                                    {cluster.related_articles.map(article => (
                                        <button
                                            key={article.id}
                                            onClick={() => openArticle(article)}
-                                           className={`
-                                               relative w-12 h-12 rounded-full p-[2px] transition-all duration-300 
-                                               hover:scale-125 hover:z-10 bg-black/40 backdrop-blur-sm border-2
-                                               ${getSentimentGlow(article.ai_sentiment)}
-                                           `}
-                                           title={`${article.source}: ${article.title}`}
+                                           className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md p-1.5 border-2 border-white/20 shadow-xl transition-all duration-300 hover:scale-110 active:scale-95 hover:border-purple-400 hover:shadow-purple-500/50"
+                                           title={`Ler no ${article.source}`}
                                        >
-                                           <img src={article.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.style.display='none'} />
+                                           <img src={article.logo} className="w-full h-full object-contain rounded-full bg-white" onError={(e) => e.target.style.display='none'} />
                                        </button>
                                    ))}
-                                </div>
-
-                                <div className="mt-4 flex items-center gap-2 opacity-50">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-                                    <span className="text-[9px] font-bold text-white uppercase tracking-widest">
-                                        {isUpgrading ? 'Aprimorando dados...' : 'Análise de Viés em Tempo Real'}
-                                    </span>
-                                </div>
+                               </div>
                             </div>
                         </div>
                     </div>
                 ))}
             </div>
             
-            {/* Paginação */}
             {clusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-2">
                   {clusters.map((_, idx) => (
-                      <div key={idx} className={`h-1 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-8' : 'bg-zinc-300 dark:bg-zinc-700 w-2'}`} />
+                      <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${activeIndex === idx ? (isDarkMode ? 'bg-white w-6' : 'bg-zinc-800 w-6') : (isDarkMode ? 'bg-white/30 w-1.5' : 'bg-zinc-300 w-1.5')}`} />
                   ))}
               </div>
             )}
@@ -2573,7 +2301,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     </div>
   );
 };
-
 
 
 
@@ -2785,174 +2512,9 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   );
 };
 
-
-// --- WIDGET: MARKET PULSE (VERSÃO COMPLETA: BARRA + CARDS + TICKER) ---
-const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const prevTrigger = useRef(refreshTrigger);
-
-  useEffect(() => {
-    if (!apiKey || !newsData || newsData.length === 0) return;
-    
-    const isUserRefresh = refreshTrigger !== prevTrigger.current;
-    if (hasLoaded && !isUserRefresh) return;
-
-    prevTrigger.current = refreshTrigger;
-    
-    const load = async () => {
-        setLoading(true);
-        if (isUserRefresh) setData(null);
-        await new Promise(r => setTimeout(r, 1000)); 
-        const result = await generateMarketAnalysis(newsData, apiKey);
-        if (result) {
-            setData(result);
-            setHasLoaded(true);
-        }
-        setLoading(false);
-    };
-    load();
-  }, [newsData, apiKey, refreshTrigger]);
-
-  if (loading) {
-      return (
-          <div className="px-2 mb-6 animate-pulse">
-              <div className={`h-[400px] rounded-[2rem] border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200'}`}></div>
-          </div>
-      );
-  }
-
-  if (!data) return null;
-
-  const getScoreColor = (score) => {
-      if (score > 60) return 'text-emerald-500';
-      if (score < 40) return 'text-rose-500';
-      return 'text-yellow-500';
-  };
-
-  const getBarColor = (score) => {
-      if (score > 60) return 'bg-emerald-500';
-      if (score < 40) return 'bg-rose-500';
-      return 'bg-yellow-500';
-  };
-
-  const getTrendColor = (trend) => {
-      if (trend === 'bullish') return 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]';
-      if (trend === 'bearish') return 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.4)]';
-      return 'bg-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]';
-  };
-
-  const getTrendIcon = (trend) => {
-      if (trend === 'bullish') return <TrendingUp size={20} className="text-emerald-500" />;
-      if (trend === 'bearish') return <TrendingDown size={20} className="text-rose-500" />;
-      return <Minus size={20} className="text-yellow-500" />;
-  };
-
-  return (
-    <div className="px-2 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className={`rounded-[2rem] border relative overflow-hidden transition-all hover:shadow-2xl ${isDarkMode ? 'bg-zinc-950 border-white/10' : 'bg-white border-zinc-200 shadow-xl'}`}>
-            
-            {/* --- CORPO PRINCIPAL (RESUMO + BARRA + CARDS) --- */}
-            <div className="p-6 pb-2 relative z-10">
-                {/* Background Decorativo */}
-                <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-transparent to-transparent opacity-10 rounded-full blur-3xl -mr-10 -mt-10 ${data.market_score > 50 ? 'from-emerald-500' : 'from-rose-500'}`} />
-
-                {/* Header: Score e Status */}
-                <div className="flex items-end justify-between mb-4">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <Activity size={16} className={getScoreColor(data.market_score)} />
-                            <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>Market Pulse</span>
-                        </div>
-                        <h2 className={`text-2xl font-black leading-none ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                            {data.market_status}
-                        </h2>
-                    </div>
-                    <div className="text-right">
-                        <span className={`text-3xl font-black ${getScoreColor(data.market_score)}`}>{data.market_score}</span>
-                        <span className="text-[10px] font-bold opacity-50 block">/100</span>
-                    </div>
-                </div>
-
-                {/* --- A BARRA DO TERMÔMETRO (RESTAURADA) --- */}
-                <div className={`w-full h-2 rounded-full mb-5 overflow-hidden ${isDarkMode ? 'bg-white/10' : 'bg-zinc-100'}`}>
-                    <div 
-                        className={`h-full rounded-full transition-all duration-1000 ${getBarColor(data.market_score)}`} 
-                        style={{ width: `${data.market_score}%` }} 
-                    />
-                </div>
-
-                {/* Resumo */}
-                <p className={`text-sm font-medium leading-relaxed mb-6 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                    {data.summary}
-                </p>
-
-                {/* --- GRID DE MOVERS (RESTAURADO) --- */}
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                    {data.movers?.map((mover, idx) => (
-                        <button 
-                            key={idx}
-                            disabled={!mover.article}
-                            onClick={() => mover.article && openArticle(mover.article)}
-                            className={`
-                                text-left p-3 rounded-2xl border transition-all 
-                                ${mover.article ? 'hover:scale-[1.02] active:scale-95 cursor-pointer' : 'cursor-default opacity-80'}
-                                ${isDarkMode ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-zinc-50 border-zinc-100 hover:bg-zinc-100'}
-                            `}
-                        >
-                            <div className="flex justify-between items-start mb-1.5">
-                                <span className={`text-xs font-black truncate pr-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{mover.asset}</span>
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${mover.trend === 'up' ? 'bg-emerald-500/20 text-emerald-500' : (mover.trend === 'down' ? 'bg-rose-500/20 text-rose-500' : 'bg-yellow-500/20 text-yellow-500')}`}>
-                                    {mover.change_label || (mover.trend === 'up' ? 'Alta' : 'Baixa')}
-                                </span>
-                            </div>
-                            <p className={`text-[9px] leading-tight line-clamp-2 opacity-70 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                                {mover.reason}
-                            </p>
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* --- ÁREA DO TICKER FINANCEIRO (NOVA) --- */}
-            <div className={`relative border-t p-5 flex gap-4 items-start ${isDarkMode ? 'bg-black/40 border-white/5' : 'bg-zinc-50 border-zinc-100'}`}>
-                
-                {/* Indicador Visual Futurista */}
-                <div className="flex-shrink-0 flex flex-col items-center justify-start pt-1 gap-1 w-8">
-                    <div className={`w-2.5 h-2.5 rounded-full mb-1 animate-pulse ${getTrendColor(data.trend_direction)}`} />
-                    {getTrendIcon(data.trend_direction)}
-                </div>
-
-                {/* Texto do Ticker */}
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className={`text-[9px] font-black uppercase tracking-widest ${data.market_state === 'CLOSED' ? 'text-rose-500' : 'text-emerald-500'}`}>
-                            {data.market_state === 'CLOSED' ? 'Mercado Encerrado' : 'Pregão Ao Vivo'}
-                        </span>
-                        <span className="text-[9px] font-mono opacity-40">
-                            {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </span>
-                    </div>
-                    
-                    <div className={`text-xs font-mono leading-relaxed whitespace-pre-line ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                        {data.bottom_summary}
-                    </div>
-                </div>
-
-                {/* Scanline Effect */}
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5 pointer-events-none mix-blend-overlay"></div>
-            </div>
-
-        </div>
-    </div>
-  );
-};
-
-
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey, savedClusters, setSavedClusters }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [startY, setStartY] = useState(0);
@@ -3075,9 +2637,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             openArticle={openArticle} 
             isDarkMode={isDarkMode} 
             apiKey={apiKey} 
-           
-            clusters={savedClusters}
-              setClusters={setSavedClusters}
+            refreshTrigger={refreshTrigger}
          
         />
         <GeminiBar />
@@ -3090,27 +2650,15 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
           refreshTrigger={refreshTrigger} 
       />
       
-      {/* --- AQUI ENTRA A NOVA SESSÃO DE MERCADO --- */}
-      {/* Removemos a div antiga "Em Alta Agora" e colocamos o Widget */}
-      <div className="pt-2">
-          <div className="flex items-center gap-2 mb-2 px-3">
-             <TrendingUp size={20} className="text-emerald-500" />
-             <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h3>
-          </div>
-          
-          <MarketPulseWidget 
-             newsData={newsData}
-             apiKey={apiKey}
-             isDarkMode={isDarkMode}
-             refreshTrigger={refreshTrigger}
-             openArticle={openArticle}
-          />
+      <div className="px-2 pt-4">
+        <div className="flex items-center gap-2 mb-4 px-1"><TrendingUp size={20} className="text-blue-500" /><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Em Alta Agora</h3></div>
+        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
+          {trending.map(item => <div key={item.id} onClick={() => openArticle({...item, origin: 'rss'})} className={`min-w-[280px] md:min-w-[320px] rounded-2xl p-4 cursor-pointer snap-center border transition-all hover:scale-[1.02] ${isDarkMode ? 'bg-zinc-900/50 border-white/5 hover:bg-zinc-800' : 'bg-white border-zinc-200 hover:shadow-lg'}`}><div className="flex gap-4 items-center"><div className="w-20 h-20 rounded-xl overflow-hidden bg-zinc-200 flex-shrink-0 relative"><img src={item.img} className="w-full h-full object-cover" alt="" /><div className="absolute top-0 left-0 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-br-lg text-white text-[10px] font-bold">#{item.id}</div></div><div><span className="text-[10px] font-bold text-blue-500 uppercase">{item.source} • {item.time}</span><h4 className={`font-bold leading-snug mt-1 line-clamp-2 ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{item.title}</h4></div></div></div>)}
+        </div>
       </div>
-
       {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
-);
-  
+  );
 }
 
 
@@ -3800,136 +3348,21 @@ const SplashScreen = ({ onFinish }) => {
 };
 
 
-const MagicBubble = ({ style, isDarkMode }) => (
-  <div 
-    className={`
-      absolute top-0 h-full rounded-full 
-      transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-      ${isDarkMode ? 'bg-white' : 'bg-blue-500'}
-    `}
-    style={style}
-  />
-);
-
-
-
-
-
-
-
-
-
-// --- COMPONENTE: YOUTUBE BROWSER (SIMULADOR DE NATIVO) ---
-const YouTubeBrowser = ({ video, onClose }) => {
-  // 1. Extração de ID à prova de falhas
-  const getVideoId = (url) => {
-    if (!url) return null;
-    const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
-    return (match && match[2].length === 11) ? match[2] : null;
-  };
-
-  const videoId = video.videoId || getVideoId(video.link);
-
-  if (!videoId) return null;
-
-  return (
-    <div 
-        style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            zIndex: 9999999, // Fica na frente de ABSOLUTAMENTE TUDO
-            backgroundColor: '#000000',
-            display: 'flex',
-            flexDirection: 'column',
-            // O SEGREDO: Desabilitar aceleração de GPU para o container para não conflitar com o vídeo
-            transform: 'none',
-            willChange: 'auto',
-            overscrollBehavior: 'none'
-        }}
-    >
-      {/* HEADER TIPO BROWSER (Igual ao Print) */}
-      <div style={{
-          height: '60px',
-          backgroundColor: '#1e1e1e', // Cor Dark Mode do YouTube
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 16px',
-          borderBottom: '1px solid #333',
-          flexShrink: 0
-      }}>
-          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <span style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>
-                  youtube.com
-              </span>
-              <span style={{ color: '#aaa', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60vw' }}>
-                  {video.title}
-              </span>
-          </div>
-          
-          <button 
-              onClick={onClose}
-              style={{
-                  backgroundColor: '#3ea6ff', // Azul do Link
-                  color: '#000',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: '18px',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-              }}
-          >
-              Concluído
-          </button>
-      </div>
-
-      {/* ÁREA DO VIDEO (Embed Puro) */}
-      <div style={{
-          flex: 1,
-          position: 'relative',
-          backgroundColor: '#000',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-      }}>
-          <iframe 
-              src={`https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&playsinline=1&rel=0&modestbranding=1`}
-              style={{
-                  width: '100%',
-                  height: '100%', // Ocupa tudo
-                  border: 'none',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0
-              }}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title={video.title}
-          />
-      </div>
-    </div>
-  );
-};
-
-
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
 export default function NewsOS_V12() {
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('happening'); 
-  const [globalClusters, setGlobalClusters] = useState(null);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [selectedOutlet, setSelectedOutlet] = useState(null); 
   const [selectedStory, setSelectedStory] = useState(null);
-  const [selectedVideo, setSelectedVideo] = useState(null);
   
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
   const [apiKey, setApiKey] = useState('');
-  const [userFeeds, setUserFeeds] = useState([]);
+  const [userFeeds, setUserFeeds] = useState([
+      { id: 1, name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', category: 'Tech', display: { feed: true } },
+      { id: 2, name: 'G1', url: 'https://g1.globo.com/dynamo/rss2.xml', category: 'Local', display: { feed: true } }
+  ]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
   const [readHistory, setReadHistory] = useState([]);
   const [likedItems, setLikedItems] = useState([]); 
@@ -4088,7 +3521,7 @@ const handleStoryNavigation = (direction) => {
     });
   };
 
-  // --- FETCH FEEDS (V16 - COM CORREÇÃO DE HORÁRIOS DUPLICADOS) ---
+  // --- FETCH FEEDS (V15 - COMPLETA, SEM ABREVIAÇÕES) ---
   const fetchFeeds = async () => {
     if (userFeeds.length === 0) {
         setRealNews([]);
@@ -4108,30 +3541,46 @@ const handleStoryNavigation = (direction) => {
 
         try {
             let feedItems = [];
+            
+            // TÍTULO PADRÃO (Respeita edição do usuário)
             let currentFeedTitle = feed.name; 
             let detectedXmlTitle = "";
+            
             let feedLogo = null;
             let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
             
             const isLegacySource = feed.url.includes('uol.com.br') || feed.url.includes('folha.uol.com.br');
 
-            // --- FETCH E PARSE (Mantido igual) ---
             if (isLegacySource) {
+                // --- MODO LEGADO (UOL/FOLHA) ---
                 try {
                     const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
                     const res = await fetch(proxyUrl);
                     if (!res.ok) throw new Error(`Proxy error: ${res.status}`);
+                    
                     const buffer = await res.arrayBuffer();
                     const decoder = new TextDecoder('iso-8859-1'); 
                     const xmlText = decoder.decode(buffer);
+                    
                     const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
                     feedItems = parsedData.items;
                     detectedXmlTitle = parsedData.realTitle; 
-                    if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
-                    else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
-                } catch (legacyErr) { console.error(`Erro legado (${feed.name}):`, legacyErr); }
+
+                    if (feed.url.includes('folha')) {
+                        feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
+                    } else {
+                        feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
+                    }
+                } catch (legacyErr) {
+                    console.error(`Erro legado (${feed.name}):`, legacyErr);
+                }
+
             } else {
-                const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
+                // --- MODO MODERNO ---
+                const { data, error } = await supabase.functions.invoke('parse-feed', {
+                    body: { url: feed.url }
+                });
+
                 if (!error && data && data.items) {
                     feedItems = data.items;
                     detectedXmlTitle = data.title;
@@ -4140,11 +3589,13 @@ const handleStoryNavigation = (direction) => {
                 }
             }
 
+            // Atualiza nome apenas se for genérico
             if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
                 currentFeedTitle = detectedXmlTitle || feed.name;
                 feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
             }
 
+            // Fallbacks de Logo
             let finalLogo = feedLogo;
             if (isFeedYoutube && !finalLogo) {
                 finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
@@ -4161,64 +3612,48 @@ const handleStoryNavigation = (direction) => {
             if (feed.type === 'podcast') LIMIT = 1; 
             else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
 
-            // --- A MÁGICA DA CORREÇÃO DE TEMPO COMEÇA AQUI ---
-            
-            // 1. Define um ponto de partida (Agora ou a data do primeiro item se existir)
-            let runningTime = new Date().getTime();
-            
-            // Tenta pegar a data do primeiro item para usar como âncora inicial correta
-            if (feedItems.length > 0) {
-                const firstRaw = feedItems[0].pubDate || feedItems[0].date || feedItems[0].isoDate;
-                if (firstRaw) {
-                    const parsedFirst = new Date(firstRaw).getTime();
-                    if (!isNaN(parsedFirst)) runningTime = parsedFirst + 1000; // +1s para a lógica abaixo funcionar no item 0
-                }
-            }
-
-            const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
+            const processedItems = feedItems.slice(0, LIMIT).map(item => {
+                // 1. LINK PRINCIPAL
                 let primaryLink = item.link;
+                
+                // 2. DETECÇÃO DE ENCLOSURE (Anexo)
                 const enclosureUrl = item.enclosure?.url || item.audio;
                 let hasPlayableMedia = false;
                 
                 if (enclosureUrl) {
-                    const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i);
-                    if (isImage) { item.img = enclosureUrl; } 
-                    else { primaryLink = enclosureUrl; hasPlayableMedia = true; }
+                    const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || 
+                                    enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i);
+
+                    if (isImage) {
+                        item.img = enclosureUrl; 
+                    } else {
+                        primaryLink = enclosureUrl;
+                        hasPlayableMedia = true;
+                    }
                 }
 
+                // 3. IMAGEM DE CAPA FINAL
                 const itemImg = item.img || item.image || finalLogo;
                 const itemSummary = item.summary || item.description || '';
+                const itemDate = item.pubDate || item.date || item.isoDate || new Date();
 
-                // --- LÓGICA DE ESCALONAMENTO DE TEMPO (5 MINUTOS) ---
-                const rawDateString = item.pubDate || item.date || item.isoDate;
-                let itemTimestamp = rawDateString ? new Date(rawDateString).getTime() : NaN;
-                const FIVE_MINUTES_MS = 5 * 60 * 1000;
-
-                // Se a data for inválida OU se for maior/igual à data anterior (o que indica colisão ou falta de ordem)
-                // Nós forçamos o tempo a ser 5 minutos ANTES do item anterior.
-                if (isNaN(itemTimestamp) || itemTimestamp >= runningTime) {
-                    // Força recuo de 5 minutos em relação ao último processado
-                    itemTimestamp = runningTime - FIVE_MINUTES_MS;
-                }
-                
-                // Atualiza o "Tempo Corrente" para a próxima iteração
-                runningTime = itemTimestamp;
-                
-                const finalDateObj = new Date(itemTimestamp);
-                // -----------------------------------------------------
-
+                // 4. DETECÇÃO DE TIPO
                 const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
+                
                 let finalType = 'link'; 
-                if (isYoutubeItem) finalType = 'video';
-                else if (hasPlayableMedia || (primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a')))) finalType = 'audio'; 
+                if (isYoutubeItem) {
+                    finalType = 'video';
+                } else if (hasPlayableMedia || (primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a')))) {
+                    finalType = 'audio'; 
+                }
 
                 return {
                     id: `${feed.id}-${item.id || Math.random().toString(36).substr(2, 9)}`,
                     source: currentFeedTitle, 
                     show: currentFeedTitle,
                     logo: finalLogo, 
-                    time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    rawDate: finalDateObj, // Data corrigida
+                    time: new Date(itemDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    rawDate: new Date(itemDate),
                     title: item.title,
                     summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
                     category: feed.type === 'podcast' ? 'Podcast' : (item.category || 'Geral'),
@@ -4228,13 +3663,17 @@ const handleStoryNavigation = (direction) => {
                     link: primaryLink, 
                     url: item.link,
                     videoId: item.videoId || getVideoId(item.link),
-                    date: finalDateObj.toLocaleDateString(),
+                    date: new Date(itemDate).toLocaleDateString(),
                 };
             });
 
-            if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
-            else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) allVideoItems.push(...processedItems);
-            else allNewsItems.push(...processedItems);
+            if (feed.type === 'podcast') {
+                allPodcastItems.push(...processedItems);
+            } else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) {
+                allVideoItems.push(...processedItems);
+            } else {
+                allNewsItems.push(...processedItems);
+            }
 
         } catch (err) { console.error(`Erro no feed ${feed.name}`, err); }
     });
@@ -4248,6 +3687,9 @@ const handleStoryNavigation = (direction) => {
         }));
     }
 
+    // --- CORREÇÃO DE ORDENAÇÃO: FUNÇÃO SEGURA ---
+    // Converte qualquer formato de data para Timestamp numérico. 
+    // Se der erro, joga para o final (0)
     const getSafeTime = (dateInput) => {
         if (!dateInput) return 0;
         const time = new Date(dateInput).getTime();
@@ -4256,14 +3698,13 @@ const handleStoryNavigation = (direction) => {
 
     const sortFn = (a, b) => getSafeTime(b.rawDate) - getSafeTime(a.rawDate);
     
+    // Força a ordenação aqui para garantir que o estado já entre misturado
     setRealNews([...allNewsItems].sort(sortFn));
     setRealVideos([...allVideoItems].sort(sortFn));
     setRealPodcasts([...allPodcastItems].sort(sortFn));
     
     setIsLoadingFeeds(false);
   };
-
-
   
   useEffect(() => { fetchFeeds(); }, [userFeeds]);
 
@@ -4278,7 +3719,23 @@ const handleStoryNavigation = (direction) => {
     setSavedItems((prevItems) => prevItems.filter((item) => item.id !== idToRemove));
   };
 
-    
+  const handleOpenArticle = (article) => {
+    setSelectedArticle(article);
+    if (!readHistory.includes(article.id)) setReadHistory((prev) => [...prev, article.id]);
+  };
+
+  const closeArticle = () => setSelectedArticle(null);
+  const closeOutlet = () => setSelectedOutlet(null);
+  const closeStory = () => setSelectedStory(null);
+  const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
+  
+  const navTimerRef = useRef(null);
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+    if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    navTimerRef.current = setTimeout(() => setIsNavVisible(false), 4000);
+  };
+  
   useEffect(() => {
     const resetInactivityTimer = () => {
       if (navTimerRef.current) clearTimeout(navTimerRef.current);
@@ -4384,78 +3841,8 @@ const allAvailableStories = useMemo(() => {
 }, [realNews]); // Depende apenas de 'realNews', não de 'seenStoryIds'
 
 
-// --- CONTROLE DE INATIVIDADE DA NAV BAR (RESTAURADO) ---
-  const navTimerRef = useRef(null); // Esta linha estava faltando!
-
-  const handleTabClick = (tab) => {
-    setActiveTab(tab);
-    if (navTimerRef.current) clearTimeout(navTimerRef.current);
-    navTimerRef.current = setTimeout(() => setIsNavVisible(false), 4000);
-  };
-  
-  useEffect(() => {
-    const resetInactivityTimer = () => {
-      if (navTimerRef.current) clearTimeout(navTimerRef.current);
-      if (isNavVisible) {
-        navTimerRef.current = setTimeout(() => { setIsNavVisible(false); }, 3000); 
-      }
-    };
-    if (isNavVisible) {
-      window.addEventListener('mousedown', resetInactivityTimer);
-      window.addEventListener('touchstart', resetInactivityTimer);
-      window.addEventListener('scroll', resetInactivityTimer);
-      resetInactivityTimer();
-    }
-    return () => {
-      window.removeEventListener('mousedown', resetInactivityTimer);
-      window.removeEventListener('touchstart', resetInactivityTimer);
-      window.removeEventListener('scroll', resetInactivityTimer);
-    };
-  }, [isNavVisible]);
 
 
-
-// --- FUNÇÃO DE ABERTURA INTELIGENTE (VIDEO vs ARTIGO) ---
-const handleOpenArticle = (article) => {
-    if (!article) return;
-
-    // Lógica Robusta de Detecção de Vídeo
-    let isVideo = false;
-
-    // 1. Tem ID explícito?
-    if (article.videoId) isVideo = true;
-    
-    // 2. É da categoria Vídeo?
-    if (article.category === 'Vídeo' || (article.category === 'Podcast' && article.type === 'video')) isVideo = true;
-
-    // 3. O Link é do YouTube?
-    if (article.link && (article.link.includes('youtube.com') || article.link.includes('youtu.be'))) isVideo = true;
-
-    if (isVideo) {
-        // Zera o artigo de texto para garantir que o painel antigo feche
-        setSelectedArticle(null);
-        // Define o vídeo para abrir nosso novo Browser
-        setSelectedVideo(article);
-    } else {
-        setSelectedVideo(null);
-        setSelectedArticle(article);
-    }
-
-    // Salva no histórico
-    if (article.id && !readHistory.includes(article.id)) {
-        setReadHistory(prev => [...prev, article.id]);
-    }
-  };
-  // --- FUNÇÕES DE FECHAMENTO ---
-  const closeArticle = () => setSelectedArticle(null);
-  const closeOutlet = () => setSelectedOutlet(null);
-  const closeStory = () => setSelectedStory(null);
-
-  // --- A VARIÁVEL QUE ESTAVA FALTANDO E QUEBROU O BUILD ---
-  // Ela diz pro layout: "Se tiver qualquer coisa aberta (artigo, banca, story ou VIDEO), encolha o fundo."
-  const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory || !!selectedVideo;
-
-  
   return (
     <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       {/* --- SPLASH SCREEN --- */}
@@ -4483,8 +3870,6 @@ const handleOpenArticle = (article) => {
         onMarkAsSeen={markStoryAsSeen}
         apiKey={apiKey}
         storiesToDisplay={storiesForHappeningTab}
-        savedClusters={globalClusters}
-                    setSavedClusters={setGlobalClusters}
                     
                 />
             )}
@@ -4619,31 +4004,20 @@ const handleOpenArticle = (article) => {
           />
       )}
       
-{/* 1. SE FOR VÍDEO: Abre o "Navegador Falso" por cima de tudo */}
-      {selectedVideo && (
-          <YouTubeBrowser 
-              video={selectedVideo} 
-              onClose={() => setSelectedVideo(null)} 
-          />
-      )}
+      <ArticlePanel 
+          key={selectedArticle?.id || 'empty-panel'} 
+          article={selectedArticle} 
+feedItems={[...realNews, ...realVideos, ...realPodcasts]}          isOpen={!!selectedArticle} 
+          onClose={closeArticle} 
+          onArticleChange={handleOpenArticle} 
+          onToggleSave={handleToggleSave}
+          isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
+          isExpanded={isExpanded} 
+          setIsExpanded={setIsExpanded} 
+          isDarkMode={isDarkMode} 
+          onSaveToArchive={handleSaveToArchive}
+      />
       
-      {/* 2. SE FOR TEXTO: Abre o Painel de Artigo (só se não tiver vídeo) */}
-      {!selectedVideo && (
-          <ArticlePanel 
-              key={selectedArticle?.id || 'empty-panel'} 
-              article={selectedArticle} 
-              feedItems={[...realNews, ...realVideos, ...realPodcasts]}          
-              isOpen={!!selectedArticle} 
-              onClose={closeArticle} 
-              onArticleChange={handleOpenArticle} 
-              onToggleSave={handleToggleSave}
-              isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-              isDarkMode={isDarkMode} 
-              onSaveToArchive={handleSaveToArchive}
-          />
-      )}
-
-     
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
       {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen} allStories={allAvailableStories}  onNavigate={handleStoryNavigation}/>}
@@ -5139,17 +4513,17 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL - REFATORADO (MODO EMBED PURO / SEM AUTOPLAY)
+// COMPONENTE ARTICLE PANEL (V30 - CORREÇÃO DE ÁUDIO VIA CLICK-THROUGH)
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
+const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, onSaveToArchive }) => {
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
   const [readerContent, setReaderContent] = useState(null); 
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   
-  // Controle de Áudio (Mantido apenas para MP3/Podcast nativo, não afeta YouTube)
+  // Controle visual para saber se o player já "começou" (para mudar a UI da capa)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   // --- LÓGICA DE TRADUÇÃO ---
@@ -5162,11 +4536,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       return article.videoId || getVideoId(article.link);
   }, [article]);
 
-  // Resetar estados quando o artigo muda
   useEffect(() => {
       if (videoId) {
           setViewMode('video');
           setIsLoading(false);
+          setIsPlayingAudio(false);
       } else {
           setViewMode('web');
           setIframeUrl(null);
@@ -5176,10 +4550,21 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       }
   }, [article?.id, videoId]);
 
+  // Se sair do app, reseta o estado visual (o player morre e renasce pelo visibilitychange)
+  useEffect(() => {
+      const handleVisibilityChange = () => {
+          if (document.visibilityState === 'hidden') {
+              setIsPlayingAudio(false);
+          }
+      };
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
   const scrollContainerRef = useRef(null); 
 
-  // ... (Lógica de domínios problemáticos e sanitizeHtml mantida para segurança) ...
   const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
+
   const isProblematicSite = useMemo(() => {
       if (!article?.link) return false;
       return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
@@ -5188,9 +4573,21 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const sanitizeHtml = (html) => {
       if (!html) return "";
       let clean = html;
-      const headInjection = `<base href="${article.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
+      const headInjection = `
+        <base href="${article.link}" target="_blank">
+        <meta name="referrer" content="no-referrer">
+        <style>
+            .onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, 
+            [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; }
+            body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }
+        </style>
+      `;
       if (isProblematicSite) {
-          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "").replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "").replace(/data-src=/gi, 'src=').replace(/data-srcset=/gi, 'srcset=').replace(/loading="lazy"/gi, ''); 
+          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
+          clean = clean.replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "");
+          clean = clean.replace(/data-src=/gi, 'src=');
+          clean = clean.replace(/data-srcset=/gi, 'srcset=');
+          clean = clean.replace(/loading="lazy"/gi, ''); 
       }
       if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
       return `${headInjection}${clean}`;
@@ -5204,6 +4601,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setReaderContent(null);
         setViewMode('web');
         setIsTranslated(false); 
+        setIsPlayingAudio(false);
       }, 400); 
   }, [onClose, iframeUrl]);
 
@@ -5245,7 +4643,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
             await new Promise(r => setTimeout(r, 10)); 
             const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
             if (error || !data) throw new Error();
-            if (data.html && (data.html.startsWith('RIFF') || data.html.includes('WEBPVP8') || data.html.includes('PNG') || data.html.charCodeAt(0) > 65000)) throw new Error("Binário");
+            const header = data.html.substring(0, 50); 
+
+if (header.includes('RIFF') || header.includes('WEBP') || (data.html.charCodeAt(0) > 65000)) {
+    throw new Error("Conteúdo binário detectado");
+}
             const cleanHtml = sanitizeHtml(data.html);
             const blob = new Blob([cleanHtml], { type: 'text/html' });
             setIframeUrl(URL.createObjectURL(blob));
@@ -5270,8 +4672,12 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     <div className={`fixed inset-0 z-[5000] flex flex-col transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) will-change-transform transform-gpu backface-hidden ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
-            {/* TOP BAR */}
-            <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b backdrop-blur-xl z-50 ${videoId ? 'bg-black/90 border-white/10 text-white' : (isDarkMode ? 'bg-zinc-950/90 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-900')}`}>
+            <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b backdrop-blur-xl z-50 
+                ${videoId 
+                    ? 'bg-black/90 border-white/10 text-white' 
+                    : (isDarkMode ? 'bg-zinc-950/90 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-900')
+                }`}
+            >
                 <button onClick={handleClosePanel} className={`flex items-center gap-1 py-2 pr-3 text-sm font-black transition active:scale-95 ${videoId ? 'text-zinc-300 hover:text-white' : (isDarkMode ? 'text-zinc-300 hover:text-white' : 'text-zinc-600 hover:text-black')}`}><ChevronLeft size={24} /> <span className="hidden md:inline">VOLTAR</span></button>
                 
                 {!videoId && (
@@ -5282,11 +4688,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                             <button onClick={() => setViewMode('ai')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'ai' ? 'text-purple-500' : 'text-zinc-500'}`}><Sparkles size={10} /> AI ANALYSIS</button>
                         </div>
                         <div className="flex items-center gap-2">
-                             <button onClick={() => setViewMode(viewMode === 'magic' ? 'web' : 'magic')} className={`p-2.5 rounded-xl border ${viewMode === 'magic' ? 'bg-purple-600 text-white border-purple-500' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><Wand2 size={20} /></button>
-                             <button onClick={handleToggleTranslation} className={`p-2.5 rounded-xl border ${isTranslated ? 'bg-blue-600 text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}>{isTranslating ? <Loader2 size={20} className="animate-spin" /> : <Languages size={20} />}</button>
-                             <button onClick={() => setViewMode(viewMode === 'reader' ? 'web' : 'reader')} className={`p-2.5 rounded-xl border ${viewMode === 'reader' ? 'bg-black text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><ALargeSmall size={20} /></button>
-                             <button onClick={handleOpenInBrowser} className={`p-2.5 rounded-xl border ${isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200'}`}><Globe size={20} /></button>
-                             <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                            <button onClick={() => setViewMode(viewMode === 'magic' ? 'web' : 'magic')} title="Reconstrução Editorial" className={`p-2.5 rounded-xl transition-all border active:scale-90 ${viewMode === 'magic' ? 'bg-purple-600 text-white border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : (isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100')}`}><Wand2 size={20} className={viewMode === 'magic' ? 'animate-pulse' : ''} /></button>
+                            <button onClick={handleToggleTranslation} disabled={isTranslating} className={`p-2.5 rounded-xl transition-all border active:scale-90 relative overflow-hidden ${isTranslated ? 'bg-blue-600 text-white border-blue-500 shadow-md' : (isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100')}`}>{isTranslating ? <Loader2 size={20} className="animate-spin" /> : <Languages size={20} />}</button>
+                            <button onClick={() => setViewMode(viewMode === 'reader' ? 'web' : 'reader')} title="Modo Leitura Limpo" className={`p-2.5 rounded-xl transition border active:scale-90 ${viewMode === 'reader' ? 'bg-black text-white dark:bg-white dark:text-black border-transparent' : (isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100')}`}><ALargeSmall size={20} /></button>
+                            <button onClick={handleOpenInBrowser} title="Abrir no Browser" className={`p-2.5 rounded-xl transition border active:scale-90 ${isDarkMode ? 'text-zinc-400 border-white/10 hover:bg-white/10 hover:text-white' : 'text-zinc-500 border-zinc-200 hover:bg-zinc-100 hover:text-blue-600'}`}><Globe size={20} /></button>
+                            <button onClick={() => onToggleSave(article)} title="Salvar" className={`p-2.5 rounded-xl transition active:scale-75 ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
                         </div>
                     </>
                 )}
@@ -5294,38 +4700,88 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 {videoId && (
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-widest opacity-60 mr-2">{article.source}</span>
-                        <button onClick={() => onToggleSave(article)} className={`p-2.5 rounded-xl ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
+                        <button onClick={() => onToggleSave(article)} title="Salvar" className={`p-2.5 rounded-xl transition active:scale-75 ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/10'}`}><Bookmark size={22} fill={isSaved ? "currentColor" : "none"} /></button>
                     </div>
                 )}
-                 <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
+
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
             </div>
 
             <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain transform-gpu ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
                 
-                {/* --- SEÇÃO DE VÍDEO (REFATORADA PARA EMBED PURO) --- */}
                 {viewMode === 'video' && videoId ? (
                     <div className="w-full h-full flex flex-col">
-                        
-                        {/* 
-                           AQUI ESTÁ A CORREÇÃO:
-                           1. Aspect Ratio de vídeo.
-                           2. Nenhuma capa. Nenhuma div por cima.
-                           3. Iframe direto.
-                           4. Autoplay DESLIGADO (autoplay=0). O usuário TEM que clicar.
-                           5. Playsinline LIGADO (pra não quebrar o layout no iOS).
-                        */}
-                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative">
+                        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-xl relative group cursor-pointer">
+                            
+                            {/* 
+                               A MÁGICA DO CLIQUE INVISÍVEL (CLICK-THROUGH)
+                               1. Se for MODO AUDIO: O Iframe fica POR CIMA da capa (z-20), 
+                                  mas com opacidade quase zero. O clique pega nele.
+                               2. Se for MODO VIDEO: O Iframe fica NORMAL.
+                            */}
+                            
                             <iframe 
-                                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&playsinline=1&modestbranding=1&rel=0&controls=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                                className="w-full h-full absolute inset-0 z-10"
+                                src={`https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0&controls=1`}
+                                className={`w-full h-full absolute inset-0 
+                                    ${article.forceAudioMode 
+                                        ? 'opacity-[0.01] z-20' // Invisível mas CLICÁVEL no topo
+                                        : 'z-0' // Normal
+                                    }
+                                `}
                                 frameBorder="0"
-                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                 allowFullScreen
                                 title="YouTube Video"
+                                // Detecta que o usuário clicou (para mudar visual da capa)
+                                onLoad={() => {
+                                    // Truque: Em iframes cross-origin não detectamos click real, 
+                                    // então assumimos que se o iframe carregou e o usuário interagir, ok.
+                                }}
                             />
+
+                            {/* CAPA (Abaixo do Iframe se áudio, Acima se Vídeo esperando play) */}
+                            {/* A div abaixo captura o clique visual apenas para feedback */}
+                            <div 
+                                className={`absolute inset-0 w-full h-full 
+                                    ${article.forceAudioMode ? 'z-10' : (isPlayingAudio ? 'hidden' : 'z-10')}
+                                `}
+                                // Se for áudio, o clique VAZA para o iframe (pointer-events-none no container visual?)
+                                // NÃO! Se forceAudioMode, o iframe está por cima (z-20), então ele rouba o clique.
+                                // A capa fica apenas visual (z-10).
+                            >
+                                <img 
+                                    src={article.img || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} 
+                                    className={`w-full h-full object-cover transition-opacity ${isPlayingAudio ? 'opacity-40' : 'opacity-80'}`}
+                                    alt="Video Thumbnail"
+                                />
+                                
+                                {/* Overlay Visual (O que o usuário VÊ) */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                                    {article.forceAudioMode ? (
+                                        <>
+                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
+                                                <Headphones size={32} fill="white" className="text-white"/>
+                                            </div>
+                                            <div className="bg-black/80 px-3 py-1 rounded-full text-xs font-bold text-white mt-2">
+                                                Toque no centro para Ouvir
+                                            </div>
+                                        </>
+                                    ) : (
+                                        /* Modo Vídeo: O clique precisa ser tratado aqui para remover a capa */
+                                        <div 
+                                            className="w-full h-full flex items-center justify-center pointer-events-auto" 
+                                            onClick={() => setIsPlayingAudio(true)}
+                                        >
+                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl">
+                                                <Play size={32} fill="white" className="text-white ml-1" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                         </div>
 
-                        {/* Detalhes do Artigo */}
                         <div className="p-6 max-w-3xl mx-auto pb-20">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10">
@@ -5336,28 +4792,44 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                                     <p className="text-xs opacity-60">{article.time}</p>
                                 </div>
                             </div>
-                            <h1 className="text-2xl md:text-3xl font-black leading-tight mb-4 tracking-tight">{article.title}</h1>
+
+                            <h1 className="text-2xl md:text-3xl font-black leading-tight mb-4 tracking-tight">
+                                {article.title}
+                            </h1>
+
                             <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode || videoId ? 'bg-white/5 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}>
                                 {article.summary || "Sem descrição disponível."}
                             </div>
-                            <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-transform shadow-lg">
+                            
+                            <a 
+                                href={`https://www.youtube.com/watch?v=${videoId}`} 
+                                target="_blank"
+                                className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-transform shadow-lg"
+                            >
                                 <Youtube size={18} /> Abrir no App YouTube
                             </a>
                         </div>
                     </div>
                 ) : (
-                    /* --- MODOS NÃO VÍDEO (WEB, READER, ETC) --- */
                     <>
                         {isLoading && (<div className="absolute inset-0 flex flex-col items-center justify-center bg-inherit z-50"><Loader2 size={48} className="animate-spin text-purple-600 mb-4" /><p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40 animate-pulse">Carregando...</p></div>)}
+                        
                         {viewMode === 'web' && (
                             <div className="w-full h-full">
                                 {iframeUrl ? (
-                                    <iframe src={iframeUrl} className="w-full h-full border-none" sandbox={isProblematicSite ? "allow-same-origin allow-popups" : "allow-same-origin allow-scripts allow-popups allow-forms"} title="Web" loading="lazy" />
+                                    <iframe 
+                                        src={iframeUrl} 
+                                        className="w-full h-full border-none" 
+                                        sandbox={isProblematicSite ? "allow-same-origin allow-popups" : "allow-same-origin allow-scripts allow-popups allow-forms"}
+                                        title="Web" 
+                                        loading="lazy"
+                                    />
                                 ) : !isLoading && (
-                                    <div className="flex flex-col items-center justify-center h-full p-12 text-center text-zinc-500"><div className="p-6 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-6"><Globe size={40} className="opacity-40" /></div><h3 className="font-black text-xl mb-2">Web Indisponível</h3><p className="max-w-xs text-sm opacity-60 mb-6">Conteúdo bloqueado.</p></div>
+                                    <div className="flex flex-col items-center justify-center h-full p-12 text-center text-zinc-500"><div className="p-6 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-6"><Globe size={40} className="opacity-40" /></div><h3 className="font-black text-xl mb-2">Web Indisponível</h3><p className="max-w-xs text-sm opacity-60 mb-6">Conteúdo bloqueado. Use os modos de leitura.</p><div className="flex gap-2"><button onClick={() => setViewMode('magic')} className="px-6 py-3 bg-purple-600 text-white rounded-full font-bold shadow-xl hover:bg-purple-500 transition active:scale-95 flex items-center gap-2"><Wand2 size={16}/> Varinha</button></div></div>
                                 )}
                             </div>
                         )}
+                        
                         {viewMode === 'ai' && <AIAnalysisView article={activeArticleData} isDarkMode={isDarkMode} />}
                         {viewMode === 'magic' && <MagicPremiumView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
                         {viewMode === 'reader' && <AppleReaderView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
@@ -5374,8 +4846,14 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
             )}
             
             {isOpen && article && feedItems && (
-                <FeedNavigator article={article} feedItems={feedItems} onArticleChange={onArticleChange} isDarkMode={isDarkMode} />
+                <FeedNavigator 
+                    article={article} 
+                    feedItems={feedItems} 
+                    onArticleChange={onArticleChange} 
+                    isDarkMode={isDarkMode} 
+                />
             )}
+            
         </div>
         <style jsx="true">{`@keyframes progress-aura { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } } .animate-progress-aura { animation: progress-aura 1.5s infinite linear; } .backface-hidden { backface-visibility: hidden; }`}</style>
     </div>
@@ -5783,8 +5261,6 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                     </div>
                 </div>
             )}
-
-
             
             {/* ABA API */}
             {activeTab === 'api' && (
