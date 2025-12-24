@@ -1705,41 +1705,35 @@ const generateBriefingFallback = async (news, apiKey) => {
     }
 };
 
-// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V1 - CONTEXTO REAL) ---
-const generateSmartClustering = async (news, apiKey) => {
-  if (!news || news.length < 4 || !apiKey) return null;
+// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (COM LIMITE DINÂMICO) ---
+const generateSmartClustering = async (news, apiKey, limit = 300) => {
+  // Verificação básica (Limite mínimo de 10 notícias para rodar)
+  if (!news || news.length < 10 || !apiKey) return null;
 
-  const context = news.slice(0, 50).map(n => 
-    `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img}`
+  // AGORA O LIMITE É DINÂMICO (30 no início, 300 depois)
+  const context = news.slice(0, limit).map(n => 
+    `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img || ''}`
   ).join('\n');
 
   const prompt = `
-  Você é um Editor-Chefe e Diretor de Arte de uma publicação jornalística de ponta.
+  Você é um Editor-Chefe de um App de Notícias Premium no Brasil.
+  
+  SUA MISSÃO CRÍTICA:
+  Gerar EXATAMENTE 3 (TRÊS) cards para o carrossel "Contexto Global".
+  
+  HIERARQUIA DE SELEÇÃO:
+  1. Tente agrupar eventos com múltiplas fontes.
+  2. Se a lista de notícias for pequena, aceite eventos com menos fontes, mas GARANTA 3 TÓPICOS DISTINTOS.
+  
+  ESTRUTURA DO JSON (Para cada um dos 3 cards):
+  - ai_title: Título em Português do Brasil. Curto e impactante (Máx 10 palavras).
+  - representative_image: Copie a URL do campo 'IMG' de uma das notícias.
+  - related_articles: Liste os IDs das notícias do cluster. Analise o sentimento ('positive', 'negative', 'neutral').
 
-  TAREFA PRINCIPAL:
-  Analise a lista de notícias abaixo e identifique até 3 (três) eventos principais que estão sendo cobertos por, no mínimo, 3 (três) ou mais fontes diferentes. Para cada evento, aja como um curador de conteúdo de elite.
-
-  PARA CADA EVENTO IDENTIFICADO, SIGA ESTAS REGRAS:
-  1.  **CRIE UMA MANCHETE:** Escreva um título jornalístico, curto e impactante (máximo de 8 palavras) que resuma a essência do evento. Não mencione os nomes das fontes no título.
-  2.  **SELECIONE A IMAGEM-CHAVE:** Das imagens disponíveis para o evento (\`IMG\`), escolha a URL daquela que for mais representativa, poderosa e de melhor qualidade visual. Forneça apenas uma URL de imagem por evento.
-  3.  **LISTE AS FONTES:** Agrupe todas as notícias (com seus IDs e logos) que cobrem este mesmo evento. Proibido repetir fontes.
-
-  INPUT (LISTA DE NOTÍCIAS):
+  DADOS BRUTOS (${limit} itens):
   ${context}
 
-  FORMATO JSON DE SAÍDA OBRIGATÓRIO (Array de até 3 objetos):
-  [
-    {
-      "ai_title": "Senado Aprova Marco Regulatório para Inteligência Artificial em Votação Histórica",
-      "representative_image": "https://images.unsplash.com/photo-1555848960-8c3fd4479802?w=800&q=80",
-      "related_articles": [
-        { "id": "id_da_noticia_1", "source": "Politico", "logo": "https://...logo_politico.png" },
-        { "id": "id_da_noticia_2", "source": "G1", "logo": "https://...logo_g1.png" },
-        { "id": "id_da_noticia_3", "source": "Folha", "logo": "https://...logo_folha.png" },
-        { "id": "id_da_noticia_4", "source": "CNN", "logo": "https://...logo_cnn.png" }
-      ]
-    }
-  ]
+  RETORNE APENAS O ARRAY JSON COM OS 3 OBJETOS.
   `;
 
   try {
@@ -1754,32 +1748,38 @@ const generateSmartClustering = async (news, apiKey) => {
 
     const data = await response.json();
     
-    if (!response.ok || data.error) {
-        console.error("Erro da API Gemini:", data.error?.message || response.statusText);
-        return null;
-    }
+    if (!response.ok || data.error) return null;
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
-    // --- LÓGICA DE HIDRATAÇÃO CORRIGIDA E SIMPLIFICADA ---
     const hydratedJson = json.map(cluster => {
         const hydratedArticles = cluster.related_articles
-            .map(ref => news.find(n => n.id === ref.id)) // Encontra o artigo completo na lista 'news'
-            .filter(Boolean); // Remove quaisquer resultados 'undefined' (caso um artigo não seja encontrado)
+            .map(ref => {
+                const originalArticle = news.find(n => n.id === ref.id);
+                if (!originalArticle) return null;
+                return { ...originalArticle, ai_sentiment: ref.sentiment }; 
+            })
+            .filter(Boolean);
 
-        return {
-            ...cluster,
-            related_articles: hydratedArticles
-        };
-    });
+        const uniqueArticles = [];
+        const seenSources = new Set();
+        hydratedArticles.forEach(art => {
+            if (!seenSources.has(art.source)) {
+                seenSources.add(art.source);
+                uniqueArticles.push(art);
+            }
+        });
+
+        return { ...cluster, related_articles: uniqueArticles };
+    }).filter(c => c.related_articles.length > 0); 
 
     return Array.isArray(hydratedJson) ? hydratedJson : null;
 
   } catch (error) {
-    console.error("Erro no novo Smart Clustering:", error);
+    console.error("Erro Smart Clustering:", error);
     return null;
   }
 };
@@ -2240,6 +2240,222 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
              </div>
          </div>
       </div>
+    </div>
+  );
+};
+
+
+// --- WIDGET: CONTEXTO GLOBAL (PROGRESSIVE LOADING - 30 -> 300) ---
+const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters }) => {
+  const [loading, setLoading] = useState(false); // Loading Inicial (Tela vazia)
+  const [isUpgrading, setIsUpgrading] = useState(false); // Loading Secundário (Aprimorando)
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef(null);
+  
+  // Controle de estados da execução
+  const hasStartedRef = useRef(false);
+
+  // Função Mestra de Execução
+  const runAISequence = async () => {
+      if (!apiKey || !news || news.length < 10) return;
+
+      // --- FASE 1: RÁPIDA (30 Notícias) ---
+      setLoading(true);
+      // Chama a função com limite 30 (Resposta em ~1.5s)
+      const quickResult = await generateSmartClustering(news, apiKey, 30);
+      
+      if (quickResult && quickResult.length > 0) {
+          setClusters(quickResult);
+      }
+      setLoading(false);
+
+      // --- FASE 2: PROFUNDA (300 Notícias) ---
+      // Só inicia a fase 2 se tivermos notícias suficientes para valer a pena
+      if (news.length > 50) {
+          setIsUpgrading(true); // Ativa o texto animado
+          
+          // Delay técnico para dar respiro à API e permitir que o usuário veja o primeiro resultado
+          await new Promise(r => setTimeout(r, 2000)); 
+
+          // Chama a função com limite 300 (Pode demorar ~4-6s)
+          const deepResult = await generateSmartClustering(news, apiKey, 300);
+
+          if (deepResult && deepResult.length > 0) {
+              setClusters(deepResult); // Substitui suavemente
+          }
+          setIsUpgrading(false); // Desliga o texto animado
+      }
+  };
+
+  // --- EFEITO: DISPARO ÚNICO ---
+  useEffect(() => {
+      // Dispara apenas se tiver notícias, clusters vazio e nunca tiver rodado antes
+      if (news && news.length > 10 && (!clusters || clusters.length === 0) && !hasStartedRef.current) {
+          hasStartedRef.current = true;
+          runAISequence();
+      }
+  }, [news, apiKey, clusters]); 
+
+  // Função Manual (Botão Atualizar) - Roda direto a completa
+  const handleManualRefresh = async () => {
+      if (!apiKey) return alert("Configure a API Key.");
+      setLoading(true);
+      setClusters(null);
+      const result = await generateSmartClustering(news, apiKey, 300);
+      if (result) setClusters(result);
+      else alert("Falha ao atualizar.");
+      setLoading(false);
+  };
+
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const scrollLeft = scrollRef.current.scrollLeft;
+      const cardWidth = scrollRef.current.offsetWidth;
+      const newIndex = Math.round(scrollLeft / cardWidth);
+      if (newIndex !== activeIndex) setActiveIndex(newIndex);
+    }
+  };
+
+  const getSentimentGlow = (sentiment) => {
+      if (sentiment === 'positive') return 'border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]'; 
+      if (sentiment === 'negative') return 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]';    
+      return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]'; 
+  };
+  
+  // --- RENDERIZAÇÃO: LOADING INICIAL (SKELETON) ---
+  if (loading || (!clusters && news && news.length > 0 && !hasStartedRef.current)) {
+      return (
+        <div className="relative w-full px-2 animate-in fade-in duration-500">
+            <div className="relative z-10 flex items-center gap-3 mb-5 px-4 opacity-50">
+                <div className={`p-2 rounded-xl bg-zinc-200 dark:bg-white/5`}><Layers size={18} /></div>
+                <div className="h-4 w-32 bg-zinc-200 dark:bg-white/5 rounded-full" />
+            </div>
+            <div className={`h-[480px] rounded-[2.5rem] w-full relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-zinc-200 border border-zinc-300'}`}>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 w-full animate-[shimmer_1.5s_infinite]" />
+            </div>
+        </div>
+      );
+  }
+
+  // Se falhou tudo
+  if (!clusters || clusters.length === 0) return null;
+
+  // --- RENDERIZAÇÃO: CONTEÚDO FINAL ---
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000">
+        <div className="relative w-full">
+            
+            {/* Header Inteligente */}
+            <div className="relative z-10 flex items-center justify-between mb-5 px-6">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+                        {isUpgrading ? <Loader2 size={18} className="animate-spin text-purple-400" /> : <Layers size={18} />}
+                    </div>
+                    
+                    <div className="flex flex-col">
+                        <h3 className="text-lg font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 leading-none">
+                            Contexto Global
+                        </h3>
+                        
+                        {/* TEXTO ANIMADO DE UPGRADE */}
+                        {isUpgrading && (
+                            <span className="text-[10px] font-bold text-purple-500 animate-pulse mt-1 tracking-wider uppercase">
+                                Analisando 300 fontes em tempo real...
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                <button 
+                    onClick={handleManualRefresh}
+                    disabled={isUpgrading}
+                    className={`
+                        flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 border backdrop-blur-md
+                        ${isUpgrading ? 'opacity-0 pointer-events-none' : 'opacity-100'}
+                        ${isDarkMode 
+                            ? 'border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10' 
+                            : 'border-black/5 bg-black/5 text-zinc-600 hover:text-black hover:bg-black/10'}
+                    `}
+                >
+                    <RefreshCw size={12} />
+                    <span>Atualizar</span>
+                </button>
+            </div>
+
+            {/* Scroll Horizontal */}
+            <div 
+              ref={scrollRef}
+              onScroll={handleScroll}
+              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-4 px-2"
+            >
+                {clusters.map((cluster, idx) => (
+                    <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
+                        <div className={`
+                            group relative h-[480px] w-full rounded-[2.5rem] overflow-hidden cursor-default 
+                            transition-all duration-500 hover:scale-[1.01]
+                            shadow-2xl shadow-black/40 border border-white/10
+                        `}>
+                            <img 
+                                src={cluster.representative_image} 
+                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" 
+                                alt="" 
+                                onError={(e) => { e.target.style.display = 'none'; }} 
+                            />
+                            <div className={`absolute inset-0 -z-10 bg-gradient-to-br from-indigo-900 to-purple-900`} /> 
+                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
+
+                            <div className="absolute top-6 left-6">
+                                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg">
+                                   <Globe size={14} className="text-blue-400" />
+                                   <span className="text-white text-[10px] font-black uppercase tracking-[0.15em]">
+                                       {cluster.related_articles.length} Fontes
+                                   </span>
+                                </div>
+                            </div>
+
+                            <div className="absolute bottom-0 left-0 w-full p-8 flex flex-col justify-end">
+                                <h2 className="text-3xl md:text-4xl font-black text-white leading-[1.1] mb-6 drop-shadow-2xl tracking-tight">
+                                   {cluster.ai_title}
+                                </h2>
+                                
+                                <div className="flex flex-wrap items-center gap-4">
+                                   {cluster.related_articles.map(article => (
+                                       <button
+                                           key={article.id}
+                                           onClick={() => openArticle(article)}
+                                           className={`
+                                               relative w-12 h-12 rounded-full p-[2px] transition-all duration-300 
+                                               hover:scale-125 hover:z-10 bg-black/40 backdrop-blur-sm border-2
+                                               ${getSentimentGlow(article.ai_sentiment)}
+                                           `}
+                                           title={`${article.source}: ${article.title}`}
+                                       >
+                                           <img src={article.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.style.display='none'} />
+                                       </button>
+                                   ))}
+                                </div>
+
+                                <div className="mt-4 flex items-center gap-2 opacity-50">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+                                    <span className="text-[9px] font-bold text-white uppercase tracking-widest">
+                                        {isUpgrading ? 'Aprimorando dados...' : 'Análise de Viés em Tempo Real'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            
+            {/* Paginação */}
+            {clusters.length > 1 && (
+              <div className="flex justify-center gap-2 mt-2">
+                  {clusters.map((_, idx) => (
+                      <div key={idx} className={`h-1 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-8' : 'bg-zinc-300 dark:bg-zinc-700 w-2'}`} />
+                  ))}
+              </div>
+            )}
+        </div>
     </div>
   );
 };
@@ -2912,7 +3128,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey, savedClusters, setSavedClusters  }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [startY, setStartY] = useState(0);
@@ -3035,7 +3251,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             openArticle={openArticle} 
             isDarkMode={isDarkMode} 
             apiKey={apiKey} 
-            refreshTrigger={refreshTrigger}
+          clusters={savedClusters}
+              setClusters={setSavedClusters}
          
         />
         <GeminiBar />
@@ -3761,6 +3978,7 @@ const SplashScreen = ({ onFinish }) => {
 export default function NewsOS_V12() {
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('happening'); 
+  const [globalClusters, setGlobalClusters] = useState(null); 
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [selectedOutlet, setSelectedOutlet] = useState(null); 
   const [selectedStory, setSelectedStory] = useState(null);
@@ -4310,6 +4528,8 @@ const allAvailableStories = useMemo(() => {
         onMarkAsSeen={markStoryAsSeen}
         apiKey={apiKey}
         storiesToDisplay={storiesForHappeningTab}
+        savedClusters={globalClusters}
+                    setSavedClusters={setGlobalClusters}
                     
                 />
             )}
