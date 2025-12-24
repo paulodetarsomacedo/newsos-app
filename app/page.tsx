@@ -1483,8 +1483,18 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   };
 
   const handleOpenStory = (story) => {
+      // 1. Tenta achar o ID do vídeo
+      const vId = story.videoId || getVideoId(story.link);
+
+      // 2. Se achou, abre o Player PWA e marca como visto
+      if (vId) {
+          playYoutubePWA(vId); // <--- Chama o player leve
+          if (onMarkAsSeen) onMarkAsSeen(story.id);
+          return; // Para aqui, não abre o modal antigo
+      }
+
+      // 3. Fallback (só abre o modal antigo se não achar ID de vídeo)
       setActiveStory(story);
-      // Marca como visto imediatamente ao abrir
       if (onMarkAsSeen) onMarkAsSeen(story.id);
   };
 
@@ -1564,8 +1574,11 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
             return (
                 <div 
                   key={video.id} 
-                  onClick={() => onPlayVideo(video)} 
-                  className={`group relative md:w-[520px] rounded-3xl overflow-hidden border shadow-lg hover:shadow-xl transition-all cursor-pointer ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'} ${isSeen ? 'opacity-60 grayscale-[0.5]' : ''}`}
+onClick={() => {
+    const vId = video.videoId || getVideoId(video.link);
+    if (vId) playYoutubePWA(vId); // Chama direto o player leve
+    else onPlayVideo(video); // Fallback
+}}                  className={`group relative md:w-[520px] rounded-3xl overflow-hidden border shadow-lg hover:shadow-xl transition-all cursor-pointer ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'} ${isSeen ? 'opacity-60 grayscale-[0.5]' : ''}`}
                 >
                     <div className={`flex items-center justify-between px-5 py-4 border-b ${isDarkMode ? 'border-white/5' : 'border-zinc-100'}`}>
                         <div className="flex items-center gap-3">
@@ -3857,6 +3870,72 @@ const SplashScreen = ({ onFinish }) => {
 };
 
 
+// --- FUNÇÃO GLOBAL: PLAYER PWA (Zero React State) ---
+const playYoutubePWA = (videoId) => {
+  const container = document.getElementById('pwa-video-root');
+  if (!container) return;
+
+  // Limpa qualquer coisa anterior
+  container.innerHTML = '';
+
+  // Torna visível
+  container.style.display = 'block';
+
+  // Injeta o HTML bruto (Iframe + Botão Fechar)
+  // playsinline=1 é CRUCIAL para iOS/iPad não sequestrar o player
+  container.innerHTML = `
+    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000;">
+      <iframe 
+        src="https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1" 
+        style="width:100%; height:100%; border:none;" 
+        frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen>
+      </iframe>
+      
+      <button 
+        id="pwa-close-btn"
+        style="
+          position: absolute; 
+          top: 20px; 
+          right: 20px; 
+          z-index: 9999999; 
+          background: rgba(0,0,0,0.6); 
+          color: white; 
+          border: 1px solid rgba(255,255,255,0.2); 
+          border-radius: 50%; 
+          width: 48px; 
+          height: 48px; 
+          font-weight: bold;
+          font-size: 20px;
+          cursor: pointer;
+          display: flex; 
+          align-items: center; 
+          justify-content: center;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        "
+      >
+        ✕
+      </button>
+    </div>
+  `;
+
+  // Adiciona o evento de click no botão criado dinamicamente
+  document.getElementById('pwa-close-btn').onclick = () => {
+    container.style.display = 'none';
+    container.innerHTML = ''; // Destrói o iframe para parar o som instantaneamente
+  };
+};
+
+
+
+
+
+
+
+
+
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
 export default function NewsOS_V12() {
   const [showSplash, setShowSplash] = useState(true);
@@ -4263,6 +4342,20 @@ const handleStoryNavigation = (direction) => {
   };
 
   const handleOpenArticle = (article) => {
+    if (!article) return;
+
+    // Tenta extrair ID do Youtube
+    const yId = article.videoId || getVideoId(article.link);
+
+    // SE FOR VÍDEO DO YOUTUBE:
+    // Chama o player leve e NÃO abre o painel pesado
+    if (yId) {
+        playYoutubePWA(yId);
+        return; // <--- O PULO DO GATO: Para aqui e não abre mais nada
+    }
+
+    // SE FOR NOTÍCIA NORMAL:
+    // Segue o fluxo antigo
     setSelectedArticle(article);
     if (!readHistory.includes(article.id)) setReadHistory((prev) => [...prev, article.id]);
   };
@@ -4574,7 +4667,8 @@ feedItems={[...realNews, ...realVideos, ...realPodcasts]}          isOpen={!!sel
               isDarkMode={isDarkMode} 
           />
       )}
-
+{/* --- DIV INVISÍVEL ONDE O VÍDEO VAI APARECER --- */}
+      <div id="pwa-video-root" style={{ display: 'none', position: 'fixed', inset: 0, zIndex: 9999999 }} />
     </div>
   );
 }
