@@ -1804,7 +1804,7 @@ const generateSmartClustering = async (news, apiKey, limit = 300) => {
   2. Se a lista de notícias for pequena, aceite eventos com menos fontes, mas GARANTA 3 TÓPICOS DISTINTOS.
   
   ESTRUTURA DO JSON (Para cada um dos 3 cards):
-  - ai_title: Título em Português do Brasil. Curto e impactante (Máx 12 palavras).
+  - ai_title: Título em Português do Brasil. Curto e impactante (Máx 10 palavras).
   - representative_image: Copie a URL do campo 'IMG' de uma das notícias.
   - related_articles: Liste os IDs das notícias do cluster. Analise o sentimento ('positive', 'negative', 'neutral').
 
@@ -1859,6 +1859,94 @@ const generateSmartClustering = async (news, apiKey, limit = 300) => {
   } catch (error) {
     console.error("Erro Smart Clustering:", error);
     return null;
+  }
+};
+
+// --- FUNÇÃO DE IA: SMART DIGEST (COM RASTREABILIDADE) ---
+const generateBriefing = async (news, apiKey) => {
+  if (!news || news.length === 0) return null;
+  if (!apiKey) {
+      alert("API Key não configurada! Vá em Ajustes > Inteligência IA.");
+      return null;
+  }
+
+  // Preparamos o contexto com ID para a IA saber o que referenciar
+  const context = news.slice(0, 40).map(n => {
+      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 300) : "Sem detalhes.";
+      return `ID: ${n.id} | [FONTE: ${n.source}] TÍTULO: ${n.title} | CONTEXTO: ${cleanSummary}`;
+  }).join('\n\n');
+
+  const prompt = `
+  Você é o Editor-Chefe de uma newsletter premium (estilo Morning Brew).
+  
+  SUA MISSÃO:
+  Ler as notícias fornecidas abaixo, identificar os 4 (QUATRO) maiores temas do momento e escrever resumos EXPLICATIVOS, fluídos e concatenados.
+  
+  REGRAS EDITORIAIS:
+  1. CONTEXTUALIZE: Não apenas repita o título. Explique o "porquê".
+  2. AGRUPE: Junte notícias parecidas no mesmo tópico.
+  3. TOM DE VOZ: Profissional, direto, mas conversacional.
+  4. TAMANHO: O campo "summary" deve ter entre 40 a 55 palavras.
+
+  REGRAS OBRIGATÓRIAS:
+  1. Identifique quais notícias (pelos IDs) compõem cada tópico.
+  2. O resumo deve explicar o "porquê" do fato ser importante.
+  3. JSON Estrito.
+
+  MATÉRIA PRIMA:
+  ${context}
+
+  RETORNE APENAS ESTE JSON:
+  {
+    "vibe_emoji": "Um único emoji que defina o humor global",
+    "vibe_title": "Uma manchete de capa impactante (3 a 6 palavras)",
+    "topics": [
+      { 
+        "tag": "Categoria (Ex: Política, Tech)", 
+        "summary": "Texto explicativo rico (30-40 palavras)...",
+        "source_ids": ["id_da_noticia_1", "id_da_noticia_2"] 
+      }
+    ]
+  }
+  `;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+        console.warn(`Erro IA: ${data.error.message}`);
+        return await generateBriefingFallback(news, apiKey); // Mantém seu fallback existente
+    }
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return await generateBriefingFallback(news, apiKey);
+
+    const finalData = parseAndNormalize(text);
+    
+    if (!finalData || !finalData.topics) return await generateBriefingFallback(news, apiKey);
+
+    // --- HIDRATAÇÃO: Cruzar IDs com as notícias reais ---
+    finalData.topics = finalData.topics.map(topic => {
+        const relatedArticles = topic.source_ids
+            ? topic.source_ids.map(id => news.find(n => n.id === id)).filter(Boolean)
+            : [];
+        return { ...topic, articles: relatedArticles };
+    });
+
+    return finalData;
+
+  } catch (error) {
+    console.warn("Erro fatal SmartDigest:", error);
+    return await generateBriefingFallback(news, apiKey);
   }
 };
 
@@ -2541,6 +2629,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     </div>
   );
 };
+
 
 
 
