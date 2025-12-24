@@ -2211,68 +2211,140 @@ const generateMarketAnalysis = async (news, apiKey) => {
 
 
 
-// --- SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO ---
-const AssetCard = ({ mover, onClick, isDarkMode }) => {
-    // Escolhe ícone baseado no nome do ativo
+// --- HELPER: ENCONTRAR NOTÍCIAS RELACIONADAS AO ATIVO ---
+const findRelatedNews = (assetName, allNews) => {
+    if (!allNews || !assetName) return [];
+    
+    const term = assetName.toUpperCase();
+    const keywords = [];
+
+    // Mapeia siglas para palavras-chave reais das notícias
+    if (term.includes('USD') || term.includes('DÓLAR')) keywords.push('dólar', 'usd', 'câmbio', 'moeda', 'greenback');
+    else if (term.includes('EUR')) keywords.push('euro', 'eur', 'ue');
+    else if (term.includes('BTC') || term.includes('BITCOIN') || term.includes('CRIPTO')) keywords.push('bitcoin', 'btc', 'cripto', 'ethereum');
+    else if (term.includes('IBOV') || term.includes('BOLSA')) keywords.push('ibovespa', 'bolsa', 'b3', 'ações', 'índice');
+    else if (term.includes('PETR')) keywords.push('petrobras', 'petróleo', 'brent');
+    else if (term.includes('VALE')) keywords.push('vale', 'minério');
+    else if (term.includes('JUROS') || term.includes('SELIC') || term.includes('CDI')) keywords.push('juros', 'selic', 'copom', 'bc');
+    else keywords.push(term); // Fallback para o nome original
+
+    // Filtra notícias que contenham alguma das palavras-chave no título
+    return allNews.filter(n => {
+        const title = n.title.toLowerCase();
+        return keywords.some(k => title.includes(k.toLowerCase()));
+    }).slice(0, 4); // Limita a 4 notícias para não ficar gigante
+};
+
+// --- SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO (COM ACORDEÃO) ---
+const AssetCard = ({ mover, allNews, openArticle, isDarkMode }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    // Encontra as notícias relacionadas a este ativo
+    const relatedArticles = useMemo(() => {
+        return findRelatedNews(mover.asset, allNews);
+    }, [mover.asset, allNews]);
+
+    // Escolhe ícone
     const getIcon = (assetName) => {
         const name = assetName.toUpperCase();
         if (name.includes('BTC') || name.includes('BITCOIN') || name.includes('CRIPTO')) return <Bitcoin size={18} />;
         if (name.includes('USD') || name.includes('DÓLAR') || name.includes('DOLAR')) return <DollarSign size={18} />;
         if (name.includes('EUR') || name.includes('EURO')) return <Euro size={18} />;
-        return <Activity size={18} />;
+        if (name.includes('IBOV') || name.includes('BOLSA')) return <Activity size={18} />;
+        return <TrendingUp size={18} />;
     };
 
     const isUp = mover.trend === 'up';
     const colorClass = isUp ? 'text-emerald-500' : (mover.trend === 'down' ? 'text-rose-500' : 'text-yellow-500');
-    const bgGradient = isUp 
-        ? 'from-emerald-500/10 to-emerald-500/5 border-emerald-500/20' 
-        : (mover.trend === 'down' ? 'from-rose-500/10 to-rose-500/5 border-rose-500/20' : 'from-yellow-500/10 to-yellow-500/5 border-yellow-500/20');
+    // Borda e fundo condicional
+    const bgClass = isDarkMode 
+        ? (isUp ? 'bg-emerald-900/10 border-emerald-500/20' : (mover.trend === 'down' ? 'bg-rose-900/10 border-rose-500/20' : 'bg-yellow-900/10 border-yellow-500/20'))
+        : (isUp ? 'bg-emerald-50 border-emerald-100' : (mover.trend === 'down' ? 'bg-rose-50 border-rose-100' : 'bg-yellow-50 border-yellow-100'));
 
     return (
-        <button 
-            disabled={!mover.article}
-            onClick={onClick}
+        <div 
             className={`
-                group relative flex flex-col p-3 rounded-2xl border transition-all duration-300
-                ${mover.article ? 'hover:scale-[1.02] active:scale-95 cursor-pointer hover:shadow-lg' : 'cursor-default opacity-70'}
-                ${isDarkMode ? `bg-gradient-to-br ${bgGradient} border-white/5` : `bg-white border-zinc-100 shadow-sm`}
+                relative flex flex-col rounded-2xl border transition-all duration-300 overflow-hidden
+                ${isOpen ? 'row-span-2 shadow-xl z-20 scale-[1.02]' : 'hover:scale-[1.01] hover:shadow-md'}
+                ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}
+                ${bgClass}
             `}
         >
-            {/* Cabeçalho do Card */}
-            <div className="flex justify-between items-start w-full mb-2">
-                <div className="flex items-center gap-2">
-                    <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-white/5' : 'bg-zinc-100'} ${colorClass}`}>
-                        {getIcon(mover.asset)}
+            {/* ÁREA CLICÁVEL (CABEÇALHO) */}
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="p-3 w-full text-left outline-none"
+            >
+                <div className="flex justify-between items-start w-full mb-2">
+                    <div className="flex items-center gap-2">
+                        <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-black/20' : 'bg-white'} ${colorClass} shadow-sm`}>
+                            {getIcon(mover.asset)}
+                        </div>
+                        <span className={`text-sm font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
+                            {mover.asset}
+                        </span>
                     </div>
-                    <span className={`text-sm font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
-                        {mover.asset}
-                    </span>
+                    
+                    <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isDarkMode ? 'bg-black/20' : 'bg-white/60'} ${colorClass}`}>
+                        {isUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                        {mover.change_label}
+                    </div>
                 </div>
-                
-                <div className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isDarkMode ? 'bg-black/20' : 'bg-zinc-100'} ${colorClass}`}>
-                    {isUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                    {mover.change_label}
+
+                <p className={`text-[10px] font-medium leading-tight text-left line-clamp-2 pr-4 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    {mover.reason}
+                </p>
+
+                {/* Indicador de Expandir */}
+                <div className="absolute bottom-3 right-3 opacity-50">
+                    <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+                        <ChevronLeft size={14} className="-rotate-90" />
+                    </div>
+                </div>
+            </button>
+
+            {/* ÁREA DO ACORDEÃO (NOTÍCIAS) */}
+            <div 
+                className={`
+                    border-t transition-all duration-500 ease-in-out overflow-hidden
+                    ${isOpen ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'}
+                    ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-zinc-100 bg-white/50'}
+                `}
+            >
+                <div className="p-2 space-y-1">
+                    {relatedArticles.length > 0 ? (
+                        relatedArticles.map((news) => (
+                            <button 
+                                key={news.id}
+                                onClick={(e) => { e.stopPropagation(); openArticle(news); }}
+                                className={`
+                                    w-full flex items-center gap-2 p-2 rounded-xl transition-colors text-left group
+                                    ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}
+                                `}
+                            >
+                                <img 
+                                    src={news.logo} 
+                                    className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover"
+                                    alt="Logo"
+                                    onError={(e) => e.target.style.display='none'} 
+                                />
+                                <span className={`text-[10px] font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300 group-hover:text-white' : 'text-zinc-700 group-hover:text-black'}`}>
+                                    {news.title}
+                                </span>
+                            </button>
+                        ))
+                    ) : (
+                        <div className="p-3 text-center text-[10px] opacity-50">
+                            Sem notícias recentes para este ativo.
+                        </div>
+                    )}
                 </div>
             </div>
-
-            {/* Texto da Razão */}
-            <p className={`text-[10px] font-medium leading-tight text-left line-clamp-2 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                {mover.reason}
-            </p>
-
-            {/* Link Indicativo (Só aparece no Hover se tiver artigo) */}
-            {mover.article && (
-                <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center shadow-lg">
-                        <ArrowRight size={10} className="text-white" />
-                    </div>
-                </div>
-            )}
-        </button>
+        </div>
     );
 };
 
-// --- WIDGET PRINCIPAL: MARKET PULSE ---
+// --- WIDGET PRINCIPAL: MARKET PULSE (COM SUPORTE A EXPANSÃO) ---
 const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2317,21 +2389,15 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
       return 'text-yellow-500';
   };
 
-  const getBarColor = (score) => {
-      if (score > 60) return 'bg-emerald-500';
-      if (score < 40) return 'bg-rose-500';
-      return 'bg-yellow-500';
-  };
-
   return (
     <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
         <div className={`relative rounded-[2.5rem] overflow-hidden border transition-all hover:shadow-2xl ${isDarkMode ? 'bg-zinc-950 border-white/10 shadow-black/50' : 'bg-white border-zinc-200 shadow-xl'}`}>
             
-            {/* Background Glow Efeito */}
+            {/* Background Glow */}
             <div className={`absolute -top-20 -right-20 w-80 h-80 bg-gradient-to-br opacity-10 rounded-full blur-[80px] ${data.market_score > 50 ? 'from-emerald-500 to-transparent' : 'from-rose-500 to-transparent'}`} />
 
             <div className="p-6 pb-0 relative z-10">
-                {/* Header Compacto */}
+                {/* Header */}
                 <div className="flex items-start justify-between mb-6">
                     <div>
                         <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-2 border ${isDarkMode ? 'bg-white/5 border-white/10 text-zinc-400' : 'bg-zinc-100 border-zinc-200 text-zinc-500'}`}>
@@ -2343,7 +2409,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                         </h2>
                     </div>
                     
-                    {/* Score Circular Minimalista */}
+                    {/* Gauge Visual */}
                     <div className="text-right">
                         <div className="relative flex items-center justify-center">
                             <svg className="w-14 h-14 transform -rotate-90">
@@ -2359,38 +2425,31 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                     {data.summary}
                 </p>
 
-                {/* --- GRID DE CARDS PREMIUM --- */}
+                {/* --- GRID DE CARDS COM ACORDEÃO --- */}
                 <div className="grid grid-cols-2 gap-3 mb-6">
                     {data.movers?.map((mover, idx) => (
                         <AssetCard 
                             key={idx} 
                             mover={mover} 
+                            allNews={newsData} // Passamos TODAS as notícias para o card filtrar
+                            openArticle={openArticle}
                             isDarkMode={isDarkMode} 
-                            onClick={() => mover.article && openArticle(mover.article)} 
                         />
                     ))}
                 </div>
             </div>
 
-            {/* --- TICKER ESTILO TERMINAL --- */}
+            {/* Ticker Bottom */}
             <div className={`relative border-t py-3 px-5 flex items-center gap-4 ${isDarkMode ? 'bg-black/30 border-white/5' : 'bg-zinc-50/80 border-zinc-100'}`}>
                 <div className={`w-2 h-2 rounded-full animate-pulse flex-shrink-0 ${data.market_state === 'CLOSED' ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                
-                <div className="flex-1 overflow-hidden relative h-8">
-                     {/* Texto rolando suavemente se for multiline, ou estático se couber */}
-                     <div className="flex flex-col justify-center h-full">
-                        <p className={`text-[10px] font-mono leading-tight whitespace-pre-wrap line-clamp-2 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                             <span className="font-bold mr-2">{data.market_state === 'CLOSED' ? 'FECHAMENTO:' : 'EM TEMPO REAL:'}</span>
-                             {data.bottom_summary.replace(/\n/g, ' • ')}
-                        </p>
-                     </div>
-                </div>
-                
-                {/* Ícone de status */}
-                <div className="flex-shrink-0 opacity-50">
-                   {data.trend_direction === 'bullish' ? <TrendingUp size={14} className="text-emerald-500"/> : (data.trend_direction === 'bearish' ? <TrendingDown size={14} className="text-rose-500"/> : <Minus size={14} className="text-yellow-500"/>)}
+                <div className="flex-1 overflow-hidden relative h-8 flex flex-col justify-center">
+                    <p className={`text-[10px] font-mono leading-tight whitespace-pre-wrap line-clamp-2 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                         <span className="font-bold mr-2">{data.market_state === 'CLOSED' ? 'FECHAMENTO:' : 'AGORA:'}</span>
+                         {data.bottom_summary.replace(/\n/g, ' • ')}
+                    </p>
                 </div>
             </div>
+
         </div>
     </div>
   );
