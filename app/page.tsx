@@ -3959,6 +3959,9 @@ const handleStoryNavigation = (direction) => {
           if (data.api_key) setApiKey(data.api_key);
           if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
           if (data.seen_story_ids) setSeenStoryIds(data.seen_story_ids);
+          
+          // --- NOVO: Carrega o histórico de horários corrigidos ---
+          if (data.article_history) setArticleHistory(data.article_history);
       } else if (!error) {
           // Se não tem dados, cria a primeira entrada
           await supabase.from('user_preferences').insert([{ user_id: userId }]);
@@ -3980,6 +3983,7 @@ const handleStoryNavigation = (direction) => {
               api_key: apiKey,
               is_dark_mode: isDarkMode,
               seen_story_ids: seenStoryIds, 
+              article_history: articleHistory,
               updated_at: new Date()
           };
 
@@ -3995,7 +3999,7 @@ const handleStoryNavigation = (direction) => {
       }, 2000);
 
       return () => clearTimeout(timer);
-  }, [user, userFeeds, savedItems, readHistory, likedItems, apiKey, isDarkMode, seenStoryIds]);
+  }, [user, userFeeds, savedItems, readHistory, likedItems, apiKey, isDarkMode, seenStoryIds, articleHistory]);
 
 
   // --- FUNÇÕES DE AUXÍLIO ---
