@@ -4254,7 +4254,7 @@ const handleStoryNavigation = (direction) => {
                 // --- LISTA DE SITES PROBLEMÁTICOS ---
     const isProblematic = feed.url.includes('moneytimes.com.br') || 
                           feed.url.includes('br.investing.com') ||
-                          feed.url.includes('uol.com.br'); ||
+                          feed.url.includes('uol.com.br') ||
                           feed.url.includes('valor.globo.com');
 
     
