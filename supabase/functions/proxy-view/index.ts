@@ -1,58 +1,92 @@
-// supabase/functions/proxy-view/index.ts
+// ARQUIVO: supabase/functions/proxy-view/index.ts
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
-import { Readability } from "https://esm.sh/@mozilla/readability@0.4.4";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { Readability } from "npm:@mozilla/readability@0.5.0"
+import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts"
+import puppeteer from "https://deno.land/x/puppeteer@16.2.0/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Cabeçalhos para simular um navegador real
+const BROWSER_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
 
   try {
-    const { url } = await req.json();
-    if (!url) throw new Error("URL is required");
+    const { url } = await req.json()
+    if (!url) throw new Error("URL is required")
 
-    // 1. Baixa o HTML original
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      },
-    });
+    // Sites que OBRIGATORIAMENTE precisam do modo pesado (Puppeteer)
+    const heavySites = ['investing.com', 'uol.com.br'];
+    const needsPuppeteer = heavySites.some(site => url.includes(site));
+    
+    let htmlContent;
+    let readerResult;
 
-    if (!response.ok) throw new Error(`Status: ${response.status}`);
-    let html = await response.text();
-
-    // 2. Prepara HTML para o Iframe (Modo Web)
-    const baseTag = `<base href="${url}" target="_blank">`;
-    let webHtml = html;
-    if (webHtml.includes('<head>')) {
-        webHtml = webHtml.replace('<head>', `<head>${baseTag}`);
+    if (needsPuppeteer) {
+        // --- MODO PESADO (PUPPETEER) ---
+        console.log(`Using Puppeteer for: ${url}`);
+        const browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
+        const page = await browser.newPage();
+        await page.setUserAgent(BROWSER_HEADERS['User-Agent']);
+        // Aumenta timeout para páginas lentas
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 20000 });
+        htmlContent = await page.content();
+        await browser.close();
     } else {
-        webHtml = `${baseTag}${webHtml}`;
+        // --- MODO RÁPIDO (FETCH) ---
+        console.log(`Using Fetch for: ${url}`);
+        const response = await fetch(url, { headers: BROWSER_HEADERS });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        htmlContent = await response.text();
     }
-    // Remove frame busters
-    webHtml = webHtml.replace(/if\s*\(top\s*!==\s*self\)/gi, "if(false)");
 
-    // 3. Processa Modo Leitura (Modo Safari/Reader)
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const reader = new Readability(doc).parse();
+    // Processamento com Readability (comum aos dois modos)
+    const doc = new DOMParser().parseFromString(htmlContent, "text/html");
+    if (!doc) throw new Error("Failed to parse document");
+    
+    const reader = new Readability(doc);
+    readerResult = reader.parse();
 
-    return new Response(JSON.stringify({ 
-        html: webHtml, // Para o Iframe
-        reader: reader // Para o Modo Leitura (Conteúdo limpo)
+    // Se o resultado do modo rápido foi muito curto, tenta de novo com Puppeteer
+    if (!needsPuppeteer && (!readerResult || readerResult.textContent.length < 500)) {
+        console.log(`Short content, retrying with Puppeteer for: ${url}`);
+        const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+        const page = await browser.newPage();
+        await page.setUserAgent(BROWSER_HEADERS['User-Agent']);
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 20000 });
+        htmlContent = await page.content();
+        await browser.close();
+        
+        const finalDoc = new DOMParser().parseFromString(htmlContent, "text/html");
+        readerResult = new Readability(finalDoc).parse();
+    }
+    
+    return new Response(JSON.stringify({
+      html: htmlContent,
+      reader: readerResult
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200
-    });
+      status: 200,
+    })
 
   } catch (error) {
+    console.error("Proxy-view Error:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+      status: 500,
+    })
   }
-});
+})

@@ -1,15 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: false, // Desativa modo estrito para evitar render duplo em dev
-  
-  // --- A MÁGICA ESTÁ AQUI EMBAIXO ---
-  eslint: {
-    // Ignora erros de ESLint durante o build
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    // Ignora erros de TypeScript (como esse do isDarkMode) durante o build
-    ignoreBuildErrors: true,
+  output: 'export',  // <--- OBRIGATÓRIO: Gera HTML estático
+  images: {
+    unoptimized: true, // <--- OBRIGATÓRIO: O Next não pode otimizar imagens sem servidor
   },
   // -----------------------------------
 
@@ -29,6 +22,17 @@ const nextConfig = {
       },
     ],
   },
+  // --- ADICIONE ISSO AQUI: ---
+  typescript: {
+    // !! ATENÇÃO !!
+    // Perigosamente permite que builds de produção terminem mesmo com erros de tipo.
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    // Ignora erros de estilo também para garantir o build
+    ignoreDuringBuilds: true,
+  },
 };
+
 
 module.exports = nextConfig;

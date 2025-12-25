@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js'
+import { Browser } from '@capacitor/browser';
+import { InAppBrowser } from '@awesome-cordova-plugins/in-app-browser';
 
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
@@ -1586,13 +1588,11 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
             const isSeen = seenStoryIds?.includes(video.id);
 
             return (
-                <div 
-                  key={video.id} 
-onClick={() => {
-    const vId = video.videoId || getVideoId(video.link);
-    if (vId) playYoutubePWA(vId); // Chama direto o player leve
-    else onPlayVideo(video); // Fallback
-}}                  className={`group relative md:w-[520px] rounded-3xl overflow-hidden border shadow-lg hover:shadow-xl transition-all cursor-pointer ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'} ${isSeen ? 'opacity-60 grayscale-[0.5]' : ''}`}
+                 <div 
+          key={video.id} 
+          // MUDANÇA: Chama openPlayVideo diretamente
+          onClick={() => onPlayVideo(video)} 
+                  className={`group relative md:w-[520px] rounded-3xl overflow-hidden border shadow-lg hover:shadow-xl transition-all cursor-pointer ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'} ${isSeen ? 'opacity-60 grayscale-[0.5]' : ''}`}
                 >
                     <div className={`flex items-center justify-between px-5 py-4 border-b ${isDarkMode ? 'border-white/5' : 'border-zinc-100'}`}>
                         <div className="flex items-center gap-3">
@@ -4002,68 +4002,40 @@ const SplashScreen = ({ onFinish }) => {
 };
 
 
-// --- FUNÇÃO GLOBAL: PLAYER PWA (Zero React State) ---
-const playYoutubePWA = (videoId) => {
-  const container = document.getElementById('pwa-video-root');
-  if (!container) return;
 
-  // Limpa qualquer coisa anterior
-  container.innerHTML = '';
 
-  // Torna visível
-  container.style.display = 'block';
+// --- HELPER: ABRIR VÍDEO DE FORMA NATIVA (SEM TRAVAR O APP) ---
+const openVideoSafe = async (videoUrl) => {
+    if (!videoUrl) return;
 
-  // Injeta o HTML bruto (Iframe + Botão Fechar)
-  // playsinline=1 é CRUCIAL para iOS/iPad não sequestrar o player
-  container.innerHTML = `
-    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000;">
-      <iframe 
-        src="https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1" 
-        style="width:100%; height:100%; border:none;" 
-        frameborder="0" 
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-        allowfullscreen>
-      </iframe>
-      
-      <button 
-        id="pwa-close-btn"
-        style="
-          position: absolute; 
-          top: 20px; 
-          right: 20px; 
-          z-index: 9999999; 
-          background: rgba(0,0,0,0.6); 
-          color: white; 
-          border: 1px solid rgba(255,255,255,0.2); 
-          border-radius: 50%; 
-          width: 48px; 
-          height: 48px; 
-          font-weight: bold;
-          font-size: 20px;
-          cursor: pointer;
-          display: flex; 
-          align-items: center; 
-          justify-content: center;
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-        "
-      >
-        ✕
-      </button>
-    </div>
-  `;
-
-  // Adiciona o evento de click no botão criado dinamicamente
-  document.getElementById('pwa-close-btn').onclick = () => {
-    container.style.display = 'none';
-    container.innerHTML = ''; // Destrói o iframe para parar o som instantaneamente
-  };
+    try {
+        // Tenta usar o Capacitor Browser (Nativo do iOS)
+        // Isso abre aquela tela de "safari dentro do app" que não trava.
+        await Browser.open({
+            url: videoUrl,
+            presentationStyle: 'fullscreen', // No iPad fica como um popup elegante, no iPhone tela cheia
+            toolbarColor: '#000000'       // Barra preta para imersão
+        });
+    } catch (e) {
+        // Fallback para Web Pura (abre nova aba)
+        window.open(videoUrl, '_blank');
+    }
 };
 
-
-
-
-
+// Função auxiliar para extrair URL completa do YouTube a partir de ID ou Link parcial
+const getFullVideoUrl = (video) => {
+    if (!video) return null;
+    
+    // 1. Se já tem ID, monta a URL
+    if (video.videoId) return `https://www.youtube.com/watch?v=${video.videoId}`;
+    
+    // 2. Se é link do YouTube, retorna ele mesmo
+    if (video.link && (video.link.includes('youtube.com') || video.link.includes('youtu.be'))) {
+        return video.link;
+    }
+    
+    return null;
+};
 
 
 
@@ -4278,6 +4250,19 @@ const handleStoryNavigation = (direction) => {
             let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
             
             const isLegacySource = feed.url.includes('uol.com.br') || feed.url.includes('folha.uol.com.br');
+            
+                // --- LISTA DE SITES PROBLEMÁTICOS ---
+    const isProblematic = feed.url.includes('moneytimes.com.br') || 
+                          feed.url.includes('br.investing.com') ||
+                          feed.url.includes('uol.com.br'); ||
+                          feed.url.includes('valor.globo.com');
+
+    
+    const functionName = isProblematic ? 'parse-feed-legacy' : 'parse-feed';
+
+    const { data, error } = await supabase.functions.invoke(functionName, {
+        body: { url: feed.url }
+    });
 
             // --- FETCH E PARSE ---
             if (isLegacySource) {
@@ -4480,22 +4465,41 @@ const handleStoryNavigation = (direction) => {
     setSavedItems((prevItems) => prevItems.filter((item) => item.id !== idToRemove));
   };
 
-  const handleOpenArticle = useCallback((article) => {
+  
+
+const handleOpenArticle = async (article) => {
     if (!article) return;
+
+    // Detecção de Vídeo
+    const videoId = article.videoId || 
+                    (article.link && article.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]);
     
-    // Lógica do Player PWA (Vídeo)
-    const vId = article.videoId || getVideoId(article.link);
-    if (vId) {
-        playYoutubePWA(vId);
-        return;
+    const isYoutube = !!videoId;
+    const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
+
+    if (isYoutube || isPodcastVideo) {
+        // --- NOVA LÓGICA COM INAPPBROWSER ---
+        const url = `https://m.youtube.com/watch?v=${videoId}`;
+
+        // Opções para forçar a renderização correta
+        const options = 'location=no,toolbar=yes,toolbarcolor=#000000,hidenavigationbuttons=yes,hideurlbar=yes,fullscreen=yes';
+        
+        // Abre o vídeo com o novo plugin
+        InAppBrowser.create(url, '_blank', options);
+        
+    } else {
+        // Rota de Texto (Mantida)
+        setSelectedArticle(article);
     }
 
-    setSelectedArticle(article);
-    // Atualiza histórico sem recriar a função inteira (usando prev)
-    if (!readHistory.includes(article.id)) {
-        setReadHistory((prev) => [...prev, article.id]);
+    // Histórico (Mantido)
+    if (article.id && !readHistory.includes(article.id)) {
+        setReadHistory(prev => [...prev, article.id]);
     }
-  }, [readHistory]); // Dependências mínimas
+  };
+
+
+
 
   const closeArticle = useCallback(() => {
       setSelectedArticle(null);
@@ -4811,8 +4815,7 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
       
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
-      {selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen} allStories={allAvailableStories}  onNavigate={handleStoryNavigation}/>}
-
+{selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen} allStories={allAvailableStories}  onNavigate={handleStoryNavigation}/>}
       {playingAudio && (
           <GlobalAudioPlayer 
               track={playingAudio} 
@@ -4820,8 +4823,8 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
               isDarkMode={isDarkMode} 
           />
       )}
-{/* --- DIV INVISÍVEL ONDE O VÍDEO VAI APARECER --- */}
-      <div id="pwa-video-root" style={{ display: 'none', position: 'fixed', inset: 0, zIndex: 9999999 }} />
+
+      
     </div>
   );
 }

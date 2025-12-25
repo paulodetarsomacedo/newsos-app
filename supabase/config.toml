@@ -402,3 +402,14 @@ entrypoint = "./functions/proxy-view/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/proxy-view/*.html" ]
+
+[functions.parse-feed-legacy]
+enabled = true
+verify_jwt = true
+import_map = "./functions/parse-feed-legacy/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/parse-feed-legacy/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/parse-feed-legacy/*.html" ]
