@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js'
-import { createPortal } from 'react-dom';
 
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
@@ -4003,108 +4002,62 @@ const SplashScreen = ({ onFinish }) => {
 };
 
 
-// --- PLAYER DE VÍDEO SEGURO (PORTAL + URL LIMPA) ---
-const SafeVideoPlayer = ({ video, onClose }) => {
-  const [mounted, setMounted] = useState(false);
+// --- FUNÇÃO GLOBAL: PLAYER PWA (Zero React State) ---
+const playYoutubePWA = (videoId) => {
+  const container = document.getElementById('pwa-video-root');
+  if (!container) return;
 
-  // Extração de ID
-  const videoId = video.videoId || (video.link && video.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]);
+  // Limpa qualquer coisa anterior
+  container.innerHTML = '';
 
-  useEffect(() => {
-    setMounted(true);
-    // Trava o scroll do fundo
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
+  // Torna visível
+  container.style.display = 'block';
 
-  if (!mounted || !videoId) return null;
-
-  // --- CONSTRUÇÃO DA URL (O SEGREDO ESTÁ AQUI) ---
-  // 1. origin: Diz ao YouTube quem somos (ajuda a evitar bloqueio).
-  // 2. playsinline: Obrigatório para iOS.
-  // 3. SEM autoplay, SEM controls=0, SEM modestbranding.
-  // Deixamos o player "cru" para o YouTube confiar na requisição.
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const embedUrl = `https://www.youtube.com/embed/${videoId}?playsinline=1&origin=${origin}`;
-
-  const content = (
-    <div 
-        style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            zIndex: 2147483647, // Z-Index Máximo
-            backgroundColor: '#000000',
-            display: 'flex',
-            flexDirection: 'column',
-            overscrollBehavior: 'none',
-            touchAction: 'none'
-        }}
-    >
-        {/* Header Simples */}
-        <div style={{
-            height: '50px',
-            backgroundColor: '#212121',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 16px',
-            borderBottom: '1px solid #333',
-            flexShrink: 0
-        }}>
-            <span style={{ color: '#fff', fontSize: '13px', fontWeight: 'bold', fontFamily: 'sans-serif' }}>
-                youtube.com
-            </span>
-            <button 
-                onClick={onClose}
-                style={{
-                    background: '#333',
-                    color: '#fff',
-                    border: '1px solid #555',
-                    padding: '6px 14px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    cursor: 'pointer'
-                }}
-            >
-                Fechar
-            </button>
-        </div>
-
-        {/* Área do Vídeo */}
-        <div style={{ 
-            flex: 1, 
-            backgroundColor: '#000', 
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center' 
-        }}>
-             <iframe 
-                key={videoId} // Força remontagem se mudar
-                src={embedUrl}
-                style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0
-                }}
-                // Permissões explícitas para evitar bloqueios
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-                referrerPolicy="strict-origin-when-cross-origin"
-                title={video.title || "YouTube Video"}
-             />
-        </div>
+  // Injeta o HTML bruto (Iframe + Botão Fechar)
+  // playsinline=1 é CRUCIAL para iOS/iPad não sequestrar o player
+  container.innerHTML = `
+    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000;">
+      <iframe 
+        src="https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1" 
+        style="width:100%; height:100%; border:none;" 
+        frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen>
+      </iframe>
+      
+      <button 
+        id="pwa-close-btn"
+        style="
+          position: absolute; 
+          top: 20px; 
+          right: 20px; 
+          z-index: 9999999; 
+          background: rgba(0,0,0,0.6); 
+          color: white; 
+          border: 1px solid rgba(255,255,255,0.2); 
+          border-radius: 50%; 
+          width: 48px; 
+          height: 48px; 
+          font-weight: bold;
+          font-size: 20px;
+          cursor: pointer;
+          display: flex; 
+          align-items: center; 
+          justify-content: center;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        "
+      >
+        ✕
+      </button>
     </div>
-  );
+  `;
 
-  // Renderiza no BODY (fora do React App)
-  return createPortal(content, document.body);
+  // Adiciona o evento de click no botão criado dinamicamente
+  document.getElementById('pwa-close-btn').onclick = () => {
+    container.style.display = 'none';
+    container.innerHTML = ''; // Destrói o iframe para parar o som instantaneamente
+  };
 };
 
 
