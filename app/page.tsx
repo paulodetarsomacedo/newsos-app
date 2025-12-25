@@ -4250,19 +4250,6 @@ const handleStoryNavigation = (direction) => {
             let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
             
             const isLegacySource = feed.url.includes('uol.com.br') || feed.url.includes('folha.uol.com.br');
-            
-                // --- LISTA DE SITES PROBLEMÁTICOS ---
-    const isProblematic = feed.url.includes('moneytimes.com.br') || 
-                          feed.url.includes('br.investing.com') ||
-                          feed.url.includes('uol.com.br') ||
-                          feed.url.includes('valor.globo.com');
-
-    
-    const functionName = isProblematic ? 'parse-feed-legacy' : 'parse-feed';
-
-    const { data, error } = await supabase.functions.invoke(functionName, {
-        body: { url: feed.url }
-    });
 
             // --- FETCH E PARSE ---
             if (isLegacySource) {
@@ -4500,7 +4487,7 @@ const handleOpenArticle = async (article) => {
 
 
 
-
+  
   const closeArticle = useCallback(() => {
       setSelectedArticle(null);
   }, []);
@@ -5322,6 +5309,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 // COMPONENTE ARTICLE PANEL - OTIMIZADO PARA NAVEGAÇÃO RÁPIDA (FEED NAVIGATOR)
 // ==============================================================================
 
+import { Browser } from '@capacitor/browser';
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
@@ -5426,9 +5414,20 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       onClose(); 
   }, [onClose]);
 
-  const handleOpenInBrowser = useCallback(() => {
-    if (article?.link) window.open(article.link, '_blank');
-  }, [article]);
+  const handleOpenInBrowser = useCallback(async () => {
+    if (!article?.link) return;
+
+    // A MÁGICA DO CAPACITOR:
+    // Chama o mesmo plugin nativo que usamos para o YouTube,
+    // mas agora com o link do artigo.
+    await Browser.open({
+        url: article.link,
+        presentationStyle: 'fullscreen', // Garante tela cheia no iPad
+        toolbarColor: isDarkMode ? '#000000' : '#FFFFFF',
+        controlsColor: isDarkMode ? '#FFFFFF' : '#000000'
+    });
+  }, [article, isDarkMode]);
+
 
   const handleToggleTranslation = async () => {
       if (translatedData) { setIsTranslated(!isTranslated); return; }
