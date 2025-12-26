@@ -1896,6 +1896,50 @@ const generateBriefing = async (news, apiKey) => {
 };
 
 
+const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
+    // Reutilize o mesmo hook/lógica do HeaderDashboard para buscar dados do Yahoo
+    // Aqui, vou simular com dados estáticos para o exemplo.
+    const marketData = {
+        'IBOV': { val: '128.5k', up: true },
+        'USD': { val: '5,02', up: false },
+        'BTC': { val: '68.1k', up: true },
+        'PETR4': { val: '38,50', up: false },
+    };
+
+    return (
+        <div className="px-2 mb-8">
+            <div className="p-5 rounded-[2rem] bg-zinc-900 border border-white/10">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-lg text-white">Pulso do Mercado</h3>
+                    <button 
+                        onClick={onGenerateWithAI}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-purple-600 text-white"
+                    >
+                        <Sparkles size={14} /> Análise IA
+                    </button>
+                </div>
+                
+                {/* Grid com os dados da API do Yahoo */}
+                <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(marketData).map(([key, value]) => (
+                        <div key={key} className={`p-3 rounded-xl ${value.up ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
+                            <span className="text-xs font-bold text-zinc-400">{key}</span>
+                            <div className="flex items-end justify-between">
+                                <span className="text-xl font-black text-white">{value.val}</span>
+                                {value.up ? <TrendingUp size={18} className="text-emerald-500"/> : <TrendingDown size={18} className="text-rose-500"/>}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// No seu MarketPulseWidget, você faria:
+// if (status === 'idle') return <MarketPulseHeuristicWidget onGenerateWithAI={runAI} ... />
+
+
 
 // --- FUNÇÃO TREND RADAR (V4 - SINGLE FACT FOCUS) ---
 const generateTrendRadar = async (news, apiKey) => {
@@ -2272,67 +2316,95 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 };
 
 
-// --- WIDGET: CONTEXTO GLOBAL (PROGRESSIVE LOADING - 30 -> 300) ---
-const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters }) => {
-  const [loading, setLoading] = useState(false); // Loading Inicial (Tela vazia)
-  const [isUpgrading, setIsUpgrading] = useState(false); // Loading Secundário (Aprimorando)
+const generateHeuristicClusters = (news) => {
+    if (!news || news.length < 5) return [];
+
+    const clusters = {};
+    const articlesUsed = new Set();
+
+    // 1. Encontra palavras-chave importantes (substantivos) nos primeiros 30 títulos
+    const keywordScores = {};
+    const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em']);
+    
+    news.slice(0, 30).forEach(article => {
+        const words = article.title.toLowerCase().replace(/[^a-zà-ú\s]/g, '').split(/\s+/);
+        words.forEach(word => {
+            if (word.length > 4 && !stopWords.has(word)) {
+                keywordScores[word] = (keywordScores[word] || 0) + 1;
+            }
+        });
+    });
+
+    // 2. Pega as 5 palavras-chave mais frequentes
+    const topKeywords = Object.keys(keywordScores).sort((a, b) => keywordScores[b] - keywordScores[a]).slice(0, 5);
+
+    // 3. Monta os cards baseados nessas palavras-chave
+    topKeywords.forEach(keyword => {
+        // Encontra a primeira notícia sobre esse tema que ainda não foi usada
+        const representativeArticle = news.find(article => 
+            !articlesUsed.has(article.id) && article.title.toLowerCase().includes(keyword)
+        );
+
+        if (representativeArticle) {
+            // Pega todas as outras fontes que falam sobre o mesmo tema
+            const relatedArticles = news.filter(article => 
+                article.title.toLowerCase().includes(keyword)
+            );
+            
+            // Cria o "cluster falso"
+            clusters[keyword] = {
+                ai_title: representativeArticle.title,
+                representative_image: representativeArticle.img,
+                related_articles: relatedArticles.slice(0, 4) // Limita a 4 logos
+            };
+            
+            // Marca como usadas
+            relatedArticles.forEach(a => articlesUsed.add(a.id));
+        }
+    });
+
+    return Object.values(clusters);
+};
+
+
+
+// --- WIDGET: CONTEXTO GLOBAL (V2 - SEM TÍTULO INTERNO) ---
+const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters, onContextReady }) => {
+  const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
-  
-  // Controle de estados da execução
-  const hasStartedRef = useRef(false);
 
-  // Função Mestra de Execução
-  const runAISequence = async () => {
-      if (!apiKey || !news || news.length < 10) return;
+  const heuristicClusters = useMemo(() => {
+      if (clusters && clusters.length > 0) return [];
+      return generateHeuristicClusters(news);
+  }, [news, clusters]);
 
-      // --- FASE 1: RÁPIDA (30 Notícias) ---
+  const runAI = async () => {
+      if (!apiKey) {
+          alert("Configure sua API Key nas configurações primeiro.");
+          return;
+      }
+      if (!news || news.length < 10) {
+          alert("Aguarde o carregamento de mais notícias para uma análise completa.");
+          return;
+      }
       setLoading(true);
-      // Chama a função com limite 30 (Resposta em ~1.5s)
-      const quickResult = await generateSmartClustering(news, apiKey, 30);
-      
-      if (quickResult && quickResult.length > 0) {
-          setClusters(quickResult);
-      }
-      setLoading(false);
-
-      // --- FASE 2: PROFUNDA (300 Notícias) ---
-      // Só inicia a fase 2 se tivermos notícias suficientes para valer a pena
-      if (news.length > 50) {
-          setIsUpgrading(true); // Ativa o texto animado
-          
-          // Delay técnico para dar respiro à API e permitir que o usuário veja o primeiro resultado
-          await new Promise(r => setTimeout(r, 2000)); 
-
-          // Chama a função com limite 300 (Pode demorar ~4-6s)
-          const deepResult = await generateSmartClustering(news, apiKey, 300);
-
-          if (deepResult && deepResult.length > 0) {
-              setClusters(deepResult); // Substitui suavemente
-          }
-          setIsUpgrading(false); // Desliga o texto animado
-      }
-  };
-
-  // --- EFEITO: DISPARO ÚNICO ---
-  useEffect(() => {
-      // Dispara apenas se tiver notícias, clusters vazio e nunca tiver rodado antes
-      if (news && news.length > 10 && (!clusters || clusters.length === 0) && !hasStartedRef.current) {
-          hasStartedRef.current = true;
-          runAISequence();
-      }
-  }, [news, apiKey, clusters]); 
-
-  // Função Manual (Botão Atualizar) - Roda direto a completa
-  const handleManualRefresh = async () => {
-      if (!apiKey) return alert("Configure a API Key.");
-      setLoading(true);
-      setClusters(null);
+      setClusters(null); 
+      await new Promise(r => setTimeout(r, 800));
       const result = await generateSmartClustering(news, apiKey, 300);
-      if (result) setClusters(result);
-      else alert("Falha ao atualizar.");
+      if (result) {
+          setClusters(result);
+      } else {
+          alert("A IA não encontrou correlações suficientes no momento. Tente novamente mais tarde.");
+      }
       setLoading(false);
   };
+  
+  useEffect(() => {
+    if (heuristicClusters && heuristicClusters.length > 0 && onContextReady) {
+        onContextReady();
+    }
+  }, [heuristicClusters, onContextReady]);
 
   const handleScroll = () => {
     if (scrollRef.current) {
@@ -2344,133 +2416,77 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
   };
 
   const getSentimentGlow = (sentiment) => {
-      if (sentiment === 'positive') return 'border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]'; 
-      if (sentiment === 'negative') return 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]';    
-      return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]'; 
+      if (sentiment === 'positive') return 'border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]';
+      if (sentiment === 'negative') return 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]';
+      return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]';
   };
   
-  // --- RENDERIZAÇÃO: LOADING INICIAL (SKELETON) ---
-  if (loading || (!clusters && news && news.length > 0 && !hasStartedRef.current)) {
+  const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
+
+  if (loading) {
       return (
-        <div className="relative w-full px-2 animate-in fade-in duration-500">
-            <div className="relative z-10 flex items-center gap-3 mb-5 px-4 opacity-50">
-                <div className={`p-2 rounded-xl bg-zinc-200 dark:bg-white/5`}><Layers size={18} /></div>
-                <div className="h-4 w-32 bg-zinc-200 dark:bg-white/5 rounded-full" />
-            </div>
-            <div className={`h-[480px] rounded-[2.5rem] w-full relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-zinc-200 border border-zinc-300'}`}>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 w-full animate-[shimmer_1.5s_infinite]" />
+        <div className="relative w-full">
+            <div className={`h-[480px] w-full flex flex-col items-center justify-center relative overflow-hidden ${isDarkMode ? 'bg-zinc-900/50' : 'bg-zinc-100/50'}`}>
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-500/10 to-transparent h-full w-full animate-[shimmer_2s_infinite] translate-y-[-100%]" />
+                <div className="flex flex-col items-center gap-4 z-10">
+                    <Loader2 size={48} className="animate-spin text-purple-500" />
+                    <span className="text-xs font-bold uppercase tracking-[0.2em] animate-pulse opacity-60">Analisando 300 Fontes</span>
+                </div>
             </div>
         </div>
       );
   }
 
-  // Se falhou tudo
-  if (!clusters || clusters.length === 0) return null;
+  if (!displayClusters || displayClusters.length === 0) {
+      return (
+        <div className="relative w-full animate-pulse">
+            <div className={`h-[480px] w-full rounded-b-[2.25rem] ${isDarkMode ? 'bg-zinc-900/50' : 'bg-zinc-200'}`}></div>
+        </div>
+      );
+  }
 
-  // --- RENDERIZAÇÃO: CONTEÚDO FINAL ---
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000">
+    <div className="animate-in fade-in duration-1000">
         <div className="relative w-full">
             
-            {/* Header Inteligente */}
-            <div className="relative z-10 flex items-center justify-between mb-5 px-6">
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                        {isUpgrading ? <Loader2 size={18} className="animate-spin text-purple-400" /> : <Layers size={18} />}
-                    </div>
-                    
-                    <div className="flex flex-col">
-                        <h3 className="text-lg font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 leading-none">
-                            SmartNews
-                        </h3>
-                        
-                        {/* TEXTO ANIMADO DE UPGRADE */}
-                        {isUpgrading && (
-                            <span className="text-[10px] font-bold text-purple-500 animate-pulse mt-1 tracking-wider uppercase">
-                                Analisando 300 fontes em tempo real...
-                            </span>
-                        )}
-                    </div>
-                </div>
-
+            {/* CABEÇALHO MODIFICADO: Apenas o botão, alinhado à direita */}
+            <div className="relative z-10 flex items-center justify-end mb-4 px-4 pt-4">
                 <button 
-                    onClick={handleManualRefresh}
-                    disabled={isUpgrading}
+                    onClick={runAI}
                     className={`
-                        flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 border backdrop-blur-md
-                        ${isUpgrading ? 'opacity-0 pointer-events-none' : 'opacity-100'}
-                        ${isDarkMode 
-                            ? 'border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10' 
-                            : 'border-black/5 bg-black/5 text-zinc-600 hover:text-black hover:bg-black/10'}
+                        group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider
+                        transition-all duration-300 active:scale-95 shadow-lg
+                        ${clusters ? 'bg-white/10 border border-white/10 text-zinc-300 hover:bg-white/20' : 'bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/30'}
                     `}
                 >
-                    <RefreshCw size={12} />
-                    <span>Atualizar</span>
+                    {clusters ? (
+                        <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar</span></div>
+                    ) : (
+                        <div className="flex items-center gap-2"><Sparkles size={14} className="text-yellow-300" /><span>Ativar SmartNews</span></div>
+                    )}
                 </button>
             </div>
 
-            {/* Scroll Horizontal */}
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
               className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-4 px-2"
             >
-                {clusters.map((cluster, idx) => (
-                    <div key={idx} className="w-full flex-shrink-0 snap-center p-2">
-                        <div className={`
-                            group relative h-[480px] w-full rounded-[2.5rem] overflow-hidden cursor-default 
-                            transition-all duration-500 hover:scale-[1.01]
-                            
-                            /* --- AQUI: REMOVIDA A SOMBRA CINZA FEIA --- */
-                            border border-white/10
-                            /* Apenas uma leve sombra escura interna para dar profundidade */
-                            shadow-[inset_0_0_40px_rgba(0,0,0,0.5)]
-                        `}>
-                            <img 
-                                src={cluster.representative_image} 
-                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" 
-                                alt="" 
-                                onError={(e) => { e.target.style.display = 'none'; }} 
-                            />
-                            <div className={`absolute inset-0 -z-10 bg-gradient-to-br from-indigo-900 to-purple-900`} /> 
+                {displayClusters.map((cluster, idx) => (
+                    <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
+                        <div className="group relative h-[420px] w-full rounded-[2.5rem] overflow-hidden cursor-default border border-white/10 shadow-[inset_0_0_40px_rgba(0,0,0,0.5)]">
+                            <img src={cluster.representative_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="" onError={(e) => { e.target.style.display = 'none'; }} />
+                            <div className="absolute inset-0 -z-10 bg-gradient-to-br from-indigo-900 to-purple-900" /> 
                             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
-
-                            <div className="absolute top-6 left-6">
-                                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg">
-                                   <Globe size={14} className="text-blue-400" />
-                                   <span className="text-white text-[10px] font-black uppercase tracking-[0.15em]">
-                                       {cluster.related_articles.length} Fontes
-                                   </span>
-                                </div>
-                            </div>
-
+                            <div className="absolute top-6 left-6"><div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg"><Globe size={14} className="text-blue-400" /><span className="text-white text-[10px] font-black uppercase tracking-[0.15em]">{cluster.related_articles.length} {cluster.related_articles.length > 1 ? 'Fontes' : 'Fonte'}</span></div></div>
                             <div className="absolute bottom-0 left-0 w-full p-8 flex flex-col justify-end">
-                                <h2 className="text-3xl md:text-4xl font-black text-white leading-[1.1] mb-6 drop-shadow-2xl tracking-tight">
-                                   {cluster.ai_title}
-                                </h2>
-                                
+                                <h2 className="text-3xl font-black text-white leading-tight mb-6 drop-shadow-lg tracking-tight">{cluster.ai_title}</h2>
                                 <div className="flex flex-wrap items-center gap-4">
                                    {cluster.related_articles.map(article => (
-                                       <button
-                                           key={article.id}
-                                           onClick={() => openArticle(article)}
-                                           className={`
-                                               relative w-12 h-12 rounded-full p-[2px] transition-all duration-300 
-                                               hover:scale-125 hover:z-10 bg-black/40 backdrop-blur-sm border-2
-                                               ${getSentimentGlow(article.ai_sentiment)}
-                                           `}
-                                           title={`${article.source}: ${article.title}`}
-                                       >
+                                       <button key={article.id} onClick={() => openArticle(article)} className={`relative w-12 h-12 rounded-full p-[2px] transition-all duration-300 hover:scale-125 hover:z-10 bg-black/40 backdrop-blur-sm border-2 ${getSentimentGlow(article.ai_sentiment)}`} title={`${article.source}: ${article.title}`}>
                                            <img src={article.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.style.display='none'} />
                                        </button>
                                    ))}
-                                </div>
-
-                                <div className="mt-4 flex items-center gap-2 opacity-50">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-                                    <span className="text-[9px] font-bold text-white uppercase tracking-widest">
-                                        {isUpgrading ? 'Aprimorando dados...' : 'Análise de Viés em Tempo Real'}
-                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -2478,11 +2494,10 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                 ))}
             </div>
             
-            {/* Paginação */}
-            {clusters.length > 1 && (
-              <div className="flex justify-center gap-2 mt-2">
-                  {clusters.map((_, idx) => (
-                      <div key={idx} className={`h-1 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-8' : 'bg-zinc-300 dark:bg-zinc-700 w-2'}`} />
+            {displayClusters.length > 1 && (
+              <div className="flex justify-center gap-2 mt-2 pb-4">
+                  {displayClusters.map((_, idx) => (
+                      <div key={idx} className={`h-1 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-8' : 'bg-zinc-700 w-2'}`} />
                   ))}
               </div>
             )}
@@ -2495,59 +2510,64 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
 
 
 
-// --- FUNÇÃO DE IA: ANÁLISE DE MERCADO (REFATORADA) ---
+
+// ==========================================================
+// FUNÇÃO DE IA: ANÁLISE DE MERCADO (VERSÃO CORRIGIDA)
+// ==========================================================
 const generateMarketAnalysis = async (news, apiKey) => {
-  if (!news || news.length === 0) return null;
-
-  // Filtro expandido para capturar tudo de relevância econômica
-  const marketNews = news.filter(n => 
-      ['Economia', 'Finanças', 'Mercados', 'Tech', 'Cripto', 'Política'].includes(n.category) ||
-      /dólar|ibovespa|bolsa|bitcoin|juros|selic|fed|nasdaq|petrobras|vale/i.test(n.title)
-  ).slice(0, 40);
-
-  if (marketNews.length === 0) return null;
-
-  const context = marketNews.map(n => `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title}`).join('\n');
+  if (!apiKey) {
+      alert("A chave de API para Análise de Mercado não está configurada.");
+      return null;
+  }
   
-  const currentHour = new Date().getHours();
-  const isClosed = currentHour >= 18 || currentHour < 9; 
+  // Reutilizamos a mesma lógica de filtro da heurística para dar à IA o melhor contexto
+  const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico'];
+  const marketNews = news.filter(n => financialSources.includes(n.source)).slice(0, 40); // Limita a 40 notícias para a IA
 
+  if (marketNews.length < 3) {
+      alert("Não há notícias financeiras suficientes para uma análise de IA no momento.");
+      return null;
+  }
+
+  const context = marketNews.map(n => `ID: ${n.id} | TÍTULO: ${n.title}`).join('\n');
+  
   const prompt = `
-  Atue como Analista Financeiro Sênior. Hora atual: ${currentHour}h. Mercado: ${isClosed ? "FECHADO" : "ABERTO"}.
+  Aja como um Analista Financeiro Sênior da Bloomberg. Analise as manchetes de mercado fornecidas.
 
   MANCHETES:
   ${context}
 
-  TAREFAS:
-  1. Score de Mercado (0-100).
-  2. Resumo Executivo (Max 200 caracteres).
-  3. MOVERS (4 Ativos): Identifique ativos citados. 
-     - IMPORTANTE: No campo "asset", use siglas curtas padrão de mercado (ex: "USD", "IBOV", "BTC", "PETR4", "VALE3", "S&P500").
-     - Vincule o "news_id" da notícia mais relevante sobre esse ativo.
-  4. BOTTOM SUMMARY: 3 linhas curtas estilo ticker de TV.
+  SUAS TAREFAS:
+  1.  **Sentimento Geral:** Determine o humor do mercado (Ex: "Otimista", "Pessimista", "Neutro com Viés de Alta", "Cauteloso").
+  2.  **Resumo Executivo:** Escreva uma única frase, curta e impactante, que resuma a principal narrativa do mercado hoje.
+  3.  **Principais Movimentos (Movers):** Identifique os 2 ou 3 ativos mais importantes mencionados. Para cada um:
+      - Determine a tendência (up, down, neutral).
+      - Explique o **motivo** do movimento em uma frase curta, baseando-se nas notícias.
+      - Associe o ID da notícia mais relevante para aquele movimento.
 
-  JSON ESTRITO:
+  RETORNE APENAS O OBJETO JSON VÁLIDO COM ESTA ESTRUTURA ESTRITA:
   {
-    "market_score": 65,
     "market_status": "Otimismo Cauteloso",
-    "summary": "Texto curto e direto...",
-    "market_state": "${isClosed ? 'CLOSED' : 'OPEN'}",
-    "trend_direction": "bullish" | "bearish" | "neutral",
-    "bottom_summary": "IBOV fecha em alta...\\nDólar recua com Fed...\\nTechs lideram ganhos...",
+    "summary": "Juros futuros impulsionam otimismo na bolsa, mas dólar volátil gera cautela nos investidores.",
     "movers": [
       { 
-        "asset": "USD", 
-        "trend": "down", 
-        "change_label": "-0.50%", 
-        "reason": "Realização após fala de Powell",
-        "news_id": "id_da_noticia_exato"
+        "asset": "Ibovespa", 
+        "trend": "up", 
+        "reason": "Reage positivamente à expectativa de corte na taxa Selic.",
+        "news_id": "id_da_noticia_exato_sobre_ibov"
+      },
+      { 
+        "asset": "Dólar", 
+        "trend": "neutral", 
+        "reason": "Opera com instabilidade aguardando dados de inflação dos EUA.",
+        "news_id": "id_da_noticia_exato_sobre_dolar"
       }
     ]
   }
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2557,407 +2577,287 @@ const generateMarketAnalysis = async (news, apiKey) => {
     });
 
     const data = await response.json();
+
+    // ==========================================================
+    // CORREÇÃO FINAL: Sintaxe correta para acessar os arrays
+    // ==========================================================
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return null;
     
+    if (!text) {
+      throw new Error("Resposta da IA de mercado vazia.");
+    }
+    
+    // A limpeza do JSON já estava correta
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
     
-    // Hidratação robusta
+    // Hidratação: Adiciona o objeto de notícia completo aos movers
     if (json.movers) {
         json.movers = json.movers.map(mover => {
             const article = news.find(n => n.id === mover.news_id);
             return { ...mover, article }; 
-        }); 
+        }).filter(mover => mover.article);
     }
 
     return json;
 
   } catch (error) {
-    console.error("Erro Market Analysis:", error);
+    console.error("Erro na Análise de Mercado IA:", error);
     return null;
   }
 };
 
 
 
-// --- HELPER: ENCONTRAR NOTÍCIAS RELACIONADAS AO ATIVO ---
-const findRelatedNews = (assetName, allNews) => {
-    if (!allNews || !assetName) return [];
-    
-    const term = assetName.toUpperCase();
-    const keywords = [];
-
-    // Mapeia siglas para palavras-chave reais das notícias
-    if (term.includes('USD') || term.includes('DÓLAR')) keywords.push('dólar', 'usd', 'câmbio', 'moeda', 'greenback');
-    else if (term.includes('EUR')) keywords.push('euro', 'eur', 'ue');
-    else if (term.includes('BTC') || term.includes('BITCOIN') || term.includes('CRIPTO')) keywords.push('bitcoin', 'btc', 'cripto', 'ethereum');
-    else if (term.includes('IBOV') || term.includes('BOLSA')) keywords.push('ibovespa', 'bolsa', 'b3', 'ações', 'índice');
-    else if (term.includes('PETR')) keywords.push('petrobras', 'petróleo', 'brent');
-    else if (term.includes('VALE')) keywords.push('vale', 'minério');
-    else if (term.includes('JUROS') || term.includes('SELIC') || term.includes('CDI')) keywords.push('juros', 'selic', 'copom', 'bc');
-    else keywords.push(term); // Fallback para o nome original
-
-    // Filtra notícias que contenham alguma das palavras-chave no título
-    return allNews.filter(n => {
-        const title = n.title.toLowerCase();
-        return keywords.some(k => title.includes(k.toLowerCase()));
-    }).slice(0, 4); // Limita a 4 notícias para não ficar gigante
-};
-
-// --- SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO (COM ACORDEÃO) ---
-const AssetCard = ({ mover, allNews, openArticle, isDarkMode }) => {
+// --- NOVO SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO (COM ACORDEÃO) ---
+const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
     const [isOpen, setIsOpen] = useState(false);
 
-    // Encontra as notícias relacionadas a este ativo
+    // Encontra as notícias relacionadas a este ativo para mostrar no acordeão
     const relatedArticles = useMemo(() => {
-        return findRelatedNews(mover.asset, allNews);
-    }, [mover.asset, allNews]);
+        if (!allNews || !asset.keywords) return [];
+        // Filtra todas as notícias que contenham alguma das palavras-chave no título
+        return allNews.filter(n => {
+            const title = n.title.toLowerCase();
+            return asset.keywords.some(k => title.includes(k));
+        }).slice(0, 4); // Limita a 4 notícias para não sobrecarregar
+    }, [asset.keywords, allNews]);
 
-    // Escolhe ícone
+    // Escolhe o ícone com base no nome do ativo
     const getIcon = (assetName) => {
         const name = assetName.toUpperCase();
-        if (name.includes('BTC') || name.includes('BITCOIN') || name.includes('CRIPTO')) return <Bitcoin size={18} />;
-        if (name.includes('USD') || name.includes('DÓLAR') || name.includes('DOLAR')) return <DollarSign size={18} />;
-        if (name.includes('EUR') || name.includes('EURO')) return <Euro size={18} />;
-        if (name.includes('IBOV') || name.includes('BOLSA')) return <Activity size={18} />;
-        return <TrendingUp size={18} />;
+        if (name.includes('BTC') || name.includes('BITCOIN')) return <Bitcoin size={20} />;
+        if (name.includes('USD') || name.includes('DÓLAR')) return <DollarSign size={20} />;
+        if (name.includes('EUR') || name.includes('EURO')) return <Euro size={20} />;
+        if (name.includes('IBOV') || name.includes('BOLSA')) return <Activity size={20} />;
+        return <TrendingUp size={20} />;
     };
 
-    const isUp = mover.trend === 'up';
-    const colorClass = isUp ? 'text-emerald-500' : (mover.trend === 'down' ? 'text-rose-500' : 'text-yellow-500');
-    // Borda e fundo condicional
-    const bgClass = isDarkMode 
-        ? (isUp ? 'bg-emerald-900/10 border-emerald-500/20' : (mover.trend === 'down' ? 'bg-rose-900/10 border-rose-500/20' : 'bg-yellow-900/10 border-yellow-500/20'))
-        : (isUp ? 'bg-emerald-50 border-emerald-100' : (mover.trend === 'down' ? 'bg-rose-50 border-rose-100' : 'bg-yellow-50 border-yellow-100'));
-
     return (
-        <div 
-            className={`
-                relative flex flex-col rounded-2xl border transition-all duration-300 overflow-hidden
-                ${isOpen ? 'row-span-2 shadow-xl z-20 scale-[1.02]' : 'hover:scale-[1.01] hover:shadow-md'}
-                ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}
-                ${bgClass}
-            `}
-        >
+        <div className={`rounded-2xl transition-all duration-300 overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-zinc-200 shadow-sm'}`}>
             {/* ÁREA CLICÁVEL (CABEÇALHO) */}
             <button 
                 onClick={() => setIsOpen(!isOpen)}
-                className="p-3 w-full text-left outline-none"
+                className="p-4 w-full text-left outline-none flex justify-between items-center group"
             >
-                <div className="flex justify-between items-start w-full mb-2">
-                    <div className="flex items-center gap-2">
-                        <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-black/20' : 'bg-white'} ${colorClass} shadow-sm`}>
-                            {getIcon(mover.asset)}
-                        </div>
-                        <span className={`text-sm font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
-                            {mover.asset}
-                        </span>
+                <div className="flex items-center gap-4">
+                    <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-black/20' : 'bg-zinc-100'} text-purple-400`}>
+                        {getIcon(asset.name)}
                     </div>
-                    
-                    <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isDarkMode ? 'bg-black/20' : 'bg-white/60'} ${colorClass}`}>
-                        {isUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                        {mover.change_label}
-                    </div>
+                    <span className={`text-base font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
+                        {asset.name}
+                    </span>
                 </div>
-
-                <p className={`text-[10px] font-medium leading-tight text-left line-clamp-2 pr-4 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    {mover.reason}
-                </p>
-
-                {/* Indicador de Expandir */}
-                <div className="absolute bottom-3 right-3 opacity-50">
-                    <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
-                        <ChevronLeft size={14} className="-rotate-90" />
-                    </div>
+                
+                <div className={`transition-transform duration-300 ${isOpen ? 'rotate-90' : 'rotate-0'}`}>
+                    <ChevronRight size={20} className="text-zinc-500" />
                 </div>
             </button>
 
             {/* ÁREA DO ACORDEÃO (NOTÍCIAS) */}
             <div 
-                className={`
-                    border-t transition-all duration-500 ease-in-out overflow-hidden
-                    ${isOpen ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'}
-                    ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-zinc-100 bg-white/50'}
-                `}
+                className={`grid transition-all duration-500 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
             >
-                <div className="p-2 space-y-1">
-                    {relatedArticles.length > 0 ? (
-                        relatedArticles.map((news) => (
-                            <button 
-                                key={news.id}
-                                onClick={(e) => { e.stopPropagation(); openArticle(news); }}
-                                className={`
-                                    w-full flex items-center gap-2 p-2 rounded-xl transition-colors text-left group
-                                    ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}
-                                `}
-                            >
-                                <img 
-                                    src={news.logo} 
-                                    className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover"
-                                    alt="Logo"
-                                    onError={(e) => e.target.style.display='none'} 
-                                />
-                                <span className={`text-[10px] font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300 group-hover:text-white' : 'text-zinc-700 group-hover:text-black'}`}>
-                                    {news.title}
-                                </span>
-                            </button>
-                        ))
-                    ) : (
-                        <div className="p-3 text-center text-[10px] opacity-50">
-                            Sem notícias recentes para este ativo.
-                        </div>
-                    )}
+                <div className="min-h-0 overflow-hidden">
+                    <div className={`border-t px-2 pb-2 space-y-1 ${isDarkMode ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
+                        {relatedArticles.length > 0 ? (
+                            relatedArticles.map((news) => (
+                                <button 
+                                    key={news.id}
+                                    onClick={(e) => { e.stopPropagation(); openArticle(news); }}
+                                    className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+                                >
+                                    <img src={news.logo} className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover" alt="Logo" onError={(e) => e.target.style.display='none'} />
+                                    <span className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300 group-hover:text-white' : 'text-zinc-700 group-hover:text-black'}`}>
+                                        {news.title}
+                                    </span>
+                                </button>
+                            ))
+                        ) : (
+                            <div className="p-3 text-center text-[10px] opacity-50">
+                                Sem notícias recentes para este ativo.
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
-// --- WIDGET: MARKET PULSE (COM ACORDEÃO E FONTES) ---
-const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [expandedMover, setExpandedMover] = useState(null); // Controla qual card está aberto
-  const prevTrigger = useRef(refreshTrigger);
 
-  useEffect(() => {
-    if (!apiKey || !newsData || newsData.length === 0) return;
-    
-    const isUserRefresh = refreshTrigger !== prevTrigger.current;
-    if (hasLoaded && !isUserRefresh) return;
 
-    prevTrigger.current = refreshTrigger;
-    
-    const load = async () => {
-        setLoading(true);
-        if (isUserRefresh) setData(null);
-        await new Promise(r => setTimeout(r, 1000)); 
-        const result = await generateMarketAnalysis(newsData, apiKey);
-        if (result) {
-            setData(result);
-            setHasLoaded(true);
+
+// --- WIDGET: MARKET PULSE (V6 - DESIGN PREMIUM E IA INTEGRADA) ---
+const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
+  const [analysisData, setAnalysisData] = useState(null);
+  const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'success'
+
+  // Lógica para verificar se o mercado está aberto (simplificado para o horário)
+  const isMarketOpen = useMemo(() => {
+    const currentHour = new Date().getHours();
+    // Considera o mercado aberto entre 9h e 18h
+    return currentHour >= 9 && currentHour < 18;
+  }, []);
+
+  // A lógica heurística permanece a mesma, como fallback e estado inicial
+  const heuristicData = useMemo(() => {
+    if (!newsData || newsData.length === 0) return { topMovers: [], allAssets: [] };
+    const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico'];
+    const marketNews = newsData.filter(n => financialSources.includes(n.source));
+    const assets = [
+        { name: 'Dólar', keywords: ['dólar', 'dolar', 'usd', 'câmbio'] },
+        { name: 'Ibovespa', keywords: ['ibovespa', 'b3', 'ações', 'bolsa', 'índice'] },
+        { name: 'Bitcoin', keywords: ['bitcoin', 'btc', 'cripto'] },
+        { name: 'Euro', keywords: ['euro', 'eur'] },
+        { name: 'Juros', keywords: ['juros', 'selic', 'copom', 'inflação'] },
+    ];
+    const topicScores = new Map();
+    assets.forEach(asset => topicScores.set(asset.name, { count: 0, latestArticle: null }));
+    marketNews.forEach(article => {
+        const title = article.title.toLowerCase();
+        for (const asset of assets) {
+            if (asset.keywords.some(k => title.includes(k))) {
+                const score = topicScores.get(asset.name);
+                score.count++;
+                if (!score.latestArticle || new Date(article.rawDate) > new Date(score.latestArticle.rawDate)) {
+                    score.latestArticle = article;
+                }
+                break; 
+            }
         }
-        setLoading(false);
-    };
-    load();
-  }, [newsData, apiKey, refreshTrigger]);
+    });
+    const topMovers = Array.from(topicScores.entries())
+      .filter(([name, data]) => data.count > 0 && data.latestArticle)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 2)
+      .map(([name, data]) => ({ name, article: data.latestArticle }));
+    return { topMovers, allAssets: assets };
+  }, [newsData]);
 
-  const toggleMover = (idx) => {
-      setExpandedMover(expandedMover === idx ? null : idx);
+  // Função para chamar a IA
+  const runAI = async () => {
+      setStatus('loading');
+      const result = await generateMarketAnalysis(newsData, apiKey);
+      if (result) {
+          setAnalysisData(result);
+          setStatus('success');
+      } else {
+          setStatus('idle');
+      }
   };
 
-  if (loading) {
+  // Helper para classes de borda da IA
+  const getTrendBorder = (trend) => {
+    if (trend === 'up') return 'border-emerald-500';
+    if (trend === 'down') return 'border-rose-500';
+    return 'border-blue-500'; // Azul para estável/neutro
+  };
+  
+  // RENDERIZAÇÃO
+  
+  if (status === 'loading') {
       return (
-          <div className="px-2 mb-6 animate-pulse">
-              <div className={`h-[450px] rounded-[2.5rem] border ${isDarkMode ? 'bg-zinc-950 border-white/5' : 'bg-white border-zinc-200'}`}></div>
+          <div className={`h-[400px] flex flex-col items-center justify-center text-center p-6 space-y-4 rounded-[1.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
+              <div className="relative"><div className="absolute inset-0 bg-purple-500 blur-2xl animate-pulse"></div><div className={`relative w-16 h-16 rounded-2xl flex items-center justify-center border ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-white/50 border-white'}`}><BrainCircuit size={32} className="text-purple-400" /></div></div>
+              <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Analisando o Mercado...</h3>
+              <p className={`text-sm max-w-xs ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>A IA está correlacionando dados e notícias para gerar seu briefing financeiro.</p>
           </div>
       );
   }
 
-  if (!data) return null;
-
-  // --- HELPERS DE ESTILO ---
-  const getScoreColor = (score) => {
-      if (score > 60) return 'text-emerald-400';
-      if (score < 40) return 'text-rose-500';
-      return 'text-blue-400';
-  };
-
-  const BigTrendIcon = () => {
-      const style = "absolute bottom-[-20px] right-[-20px] opacity-10 transform -rotate-12 pointer-events-none";
-      const size = 220;
-      if (data.trend_direction === 'bullish') return <TrendingUp size={size} className={`text-emerald-500 ${style}`} />;
-      if (data.trend_direction === 'bearish') return <TrendingDown size={size} className={`text-rose-600 ${style}`} />;
-      return <Activity size={size} className={`text-blue-500 ${style}`} />;
-  };
-
-  const getMoverStyles = (trend) => {
-      if (trend === 'up') return {
-          border: 'border-emerald-500',
-          text: 'text-emerald-400',
-          bg: isDarkMode ? 'bg-emerald-500/5' : 'bg-emerald-50',
-          icon: <TrendingUp size={14} className="text-emerald-500" />
-      };
-      if (trend === 'down') return {
-          border: 'border-rose-600',
-          text: 'text-rose-500',
-          bg: isDarkMode ? 'bg-rose-500/5' : 'bg-rose-50',
-          icon: <TrendingDown size={14} className="text-rose-600" />
-      };
-      return {
-          border: 'border-blue-500',
-          text: 'text-blue-400',
-          bg: isDarkMode ? 'bg-blue-500/5' : 'bg-blue-50',
-          icon: <Minus size={14} className="text-blue-500" />
-      };
-  };
-
-  const getTrendColorTicker = (trend) => {
-      if (trend === 'bullish') return 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.6)]';
-      if (trend === 'bearish') return 'bg-rose-600 shadow-[0_0_15px_rgba(225,29,72,0.6)]';
-      return 'bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.6)]';
-  };
-  
-  const getTrendIcon = (trend) => {
-      if (trend === 'bullish') return <TrendingUp size={18} className="text-emerald-500" />;
-      if (trend === 'bearish') return <TrendingDown size={18} className="text-rose-500" />;
-      return <Minus size={18} className="text-yellow-500" />;
-  };
-
-  return (
-    <div className="px-2 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className={`
-            rounded-[2.5rem] border relative overflow-hidden transition-all hover:shadow-2xl 
-            ${isDarkMode ? 'bg-[#050505] border-white/10 shadow-black/80' : 'bg-white border-zinc-200 shadow-xl'}
-        `}>
-            
-            {/* CORPO PRINCIPAL */}
-            <div className="p-7 pb-8 relative z-10">
-                <BigTrendIcon />
-
-                {/* Header */}
-                <div className="flex items-end justify-between mb-6 relative z-20">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1.5">
-                            <Activity size={18} className={getScoreColor(data.market_score)} />
-                            <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Market Pulse</span>
-                        </div>
-                        <h2 className={`text-3xl font-black leading-none tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                            {data.market_status}
-                        </h2>
-                    </div>
-                    <div className="text-right">
-                        <span className={`text-4xl font-black ${getScoreColor(data.market_score)}`}>{data.market_score}</span>
-                        <span className="text-[10px] font-bold opacity-40 block text-zinc-500">INDEX</span>
-                    </div>
+  if (status === 'success' && analysisData) {
+      return (
+          <div className={`p-4 rounded-[1.5rem] space-y-4 animate-in fade-in ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
+              {/* CABEÇALHO DA ANÁLISE IA */}
+              <div className={`p-4 rounded-xl text-center relative overflow-hidden ${isDarkMode ? 'bg-gradient-to-br from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-white border border-purple-100'}`}>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                    <BrainCircuit size={14} className="text-purple-400"/>
+                    <span className="text-xs font-bold uppercase tracking-widest text-purple-400">Análise do Dia</span>
                 </div>
+                <p className="text-sm font-bold text-purple-400">{analysisData.market_status}</p>
+                <h3 className={`font-semibold mt-1 text-base ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{analysisData.summary}</h3>
+              </div>
 
-                {/* Barra */}
-                <div className={`w-full h-1.5 rounded-full mb-6 overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-                    <div 
-                        className={`h-full rounded-full transition-all duration-1000 ${data.market_score > 60 ? 'bg-emerald-500' : (data.market_score < 40 ? 'bg-rose-600' : 'bg-blue-500')}`} 
-                        style={{ width: `${data.market_score}%` }} 
-                    />
-                </div>
-
-                <p className={`text-sm font-medium leading-relaxed mb-8 relative z-20 max-w-[90%] ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                    {data.summary}
-                </p>
-
-                {/* --- GRID DE MOVERS (TIPO ACORDEÃO) --- */}
-                <div className="grid grid-cols-2 gap-3 relative z-20">
-                    {data.movers?.map((mover, idx) => {
-                        const styles = getMoverStyles(mover.trend);
-                        const isExpanded = expandedMover === idx;
-
-                        return (
-                            <div 
-                                key={idx}
-                                className={`
-                                    rounded-2xl transition-all duration-300 overflow-hidden
-                                    ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}
-                                    border-2 ${styles.border}
-                                    ${styles.bg}
-                                `}
-                            >
-                                {/* Cabeçalho do Card (Clicável para expandir) */}
-                                <button 
-                                    onClick={() => toggleMover(idx)}
-                                    className="w-full text-left p-4 flex items-center justify-between"
-                                >
-                                    <div className="flex flex-col gap-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                                                {mover.asset}
-                                            </span>
-                                            <div className="flex items-center gap-1">
-                                                {styles.icon}
-                                                <span className={`text-[10px] font-black ${styles.text}`}>
-                                                    {mover.change_label}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <p className={`text-[10px] font-medium leading-tight opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                                            {mover.reason}
-                                        </p>
-                                    </div>
-                                    <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} opacity-50`}>
-                                        <ChevronDown size={18} />
-                                    </div>
+              {/* MOVERS DA IA - AGORA COM NOVO DESIGN E BORDAS */}
+              <div className="space-y-3">
+                  {analysisData.movers.map((mover, idx) => (
+                      <div key={idx} className={`p-3 rounded-lg border-2 ${isDarkMode ? 'bg-black/20' : 'bg-zinc-100'} ${getTrendBorder(mover.trend)}`}>
+                          <div className="flex justify-between items-center mb-2">
+                              <div className="flex items-center gap-2">
+                                  <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>{mover.asset}</span>
+                              </div>
+                              {mover.article && (
+                                <button onClick={() => openArticle(mover.article)} className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-500 hover:text-purple-400 transition-colors">
+                                    Ver fonte <img src={mover.article.logo} className="w-4 h-4 rounded-full" />
                                 </button>
+                              )}
+                          </div>
+                          <p className={`text-xs ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                              {mover.reason}
+                          </p>
+                      </div>
+                  ))}
+              </div>
+              
+              <div className="flex justify-between items-center pt-2">
+                  <span className="text-[9px] font-mono opacity-40">Análise via Gemini 1.5 Flash</span>
+                  <button onClick={() => setStatus('idle')} className="text-xs font-bold text-zinc-500 hover:text-white transition-colors">Voltar</button>
+              </div>
+          </div>
+      );
+  }
 
-                                {/* Conteúdo Expandido (Manchetes/Fontes) */}
-                                <div 
-                                    className={`
-                                        transition-all duration-300 ease-in-out overflow-hidden
-                                        ${isExpanded ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'}
-                                    `}
-                                >
-                                    <div className={`p-3 pt-0 border-t ${isDarkMode ? 'border-white/10' : 'border-black/5'}`}>
-                                        <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2 mt-2">Fonte Relacionada:</p>
-                                        
-                                        {/* Card da Notícia Linkada */}
-                                        {mover.article ? (
-                                            <button 
-                                                onClick={() => openArticle(mover.article)}
-                                                className={`
-                                                    w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all active:scale-95
-                                                    ${isDarkMode ? 'bg-black/20 border-white/10 hover:bg-white/5' : 'bg-white/60 border-zinc-200 hover:bg-white'}
-                                                `}
-                                            >
-                                                <img 
-                                                    src={mover.article.logo} 
-                                                    className="w-8 h-8 rounded-lg object-cover shadow-sm" 
-                                                    onError={(e) => e.target.style.display='none'}
-                                                />
-                                                <div className="flex-1 text-left min-w-0">
-                                                    <span className={`text-[9px] font-bold uppercase block mb-0.5 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                                                        {mover.article.source}
-                                                    </span>
-                                                    <span className={`text-xs font-bold leading-tight line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
-                                                        {mover.article.title}
-                                                    </span>
-                                                </div>
-                                                <ArrowRight size={14} className="opacity-50" />
-                                            </button>
-                                        ) : (
-                                            <span className="text-xs opacity-50 italic">Nenhuma fonte direta vinculada.</span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+  // ESTADO PADRÃO (HEURÍSTICO)
+  return (
+    <div className="space-y-4">
+        {/*
+          NOVO: Se a IA já rodou uma vez, o resumo dela continua visível aqui!
+          Isso cria uma sensação de persistência e inteligência.
+        */}
+        {analysisData && (
+          <div className={`p-4 rounded-xl text-center relative overflow-hidden animate-in fade-in ${isDarkMode ? 'bg-gradient-to-br from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-white border border-purple-100'}`}>
+            <div className="flex items-center justify-center gap-2 mb-2">
+                <BrainCircuit size={14} className="text-purple-400"/>
+                <span className="text-xs font-bold uppercase tracking-widest text-purple-400">Última Análise IA</span>
             </div>
+            <h3 className={`font-semibold text-base ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{analysisData.summary}</h3>
+          </div>
+        )}
 
-            {/* --- Ticker Financeiro --- */}
-            <div className={`relative border-t border-white/5 p-5 flex gap-4 items-start ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-zinc-50'}`}>
-                <div className="flex-shrink-0 flex flex-col items-center justify-start pt-1.5 gap-1 w-8">
-                    <div className={`w-3 h-3 rounded-full mb-1 animate-pulse ${getTrendColorTicker(data.trend_direction)}`} />
-                    {getTrendIcon(data.trend_direction)}
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className={`text-[9px] font-black uppercase tracking-widest ${data.market_state === 'CLOSED' ? 'text-rose-500' : 'text-emerald-500'}`}>
-                            {data.market_state === 'CLOSED' ? 'Mercado Encerrado' : 'Pregão Ao Vivo'}
-                        </span>
-                        <span className="text-[10px] font-mono opacity-40">
-                            {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </span>
-                    </div>
-                    <div className={`text-xs font-mono leading-relaxed whitespace-pre-line ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                        {data.bottom_summary}
-                    </div>
-                </div>
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5 pointer-events-none mix-blend-overlay"></div>
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40">Destaques do Dia</h4>
+              {/* NOVO: INDICADOR DE MERCADO ABERTO/FECHADO */}
+              {isMarketOpen ? (
+                <div className="flex items-center gap-1.5 text-emerald-400 text-[9px] font-bold uppercase"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>Aberto</div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-zinc-500 text-[9px] font-bold uppercase"><span className="w-1.5 h-1.5 bg-zinc-500 rounded-full"></span>Fechado</div>
+              )}
             </div>
-
+            <button onClick={runAI} className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold bg-purple-600 text-white shadow-lg shadow-purple-500/30 hover:bg-purple-500 transition">
+                <Sparkles size={12} /> Análise IA
+            </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {heuristicData?.topMovers?.map(({ name, article }, idx) => (
+                <div key={idx} className={`p-4 rounded-2xl flex flex-col justify-between h-36 ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white border-zinc-200 shadow-sm'}`}>
+                    <div><span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>{name}</span><h4 className={`font-bold text-sm leading-tight line-clamp-2 mt-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{article.title}</h4></div>
+                    <button onClick={() => openArticle(article)} className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-white transition-colors self-start"><img src={article.logo} className="w-4 h-4 rounded-full" />Ler na fonte</button>
+                </div>
+            ))}
+        </div>
+        <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40 pt-2">Explorar Ativos</h4>
+        <div className="space-y-2">
+            {heuristicData?.allAssets?.map((asset) => (
+                <AssetCard key={asset.name} asset={asset} allNews={newsData} openArticle={openArticle} isDarkMode={isDarkMode} />
+            ))}
         </div>
     </div>
   );
 };
+
+
+
 
 // --- COMPONENTE TREND RADAR (EFEITO 3D FÍSICO / BOTÃO) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
@@ -3163,6 +3063,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+
+
   // --- NOVO ESTADO ---
   // Este estado será atualizado pelo componente filho (WhileYouWereAwayWidget)
   const [isContextLoading, setIsContextLoading] = useState(true);
@@ -3202,9 +3104,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     { id: 3, title: 'Bitcoin atinge nova máxima histórica com aprovação de ETF', source: 'Bloomberg', time: '2h', img: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=600&q=80' }
   ];
 
-  const GeminiBar = () => (
-    <div className="h-0.5 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-orange-400 animate-[gradient-flow_4s_ease_infinite] bg-[length:400%_100%]" />
-  );
+
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
@@ -3248,42 +3148,36 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       </div>
       
       <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
-      
-      {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA --- */}
-<div className="space-y-4">
-  {/* Cabeçalho Futurista de Dois Níveis */}
-  <div className="relative z-10 flex items-center gap-3 px-6">
-      <div className={`p-2.5 rounded-2xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-          <Sparkles size={18} />
-      </div>
-      
-      {/* Container para os dois textos */}
-      <div>
-          {/* 1. Título Principal - Sempre visível e com a animação */}
-          <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-              Os maiores eventos, em múltiplos ângulos.
-          </h3>
 
-          {/* 2. Subtítulo Condicional - Só aparece durante o carregamento */}
-          {isContextLoading && (
-              <p className={`text-lg font-medium animate-pulse ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                  Analisando os fatos...
-              </p>
-          )}
-      </div>
-  </div>
+  {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA COM LAYOUT CORRIGIDO --- */}
+      <div className="space-y-4 px-2">
+        {/* TÍTULO PRINCIPAL DA SEÇÃO */}
+        <div className="flex items-center gap-3 px-4">
+            <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+                <Sparkles size={18} />
+            </div>
+            <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                As principais notícias, em múltiplos ângulos.
+            </h3>
+        </div>
 
-        <GeminiBar />
-        <WhileYouWereAwayWidget 
-            news={newsData} 
-            openArticle={openArticle} 
-            isDarkMode={isDarkMode} 
-            apiKey={apiKey} 
-          clusters={savedClusters}
+        {/* CONTORNO AURA ENVOLVENDO O WIDGET */}
+        <div 
+          className="rounded-[2.5rem] p-1" // O padding cria a borda
+          style={{ background: 'linear-gradient(135deg, #4f46e5, #a855f7, #ec4899, #f97316)' }}
+        >
+          <div className={`rounded-[2.25rem] overflow-hidden ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+            <WhileYouWereAwayWidget 
+              news={newsData} 
+              openArticle={openArticle} 
+              isDarkMode={isDarkMode} 
+              apiKey={apiKey} 
+              clusters={savedClusters}
               setClusters={setSavedClusters}
-         
-        />
-        <GeminiBar />
+              onContextReady={() => {}} // onContextReady pode ser ajustado se necessário
+            />
+          </div>
+        </div>
       </div>
 
       <SmartDigestWidget 
@@ -3293,21 +3187,29 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
           refreshTrigger={refreshTrigger} 
       />
       
-     {/* --- AQUI ENTRA A NOVA SESSÃO DE MERCADO --- */}
-      {/* Removemos a div antiga "Em Alta Agora" e colocamos o Widget */}
-      <div className="pt-2">
-          <div className="flex items-center gap-2 mb-2 px-3">
-             <TrendingUp size={20} className="text-emerald-500" />
-             <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h3>
+     {/* --- NOVA SEÇÃO DE MERCADOS --- */}
+      <div className="space-y-4 px-2">
+          {/* TÍTULO DA SEÇÃO */}
+          <div className="flex items-center gap-3 px-4">
+              <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+                  <TrendingUp size={18} />
+              </div>
+              <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                  Mercados Hoje
+              </h3>
           </div>
-          
-          <MarketPulseWidget 
-             newsData={newsData}
-             apiKey={apiKey}
-             isDarkMode={isDarkMode}
-             refreshTrigger={refreshTrigger}
-             openArticle={openArticle}
-          />
+
+          {/* CONTORNO ROXO ENVOLVENDO O WIDGET */}
+          <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
+            <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+              <MarketPulseWidget 
+                newsData={newsData}
+                apiKey={apiKey?.marketAnalysis} // Chave específica para análise de IA (se houver)
+                isDarkMode={isDarkMode}
+                openArticle={openArticle}
+              />
+            </div>
+          </div>
       </div>
 
       {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
@@ -4452,42 +4354,84 @@ const handleStoryNavigation = (direction) => {
     setSavedItems((prevItems) => prevItems.filter((item) => item.id !== idToRemove));
   };
 
-  
 
-const handleOpenArticle = async (article) => {
-    if (!article) return;
 
-    // Detecção de Vídeo
-    const videoId = article.videoId || 
-                    (article.link && article.link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]);
-    
+
+
+
+
+  const handleOpenArticle = async (article) => {
+    if (!article || !article.link) return;
+
+    const url = article.link;
+
+    // --- LISTA DE DOMÍNIOS BLOQUEADOS ---
+    const blockedDomains = [
+        'uol.com.br',
+        'investing.com',
+        'nytimes.com'
+    ];
+
+    const isBlockedSite = blockedDomains.some(domain =>
+        url.includes(domain)
+    );
+
+    // --- DETECÇÃO DE YOUTUBE ---
+    const videoId =
+        article.videoId ||
+        url.match(
+            /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
+        )?.[2];
+
     const isYoutube = !!videoId;
-    const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
+    const isPodcastVideo =
+        article.category === 'Podcast' && article.type === 'video';
 
+    // ===============================
+    // 1️⃣ YOUTUBE / PODCAST EM VÍDEO
+    // ===============================
     if (isYoutube || isPodcastVideo) {
-        // --- NOVA LÓGICA COM INAPPBROWSER ---
-        const url = `https://m.youtube.com/watch?v=${videoId}`;
+        const youtubeUrl = `https://m.youtube.com/watch?v=${videoId}`;
 
-        // Opções para forçar a renderização correta
-        const options = 'location=no,toolbar=yes,toolbarcolor=#000000,hidenavigationbuttons=yes,hideurlbar=yes,fullscreen=yes';
-        
-        // Abre o vídeo com o novo plugin
-        InAppBrowser.create(url, '_blank', options);
-        
-    } else {
-        // Rota de Texto (Mantida)
-        setSelectedArticle(article);
+        const options =
+            'location=no,toolbar=yes,toolbarcolor=#000000,hidenavigationbuttons=yes,hideurlbar=yes,fullscreen=yes';
+
+        InAppBrowser.create(youtubeUrl, '_blank', options);
+        return;
     }
 
-    // Histórico (Mantido)
+    // ===============================
+    // 2️⃣ SITES BLOQUEADOS → NAVEGADOR
+    // ===============================
+    if (isBlockedSite) {
+        await Browser.open({
+            url,
+            presentationStyle: 'fullscreen',
+            toolbarColor: '#000000'
+        });
+        return;
+    }
+
+    // ===============================
+    // 3️⃣ ARTIGO NORMAL (IN-APP)
+    // ===============================
+    setSelectedArticle(article);
+
     if (article.id && !readHistory.includes(article.id)) {
         setReadHistory(prev => [...prev, article.id]);
     }
-  };
+};
+
+
+
 
 
 
   
+
+
+
+
   const closeArticle = useCallback(() => {
       setSelectedArticle(null);
   }, []);
@@ -4625,7 +4569,7 @@ const allAvailableStories = useMemo(() => {
 const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
 
   return (
-    <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
+    <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-black text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       {/* --- SPLASH SCREEN --- */}
       {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
       <div className={`transition-all duration-500 transform h-[100dvh] flex flex-col ${isMainViewReceded ? `scale-[0.9] pointer-events-none` : 'scale-100 opacity-100'}`}>
@@ -5309,7 +5253,6 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 // COMPONENTE ARTICLE PANEL - OTIMIZADO PARA NAVEGAÇÃO RÁPIDA (FEED NAVIGATOR)
 // ==============================================================================
 
-
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
@@ -5427,7 +5370,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         controlsColor: isDarkMode ? '#FFFFFF' : '#000000'
     });
   }, [article, isDarkMode]);
-
 
   const handleToggleTranslation = async () => {
       if (translatedData) { setIsTranslated(!isTranslated); return; }
