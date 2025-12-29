@@ -1499,20 +1499,14 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
   };
 
  const handleOpenStory = (story) => {
-      // 1. Tenta achar o ID do vídeo
-      const vId = story.videoId || getVideoId(story.link);
+      // 1. Detecta se é Short
+      const isShort = story.link?.includes('/shorts/') || story.title?.toLowerCase().includes('#shorts');
 
-      // 2. Se achou, usa a função onPlayVideo que já recebemos via Props
-      if (vId) {
-          // Usa a mesma função que abre os vídeos da lista (super seguro)
-          onPlayVideo(story); 
-          
-          if (onMarkAsSeen) onMarkAsSeen(story.id);
-          return; 
-      }
-
-      // 3. Fallback...
+      // 2. Se for Short, ou se não tivermos certeza, abrimos o Modal (StoryOverlay)
+      // O Modal já tem a lógica interna: se for Short = Autoplay; Se for Longo = Capa + Botão.
       setActiveStory(story);
+      
+      // 3. Marca como visto
       if (onMarkAsSeen) onMarkAsSeen(story.id);
   };
 
