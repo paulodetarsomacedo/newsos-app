@@ -5346,7 +5346,6 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
 
   const containerClasses = `fixed inset-0 z-[5000] flex flex-col transition-transform duration-300 ease-out will-change-transform ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`;
   
-  const BlockedContentView = () => ( /* ... seu componente de conteúdo bloqueado ... */ );
 
   return (
     <div className={containerClasses}>
