@@ -2265,19 +2265,16 @@ const generateHeuristicClusters = (news) => {
 
 
 // --- WIDGET: CONTEXTO GLOBAL (V2 - SEM TÍTULO INTERNO) ---
-const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters }) => {
+const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters, onContextReady }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
 
-  // A heurística agora é o estado padrão
   const heuristicClusters = useMemo(() => {
-      // Só gera se a IA ainda não rodou (clusters é null)
       if (clusters && clusters.length > 0) return [];
       return generateHeuristicClusters(news);
   }, [news, clusters]);
 
-  // A IA só roda quando esta função é chamada pelo clique do botão
   const runAI = async () => {
       if (!apiKey) {
           alert("Configure sua API Key nas configurações primeiro.");
@@ -2288,7 +2285,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
           return;
       }
       setLoading(true);
-      setClusters(null); // Limpa clusters antigos para mostrar o loading
+      setClusters(null); 
       await new Promise(r => setTimeout(r, 800));
       const result = await generateSmartClustering(news, apiKey, 300);
       if (result) {
@@ -2299,6 +2296,12 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       setLoading(false);
   };
   
+  useEffect(() => {
+    if (heuristicClusters && heuristicClusters.length > 0 && onContextReady) {
+        onContextReady();
+    }
+  }, [heuristicClusters, onContextReady]);
+
   const handleScroll = () => {
     if (scrollRef.current) {
       const scrollLeft = scrollRef.current.scrollLeft;
@@ -2314,10 +2317,8 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]';
   };
   
-  // Decide quais clusters mostrar: os da IA ou os da heurística
   const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
 
-  // Tela de Loading
   if (loading) {
       return (
         <div className="relative w-full">
@@ -2332,7 +2333,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       );
   }
 
-  // Se não tiver nem heurística, mostra um placeholder
   if (!displayClusters || displayClusters.length === 0) {
       return (
         <div className="relative w-full animate-pulse">
@@ -2345,10 +2345,10 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     <div className="animate-in fade-in duration-1000">
         <div className="relative w-full">
             
-            {/* Botão para ativar a IA, que agora controla o fluxo */}
+            {/* CABEÇALHO MODIFICADO: Apenas o botão, alinhado à direita */}
             <div className="relative z-10 flex items-center justify-end mb-4 px-4 pt-4">
                 <button 
-                    onClick={runAI} // <<-- GATILHO MANUAL
+                    onClick={runAI}
                     className={`
                         group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider
                         transition-all duration-300 active:scale-95 shadow-lg
@@ -2356,7 +2356,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                     `}
                 >
                     {clusters ? (
-                        <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar Análise</span></div>
+                        <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar</span></div>
                     ) : (
                         <div className="flex items-center gap-2"><Sparkles size={14} className="text-yellow-300" /><span>Ativar SmartNews</span></div>
                     )}
@@ -3045,7 +3045,36 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       
       <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
 
+  {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA COM LAYOUT CORRIGIDO --- */}
+      <div className="space-y-4 px-2">
+        {/* TÍTULO PRINCIPAL DA SEÇÃO */}
+        <div className="flex items-center gap-3 px-4">
+            <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+                <Sparkles size={18} />
+            </div>
+            <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                As principais notícias, em múltiplos ângulos.
+            </h3>
+        </div>
 
+        {/* CONTORNO AURA ENVOLVENDO O WIDGET */}
+        <div 
+          className="rounded-[2.5rem] p-1" // O padding cria a borda
+          style={{ background: 'linear-gradient(135deg, #4f46e5, #a855f7, #ec4899, #f97316)' }}
+        >
+          <div className={`rounded-[2.25rem] overflow-hidden ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+            <WhileYouWereAwayWidget 
+              news={newsData} 
+              openArticle={openArticle} 
+              isDarkMode={isDarkMode} 
+              apiKey={apiKey} 
+              clusters={savedClusters}
+              setClusters={setSavedClusters}
+              onContextReady={() => {}} // onContextReady pode ser ajustado se necessário
+            />
+          </div>
+        </div>
+      </div>
 
       <SmartDigestWidget 
           newsData={newsData} 
@@ -4086,10 +4115,7 @@ const handleStoryNavigation = (direction) => {
     let newHistoryBuffer = { ...articleHistory };
 
     const promises = userFeeds.map(async (feed) => {
-        if (!feed || typeof feed.url !== 'string' || !feed.url.startsWith('http')) {
-    console.warn('Ignorando feed inválido:', feed);
-    return; 
-}
+        if (!feed.url) return;
 
         try {
             let feedItems = [];
@@ -4547,39 +4573,6 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     
                 />
             )}
-
-            {/* --- SEÇÃO DO CONTEXTO GLOBAL (AGORA NO LUGAR CORRETO) --- */}
-    {activeTab === 'happening' && (
-      <div className="space-y-4 px-2">
-        {/* TÍTULO PRINCIPAL DA SEÇÃO */}
-        <div className="flex items-center gap-3 px-4">
-            <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                <Sparkles size={18} />
-            </div>
-            <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                As principais notícias, em múltiplos ângulos.
-            </h3>
-        </div>
-
-        {/* CONTORNO AURA ENVOLVENDO O WIDGET */}
-        <div 
-          className="rounded-[2.5rem] p-1"
-          style={{ background: 'linear-gradient(135deg, #4f46e5, #a855f7, #ec4899, #f97316)' }}
-        >
-          <div className={`rounded-[2.25rem] overflow-hidden ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-            <WhileYouWereAwayWidget 
-              news={realNews}               // <-- CORREÇÃO APLICADA
-              openArticle={handleOpenArticle}    // <-- CORREÇÃO APLICADA
-              isDarkMode={isDarkMode} 
-              apiKey={apiKey} 
-              clusters={globalClusters}      // <-- CORREÇÃO APLICADA
-              setClusters={setGlobalClusters}  // <-- CORREÇÃO APLICADA
-              onContextReady={() => {}}
-            />
-          </div>
-        </div>
-      </div>
-    )}
 
             {activeTab === 'podcast' && (
                 <PodcastTab 
@@ -5256,7 +5249,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
   }, [article?.link]);
 
-useEffect(() => {
+  useEffect(() => {
     let timer;
     if (isOpen) {
         timer = setTimeout(() => setIsAnimationDone(true), 450);
@@ -5274,71 +5267,32 @@ useEffect(() => {
   useEffect(() => {
     if (!isOpen || !article?.link || videoId) return;
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-    
-    // Resetando estados para o novo artigo
     setReaderContent(null);
     setIframeUrl(null);
     setTranslatedData(null);
     setIsTranslated(false);
-
     if (isProblematicSite) {
       setIsLoading(false);
       return;
     }
-
+    setIsLoading(true);
     const fetchContent = async () => {
-        setIsLoading(true);
         try {
-            // 1. TENTA BUSCAR DO CACHE PRIMEIRO
-            let { data: cachedData } = await supabase
-                .from('article_cache')
-                .select('content')
-                .eq('url', article.link)
-                .single();
-
-            if (cachedData && cachedData.content) {
-                // SUCESSO! Usamos o cache, sem invocar a função Edge.
-                console.log("Artigo carregado do CACHE.");
-                setReaderContent(cachedData.content);
-                // NOTA: O modo webview ainda precisa do HTML, mas agora podemos construí-lo a partir do cache
-                // Esta parte é um bônus, mas importante para manter a funcionalidade
-                const cachedHtml = `<html><head><title>${cachedData.content.title}</title></head><body><h1>${cachedData.content.title}</h1>${cachedData.content.content}</body></html>`;
-                const cleanHtml = sanitizeHtml(cachedHtml);
-                const blob = new Blob([cleanHtml], { type: 'text/html' });
-                setIframeUrl(URL.createObjectURL(blob));
-
-            } else {
-                // 2. SE NÃO ACHOU NO CACHE, invoca a função como antes
-                console.log("Cache miss. Buscando via Edge Function...");
-                const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-                if (error || !data) throw new Error("Falha no proxy-view");
-                
-                const cleanHtml = sanitizeHtml(data.html);
-                const blob = new Blob([cleanHtml], { type: 'text/html' });
-                setIframeUrl(URL.createObjectURL(blob));
-                setReaderContent(data.reader);
-
-                // 3. SALVA O RESULTADO NO CACHE PARA A PRÓXIMA VEZ
-                if (data.reader) {
-                    await supabase.from('article_cache').upsert({
-                        url: article.link,
-                        content: data.reader,
-                    });
-                     console.log("Artigo salvo no cache para uso futuro.");
-                }
-            }
+            const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+            if (error || !data) throw new Error("Falha no proxy-view");
+            const cleanHtml = sanitizeHtml(data.html);
+            const blob = new Blob([cleanHtml], { type: 'text/html' });
+            setIframeUrl(URL.createObjectURL(blob));
+            setReaderContent(data.reader);
         } catch (err) {
-            console.warn("Falha ao buscar conteúdo, usando modo Magic:", err);
+            console.warn("Falha no Web View, indo para Magic:", err);
             setViewMode('magic');
-            setReaderContent(article);
         } finally {
             setIsLoading(false);
         }
     };
-    
     if (!isAnimationDone) setTimeout(fetchContent, 500);
     else fetchContent();
-
   }, [article?.id, isOpen, videoId, isProblematicSite]);
 
   const sanitizeHtml = (html) => {
@@ -5392,17 +5346,7 @@ useEffect(() => {
 
   const containerClasses = `fixed inset-0 z-[5000] flex flex-col transition-transform duration-300 ease-out will-change-transform ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`;
   
-const BlockedContentView = () => (
-  <div className="flex flex-col items-center justify-center h-full text-center p-8">
-      <div className={`p-4 rounded-full mb-4 ${isDarkMode ? 'bg-red-500/10' : 'bg-red-50'}`}>
-          <Globe size={32} className="text-red-500" />
-      </div>
-      <h3 className={`font-bold text-lg mb-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Conteúdo Indisponível</h3>
-      <p className={`text-sm opacity-60 max-w-xs ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
-          Este site não permite a visualização direta. Por favor, use o botão "Abrir no Navegador" para ver o artigo original.
-      </p>
-  </div>
-);
+  const BlockedContentView = () => ( /* ... seu componente de conteúdo bloqueado ... */ );
 
   return (
     <div className={containerClasses}>
