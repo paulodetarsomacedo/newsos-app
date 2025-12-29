@@ -1964,27 +1964,95 @@ const generateTrendRadar = async (news, apiKey) => {
   }
 };
 
-// --- WIDGET: SMART DIGEST (COM ÁUDIO NATIVO E FONTES EXPANSÍVEIS) ---
+// --- WIDGET: SMART DIGEST (COM MINI BROWSER DE VIDRO) ---
+
+// 1. Sub-componente do Mini Navegador (Vidro)
+const GlassBrowser = ({ article, onClose, onExpand, isDarkMode }) => {
+    return (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 animate-in fade-in duration-300">
+            {/* Backdrop com Blur suave */}
+            <div 
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" 
+                onClick={onClose} 
+            />
+
+            {/* A Janela de Vidro */}
+            <div className={`
+                relative w-full max-w-lg aspect-[4/5] md:aspect-square 
+                rounded-[2.5rem] overflow-hidden shadow-2xl border 
+                flex flex-col transition-all transform scale-100
+                animate-in zoom-in-95 duration-300
+                ${isDarkMode 
+                    ? 'bg-zinc-900/85 border-white/10 shadow-purple-500/10' 
+                    : 'bg-white/85 border-white/40 shadow-xl'}
+                backdrop-blur-2xl
+            `}>
+                
+                {/* Header do Vidro */}
+                <div className={`
+                    flex items-center justify-between px-6 py-4 border-b 
+                    ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-black/5 bg-white/40'}
+                `}>
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        <img src={article.logo} className="w-6 h-6 rounded-full shadow-sm" onError={(e) => e.target.style.display = 'none'} />
+                        <div className="flex flex-col">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{article.source}</span>
+                            <span className={`text-xs font-bold truncate max-w-[180px] ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{article.title}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={onExpand} className={`p-2 rounded-full transition active:scale-90 ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-black'}`} title="Abrir Tela Cheia">
+                            <Maximize2 size={16} />
+                        </button>
+                        <button onClick={onClose} className={`p-2 rounded-full transition active:scale-90 ${isDarkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}>
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Conteúdo (Iframe) */}
+                <div className="flex-1 relative w-full h-full bg-white">
+                    <iframe 
+                        src={article.link} 
+                        className="w-full h-full border-none"
+                        title="Preview"
+                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                    />
+                    
+                    {/* Botão Flutuante Inferior (Caso o site não carregue bem) */}
+                    <div className="absolute bottom-6 left-0 right-0 flex justify-center pointer-events-none">
+                        <button 
+                            onClick={onExpand}
+                            className="pointer-events-auto shadow-xl bg-black text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform flex items-center gap-2"
+                        >
+                            Ler Artigo Completo <ArrowRight size={14}/>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
   const [digest, setDigest] = useState(null);
   const [status, setStatus] = useState('idle'); 
-  
-  // Estado para controlar qual tópico está expandido (Accordion)
   const [expandedIndex, setExpandedIndex] = useState(null);
-  
-  // Estado para o Áudio
   const [isSpeaking, setIsSpeaking] = useState(false);
+  
+  // --- NOVO: Estado para o Modal de Vidro ---
+  const [glassArticle, setGlassArticle] = useState(null);
+
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
 
   useEffect(() => {
     if (refreshTrigger > 0) {
         setDigest(null);
         setStatus('idle');
-        cancelSpeech(); // Para o áudio se recarregar
+        cancelSpeech();
     }
   }, [refreshTrigger]);
 
-  // Garante que o áudio pare se o componente desmontar
   useEffect(() => {
       return () => cancelSpeech();
   }, []);
@@ -2007,7 +2075,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
     }
   };
 
-  // --- LÓGICA DE ÁUDIO NATIVO (TTS) ---
   const cancelSpeech = () => {
       if (synthRef.current) {
           synthRef.current.cancel();
@@ -2017,25 +2084,17 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
 
   const handlePlayBriefing = () => {
       if (!synthRef.current || !digest) return;
-
-      if (isSpeaking) {
-          cancelSpeech();
-          return;
-      }
+      if (isSpeaking) { cancelSpeech(); return; }
 
       setIsSpeaking(true);
-
-      // Monta o texto para leitura fluida
       const intro = `Resumo do News O S. ${digest.vibe_title}.`;
       const content = digest.topics.map(t => `${t.tag}. ${t.summary}`).join('. Próximo: ');
       const finalText = `${intro} ${content}. Fim do resumo.`;
 
       const utterance = new SpeechSynthesisUtterance(finalText);
-      utterance.lang = 'pt-BR'; // Força português
-      utterance.rate = 1.1; // Um pouco mais dinâmico
+      utterance.lang = 'pt-BR'; 
+      utterance.rate = 1.1; 
       utterance.pitch = 1;
-
-      // Evento quando termina de falar
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
 
@@ -2046,7 +2105,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
       setExpandedIndex(expandedIndex === index ? null : index);
   };
 
-  // Estilo 3D das tags (Mantido da sua versão anterior)
   const getTag3DStyle = (index) => {
       const base3D = "shadow-[0_2px_5px_-1px_rgba(0,0,0,0.2)] border-t border-b";
       if (isDarkMode) {
@@ -2120,6 +2178,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
   }
 
   return (
+    <>
     <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
       <div className={`
         relative p-6 rounded-[2.5rem] shadow-2xl overflow-hidden border transition-all
@@ -2137,7 +2196,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
          {/* CONTEÚDO */}
          <div className="relative z-10">
              
-             {/* Cabeçalho com Botão de Áudio */}
              <div className="flex flex-col items-center text-center mb-8 pt-2">
                 <div className="text-5xl mb-3 animate-bounce drop-shadow-xl select-none grayscale-0">
                     {digest.vibe_emoji}
@@ -2149,7 +2207,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                     {digest.vibe_title}
                 </h2>
                 
-                {/* BOTÃO DE AUDIO BRIEFING (TTS Nativo) */}
                 <button 
                     onClick={handlePlayBriefing}
                     className={`
@@ -2167,7 +2224,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                 </button>
              </div>
 
-             {/* GRID DE TÓPICOS (ACORDEÃO) */}
              <div className="grid grid-cols-1 gap-4">
                 {digest.topics?.map((topic, i) => {
                     const isExpanded = expandedIndex === i;
@@ -2190,7 +2246,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                                 </span>
                                 
                                 <div className={`flex items-center gap-2`}>
-                                    {/* Indicador de Quantidade de Fontes */}
                                     {topic.articles && topic.articles.length > 0 && (
                                         <span className="text-[9px] font-bold opacity-40 uppercase tracking-wide">
                                             {topic.articles.length} {topic.articles.length === 1 ? 'Fonte' : 'Fontes'}
@@ -2206,7 +2261,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                                 {topic.summary}
                             </p>
 
-                            {/* ÁREA EXPANDIDA (FONTES ORIGINAIS) */}
                             <div className={`grid transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'grid-rows-[1fr] mt-4 opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
                                 <div className="min-h-0">
                                     <div className={`h-px w-full mb-3 ${isDarkMode ? 'bg-white/10' : 'bg-black/5'}`} />
@@ -2217,7 +2271,11 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                                             topic.articles.map((article, idx) => (
                                                 <div 
                                                     key={idx}
-                                                    onClick={(e) => { e.stopPropagation(); openArticle(article); }}
+                                                    // AQUI ESTÁ A MUDANÇA: Abre o Modal de Vidro
+                                                    onClick={(e) => { 
+                                                        e.stopPropagation(); 
+                                                        setGlassArticle(article); // Define o artigo do modal
+                                                    }}
                                                     className={`
                                                         flex items-center gap-3 p-2 rounded-xl border transition-colors hover:scale-[1.01] active:scale-95
                                                         ${isDarkMode ? 'bg-black/20 border-white/5 hover:bg-white/5' : 'bg-white/50 border-black/5 hover:bg-white'}
@@ -2252,11 +2310,10 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                 })}
              </div>
 
-             {/* Rodapé */}
              <div className="mt-6 flex justify-between items-center px-2">
                 <div className="flex items-center gap-1.5 opacity-40">
                     <BrainCircuit size={12} />
-                    <span className="text-[10px] font-mono tracking-wide">Gemini 2.0 Flash</span>
+                    <span className="text-[10px] font-mono tracking-wide">Gemini 2.5 Flash</span>
                 </div>
                 <button 
                     onClick={handleGenerate} 
@@ -2269,6 +2326,20 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
          </div>
       </div>
     </div>
+
+    {/* Renderiza o Glass Browser se houver um artigo selecionado */}
+    {glassArticle && (
+        <GlassBrowser 
+            article={glassArticle} 
+            onClose={() => setGlassArticle(null)}
+            onExpand={() => {
+                setGlassArticle(null);
+                openArticle(glassArticle); // Abre o painel completo original
+            }}
+            isDarkMode={isDarkMode}
+        />
+    )}
+    </>
   );
 };
 
