@@ -1726,39 +1726,34 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
     }
 };
 
-// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODO ECO - CUSTO ZERO) ---
-const generateSmartClustering = async (news, apiKey, limit = 50) => { // Limite baixado para 50
-  // Verificação básica
+// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODO ECO) ---
+const generateSmartClustering = async (news, apiKey, limit = 50) => { 
   if (!news || news.length < 10 || !apiKey) return null;
 
-  // 1. OTIMIZAÇÃO DE TOKENS (PAYLOAD LEVE):
-  // Em vez de mandar ID gigante, Link e Imagem, mandamos apenas um número (Index) e Título.
-  // Exemplo: "0|G1|Chuva em SP"
   const simplifiedNews = news.slice(0, limit).map((n, index) => 
     `${index}|${n.source}|${n.title}`
   ).join('\n');
 
   const prompt = `
   Você é um Editor-Chefe. Analise a lista de manchetes abaixo (Formato: Index|Fonte|Título).
-  
-  TAREFA:
   Agrupe as notícias em EXATAMENTE 3 (TRÊS) cards de "Contexto Global".
-  
-  RETORNE APENAS UM JSON VÁLIDO COM ESTA ESTRUTURA:
+  RETORNE APENAS JSON:
   [
     {
-      "ai_title": "Título curto e impactante em PT-BR (Máx 7 palavras)",
-      "representative_index": 0, (O número do Index da melhor notícia para usar a foto de capa)
-      "related_indices": [0, 5, 12] (Lista dos números 'Index' das notícias que compõem este grupo. Mínimo 2 itens.)
+      "ai_title": "Título curto (Máx 7 palavras)",
+      "representative_index": 0, 
+      "related_indices": [0, 5]
     }
   ]
-
   DADOS:
   ${simplifiedNews}
   `;
 
   try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {      headers: { "Content-Type": "application/json" },
+    // CORREÇÃO AQUI: method: "POST" é obrigatório
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      method: "POST", 
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { response_mime_type: "application/json" }
@@ -1767,32 +1762,24 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
 
     const data = await response.json();
     
-    if (!response.ok || data.error) {
-        console.error("Erro API IA:", data.error);
-        return null;
-    }
+    if (!response.ok || data.error) return null;
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
-    // 2. HIDRATAÇÃO (Reconstruir os objetos completos a partir dos índices):
     const hydratedJson = json.map(cluster => {
-        // Recupera a imagem da notícia escolhida como representativa
         const mainArticle = news[cluster.representative_index];
         const repImage = mainArticle ? mainArticle.img : null;
-
-        // Recupera os artigos relacionados baseados nos índices retornados pela IA
         const uniqueArticles = [];
         const seenSources = new Set();
 
         if (cluster.related_indices && Array.isArray(cluster.related_indices)) {
             cluster.related_indices.forEach(idx => {
-                const article = news[idx]; // Pega a notícia original pelo índice
+                const article = news[idx];
                 if (article && !seenSources.has(article.source)) {
                     seenSources.add(article.source);
-                    // Adiciona uma análise de sentimento fake/padrão para economizar tokens de processamento
                     uniqueArticles.push({ ...article, ai_sentiment: 'neutral' }); 
                 }
             });
@@ -1813,51 +1800,37 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
   }
 };
 
-
-// --- FUNÇÃO DE IA: SMART DIGEST (COM RASTREABILIDADE) ---
-// --- FUNÇÃO SMART DIGEST (OTIMIZADA - BAIXO CONSUMO) ---
+// --- FUNÇÃO SMART DIGEST (CORRIGIDA) ---
 const generateBriefing = async (news, apiKey) => {
-  // Limite de segurança: 40 notícias
   if (!news || news.length === 0) return null;
   if (!apiKey) {
       alert("API Key não configurada! Vá em Ajustes > Inteligência IA.");
       return null;
   }
 
-  // 1. OTIMIZAÇÃO DE PAYLOAD (DIETA DE TOKENS)
-  // Envia apenas: Índice | Fonte | Início do Título | Início do Resumo
-  // Cortamos o resumo em 100 caracteres. A IA consegue entender o contexto com isso.
   const context = news.slice(0, 40).map((n, index) => {
-      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 100) : "Sem detalhes.";
+      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 100) : "";
       return `Ref:${index}|${n.source}|${n.title}|${cleanSummary}`;
   }).join('\n');
 
   const prompt = `
-  Você é Editor. Identifique os 4 maiores temas globais baseados na lista (Ref|Fonte|Título|Resumo).
-  
-  PARA CADA TÓPICO:
-  1. Identifique quais notícias (pelo número 'Ref') compõem o tema.
-  2. Escreva um resumo EXPLICATIVO (o porquê é importante).
-  
-  RETORNE JSON ESTRITO:
+  Identifique os 4 maiores temas. Retorne JSON:
   {
-    "vibe_emoji": "Emoji do humor global",
-    "vibe_title": "Manchete de Capa (3-6 palavras)",
+    "vibe_emoji": "Emoji",
+    "vibe_title": "Manchete (3-6 palavras)",
     "topics": [
-      { 
-        "tag": "Categoria", 
-        "summary": "Texto explicativo (30 palavras)...",
-        "source_indices": [0, 5] (Lista numérica dos 'Ref' usados)
-      }
+      { "tag": "Categoria", "summary": "Resumo...", "source_indices": [0] }
     ]
   }
-
-  MATÉRIA PRIMA:
+  DADOS:
   ${context}
   `;
 
   try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {      headers: { "Content-Type": "application/json" },
+    // CORREÇÃO AQUI: method: "POST"
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { response_mime_type: "application/json" }
@@ -1866,11 +1839,7 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
 
     const data = await response.json();
 
-    if (data.error) {
-        console.warn(`Erro IA: ${data.error.message}`);
-        // Se der erro, retorna null (ou chame seu fallback antigo se quiser)
-        return null; 
-    }
+    if (data.error) return null;
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
@@ -1878,16 +1847,9 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
     const finalData = parseAndNormalize(text);
     if (!finalData || !finalData.topics) return null;
 
-    // 2. HIDRATAÇÃO (Reconectar os índices às notícias reais)
     finalData.topics = finalData.topics.map(topic => {
-        // Se a IA devolver IDs antigos por engano, protegemos com '|| []'
         const indices = topic.source_indices || [];
-        
-        const relatedArticles = indices.map(idx => {
-            // Recupera o objeto completo da notícia original usando o índice numérico
-            return news[idx];
-        }).filter(Boolean); // Remove nulos caso a IA alucine um índice que não existe
-
+        const relatedArticles = indices.map(idx => news[idx]).filter(Boolean);
         return { ...topic, articles: relatedArticles };
     });
 
@@ -1944,41 +1906,26 @@ const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
 
 
 
-// --- FUNÇÃO TREND RADAR (OTIMIZADA PARA BAIXO CUSTO) ---
+// --- FUNÇÃO TREND RADAR (CORRIGIDA) ---
 const generateTrendRadar = async (news, apiKey) => {
-  // Limite de segurança: 40 notícias é suficiente para detectar tendências
   if (!news || news.length === 0) return null;
 
-  // 1. OTIMIZAÇÃO DE PAYLOAD (Igual fizemos no Clustering)
-  // Envia apenas: Índice | Título | Pequeno resumo (60 letras)
-  // Isso ajuda a IA a entender o contexto sem gastar muitos tokens.
   const context = news.slice(0, 40).map((n, index) => 
     `${index}|${n.title}|${n.summary ? n.summary.slice(0, 60) : ''}`
   ).join('\n');
 
   const prompt = `
-  Analise a lista (Index|Título|Resumo). Agrupe por temas e identifique os 6 Tópicos mais quentes.
-  
-  PARA CADA TÓPICO:
-  1. Identifique a notícia principal.
-  2. Resuma o FATO principal em 1 frase (pt-BR).
-  
-  RETORNE JSON ESTRITO:
-  [ 
-    { 
-      "topic": "Nome Curto (Ex: Mercosul)", 
-      "score": 1-10, 
-      "hex": "#cor_hex", 
-      "summary": "Resumo do fato..." 
-    } 
-  ]
-
+  Identifique 6 Tópicos quentes. Retorne JSON:
+  [ { "topic": "Nome", "score": 1-10, "hex": "#hex", "summary": "Fato..." } ]
   DADOS:
   ${context}
   `;
 
   try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {      headers: { "Content-Type": "application/json" },
+    // CORREÇÃO AQUI: method: "POST"
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { response_mime_type: "application/json" }
@@ -1996,7 +1943,6 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
     const json = JSON.parse(cleanText);
 
     if (Array.isArray(json)) return json;
-    // Tenta achar array dentro de objeto se a IA errar o formato
     const possibleArray = Object.values(json).find(val => Array.isArray(val));
     if (possibleArray) return possibleArray;
 
@@ -2007,7 +1953,6 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
     return []; 
   }
 };
-
 
 
 // --- WIDGET: SMART DIGEST (COM ÁUDIO NATIVO E FONTES EXPANSÍVEIS) ---
