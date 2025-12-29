@@ -1498,7 +1498,8 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
       onPlayVideo(video);   
   };
 
- // 1. Tenta achar o ID do vídeo
+ const handleOpenStory = (story) => {
+      // 1. Tenta achar o ID do vídeo
       const vId = story.videoId || getVideoId(story.link);
 
       // 2. Se achou, usa a função onPlayVideo que já recebemos via Props
