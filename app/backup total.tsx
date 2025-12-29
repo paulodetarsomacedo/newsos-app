@@ -5249,7 +5249,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
   }, [article?.link]);
 
-useEffect(() => {
+  useEffect(() => {
     let timer;
     if (isOpen) {
         timer = setTimeout(() => setIsAnimationDone(true), 450);
@@ -5267,70 +5267,32 @@ useEffect(() => {
   useEffect(() => {
     if (!isOpen || !article?.link || videoId) return;
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-    
-    // Resetando estados para o novo artigo
     setReaderContent(null);
     setIframeUrl(null);
     setTranslatedData(null);
     setIsTranslated(false);
-
     if (isProblematicSite) {
       setIsLoading(false);
       return;
     }
-
+    setIsLoading(true);
     const fetchContent = async () => {
-        setIsLoading(true);
         try {
-            // 1. TENTA BUSCAR DO CACHE PRIMEIRO
-            let { data: cachedData } = await supabase
-                .from('article_cache')
-                .select('content')
-                .eq('url', article.link)
-                .single();
-
-            if (cachedData && cachedData.content) {
-                // SUCESSO! Usamos o cache, sem invocar a função Edge.
-                console.log("Artigo carregado do CACHE.");
-                setReaderContent(cachedData.content);
-                // NOTA: O modo webview ainda precisa do HTML, mas agora podemos construí-lo a partir do cache
-                // Esta parte é um bônus, mas importante para manter a funcionalidade
-                const cachedHtml = `<html><head><title>${cachedData.content.title}</title></head><body><h1>${cachedData.content.title}</h1>${cachedData.content.content}</body></html>`;
-                const cleanHtml = sanitizeHtml(cachedHtml);
-                const blob = new Blob([cleanHtml], { type: 'text/html' });
-                setIframeUrl(URL.createObjectURL(blob));
-
-            } else {
-                // 2. SE NÃO ACHOU NO CACHE, invoca a função como antes
-                console.log("Cache miss. Buscando via Edge Function...");
-                const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-                if (error || !data) throw new Error("Falha no proxy-view");
-                
-                const cleanHtml = sanitizeHtml(data.html);
-                const blob = new Blob([cleanHtml], { type: 'text/html' });
-                setIframeUrl(URL.createObjectURL(blob));
-                setReaderContent(data.reader);
-
-                // 3. SALVA O RESULTADO NO CACHE PARA A PRÓXIMA VEZ
-                if (data.reader) {
-                    await supabase.from('article_cache').upsert({
-                        url: article.link,
-                        content: data.reader,
-                    });
-                     console.log("Artigo salvo no cache para uso futuro.");
-                }
-            }
+            const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+            if (error || !data) throw new Error("Falha no proxy-view");
+            const cleanHtml = sanitizeHtml(data.html);
+            const blob = new Blob([cleanHtml], { type: 'text/html' });
+            setIframeUrl(URL.createObjectURL(blob));
+            setReaderContent(data.reader);
         } catch (err) {
-            console.warn("Falha ao buscar conteúdo, usando modo Magic:", err);
+            console.warn("Falha no Web View, indo para Magic:", err);
             setViewMode('magic');
         } finally {
             setIsLoading(false);
         }
     };
-    
     if (!isAnimationDone) setTimeout(fetchContent, 500);
     else fetchContent();
-
   }, [article?.id, isOpen, videoId, isProblematicSite]);
 
   const sanitizeHtml = (html) => {
