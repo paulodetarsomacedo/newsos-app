@@ -1498,18 +1498,19 @@ function YouTubeTab({ isDarkMode, openStory, onToggleSave, savedItems, realVideo
       onPlayVideo(video);   
   };
 
-  const handleOpenStory = (story) => {
-      // 1. Tenta achar o ID do vídeo
+ // 1. Tenta achar o ID do vídeo
       const vId = story.videoId || getVideoId(story.link);
 
-      // 2. Se achou, abre o Player PWA e marca como visto
+      // 2. Se achou, usa a função onPlayVideo que já recebemos via Props
       if (vId) {
-          playYoutubePWA(vId); // <--- Chama o player leve
+          // Usa a mesma função que abre os vídeos da lista (super seguro)
+          onPlayVideo(story); 
+          
           if (onMarkAsSeen) onMarkAsSeen(story.id);
-          return; // Para aqui, não abre o modal antigo
+          return; 
       }
 
-      // 3. Fallback (só abre o modal antigo se não achar ID de vídeo)
+      // 3. Fallback...
       setActiveStory(story);
       if (onMarkAsSeen) onMarkAsSeen(story.id);
   };
