@@ -1705,8 +1705,7 @@ const generateBriefingFallback = async (news, apiKey) => {
     `;
 
     try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {            method: "POST",
-            headers: { "Content-Type": "application/json" },
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: { response_mime_type: "application/json" }
@@ -1759,8 +1758,7 @@ const generateSmartClustering = async (news, apiKey, limit = 50) => { // Limite 
   `;
 
   try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {      method: "POST",
-      headers: { "Content-Type": "application/json" },
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { response_mime_type: "application/json" }
@@ -1981,8 +1979,7 @@ const generateTrendRadar = async (news, apiKey) => {
   `;
 
   try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {      method: "POST",
-      headers: { "Content-Type": "application/json" },
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { response_mime_type: "application/json" }
