@@ -5274,24 +5274,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       if (!article) return null;
       return article.videoId || getVideoId(article.link);
   }, [article]);
-
-// ... (Mantenha sanitizeHtml, handleClosePanel, handleOpenInBrowser, handleToggleTranslation inalterados) ...
-  const PROBLEMATIC_DOMAINS = ['dty.com.br'];
-  const isProblematicSite = useMemo(() => {
-      if (!article?.link) return false;
-      return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
-  }, [article?.link]);
-
-  const sanitizeHtml = (html) => {
-      if (!html) return "";
-      let clean = html;
-      const headInjection = `<base href="${article.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
-      if (isProblematicSite) {
-          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "").replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "").replace(/data-src=/gi, 'src=').replace(/data-srcset=/gi, 'srcset=').replace(/loading="lazy"/gi, ''); 
-      }
-      if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
-      return `${headInjection}${clean}`;
-  };
+  
 
   // 1. EFEITO DE ABERTURA DO PAINEL (Só roda quando isOpen muda)
   useEffect(() => {
@@ -5302,7 +5285,9 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setIsAnimationDone(false);
         setIframeUrl(null);
         setReaderContent(null);
-      
+        // Garante que a fala pare quando o painel for fechado
+        GoogleTTSPlayer.stop();
+        setIsSpeakingArticle(false);
     }
     return () => clearTimeout(timer);
   }, [isOpen]);
@@ -5377,7 +5362,16 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   }, [article?.id, isOpen, videoId, isProblematicSite]);
 
   
-
+  const sanitizeHtml = (html) => {
+      if (!html) return "";
+      let clean = html;
+      const headInjection = `<base href="${article.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
+      if (isProblematicSite) {
+          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "").replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "").replace(/data-src=/gi, 'src=').replace(/data-srcset=/gi, 'srcset=').replace(/loading="lazy"/gi, ''); 
+      }
+      if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
+      return `${headInjection}${clean}`;
+  };
 
   const handleClosePanel = useCallback(() => {
       onClose(); 
