@@ -5330,6 +5330,7 @@ useEffect(() => {
         } catch (err) {
             console.warn("Falha ao buscar conteúdo, usando modo Magic:", err);
             setViewMode('magic');
+            setReaderContent(article);
         } finally {
             setIsLoading(false);
         }
