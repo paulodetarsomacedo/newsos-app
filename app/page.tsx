@@ -5301,8 +5301,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setIsAnimationDone(false);
         setIframeUrl(null);
         setReaderContent(null);
-        // Garante que a fala pare quando o painel for fechado
-        GoogleTTSPlayer.stop();
+        
         setIsSpeakingArticle(false);
     }
     return () => clearTimeout(timer);
