@@ -3045,36 +3045,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       
       <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
 
-  {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA COM LAYOUT CORRIGIDO --- */}
-      <div className="space-y-4 px-2">
-        {/* TÍTULO PRINCIPAL DA SEÇÃO */}
-        <div className="flex items-center gap-3 px-4">
-            <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                <Sparkles size={18} />
-            </div>
-            <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                As principais notícias, em múltiplos ângulos.
-            </h3>
-        </div>
 
-        {/* CONTORNO AURA ENVOLVENDO O WIDGET */}
-        <div 
-          className="rounded-[2.5rem] p-1" // O padding cria a borda
-          style={{ background: 'linear-gradient(135deg, #4f46e5, #a855f7, #ec4899, #f97316)' }}
-        >
-          <div className={`rounded-[2.25rem] overflow-hidden ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-            <WhileYouWereAwayWidget 
-              news={newsData} 
-              openArticle={openArticle} 
-              isDarkMode={isDarkMode} 
-              apiKey={apiKey} 
-              clusters={savedClusters}
-              setClusters={setSavedClusters}
-              onContextReady={() => {}} // onContextReady pode ser ajustado se necessário
-            />
-          </div>
-        </div>
-      </div>
 
       <SmartDigestWidget 
           newsData={newsData} 
@@ -4115,7 +4086,10 @@ const handleStoryNavigation = (direction) => {
     let newHistoryBuffer = { ...articleHistory };
 
     const promises = userFeeds.map(async (feed) => {
-        if (!feed || !feed.url) return;
+        if (!feed || typeof feed.url !== 'string' || !feed.url.startsWith('http')) {
+    console.warn('Ignorando feed inválido:', feed);
+    return; 
+}
 
         try {
             let feedItems = [];
@@ -4573,6 +4547,39 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     
                 />
             )}
+
+            {/* --- SEÇÃO DO CONTEXTO GLOBAL (AGORA NO LUGAR CORRETO) --- */}
+    {activeTab === 'happening' && (
+      <div className="space-y-4 px-2">
+        {/* TÍTULO PRINCIPAL DA SEÇÃO */}
+        <div className="flex items-center gap-3 px-4">
+            <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+                <Sparkles size={18} />
+            </div>
+            <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                As principais notícias, em múltiplos ângulos.
+            </h3>
+        </div>
+
+        {/* CONTORNO AURA ENVOLVENDO O WIDGET */}
+        <div 
+          className="rounded-[2.5rem] p-1"
+          style={{ background: 'linear-gradient(135deg, #4f46e5, #a855f7, #ec4899, #f97316)' }}
+        >
+          <div className={`rounded-[2.25rem] overflow-hidden ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+            <WhileYouWereAwayWidget 
+              news={realNews}               // <-- CORREÇÃO APLICADA
+              openArticle={handleOpenArticle}    // <-- CORREÇÃO APLICADA
+              isDarkMode={isDarkMode} 
+              apiKey={apiKey} 
+              clusters={globalClusters}      // <-- CORREÇÃO APLICADA
+              setClusters={setGlobalClusters}  // <-- CORREÇÃO APLICADA
+              onContextReady={() => {}}
+            />
+          </div>
+        </div>
+      </div>
+    )}
 
             {activeTab === 'podcast' && (
                 <PodcastTab 
