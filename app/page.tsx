@@ -1964,68 +1964,98 @@ const generateTrendRadar = async (news, apiKey) => {
   }
 };
 
-// --- WIDGET: SMART DIGEST (COM MINI BROWSER DE VIDRO) ---
+// 1. Sub-componente do Mini Navegador (Vidro - Agora Maior e Funcional)
+const GlassBrowser = ({ article, onClose, isDarkMode }) => {
+    
+    // Função para abrir no Safari Nativo (In-App)
+    const openInNativeBrowser = async () => {
+        try {
+            await Browser.open({
+                url: article.link,
+                presentationStyle: 'fullscreen',
+                toolbarColor: isDarkMode ? '#000000' : '#FFFFFF',
+            });
+            onClose(); // Fecha o modal de vidro ao abrir o navegador
+        } catch (e) {
+            // Fallback para web normal se não estiver no app
+            window.open(article.link, '_blank');
+        }
+    };
 
-// 1. Sub-componente do Mini Navegador (Vidro)
-const GlassBrowser = ({ article, onClose, onExpand, isDarkMode }) => {
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 animate-in fade-in duration-300">
-            {/* Backdrop com Blur suave */}
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
+            {/* Backdrop */}
             <div 
-                className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" 
+                className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity" 
                 onClick={onClose} 
             />
 
-            {/* A Janela de Vidro */}
+            {/* A Janela de Vidro - AGORA MAIOR */}
             <div className={`
-                relative w-full max-w-lg aspect-[4/5] md:aspect-square 
-                rounded-[2.5rem] overflow-hidden shadow-2xl border 
-                flex flex-col transition-all transform scale-100
-                animate-in zoom-in-95 duration-300
+                relative w-[95vw] h-[85vh] md:w-[800px] md:h-[90vh]
+                rounded-[2.5rem] overflow-hidden shadow-2xl border flex flex-col 
+                transition-all transform scale-100 animate-in zoom-in-95 duration-300
                 ${isDarkMode 
-                    ? 'bg-zinc-900/85 border-white/10 shadow-purple-500/10' 
-                    : 'bg-white/85 border-white/40 shadow-xl'}
+                    ? 'bg-zinc-900/90 border-white/10 shadow-purple-500/20' 
+                    : 'bg-white/90 border-white/40 shadow-xl'}
                 backdrop-blur-2xl
             `}>
                 
                 {/* Header do Vidro */}
                 <div className={`
-                    flex items-center justify-between px-6 py-4 border-b 
+                    flex items-center justify-between px-6 py-4 border-b flex-shrink-0
                     ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-black/5 bg-white/40'}
                 `}>
-                    <div className="flex items-center gap-3 overflow-hidden">
-                        <img src={article.logo} className="w-6 h-6 rounded-full shadow-sm" onError={(e) => e.target.style.display = 'none'} />
-                        <div className="flex flex-col">
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{article.source}</span>
-                            <span className={`text-xs font-bold truncate max-w-[180px] ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{article.title}</span>
+                    <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-black/20 p-0.5 flex-shrink-0">
+                            <img src={article.logo} className="w-full h-full rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider truncate ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                                {article.source}
+                            </span>
+                            <span className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                                {article.title}
+                            </span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button onClick={onExpand} className={`p-2 rounded-full transition active:scale-90 ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-black'}`} title="Abrir Tela Cheia">
-                            <Maximize2 size={16} />
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        <button 
+                            onClick={openInNativeBrowser} 
+                            className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition active:scale-95 ${isDarkMode ? 'bg-blue-600 text-white hover:bg-blue-500' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+                        >
+                            <Globe size={14} /> Abrir no Navegador
                         </button>
-                        <button onClick={onClose} className={`p-2 rounded-full transition active:scale-90 ${isDarkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}>
-                            <X size={16} />
+                        <button onClick={onClose} className={`p-2.5 rounded-full transition active:scale-90 ${isDarkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-black/5 text-black hover:bg-black/10'}`}>
+                            <X size={20} />
                         </button>
                     </div>
                 </div>
 
-                {/* Conteúdo (Iframe) */}
-                <div className="flex-1 relative w-full h-full bg-white">
+                {/* Conteúdo (Iframe com Scroll) */}
+                <div className="flex-1 relative w-full h-full bg-white overflow-hidden">
                     <iframe 
                         src={article.link} 
                         className="w-full h-full border-none"
                         title="Preview"
                         sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                        loading="lazy"
                     />
                     
-                    {/* Botão Flutuante Inferior (Caso o site não carregue bem) */}
-                    <div className="absolute bottom-6 left-0 right-0 flex justify-center pointer-events-none">
+                    {/* Aviso de erro de Iframe (Visualmente agradável) */}
+                    <div className="absolute inset-0 -z-10 flex flex-col items-center justify-center p-10 text-center opacity-50">
+                        <Globe size={48} className="mb-4 text-zinc-400"/>
+                        <p className="text-sm font-bold text-zinc-500">Carregando visualização...</p>
+                        <p className="text-xs text-zinc-400 mt-2">Se não abrir, use o botão abaixo.</p>
+                    </div>
+
+                    {/* Botão Flutuante Inferior (Principal Call to Action) */}
+                    <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none pb-safe">
                         <button 
-                            onClick={onExpand}
-                            className="pointer-events-auto shadow-xl bg-black text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform flex items-center gap-2"
+                            onClick={openInNativeBrowser}
+                            className="pointer-events-auto shadow-[0_10px_40px_rgba(0,0,0,0.3)] bg-black text-white px-8 py-4 rounded-full text-sm font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform flex items-center gap-3 border border-white/20 backdrop-blur-md"
                         >
-                            Ler Artigo Completo <ArrowRight size={14}/>
+                            Ler Artigo Completo <ArrowRight size={16}/>
                         </button>
                     </div>
                 </div>
@@ -2034,13 +2064,11 @@ const GlassBrowser = ({ article, onClose, onExpand, isDarkMode }) => {
     );
 };
 
-const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
+const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [digest, setDigest] = useState(null);
   const [status, setStatus] = useState('idle'); 
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  
-  // --- NOVO: Estado para o Modal de Vidro ---
   const [glassArticle, setGlassArticle] = useState(null);
 
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
@@ -2271,10 +2299,9 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
                                             topic.articles.map((article, idx) => (
                                                 <div 
                                                     key={idx}
-                                                    // AQUI ESTÁ A MUDANÇA: Abre o Modal de Vidro
                                                     onClick={(e) => { 
                                                         e.stopPropagation(); 
-                                                        setGlassArticle(article); // Define o artigo do modal
+                                                        setGlassArticle(article); 
                                                     }}
                                                     className={`
                                                         flex items-center gap-3 p-2 rounded-xl border transition-colors hover:scale-[1.01] active:scale-95
@@ -2327,15 +2354,10 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openA
       </div>
     </div>
 
-    {/* Renderiza o Glass Browser se houver um artigo selecionado */}
     {glassArticle && (
         <GlassBrowser 
             article={glassArticle} 
             onClose={() => setGlassArticle(null)}
-            onExpand={() => {
-                setGlassArticle(null);
-                openArticle(glassArticle); // Abre o painel completo original
-            }}
             isDarkMode={isDarkMode}
         />
     )}
