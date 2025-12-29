@@ -3941,6 +3941,9 @@ const getFullVideoUrl = (video) => {
 
 
 
+const FEED_CACHE_PREFIX = 'newsos_cache_v1_';
+
+
 
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
 export default function NewsOS_V12() {
@@ -4121,9 +4124,26 @@ const handleStoryNavigation = (direction) => {
   };
 
  
-  // --- FETCH FEEDS OTIMIZADO (COM CACHE LOCAL PARA ECONOMIZAR SUPABASE) ---
+  // --- FUNÇÃO AUXILIAR: LIMPEZA DE CACHE (Garbage Collection) ---
+  const cleanUpCache = () => {
+      try {
+          const keys = Object.keys(localStorage);
+          // AGORA ELA USA A CONSTANTE PARA SABER O QUE APAGAR
+          const cacheKeys = keys.filter(k => k.startsWith(FEED_CACHE_PREFIX));
+          
+          if (cacheKeys.length > 20) { 
+              // Ordena para apagar os mais antigos primeiro (opcional, mas bom)
+              // Aqui vamos apenas apagar para liberar espaço rápido
+              cacheKeys.forEach(key => localStorage.removeItem(key));
+              console.log("🧹 Cache limpo para liberar espaço.");
+          }
+      } catch (e) {
+          console.warn("Erro ao limpar cache:", e);
+      }
+  };
+
+  // --- FETCH FEEDS BLINDADO (V2 - Com Proteção de Quota) ---
   const fetchFeeds = async () => {
-    // Se não tiver feeds configurados, limpa tudo e retorna
     if (userFeeds.length === 0) {
         setRealNews([]);
         setRealVideos([]);
@@ -4133,78 +4153,71 @@ const handleStoryNavigation = (direction) => {
 
     setIsLoadingFeeds(true);
     
-    // Arrays para acumular os resultados
     let allNewsItems = [];
     let allVideoItems = [];
     let allPodcastItems = [];
     let feedsThatNeedUpdate = [];
     
-    // Buffer para persistência temporal (mantém a lógica original)
+    // Buffer para persistência temporal
     let newHistoryBuffer = { ...articleHistory };
 
-    // CONSTANTE DE CACHE: 15 Minutos (em milissegundos)
-    // Se o usuário atualizar antes disso, não gastamos dinheiro com Edge Functions.
-    const CACHE_TTL = 30 * 60 * 1000; 
+    // 15 Minutos de Cache
+    const CACHE_TTL = 15 * 60 * 1000; 
 
     const promises = userFeeds.map(async (feed) => {
         if (!feed.url) return;
 
-        try {
-            let feedItems = [];
-            let currentFeedTitle = feed.name; 
-            let detectedXmlTitle = "";
-            let feedLogo = null;
-            let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
-            
-            // --- 1. TENTA LER DO CACHE LOCAL ---
-            let fromCache = false;
-            const cacheKey = `newsos_cache_v1_${feed.id}`; // Chave única por feed
-            const cachedRaw = localStorage.getItem(cacheKey);
+        // Variáveis locais deste escopo
+        let feedItems = [];
+        let currentFeedTitle = feed.name; 
+        let detectedXmlTitle = "";
+        let feedLogo = null;
+        let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
+        let usedCache = false;
 
-            if (cachedRaw) {
-                try {
+        try {
+            // --- 1. TENTA LER DO CACHE LOCAL ---
+            const cacheKey = `${FEED_CACHE_PREFIX}${feed.id}`;
+            
+            try {
+                const cachedRaw = localStorage.getItem(cacheKey);
+                if (cachedRaw) {
                     const cachedData = JSON.parse(cachedRaw);
                     const now = Date.now();
-                    // Verifica se o cache ainda é válido (menos de 15 min)
+                    // Se cache for recente (< 15 min), usa ele
                     if (now - cachedData.timestamp < CACHE_TTL) {
-                        console.log(`⚡ Usando cache local para: ${feed.name}`); // Log para debug
+                        console.log(`⚡ Cache OK: ${feed.name}`);
                         feedItems = cachedData.items || [];
                         detectedXmlTitle = cachedData.title || "";
                         feedLogo = cachedData.logo || null;
                         if (cachedData.isYoutube) isFeedYoutube = true;
-                        fromCache = true;
+                        usedCache = true;
                     }
-                } catch (e) {
-                    console.error("Erro ao ler cache, baixando novamente...", e);
                 }
+            } catch (cacheErr) {
+                console.warn(`Cache corrompido para ${feed.name}, ignorando.`);
             }
 
-            // --- 2. SE NÃO TIVER CACHE VÁLIDO, FAZ O FETCH (GASTA DADOS) ---
-            if (!fromCache) {
+            // --- 2. SE NÃO USOU CACHE, BAIXA DA INTERNET ---
+            if (!usedCache) {
                 const isLegacySource = feed.url.includes('uol.com.br') || feed.url.includes('folha.uol.com.br');
 
                 if (isLegacySource) {
-                    // Lógica para fontes legadas (Proxy Gratuito)
-                    try {
-                        const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
-                        const res = await fetch(proxyUrl);
-                        if (!res.ok) throw new Error(`Proxy error: ${res.status}`);
-                        const buffer = await res.arrayBuffer();
-                        const decoder = new TextDecoder('iso-8859-1'); 
-                        const xmlText = decoder.decode(buffer);
-                        
-                        const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
-                        feedItems = parsedData.items;
-                        detectedXmlTitle = parsedData.realTitle; 
-                        
-                        if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
-                        else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
+                    // Fetch Proxy (Gratuito)
+                    const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
+                    const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error(`Proxy error: ${res.status}`);
+                    const buffer = await res.arrayBuffer();
+                    const decoder = new TextDecoder('iso-8859-1'); 
+                    const xmlText = decoder.decode(buffer);
+                    const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
+                    feedItems = parsedData.items;
+                    detectedXmlTitle = parsedData.realTitle; 
+                    if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
+                    else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
 
-                    } catch (legacyErr) { 
-                        console.error(`Erro legado (${feed.name}):`, legacyErr); 
-                    }
                 } else {
-                    // Lógica Padrão (Supabase Edge Function - CUSTA DINHEIRO)
+                    // Fetch Supabase (Pago/Quota)
                     const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
                     if (!error && data && data.items) {
                         feedItems = data.items;
@@ -4214,25 +4227,35 @@ const handleStoryNavigation = (direction) => {
                     }
                 }
 
-                // --- 3. SALVA O RESULTADO NO CACHE PARA A PRÓXIMA VEZ ---
+                // --- 3. TENTA SALVAR NO CACHE (COM PROTEÇÃO DE ERRO) ---
                 if (feedItems && feedItems.length > 0) {
-                    localStorage.setItem(cacheKey, JSON.stringify({
-                        timestamp: Date.now(),
-                        items: feedItems,
-                        title: detectedXmlTitle,
-                        logo: feedLogo,
-                        isYoutube: isFeedYoutube
-                    }));
+                    try {
+                        // Tenta salvar. Se der erro de Quota, cai no catch e NÃO trava o app.
+                        localStorage.setItem(cacheKey, JSON.stringify({
+                            timestamp: Date.now(),
+                            items: feedItems, // Salva apenas os itens essenciais
+                            title: detectedXmlTitle,
+                            logo: feedLogo,
+                            isYoutube: isFeedYoutube
+                        }));
+                    } catch (storageError) {
+                        // Se encher, tenta limpar e avisa, mas CONTINUA o fluxo
+                        if (storageError.name === 'QuotaExceededError') {
+                            console.warn("⚠️ Cache cheio! Executando limpeza...");
+                            cleanUpCache(); // Tenta limpar para a próxima vez
+                        }
+                    }
                 }
             }
 
-            // Atualiza nomes de feeds genéricos se necessário
+            // --- 4. PROCESSAMENTO PARA EXIBIÇÃO ---
+            // IMPORTANTE: Isso roda independente se o cache funcionou ou falhou
+            
             if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
                 currentFeedTitle = detectedXmlTitle || feed.name;
                 feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
             }
 
-            // Tratamento de Logo
             let finalLogo = feedLogo;
             if (isFeedYoutube && !finalLogo) {
                 finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
@@ -4245,39 +4268,27 @@ const handleStoryNavigation = (direction) => {
                }
             }
 
-            // Definição de Limites
             let LIMIT = 20; 
             if (feed.type === 'podcast') LIMIT = 1; 
             else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
 
-            // --- 4. PROCESSAMENTO E DEDUPLICAÇÃO TEMPORAL ---
-            // (Esta parte roda sempre, vindo do cache ou da rede, para garantir a consistência da UI)
-            
             let lastAssignedTime = 0;
 
             const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
-                // Geração de ID estável
                 const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
-
-                // Data base (vinda do XML/JSON)
                 const rawDateString = item.pubDate || item.date || item.isoDate;
                 let originalTimestamp = rawDateString ? new Date(rawDateString).getTime() : new Date().getTime();
                 if (isNaN(originalTimestamp)) originalTimestamp = new Date().getTime();
 
                 let finalTimestamp;
 
-                // PASSO A: VERIFICAR HISTÓRICO (Memória)
                 if (newHistoryBuffer[uniqueId]) {
                     finalTimestamp = newHistoryBuffer[uniqueId];
-                } 
-                else {
-                    // PASSO B: CALCULAR NOVO HORÁRIO (Se for notícia nova)
+                } else {
                     const TEN_MINUTES_MS = 10 * 60 * 1000;
-
                     if (index === 0) {
                         finalTimestamp = originalTimestamp;
                     } else {
-                        // Evita colisão de horários empurrando para trás
                         if (lastAssignedTime <= originalTimestamp + 1000) { 
                              finalTimestamp = lastAssignedTime - TEN_MINUTES_MS;
                         } else {
@@ -4290,7 +4301,6 @@ const handleStoryNavigation = (direction) => {
                 lastAssignedTime = finalTimestamp;
                 const finalDateObj = new Date(finalTimestamp);
 
-                // Montagem do Objeto Final
                 let primaryLink = item.link;
                 const enclosureUrl = item.enclosure?.url || item.audio;
                 let hasPlayableMedia = false;
@@ -4330,18 +4340,18 @@ const handleStoryNavigation = (direction) => {
                 };
             });
 
-            // Distribui para os arrays corretos
+            // Distribuição para os arrays globais
             if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
             else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) allVideoItems.push(...processedItems);
             else allNewsItems.push(...processedItems);
 
-        } catch (err) { console.error(`Erro no feed ${feed.name}`, err); }
+        } catch (err) { 
+            console.error(`Erro fatal ao processar feed ${feed.name}:`, err); 
+        }
     });
 
-    // Aguarda todos os feeds processarem
     await Promise.all(promises);
 
-    // Atualiza nomes de feeds genéricos no estado
     if (feedsThatNeedUpdate.length > 0) {
         setUserFeeds(prev => prev.map(f => {
             const update = feedsThatNeedUpdate.find(u => u.id === f.id);
@@ -4349,10 +4359,8 @@ const handleStoryNavigation = (direction) => {
         }));
     }
 
-    // Salva o histórico atualizado
     setArticleHistory(newHistoryBuffer);
 
-    // Função auxiliar para ordenação
     const getSafeTime = (dateInput) => {
         if (!dateInput) return 0;
         const time = new Date(dateInput).getTime();
@@ -4361,14 +4369,12 @@ const handleStoryNavigation = (direction) => {
 
     const sortFn = (a, b) => getSafeTime(b.rawDate) - getSafeTime(a.rawDate);
     
-    // Atualiza os estados finais da UI
     setRealNews([...allNewsItems].sort(sortFn));
     setRealVideos([...allVideoItems].sort(sortFn));
     setRealPodcasts([...allPodcastItems].sort(sortFn));
     
     setIsLoadingFeeds(false);
   };
-
   
 
   // --- OTIMIZAÇÃO DE MEMÓRIA: ARRAY ÚNICO MEMORIZADO ---
