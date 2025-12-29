@@ -4246,7 +4246,7 @@ const handleStoryNavigation = (direction) => {
                 if (feed.url.includes('investing') || currentFeedTitle.toLowerCase().includes('investing')) {
                     const now = new Date();
                     // Se a data da notícia for maior que "Agora + 1 minuto"
-                    if (finalDateObj > new Date(now.getTime() + 60000)) {
+                    if (finalDateObj > new Date(now.getTime() + 190000)) {
                         // Ajusta para o horário atual real
                         finalDateObj.setTime(now.getTime());
                         // Atualiza o timestamp também para manter a coerência
