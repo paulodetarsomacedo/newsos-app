@@ -3595,98 +3595,102 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       
       const parserError = xmlDoc.querySelector("parsererror");
       if (parserError) {
-          console.warn("Erro ao ler XML de:", feedSource);
+          console.error("Erro CRÍTICO de parse no XML de:", feedSource, parserError);
           return { items: [], realTitle: feedSource, realLogo: null };
       }
 
       let detectedTitle = feedSource;
-      const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
+      const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("feed > title");
       if (channelTitle && channelTitle.textContent) {
           detectedTitle = channelTitle.textContent.trim();
       }
 
       let siteLink = "";
-      const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("link");
+      const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("feed > link[rel='alternate']") || xmlDoc.querySelector("feed > link");
       if (channelLink) {
           siteLink = channelLink.textContent || channelLink.getAttribute("href") || "";
       }
 
-      let autoLogo = `https://ui-avatars.com/api/?name=${detectedTitle}&background=random`;
+      let autoLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(detectedTitle)}&background=random`;
       if (siteLink) {
           try {
               const domain = new URL(siteLink).hostname;
               autoLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-          } catch (e) { /* ignora */ }
+          } catch (e) { /* ignora url inválida */ }
       }
 
       const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
       
       const parsedItems = items.map((node) => {
+        
         const getTxt = (tag) => {
-            if (tag.includes(':')) {
-                const els = node.getElementsByTagName(tag);
-                return els.length > 0 ? els[0].textContent : "";
-            }
-            return node.querySelector(tag)?.textContent || "";
+            const element = node.getElementsByTagName(tag)[0] || node.querySelector(tag);
+            return element?.textContent || "";
         };
 
         const linkNode = node.querySelector("link");
-        let link = linkNode?.getAttribute("href") || linkNode?.textContent || "";
-
-        const ytId = getTxt("yt:videoId") || getTxt("videoId");
-        if (ytId) link = `https://www.youtube.com/watch?v=${ytId}`;
-        
-        const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated");
-        const rawDateValue = pubDate ? new Date(pubDate) : null;
-        
-        const description = getTxt("description") || getTxt("summary");
-        const contentEncoded = getTxt("content:encoded") || getTxt("content");
+        let link = linkNode?.getAttribute("href") || linkNode?.textContent || getTxt("guid") || "";
 
         let img = null;
-        const mediaContent = node.getElementsByTagName("media:content");
-        if (mediaContent.length > 0) img = mediaContent[0].getAttribute("url");
+        const mediaThumb = node.getElementsByTagName("media:thumbnail")[0];
+        if (mediaThumb) img = mediaThumb.getAttribute("url");
         if (!img) {
-            const mediaThumb = node.getElementsByTagName("media:thumbnail")[0];
-            if (mediaThumb) img = mediaThumb.getAttribute("url");
+            const mediaContent = node.getElementsByTagName("media:content")[0];
+            if (mediaContent) img = mediaContent.getAttribute("url");
         }
         if (!img) {
             const enclosure = node.querySelector("enclosure");
-            if (enclosure && enclosure.getAttribute("type")?.includes("image")) {
+            if (enclosure && enclosure.getAttribute("type")?.startsWith("image")) {
                 img = enclosure.getAttribute("url");
             }
         }
-        if (!img) img = extractImageFromContent(contentEncoded);
-        if (!img) img = extractImageFromContent(description);
+        if (!img) {
+            const content = getTxt("content:encoded") || getTxt("description") || getTxt("summary");
+            const imgMatch = content.match(/<img[^>]+src\s*=\s*["']([^"']+)["']/i);
+            if (imgMatch) img = imgMatch[1];
+        }
 
         const title = getTxt("title");
+        const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated");
+        const rawDateValue = pubDate ? new Date(pubDate) : null;
+        
+        const summaryText = getTxt("content:encoded") || getTxt("description") || getTxt("summary");
+        const cleanSummary = summaryText.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...';
+
+        const ytId = getTxt("yt:videoId");
+        
+        // --- AQUI ESTAVA O ERRO ---
+        // Agora a linha está completa e correta.
+        if (ytId) {
+            link = `https://www.youtube.com/watch?v=${ytId}`;
+        }
+        // --- FIM DA CORREÇÃO ---
+
         const stableId = stringToHash(title + link);
 
         return {
           id: `${feedId}-${stableId}`,
           source: detectedTitle,
           logo: autoLogo,
-          // A LINHA 'time:' FOI REMOVIDA DAQUI
           rawDate: rawDateValue,
-          title: title,
-          summary: description.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
+          title: title.trim(),
+          summary: cleanSummary,
           category: 'Geral',
           img: img,
           readTime: '3 min',
-          link: link,
+          link: link.trim(),
           origin: 'rss',
           videoId: ytId
         };
-      });
+      }).filter(item => item.title);
 
       return { items: parsedItems, realTitle: detectedTitle, realLogo: autoLogo };
 
   } catch (err) {
-      console.error("Erro fatal no parser:", err);
+      console.error("Erro fatal no NOVO parser:", err);
       return { items: [], realTitle: feedSource, realLogo: null };
   }
 };
-
-
 
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
