@@ -4126,7 +4126,9 @@ const handleStoryNavigation = (direction) => {
 
  
   // --- FETCH FEEDS (V17 - COM PERSISTÊNCIA DE HORÁRIO E INTERVALO DE 10 MIN) ---
-  const fetchFeeds = async () => {
+  
+
+const fetchFeeds = async () => {
     if (userFeeds.length === 0) {
         setRealNews([]);
         setRealVideos([]);
@@ -4142,52 +4144,39 @@ const handleStoryNavigation = (direction) => {
     let feedsThatNeedUpdate = [];
     let newHistoryBuffer = { ...articleHistory };
     
-    // LISTA DE FEEDS PROBLEMÁTICOS QUE PRECISAM USAR A EDGE FUNCTION
-    // Adicione aqui qualquer outro feed que der erro no futuro.
-    const PROBLEMATIC_DOMAINS = [
-        'cnnbrasil.com.br',
-        'noticiasaominuto.com.br',
-        // Adicione outros domínios aqui se necessário
-    ];
-
-    const CACHE_DURATION_MS = 15 * 60 * 1000;
+    const CACHE_DURATION_MS = 15 * 60 * 1000; // 15 minutos de cache no cliente
 
     const promises = userFeeds.map(async (feed) => {
-        if (!feed.url || feed.url.length < 5 || !feed.url.startsWith('http')) {
-            console.warn("Feed ignorado por URL inválida:", feed.name);
+        if (!feed.url || !feed.url.length < 5 || !feed.url.startsWith('http')) {
+            console.warn(`Feed ignorado por URL inválida: ${feed.name}`);
             return;
         }
 
-        // --- INÍCIO DA LÓGICA HÍBRIDA ---
-        const isProblematic = PROBLEMATIC_DOMAINS.some(domain => feed.url.includes(domain));
-        
         let feedDataFromSource = null;
 
         try {
-            if (isProblematic) {
-                // MÉTODO A: ROBUSTO (EDGE FUNCTION) PARA FEEDS PROBLEMÁTICOS
-                console.log(`Usando Edge Function (método robusto) para: ${feed.name}`);
-                const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
-                if (error || !data) throw new Error(`Edge function falhou para ${feed.name}: ${error?.message}`);
-                feedDataFromSource = {
-                    items: data.items || [],
-                    realTitle: data.title || feed.name,
-                    realLogo: data.image || null
-                };
-            } else {
-                // MÉTODO B: ECONÔMICO (CLIENT-SIDE) PARA FEEDS NORMAIS
-                const now = new Date().getTime();
-                const cacheKey = `feed_cache_${feed.id}`;
-                const cachedItem = JSON.parse(localStorage.getItem(cacheKey));
+            // =================================================================
+            // ETAPA 1: TENTAR O MÉTODO BARATO (CLIENT-SIDE) PRIMEIRO
+            // =================================================================
+            const now = new Date().getTime();
+            const cacheKey = `feed_cache_${feed.id}`;
+            const cachedItem = JSON.parse(localStorage.getItem(cacheKey));
 
-                if (cachedItem && (now - cachedItem.timestamp < CACHE_DURATION_MS)) {
-                    console.log(`Usando CACHE para o feed: ${feed.name}`);
-                    feedDataFromSource = cachedItem;
-                } else {
-                    console.log(`Usando Client-side Fetch (método econômico) para: ${feed.name}`);
+            if (cachedItem && (now - cachedItem.timestamp < CACHE_DURATION_MS)) {
+                // Se estiver no cache, usamos e pulamos a rede.
+                console.log(`[Cache] Usando cache para: ${feed.name}`);
+                feedDataFromSource = cachedItem;
+            } else {
+                try {
+                    console.log(`[Plano A] Tentando fetch via cliente para: ${feed.name}`);
                     const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
                     const res = await fetch(proxyUrl);
-                    if (!res.ok) throw new Error(`Proxy CORS error: ${res.status}`);
+                    
+                    // Se a resposta NÃO for OK (ex: 403, 502), nós forçamos um erro
+                    // para que o bloco CATCH seja ativado.
+                    if (!res.ok) {
+                        throw new Error(`Proxy CORS retornou status: ${res.status}`);
+                    }
 
                     const buffer = await res.arrayBuffer();
                     const decoder = new TextDecoder('iso-8859-1'); 
@@ -4200,110 +4189,66 @@ const handleStoryNavigation = (direction) => {
                         realLogo: parsedData.realLogo,
                     };
                     
+                    // Salva o sucesso no cache
                     localStorage.setItem(cacheKey, JSON.stringify({ ...feedDataFromSource, timestamp: now }));
+                
+                } catch (clientError) {
+                    // =================================================================
+                    // ETAPA 2: O MÉTODO BARATO FALHOU. ATIVAR O PLANO B (FALLBACK)
+                    // =================================================================
+                    console.warn(`[Plano A Falhou] Erro no cliente para ${feed.name}: ${clientError.message}. Ativando Plano B (Edge Function).`);
+                    
+                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
+                    
+                    if (error || !data) {
+                        throw new Error(`[Plano B Falhou] Edge Function também falhou para ${feed.name}: ${error?.message}`);
+                    }
+                    
+                    // A Edge Function nos retorna um formato ligeiramente diferente, então adaptamos.
+                    // ATENÇÃO: Verifique se sua Edge Function retorna 'title', 'items', 'image'.
+                    feedDataFromSource = {
+                        items: data.items.map(item => ({...item})), // Apenas para garantir que é um objeto parseado
+                        realTitle: data.title || feed.name,
+                        realLogo: data.image || null
+                    };
                 }
             }
             
-            // O restante do código de processamento continua igual, usando 'feedDataFromSource'
+            // Daqui para baixo, o código processa os dados, não importa de onde vieram (Plano A ou B)
             const { items: feedItems, realTitle: detectedXmlTitle, realLogo: feedLogo } = feedDataFromSource;
-            let currentFeedTitle = feed.name;
-            // ... (o resto da sua lógica de processamento, a partir daqui, não precisa mudar)
 
+            // ... (o resto da sua lógica de processamento, a partir daqui, não precisa mudar) ...
             // Cole o restante da sua função fetchFeeds (a parte que processa os itens) aqui.
-            // A parte que começa com: if (feed.name === 'Nova Fonte'...)
-            if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
-                currentFeedTitle = detectedXmlTitle || feed.name;
-                feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
-            }
-
+            // A parte que começa com: let currentFeedTitle = feed.name;
+            let currentFeedTitle = feed.name;
+            if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') { currentFeedTitle = detectedXmlTitle || feed.name; feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle }); }
             let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
             let finalLogo = feedLogo;
-            if (isFeedYoutube && !finalLogo) {
-                finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
-            } else if (!finalLogo) {
-               try {
-                   const domain = new URL(feed.url).hostname;
-                   finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-               } catch (e) {
-                   finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`;
-               }
-            }
-            
-            let LIMIT = 20; 
-            if (feed.type === 'podcast') LIMIT = 1; 
-            else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
-            
+            if (isFeedYoutube && !finalLogo) { finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`; } else if (!finalLogo) { try { const domain = new URL(feed.url).hostname; finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`; } catch (e) { finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`; } }
+            let LIMIT = 20; if (feed.type === 'podcast') LIMIT = 1; else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
             let lastAssignedTime = 0;
-
             const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
                 const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
                 const rawDateString = item.pubDate || item.date || item.isoDate;
                 let originalTimestamp = rawDateString ? new Date(rawDateString).getTime() : new Date().getTime();
                 if (isNaN(originalTimestamp)) originalTimestamp = new Date().getTime();
                 let finalTimestamp;
-                if (newHistoryBuffer[uniqueId]) {
-                    finalTimestamp = newHistoryBuffer[uniqueId];
-                } 
-                else {
-                    const TEN_MINUTES_MS = 10 * 60 * 1000;
-                    if (index === 0) {
-                        finalTimestamp = originalTimestamp;
-                    } else {
-                        if (lastAssignedTime <= originalTimestamp + 1000) {
-                             finalTimestamp = lastAssignedTime - TEN_MINUTES_MS;
-                        } else {
-                             finalTimestamp = originalTimestamp;
-                        }
-                    }
-                    newHistoryBuffer[uniqueId] = finalTimestamp;
-                }
+                if (newHistoryBuffer[uniqueId]) { finalTimestamp = newHistoryBuffer[uniqueId]; } else { const TEN_MINUTES_MS = 10 * 60 * 1000; if (index === 0) { finalTimestamp = originalTimestamp; } else { if (lastAssignedTime <= originalTimestamp + 1000) { finalTimestamp = lastAssignedTime - TEN_MINUTES_MS; } else { finalTimestamp = originalTimestamp; } } newHistoryBuffer[uniqueId] = finalTimestamp; }
                 lastAssignedTime = finalTimestamp;
                 const finalDateObj = new Date(finalTimestamp);
-                let primaryLink = item.link;
-                const enclosureUrl = item.enclosure?.url || item.audio;
-                let hasPlayableMedia = false;
-                if (enclosureUrl) {
-                    const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || (enclosureUrl && enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i));
-                    if (isImage) { item.img = enclosureUrl; } 
-                    else { primaryLink = enclosureUrl; hasPlayableMedia = true; }
-                }
-                const itemImg = item.img || item.image || finalLogo;
-                const itemSummary = item.summary || item.description || '';
-                const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
-                let finalType = 'link'; 
-                if (isYoutubeItem) finalType = 'video';
-                else if (hasPlayableMedia || (primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a')))) finalType = 'audio'; 
-
-                return {
-                    id: uniqueId,
-                    source: currentFeedTitle, 
-                    show: currentFeedTitle,
-                    logo: finalLogo, 
-                    time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    rawDate: finalDateObj, 
-                    title: item.title,
-                    summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
-                    category: feed.type === 'podcast' ? 'Podcast' : (item.category || 'Geral'),
-                    type: finalType, 
-                    img: itemImg,
-                    cover: itemImg, 
-                    link: primaryLink, 
-                    url: item.link,
-                    videoId: item.videoId || getVideoId(item.link),
-                    date: finalDateObj.toLocaleDateString(),
-                };
+                let primaryLink = item.link; const enclosureUrl = item.enclosure?.url || item.audio; let hasPlayableMedia = false; if (enclosureUrl) { const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || (enclosureUrl && enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i)); if (isImage) { item.img = enclosureUrl; } else { primaryLink = enclosureUrl; hasPlayableMedia = true; } }
+                const itemImg = item.img || item.image || finalLogo; const itemSummary = item.summary || item.description || ''; const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube; let finalType = 'link'; if (isYoutubeItem) finalType = 'video'; else if (hasPlayableMedia || (primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a')))) finalType = 'audio';
+                return { id: uniqueId, source: currentFeedTitle, show: currentFeedTitle, logo: finalLogo, time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), rawDate: finalDateObj, title: item.title, summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...', category: feed.type === 'podcast' ? 'Podcast' : (item.category || 'Geral'), type: finalType, img: itemImg, cover: itemImg, link: primaryLink, url: item.link, videoId: item.videoId || getVideoId(item.link), date: finalDateObj.toLocaleDateString(), };
             });
-
-            if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
-            else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) allVideoItems.push(...processedItems);
-            else allNewsItems.push(...processedItems);
-
-        } catch (err) { console.error(`Erro final ao processar o feed ${feed.name}:`, err); }
+            if (feed.type === 'podcast') allPodcastItems.push(...processedItems); else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) allVideoItems.push(...processedItems); else allNewsItems.push(...processedItems);
+        } catch (finalError) {
+            // Se até o Plano B falhou, nós apenas registramos o erro e seguimos em frente.
+            // Isso impede que um único feed quebrado trave o app inteiro.
+            console.error(`[FALHA TOTAL] Não foi possível carregar o feed ${feed.name}. Erro: ${finalError.message}`);
+        }
     });
 
     await Promise.all(promises);
-    
-    // (O resto da função, para atualizar os estados, continua o mesmo)
     if (feedsThatNeedUpdate.length > 0) { setUserFeeds(prev => prev.map(f => { const update = feedsThatNeedUpdate.find(u => u.id === f.id); return update ? { ...f, name: update.name } : f; })); }
     setArticleHistory(newHistoryBuffer);
     const getSafeTime = (dateInput) => { if (!dateInput) return 0; const time = new Date(dateInput).getTime(); return isNaN(time) ? 0 : time; };
@@ -4313,6 +4258,8 @@ const handleStoryNavigation = (direction) => {
     setRealPodcasts([...allPodcastItems].sort(sortFn));
     setIsLoadingFeeds(false);
 };
+
+
 
   // --- OTIMIZAÇÃO DE MEMÓRIA: ARRAY ÚNICO MEMORIZADO ---
   // Evita criar arrays gigantes no meio da renderização, prevenindo crashes no iOS
