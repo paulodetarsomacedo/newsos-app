@@ -4142,8 +4142,14 @@ const handleStoryNavigation = (direction) => {
     let feedsThatNeedUpdate = [];
     let newHistoryBuffer = { ...articleHistory };
     
-    // Duração do cache no navegador do usuário (15 minutos)
-    // Isso evita que o app busque os mesmos feeds repetidamente.
+    // LISTA DE FEEDS PROBLEMÁTICOS QUE PRECISAM USAR A EDGE FUNCTION
+    // Adicione aqui qualquer outro feed que der erro no futuro.
+    const PROBLEMATIC_DOMAINS = [
+        'cnnbrasil.com.br',
+        'noticiasaominuto.com.br',
+        // Adicione outros domínios aqui se necessário
+    ];
+
     const CACHE_DURATION_MS = 15 * 60 * 1000;
 
     const promises = userFeeds.map(async (feed) => {
@@ -4152,64 +4158,65 @@ const handleStoryNavigation = (direction) => {
             return;
         }
 
+        // --- INÍCIO DA LÓGICA HÍBRIDA ---
+        const isProblematic = PROBLEMATIC_DOMAINS.some(domain => feed.url.includes(domain));
+        
+        let feedDataFromSource = null;
+
         try {
-            let feedItems = [];
-            let currentFeedTitle = feed.name;
-            let detectedXmlTitle = "";
-            let feedLogo = null;
-            let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
-            
-            // --- INÍCIO DA MUDANÇA PRINCIPAL: LÓGICA DE CACHE E FETCH NO CLIENTE ---
-
-            const now = new Date().getTime();
-            const cacheKey = `feed_cache_${feed.id}`;
-            const cachedItem = JSON.parse(localStorage.getItem(cacheKey));
-
-            // 1. Tenta pegar os dados do cache do navegador primeiro
-            if (cachedItem && (now - cachedItem.timestamp < CACHE_DURATION_MS)) {
-                console.log(`Usando CACHE para o feed: ${feed.name}`);
-                feedItems = cachedItem.items;
-                detectedXmlTitle = cachedItem.realTitle;
-                feedLogo = cachedItem.realLogo;
-
-            } else {
-                console.log(`Buscando na REDE para o feed: ${feed.name}`);
-                // 2. Se não tem cache ou ele expirou, busca na rede usando o proxy
-                // O proxy 'corsproxy.io' adiciona os cabeçalhos de permissão (CORS) para nós.
-                // Isso resolve o problema de segurança do navegador de forma gratuita.
-                const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
-                const res = await fetch(proxyUrl);
-                if (!res.ok) throw new Error(`Proxy CORS error: ${res.status}`);
-
-                // Usamos 'arrayBuffer' e 'TextDecoder' para lidar com qualquer tipo de
-                // codificação de caracteres que os feeds antigos possam ter (ex: UOL, Folha).
-                const buffer = await res.arrayBuffer();
-                const decoder = new TextDecoder('iso-8859-1'); 
-                const xmlText = decoder.decode(buffer);
-                
-                // Reutilizamos a sua função de parse que já é ótima!
-                const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
-                feedItems = parsedData.items;
-                detectedXmlTitle = parsedData.realTitle; 
-                feedLogo = parsedData.realLogo;
-
-                // 3. Salva o resultado no cache do navegador para a próxima vez
-                const dataToCache = {
-                    items: feedItems,
-                    realTitle: detectedXmlTitle,
-                    realLogo: feedLogo,
-                    timestamp: now
+            if (isProblematic) {
+                // MÉTODO A: ROBUSTO (EDGE FUNCTION) PARA FEEDS PROBLEMÁTICOS
+                console.log(`Usando Edge Function (método robusto) para: ${feed.name}`);
+                const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
+                if (error || !data) throw new Error(`Edge function falhou para ${feed.name}: ${error?.message}`);
+                feedDataFromSource = {
+                    items: data.items || [],
+                    realTitle: data.title || feed.name,
+                    realLogo: data.image || null
                 };
-                localStorage.setItem(cacheKey, JSON.stringify(dataToCache));
+            } else {
+                // MÉTODO B: ECONÔMICO (CLIENT-SIDE) PARA FEEDS NORMAIS
+                const now = new Date().getTime();
+                const cacheKey = `feed_cache_${feed.id}`;
+                const cachedItem = JSON.parse(localStorage.getItem(cacheKey));
+
+                if (cachedItem && (now - cachedItem.timestamp < CACHE_DURATION_MS)) {
+                    console.log(`Usando CACHE para o feed: ${feed.name}`);
+                    feedDataFromSource = cachedItem;
+                } else {
+                    console.log(`Usando Client-side Fetch (método econômico) para: ${feed.name}`);
+                    const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
+                    const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error(`Proxy CORS error: ${res.status}`);
+
+                    const buffer = await res.arrayBuffer();
+                    const decoder = new TextDecoder('iso-8859-1'); 
+                    const xmlText = decoder.decode(buffer);
+                    
+                    const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
+                    feedDataFromSource = {
+                        items: parsedData.items,
+                        realTitle: parsedData.realTitle,
+                        realLogo: parsedData.realLogo,
+                    };
+                    
+                    localStorage.setItem(cacheKey, JSON.stringify({ ...feedDataFromSource, timestamp: now }));
+                }
             }
             
-            // --- FIM DA MUDANÇA PRINCIPAL ---
+            // O restante do código de processamento continua igual, usando 'feedDataFromSource'
+            const { items: feedItems, realTitle: detectedXmlTitle, realLogo: feedLogo } = feedDataFromSource;
+            let currentFeedTitle = feed.name;
+            // ... (o resto da sua lógica de processamento, a partir daqui, não precisa mudar)
 
+            // Cole o restante da sua função fetchFeeds (a parte que processa os itens) aqui.
+            // A parte que começa com: if (feed.name === 'Nova Fonte'...)
             if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
                 currentFeedTitle = detectedXmlTitle || feed.name;
                 feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
             }
 
+            let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
             let finalLogo = feedLogo;
             if (isFeedYoutube && !finalLogo) {
                 finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
@@ -4222,7 +4229,6 @@ const handleStoryNavigation = (direction) => {
                }
             }
             
-            // O resto da sua lógica de processamento e dedupicação de horário continua a mesma
             let LIMIT = 20; 
             if (feed.type === 'podcast') LIMIT = 1; 
             else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
@@ -4292,32 +4298,21 @@ const handleStoryNavigation = (direction) => {
             else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) allVideoItems.push(...processedItems);
             else allNewsItems.push(...processedItems);
 
-        } catch (err) { console.error(`Erro no feed ${feed.name}`, err); }
+        } catch (err) { console.error(`Erro final ao processar o feed ${feed.name}:`, err); }
     });
 
     await Promise.all(promises);
-
-    if (feedsThatNeedUpdate.length > 0) {
-        setUserFeeds(prev => prev.map(f => {
-            const update = feedsThatNeedUpdate.find(u => u.id === f.id);
-            return update ? { ...f, name: update.name } : f;
-        }));
-    }
-
+    
+    // (O resto da função, para atualizar os estados, continua o mesmo)
+    if (feedsThatNeedUpdate.length > 0) { setUserFeeds(prev => prev.map(f => { const update = feedsThatNeedUpdate.find(u => u.id === f.id); return update ? { ...f, name: update.name } : f; })); }
     setArticleHistory(newHistoryBuffer);
-    const getSafeTime = (dateInput) => {
-        if (!dateInput) return 0;
-        const time = new Date(dateInput).getTime();
-        return isNaN(time) ? 0 : time;
-    };
+    const getSafeTime = (dateInput) => { if (!dateInput) return 0; const time = new Date(dateInput).getTime(); return isNaN(time) ? 0 : time; };
     const sortFn = (a, b) => getSafeTime(b.rawDate) - getSafeTime(a.rawDate);
     setRealNews([...allNewsItems].sort(sortFn));
     setRealVideos([...allVideoItems].sort(sortFn));
     setRealPodcasts([...allPodcastItems].sort(sortFn));
     setIsLoadingFeeds(false);
-  };
-
-  
+};
 
   // --- OTIMIZAÇÃO DE MEMÓRIA: ARRAY ÚNICO MEMORIZADO ---
   // Evita criar arrays gigantes no meio da renderização, prevenindo crashes no iOS
