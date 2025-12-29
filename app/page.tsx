@@ -2815,13 +2815,32 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
 
 
 
-// --- COMPONENTE TREND RADAR (ECONÔMICO - MANUAL) ---
-const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
+// --- COMPONENTE TREND RADAR (PERSISTENTE + MANUAL) ---
+const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
-  // Estado para controlar se já foi gerado alguma vez
   const [hasGenerated, setHasGenerated] = useState(false);
+
+  // Chave para salvar no celular
+  const STORAGE_KEY = 'newsos_trend_radar_data_v1';
+
+  // 1. CARREGAR DADOS SALVOS AO INICIAR
+  useEffect(() => {
+      const savedData = localStorage.getItem(STORAGE_KEY);
+      if (savedData) {
+          try {
+              const parsed = JSON.parse(savedData);
+              // Verifica se tem dados válidos
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                  setTrends(parsed);
+                  setHasGenerated(true);
+              }
+          } catch (e) {
+              console.error("Erro ao ler Trend Radar salvo", e);
+          }
+      }
+  }, []); // Roda apenas uma vez na montagem
 
   // --- LÓGICA DE ESTILO FÍSICO ---
   const getTrendStyle = (score) => {
@@ -2831,14 +2850,15 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
       return { color: '#3b82f6', bottomHeight: '2px', shadow: 'none', scale: 'scale(0.98)' };
   };
 
-  // REMOVIDO O USEEFFECT AUTOMÁTICO QUE GASTAVA DINHEIRO
-  
   const runTrendAnalysis = async () => {
     if (!apiKey) {
         alert("Configure sua API Key primeiro.");
         return;
     }
-    if (!newsData || newsData.length === 0) return;
+    if (!newsData || newsData.length === 0) {
+        alert("Aguarde as notícias carregarem.");
+        return;
+    }
 
     setLoading(true);
     setActiveIndex(null);
@@ -2846,10 +2866,16 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
     // Pequeno delay para UX
     await new Promise(r => setTimeout(r, 600)); 
     
+    // Chama a função otimizada (Custo Zero)
     const data = await generateTrendRadar(newsData, apiKey);
-    if (data && Array.isArray(data)) {
+    
+    if (data && Array.isArray(data) && data.length > 0) {
         setTrends(data);
         setHasGenerated(true);
+        // 2. SALVAR NO LOCALSTORAGE ASSIM QUE A IA RESPONDER
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } else {
+        alert("A IA não identificou tendências claras agora. Tente mais tarde.");
     }
     setLoading(false);
   };
@@ -2962,7 +2988,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
     </div>
   );
 };
-
 
 
 
@@ -4240,17 +4265,19 @@ const handleStoryNavigation = (direction) => {
             lastAssignedTime = finalTimestamp;
             const finalDateObj = new Date(finalTimestamp);
 
-            // --- CORREÇÃO ESPECÍFICA PARA INVESTING BR ---
-                // Se a fonte for Investing E a data for no futuro (mais de 5 min à frente),
-                // nós forçamos a data para "Agora" para evitar que ela fure a fila do feed.
+            // --- CORREÇÃO ESPECÍFICA PARA INVESTING BR (COM ATRASO) ---
+                // Se a fonte for Investing, aplicamos uma "penalidade" de tempo.
+                // Motivo: Eles enviam datas futuras ou muito recentes incorretas que poluem o topo.
                 if (feed.url.includes('investing') || currentFeedTitle.toLowerCase().includes('investing')) {
                     const now = new Date();
-                    // Se a data da notícia for maior que "Agora + 1 minuto"
-                    if (finalDateObj > new Date(now.getTime() + 190000)) {
-                        // Ajusta para o horário atual real
-                        finalDateObj.setTime(now.getTime());
-                        // Atualiza o timestamp também para manter a coerência
-                        lastAssignedTime = now.getTime(); 
+                    // Se a data for no futuro OU se for muito recente (para evitar spam no topo)
+                    if (finalDateObj > new Date(now.getTime() - 60000)) {
+                        // Força a data para 30 MINUTOS ATRÁS
+                        const penaltyTime = 30 * 60 * 1000; 
+                        finalDateObj.setTime(now.getTime() - penaltyTime);
+                        
+                        // Atualiza o rastreador para que as próximas desse feed sigam essa ordem
+                        lastAssignedTime = finalDateObj.getTime(); 
                     }
                 }
                 // ---------------------------------------------
