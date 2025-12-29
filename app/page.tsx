@@ -4341,9 +4341,25 @@ const handleStoryNavigation = (direction) => {
             });
 
             // Distribuição para os arrays globais
-            if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
-            else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) allVideoItems.push(...processedItems);
-            else allNewsItems.push(...processedItems);
+            if (feed.type === 'podcast') {
+                // REGRA 1: Se você cadastrou como Podcast (mesmo sendo link do YouTube), 
+                // ele vai para a aba PODCAST.
+                processedItems.forEach(i => {
+                    i.category = 'Podcast';
+                    // Mantemos o tipo original (video/audio) para o player saber como tocar,
+                    // mas forçamos a entrada na lista de Podcasts.
+                });
+                allPodcastItems.push(...processedItems);
+            } 
+            else if (feed.type === 'youtube' || isFeedYoutube) {
+                // REGRA 2: Se você cadastrou como Vídeo OU se é um link do YouTube 
+                // (e não foi marcado como Podcast acima), vai para a aba VÍDEOS.
+                allVideoItems.push(...processedItems);
+            } 
+            else {
+                // REGRA 3: Todo o resto vai para a aba FEED (Notícias).
+                allNewsItems.push(...processedItems);
+            }
 
         } catch (err) { 
             console.error(`Erro fatal ao processar feed ${feed.name}:`, err); 
