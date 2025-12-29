@@ -2265,16 +2265,19 @@ const generateHeuristicClusters = (news) => {
 
 
 // --- WIDGET: CONTEXTO GLOBAL (V2 - SEM TÍTULO INTERNO) ---
-const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters, onContextReady }) => {
+const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
 
+  // A heurística agora é o estado padrão
   const heuristicClusters = useMemo(() => {
+      // Só gera se a IA ainda não rodou (clusters é null)
       if (clusters && clusters.length > 0) return [];
       return generateHeuristicClusters(news);
   }, [news, clusters]);
 
+  // A IA só roda quando esta função é chamada pelo clique do botão
   const runAI = async () => {
       if (!apiKey) {
           alert("Configure sua API Key nas configurações primeiro.");
@@ -2285,7 +2288,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
           return;
       }
       setLoading(true);
-      setClusters(null); 
+      setClusters(null); // Limpa clusters antigos para mostrar o loading
       await new Promise(r => setTimeout(r, 800));
       const result = await generateSmartClustering(news, apiKey, 300);
       if (result) {
@@ -2296,12 +2299,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       setLoading(false);
   };
   
-  useEffect(() => {
-    if (heuristicClusters && heuristicClusters.length > 0 && onContextReady) {
-        onContextReady();
-    }
-  }, [heuristicClusters, onContextReady]);
-
   const handleScroll = () => {
     if (scrollRef.current) {
       const scrollLeft = scrollRef.current.scrollLeft;
@@ -2317,8 +2314,10 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]';
   };
   
+  // Decide quais clusters mostrar: os da IA ou os da heurística
   const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
 
+  // Tela de Loading
   if (loading) {
       return (
         <div className="relative w-full">
@@ -2333,6 +2332,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       );
   }
 
+  // Se não tiver nem heurística, mostra um placeholder
   if (!displayClusters || displayClusters.length === 0) {
       return (
         <div className="relative w-full animate-pulse">
@@ -2345,10 +2345,10 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     <div className="animate-in fade-in duration-1000">
         <div className="relative w-full">
             
-            {/* CABEÇALHO MODIFICADO: Apenas o botão, alinhado à direita */}
+            {/* Botão para ativar a IA, que agora controla o fluxo */}
             <div className="relative z-10 flex items-center justify-end mb-4 px-4 pt-4">
                 <button 
-                    onClick={runAI}
+                    onClick={runAI} // <<-- GATILHO MANUAL
                     className={`
                         group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider
                         transition-all duration-300 active:scale-95 shadow-lg
@@ -2356,7 +2356,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                     `}
                 >
                     {clusters ? (
-                        <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar</span></div>
+                        <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar Análise</span></div>
                     ) : (
                         <div className="flex items-center gap-2"><Sparkles size={14} className="text-yellow-300" /><span>Ativar SmartNews</span></div>
                     )}
