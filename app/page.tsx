@@ -5253,28 +5253,57 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 // COMPONENTE ARTICLE PANEL - OTIMIZADO PARA NAVEGAÇÃO RÁPIDA (FEED NAVIGATOR)
 // ==============================================================================
 
+// --- COMPONENTE ARTICLE PANEL (CORRIGIDO) ---
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
+  // 1. Definição de Estados e Refs
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
   const [readerContent, setReaderContent] = useState(null); 
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
-  
-  // Estado da Animação de Entrada do Painel
   const [isAnimationDone, setIsAnimationDone] = useState(false);
-
-  const scrollContainerRef = useRef(null); 
-
-  // --- LÓGICA DE TRADUÇÃO ---
+  
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedData, setTranslatedData] = useState(null);
 
+  const scrollContainerRef = useRef(null); 
+
+  // 2. Memos e Helpers (MOVIDOS PARA CIMA PARA EVITAR O ERRO 'Cannot access before initialization')
+  
   const videoId = useMemo(() => {
       if (!article) return null;
       return article.videoId || getVideoId(article.link);
   }, [article]);
 
+  const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
+  
+  const isProblematicSite = useMemo(() => {
+      if (!article?.link) return false;
+      return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
+  }, [article?.link]);
+
+  const sanitizeHtml = (html) => {
+      if (!html) return "";
+      let clean = html;
+      const headInjection = `<base href="${article?.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
+      
+      if (isProblematicSite) {
+          clean = clean
+            .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
+            .replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "")
+            .replace(/data-src=/gi, 'src=')
+            .replace(/data-srcset=/gi, 'srcset=')
+            .replace(/loading="lazy"/gi, ''); 
+      }
+      
+      if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
+      return `${headInjection}${clean}`;
+  };
+
+  // 3. Efeitos (Agora seguros, pois as variáveis acima já existem)
+
+  // Timer de Animação
   useEffect(() => {
     let timer;
     if (isOpen) {
@@ -5283,11 +5312,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         setIsAnimationDone(false);
         setIframeUrl(null);
         setReaderContent(null);
-      
     }
     return () => clearTimeout(timer);
   }, [isOpen]);
 
+  // Carregamento de Conteúdo
   useEffect(() => {
     if (!isOpen || !article?.link || videoId) return;
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
@@ -5314,20 +5343,21 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 .single();
 
             if (cachedData && cachedData.content) {
-                // SUCESSO! Usamos o cache, sem invocar a função Edge.
+                // SUCESSO! Usamos o cache.
                 console.log("Artigo carregado do CACHE.");
                 setReaderContent(cachedData.content);
-                // NOTA: O modo webview ainda precisa do HTML, mas agora podemos construí-lo a partir do cache
-                // Esta parte é um bônus, mas importante para manter a funcionalidade
+                
+                // Constrói HTML para o modo Webview baseado no cache
                 const cachedHtml = `<html><head><title>${cachedData.content.title}</title></head><body><h1>${cachedData.content.title}</h1>${cachedData.content.content}</body></html>`;
                 const cleanHtml = sanitizeHtml(cachedHtml);
                 const blob = new Blob([cleanHtml], { type: 'text/html' });
                 setIframeUrl(URL.createObjectURL(blob));
 
             } else {
-                // 2. SE NÃO ACHOU NO CACHE, invoca a função como antes
+                // 2. SE NÃO ACHOU NO CACHE, invoca a Edge Function
                 console.log("Cache miss. Buscando via Edge Function...");
                 const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+                
                 if (error || !data) throw new Error("Falha no proxy-view");
                 
                 const cleanHtml = sanitizeHtml(data.html);
@@ -5345,35 +5375,20 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 }
             }
         } catch (err) {
-            console.warn("Falha ao buscar conteúdo, usando modo Magic:", err);
+            console.warn("Falha ao buscar conteúdo, mudando para modo Magic:", err);
             setViewMode('magic');
         } finally {
             setIsLoading(false);
         }
     };
     
+    // Pequeno delay para permitir a animação de entrada fluir antes de pesar a thread
     if (!isAnimationDone) setTimeout(fetchContent, 500);
     else fetchContent();
 
-  }, [article?.id, isOpen, videoId, isProblematicSite]);
+  }, [article?.id, isOpen, videoId, isProblematicSite]); // isProblematicSite agora é seguro aqui
 
-  // ... (Mantenha sanitizeHtml, handleClosePanel, handleOpenInBrowser, handleToggleTranslation inalterados) ...
-  const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
-  const isProblematicSite = useMemo(() => {
-      if (!article?.link) return false;
-      return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
-  }, [article?.link]);
-
-  const sanitizeHtml = (html) => {
-      if (!html) return "";
-      let clean = html;
-      const headInjection = `<base href="${article.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
-      if (isProblematicSite) {
-          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "").replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "").replace(/data-src=/gi, 'src=').replace(/data-srcset=/gi, 'srcset=').replace(/loading="lazy"/gi, ''); 
-      }
-      if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
-      return `${headInjection}${clean}`;
-  };
+  // 4. Handlers de Eventos
 
   const handleClosePanel = useCallback(() => {
       onClose(); 
@@ -5381,62 +5396,79 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
 
   const handleOpenInBrowser = useCallback(async () => {
     if (!article?.link) return;
-
-    // A MÁGICA DO CAPACITOR:
-    // Chama o mesmo plugin nativo que usamos para o YouTube,
-    // mas agora com o link do artigo.
     await Browser.open({
         url: article.link,
-        presentationStyle: 'fullscreen', // Garante tela cheia no iPad
+        presentationStyle: 'fullscreen',
         toolbarColor: isDarkMode ? '#000000' : '#FFFFFF',
         controlsColor: isDarkMode ? '#FFFFFF' : '#000000'
     });
   }, [article, isDarkMode]);
 
   const handleToggleTranslation = async () => {
-      if (translatedData) { setIsTranslated(!isTranslated); return; }
+      if (translatedData) { 
+          setIsTranslated(!isTranslated); 
+          return; 
+      }
+      
       const contentToTranslate = readerContent || article;
       if (!contentToTranslate) return;
+      
       setIsTranslating(true);
       try {
           const newTitle = await translateText(contentToTranslate.title);
+          
           const parser = new DOMParser();
           const doc = parser.parseFromString(contentToTranslate.content || article.summary || '', 'text/html');
+          
           const textNodes = [];
           const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
           let node;
-          while (node = walker.nextNode()) { if (node.nodeValue.trim().length > 0) textNodes.push(node); }
+          while (node = walker.nextNode()) { 
+              if (node.nodeValue.trim().length > 0) textNodes.push(node); 
+          }
+          
           const BATCH_SIZE = 5; 
           for (let i = 0; i < textNodes.length; i += BATCH_SIZE) {
               const batch = textNodes.slice(i, i + BATCH_SIZE);
               await Promise.all(batch.map(async (textNode) => {
-                  try { const translated = await translateText(textNode.nodeValue); textNode.nodeValue = translated; } catch(e){}
+                  try { 
+                      const translated = await translateText(textNode.nodeValue); 
+                      textNode.nodeValue = translated; 
+                  } catch(e){}
               }));
           }
+          
           setTranslatedData({ title: newTitle, content: doc.body.innerHTML });
           setIsTranslated(true);
           if (viewMode === 'web') setViewMode('magic');
-      } catch (err) { console.error(err); } finally { setIsTranslating(false); }
+      } catch (err) { 
+          console.error(err); 
+      } finally { 
+          setIsTranslating(false); 
+      }
   };
 
+  // 5. Preparação de Dados para Renderização
   const activeContent = (isTranslated && translatedData) ? translatedData : (readerContent || article);
   const safeContent = activeContent || {}; 
   const safeArticle = article || {};
   const activeArticleData = { ...safeArticle, ...safeContent };
   const activeReaderData = { content: safeContent.content, title: safeContent.title };
 
-  // Define classes baseadas no estado da animação para performance
   const containerClasses = isAnimationDone && isOpen
       ? `fixed inset-0 z-[5000] flex flex-col ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')}`
       : `fixed inset-0 z-[5000] flex flex-col transition-transform duration-300 ease-out will-change-transform ${videoId ? 'bg-black' : (isDarkMode ? 'bg-zinc-950' : 'bg-white')} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`;
 
+  // 6. Renderização (JSX)
   return (
     <div className={containerClasses}>
         <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
             
             {/* TOP BAR */}
             <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b z-50 ${videoId ? 'bg-black/90 border-white/10 text-white' : (isDarkMode ? 'bg-zinc-950 border-white/10 text-zinc-300' : 'bg-white border-zinc-200 text-zinc-900')}`}>
-                <button onClick={handleClosePanel} className={`flex items-center gap-1 py-2 pr-3 text-sm font-black transition active:scale-95 ${videoId ? 'text-zinc-300 hover:text-white' : (isDarkMode ? 'text-zinc-300 hover:text-white' : 'text-zinc-600 hover:text-black')}`}><ChevronLeft size={24} /> <span className="hidden md:inline">VOLTAR</span></button>
+                <button onClick={handleClosePanel} className={`flex items-center gap-1 py-2 pr-3 text-sm font-black transition active:scale-95 ${videoId ? 'text-zinc-300 hover:text-white' : (isDarkMode ? 'text-zinc-300 hover:text-white' : 'text-zinc-600 hover:text-black')}`}>
+                    <ChevronLeft size={24} /> <span className="hidden md:inline">VOLTAR</span>
+                </button>
                 
                 {!videoId && (
                     <>
