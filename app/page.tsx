@@ -6122,5 +6122,4 @@ function NewsletterTab({ openArticle, isDarkMode, newsData }) {
       </div>
     </div>
   );
-}
-}
+}}
