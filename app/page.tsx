@@ -5295,34 +5295,35 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
 
   // 1. EFEITO DE ABERTURA DO PAINEL (Só roda quando isOpen muda)
   useEffect(() => {
-    let timer;
-    if (isOpen) {
-        timer = setTimeout(() => setIsAnimationDone(true), 450);
-    } else {
-        setIsAnimationDone(false);
-        setIframeUrl(null);
-        setReaderContent(null);
+        let timer;
+        if (isOpen) {
+            // Inicia a animação de entrada
+            timer = setTimeout(() => setIsAnimationDone(true), 450);
+        } else {
+            // Se fechar, reseta tudo
+            setIsAnimationDone(false);
+            setIframeUrl(null);
+            setReaderContent(null);
+        }
+        return () => clearTimeout(timer);
+    }, [isOpen]); // ATENÇÃO: removi article.id daqui para não re-animar na troca
+  
+    // 2. EFEITO DE CARREGAMENTO DO CONTEÚDO (Roda quando article.id muda)
+    useEffect(() => {
+      if (!isOpen || !article?.link || videoId) return;
       
-    }
-    return () => clearTimeout(timer);
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen || !article?.link || videoId) return;
-    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-    
-    // Resetando estados para o novo artigo
-    setReaderContent(null);
-    setIframeUrl(null);
-    setTranslatedData(null);
-    setIsTranslated(false);
-
-    if (isProblematicSite) {
-      setIsLoading(false);
-      return;
-    }
-
-    const fetchContent = async () => {
+      // --- O SEGREDO DA FLUIDEZ NO NAVIGATOR ---
+      // 1. Reseta o scroll para o topo imediatamente
+      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+      
+      // 2. Limpa o conteúdo anterior para mostrar que está carregando o novo
+      setReaderContent(null);
+      setIframeUrl(null);
+      setTranslatedData(null);
+      setIsTranslated(false);
+      setIsLoading(true);
+  
+      const fetchContent = async () => {
         setIsLoading(true);
         try {
             // 1. TENTA BUSCAR DO CACHE PRIMEIRO
@@ -5333,20 +5334,21 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 .single();
 
             if (cachedData && cachedData.content) {
-                // SUCESSO! Usamos o cache, sem invocar a função Edge.
+                // SUCESSO! Usamos o cache.
                 console.log("Artigo carregado do CACHE.");
                 setReaderContent(cachedData.content);
-                // NOTA: O modo webview ainda precisa do HTML, mas agora podemos construí-lo a partir do cache
-                // Esta parte é um bônus, mas importante para manter a funcionalidade
+                
+                // Constrói HTML para o modo Webview baseado no cache
                 const cachedHtml = `<html><head><title>${cachedData.content.title}</title></head><body><h1>${cachedData.content.title}</h1>${cachedData.content.content}</body></html>`;
                 const cleanHtml = sanitizeHtml(cachedHtml);
                 const blob = new Blob([cleanHtml], { type: 'text/html' });
                 setIframeUrl(URL.createObjectURL(blob));
 
             } else {
-                // 2. SE NÃO ACHOU NO CACHE, invoca a função como antes
+                // 2. SE NÃO ACHOU NO CACHE, invoca a Edge Function
                 console.log("Cache miss. Buscando via Edge Function...");
                 const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+                
                 if (error || !data) throw new Error("Falha no proxy-view");
                 
                 const cleanHtml = sanitizeHtml(data.html);
@@ -5364,17 +5366,41 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 }
             }
         } catch (err) {
-            console.warn("Falha ao buscar conteúdo, usando modo Magic:", err);
+            console.warn("Falha ao buscar conteúdo, mudando para modo Magic:", err);
             setViewMode('magic');
         } finally {
             setIsLoading(false);
         }
     };
     
-    if (!isAnimationDone) setTimeout(fetchContent, 500);
-    else fetchContent();
-
-  }, [article?.id, isOpen, videoId, isProblematicSite]);
+      
+      // Pequeno delay se a animação do painel ainda estiver rolando (primeira abertura)
+      if (!isAnimationDone) {
+          setTimeout(fetchContent, 500);
+      } else {
+          fetchContent(); // Troca instantânea se já estiver aberto (Navigator)
+      }
+  
+    }, [article?.id, isOpen, videoId]); // Depende do ID do artigo
+  
+    // ... (Mantenha sanitizeHtml, handleClosePanel, handleOpenInBrowser, handleToggleTranslation inalterados) ...
+    const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
+    const isProblematicSite = useMemo(() => {
+        if (!article?.link) return false;
+        return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
+    }, [article?.link]);
+  
+    const sanitizeHtml = (html) => {
+        if (!html) return "";
+        let clean = html;
+        const headInjection = `<base href="${article.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
+        if (isProblematicSite) {
+            clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "").replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "").replace(/data-src=/gi, 'src=').replace(/data-srcset=/gi, 'srcset=').replace(/loading="lazy"/gi, ''); 
+        }
+        if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
+        return `${headInjection}${clean}`;
+    };
+  
 
   
 
