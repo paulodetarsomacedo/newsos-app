@@ -4115,7 +4115,7 @@ const handleStoryNavigation = (direction) => {
     let newHistoryBuffer = { ...articleHistory };
 
     const promises = userFeeds.map(async (feed) => {
-        if (!feed.url) return;
+        if (!feed || !feed.url) return;
 
         try {
             let feedItems = [];
