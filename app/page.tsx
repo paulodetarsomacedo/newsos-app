@@ -1705,8 +1705,7 @@ const generateBriefingFallback = async (news, apiKey) => {
     `;
 
     try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {            body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: { response_mime_type: "application/json" }
             })
@@ -1726,7 +1725,7 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
     }
 };
 
-// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODO ECO) ---
+// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODELO 2.5 FLASH) ---
 const generateSmartClustering = async (news, apiKey, limit = 50) => { 
   if (!news || news.length < 10 || !apiKey) return null;
 
@@ -1750,8 +1749,8 @@ const generateSmartClustering = async (news, apiKey, limit = 50) => {
   `;
 
   try {
-    // CORREÇÃO AQUI: method: "POST" é obrigatório
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // ATUALIZADO PARA gemini-2.5-flash
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST", 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1800,11 +1799,12 @@ const generateSmartClustering = async (news, apiKey, limit = 50) => {
   }
 };
 
-// --- FUNÇÃO SMART DIGEST (CORRIGIDA) ---
+
+// --- FUNÇÃO SMART DIGEST (MODELO 2.5 FLASH) ---
 const generateBriefing = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
   if (!apiKey) {
-      alert("API Key não configurada! Vá em Ajustes > Inteligência IA.");
+      alert("API Key não configurada!");
       return null;
   }
 
@@ -1827,8 +1827,8 @@ const generateBriefing = async (news, apiKey) => {
   `;
 
   try {
-    // CORREÇÃO AQUI: method: "POST"
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // ATUALIZADO PARA gemini-2.5-flash
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1906,7 +1906,7 @@ const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
 
 
 
-// --- FUNÇÃO TREND RADAR (CORRIGIDA) ---
+// --- FUNÇÃO TREND RADAR (MODELO 2.5 FLASH) ---
 const generateTrendRadar = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
 
@@ -1922,8 +1922,8 @@ const generateTrendRadar = async (news, apiKey) => {
   `;
 
   try {
-    // CORREÇÃO AQUI: method: "POST"
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // ATUALIZADO PARA gemini-2.5-flash
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1953,7 +1953,6 @@ const generateTrendRadar = async (news, apiKey) => {
     return []; 
   }
 };
-
 
 // --- WIDGET: SMART DIGEST (COM ÁUDIO NATIVO E FONTES EXPANSÍVEIS) ---
 const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger, openArticle }) => {
@@ -2515,8 +2514,7 @@ const generateMarketAnalysis = async (news, apiKey) => {
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
