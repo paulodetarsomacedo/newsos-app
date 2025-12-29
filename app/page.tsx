@@ -6123,3 +6123,4 @@ function NewsletterTab({ openArticle, isDarkMode, newsData }) {
     </div>
   );
 }
+}
