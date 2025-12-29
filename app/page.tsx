@@ -1705,8 +1705,7 @@ const generateBriefingFallback = async (news, apiKey) => {
     `;
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-            method: "POST",
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {            method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
@@ -1728,40 +1727,39 @@ const generateBriefingFallback = async (news, apiKey) => {
     }
 };
 
-// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (COM LIMITE DINÂMICO) ---
-const generateSmartClustering = async (news, apiKey, limit = 300) => {
-  // Verificação básica (Limite mínimo de 10 notícias para rodar)
+// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODO ECO - CUSTO ZERO) ---
+const generateSmartClustering = async (news, apiKey, limit = 50) => { // Limite baixado para 50
+  // Verificação básica
   if (!news || news.length < 10 || !apiKey) return null;
 
-  // AGORA O LIMITE É DINÂMICO (30 no início, 300 depois)
-  const context = news.slice(0, limit).map(n => 
-    `ID: ${n.id} | FONTE: ${n.source} | TÍTULO: ${n.title} | IMG: ${n.img || ''}`
+  // 1. OTIMIZAÇÃO DE TOKENS (PAYLOAD LEVE):
+  // Em vez de mandar ID gigante, Link e Imagem, mandamos apenas um número (Index) e Título.
+  // Exemplo: "0|G1|Chuva em SP"
+  const simplifiedNews = news.slice(0, limit).map((n, index) => 
+    `${index}|${n.source}|${n.title}`
   ).join('\n');
 
   const prompt = `
-  Você é um Editor-Chefe de um App de Notícias Premium no Brasil.
+  Você é um Editor-Chefe. Analise a lista de manchetes abaixo (Formato: Index|Fonte|Título).
   
-  SUA MISSÃO CRÍTICA:
-  Gerar EXATAMENTE 3 (TRÊS) cards para o carrossel "Contexto Global".
+  TAREFA:
+  Agrupe as notícias em EXATAMENTE 3 (TRÊS) cards de "Contexto Global".
   
-  HIERARQUIA DE SELEÇÃO:
-  1. Tente agrupar eventos com múltiplas fontes.
-  2. Se a lista de notícias for pequena, aceite eventos com menos fontes, mas GARANTA 3 TÓPICOS DISTINTOS.
-  
-  ESTRUTURA DO JSON (Para cada um dos 3 cards):
-  - ai_title: Título em Português do Brasil. Curto e impactante (Máx 10 palavras).
-  - representative_image: Copie a URL do campo 'IMG' de uma das notícias.
-  - related_articles: Liste os IDs das notícias do cluster. Analise o sentimento ('positive', 'negative', 'neutral').
+  RETORNE APENAS UM JSON VÁLIDO COM ESTA ESTRUTURA:
+  [
+    {
+      "ai_title": "Título curto e impactante em PT-BR (Máx 7 palavras)",
+      "representative_index": 0, (O número do Index da melhor notícia para usar a foto de capa)
+      "related_indices": [0, 5, 12] (Lista dos números 'Index' das notícias que compõem este grupo. Mínimo 2 itens.)
+    }
+  ]
 
-  DADOS BRUTOS (${limit} itens):
-  ${context}
-
-  RETORNE APENAS O ARRAY JSON COM OS 3 OBJETOS.
+  DADOS:
+  ${simplifiedNews}
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
@@ -1771,32 +1769,42 @@ const generateSmartClustering = async (news, apiKey, limit = 300) => {
 
     const data = await response.json();
     
-    if (!response.ok || data.error) return null;
+    if (!response.ok || data.error) {
+        console.error("Erro API IA:", data.error);
+        return null;
+    }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
 
     const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
+    // 2. HIDRATAÇÃO (Reconstruir os objetos completos a partir dos índices):
     const hydratedJson = json.map(cluster => {
-        const hydratedArticles = cluster.related_articles
-            .map(ref => {
-                const originalArticle = news.find(n => n.id === ref.id);
-                if (!originalArticle) return null;
-                return { ...originalArticle, ai_sentiment: ref.sentiment }; 
-            })
-            .filter(Boolean);
+        // Recupera a imagem da notícia escolhida como representativa
+        const mainArticle = news[cluster.representative_index];
+        const repImage = mainArticle ? mainArticle.img : null;
 
+        // Recupera os artigos relacionados baseados nos índices retornados pela IA
         const uniqueArticles = [];
         const seenSources = new Set();
-        hydratedArticles.forEach(art => {
-            if (!seenSources.has(art.source)) {
-                seenSources.add(art.source);
-                uniqueArticles.push(art);
-            }
-        });
 
-        return { ...cluster, related_articles: uniqueArticles };
+        if (cluster.related_indices && Array.isArray(cluster.related_indices)) {
+            cluster.related_indices.forEach(idx => {
+                const article = news[idx]; // Pega a notícia original pelo índice
+                if (article && !seenSources.has(article.source)) {
+                    seenSources.add(article.source);
+                    // Adiciona uma análise de sentimento fake/padrão para economizar tokens de processamento
+                    uniqueArticles.push({ ...article, ai_sentiment: 'neutral' }); 
+                }
+            });
+        }
+
+        return { 
+            ai_title: cluster.ai_title,
+            representative_image: repImage,
+            related_articles: uniqueArticles 
+        };
     }).filter(c => c.related_articles.length > 0); 
 
     return Array.isArray(hydratedJson) ? hydratedJson : null;
@@ -1808,52 +1816,50 @@ const generateSmartClustering = async (news, apiKey, limit = 300) => {
 };
 
 
-
 // --- FUNÇÃO DE IA: SMART DIGEST (COM RASTREABILIDADE) ---
+// --- FUNÇÃO SMART DIGEST (OTIMIZADA - BAIXO CONSUMO) ---
 const generateBriefing = async (news, apiKey) => {
+  // Limite de segurança: 40 notícias
   if (!news || news.length === 0) return null;
   if (!apiKey) {
       alert("API Key não configurada! Vá em Ajustes > Inteligência IA.");
       return null;
   }
 
-  // Preparamos o contexto com ID para a IA saber o que referenciar
-  const context = news.slice(0, 40).map(n => {
-      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 300) : "Sem detalhes.";
-      return `ID: ${n.id} | [FONTE: ${n.source}] TÍTULO: ${n.title} | CONTEXTO: ${cleanSummary}`;
-  }).join('\n\n');
+  // 1. OTIMIZAÇÃO DE PAYLOAD (DIETA DE TOKENS)
+  // Envia apenas: Índice | Fonte | Início do Título | Início do Resumo
+  // Cortamos o resumo em 100 caracteres. A IA consegue entender o contexto com isso.
+  const context = news.slice(0, 40).map((n, index) => {
+      const cleanSummary = n.summary ? n.summary.replace(/<[^>]*>?/gm, '').slice(0, 100) : "Sem detalhes.";
+      return `Ref:${index}|${n.source}|${n.title}|${cleanSummary}`;
+  }).join('\n');
 
   const prompt = `
-  Você é o Editor-Chefe de uma newsletter premium (estilo Morning Brew).
+  Você é Editor. Identifique os 4 maiores temas globais baseados na lista (Ref|Fonte|Título|Resumo).
   
-  SUA MISSÃO:
-  Ler as notícias, identificar os 4 (QUATRO) maiores temas do momento e escrever resumos EXPLICATIVOS.
+  PARA CADA TÓPICO:
+  1. Identifique quais notícias (pelo número 'Ref') compõem o tema.
+  2. Escreva um resumo EXPLICATIVO (o porquê é importante).
   
-  REGRAS OBRIGATÓRIAS:
-  1. Identifique quais notícias (pelos IDs) compõem cada tópico.
-  2. O resumo deve explicar o "porquê" do fato ser importante.
-  3. JSON Estrito.
-
-  MATÉRIA PRIMA:
-  ${context}
-
-  RETORNE APENAS ESTE JSON:
+  RETORNE JSON ESTRITO:
   {
-    "vibe_emoji": "Um único emoji que defina o humor global",
-    "vibe_title": "Uma manchete de capa impactante (3 a 6 palavras)",
+    "vibe_emoji": "Emoji do humor global",
+    "vibe_title": "Manchete de Capa (3-6 palavras)",
     "topics": [
       { 
-        "tag": "Categoria (Ex: Política, Tech)", 
-        "summary": "Texto explicativo rico (30-40 palavras)...",
-        "source_ids": ["id_da_noticia_1", "id_da_noticia_2"] 
+        "tag": "Categoria", 
+        "summary": "Texto explicativo (30 palavras)...",
+        "source_indices": [0, 5] (Lista numérica dos 'Ref' usados)
       }
     ]
   }
+
+  MATÉRIA PRIMA:
+  ${context}
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
@@ -1865,21 +1871,26 @@ const generateBriefing = async (news, apiKey) => {
 
     if (data.error) {
         console.warn(`Erro IA: ${data.error.message}`);
-        return await generateBriefingFallback(news, apiKey); // Mantém seu fallback existente
+        // Se der erro, retorna null (ou chame seu fallback antigo se quiser)
+        return null; 
     }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return await generateBriefingFallback(news, apiKey);
+    if (!text) return null;
 
     const finalData = parseAndNormalize(text);
-    
-    if (!finalData || !finalData.topics) return await generateBriefingFallback(news, apiKey);
+    if (!finalData || !finalData.topics) return null;
 
-    // --- HIDRATAÇÃO: Cruzar IDs com as notícias reais ---
+    // 2. HIDRATAÇÃO (Reconectar os índices às notícias reais)
     finalData.topics = finalData.topics.map(topic => {
-        const relatedArticles = topic.source_ids
-            ? topic.source_ids.map(id => news.find(n => n.id === id)).filter(Boolean)
-            : [];
+        // Se a IA devolver IDs antigos por engano, protegemos com '|| []'
+        const indices = topic.source_indices || [];
+        
+        const relatedArticles = indices.map(idx => {
+            // Recupera o objeto completo da notícia original usando o índice numérico
+            return news[idx];
+        }).filter(Boolean); // Remove nulos caso a IA alucine um índice que não existe
+
         return { ...topic, articles: relatedArticles };
     });
 
@@ -1887,10 +1898,9 @@ const generateBriefing = async (news, apiKey) => {
 
   } catch (error) {
     console.warn("Erro fatal SmartDigest:", error);
-    return await generateBriefingFallback(news, apiKey);
+    return null;
   }
 };
-
 
 const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
     // Reutilize o mesmo hook/lógica do HeaderDashboard para buscar dados do Yahoo
@@ -1937,43 +1947,41 @@ const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
 
 
 
-// --- FUNÇÃO TREND RADAR (V4 - SINGLE FACT FOCUS) ---
+// --- FUNÇÃO TREND RADAR (OTIMIZADA PARA BAIXO CUSTO) ---
 const generateTrendRadar = async (news, apiKey) => {
+  // Limite de segurança: 40 notícias é suficiente para detectar tendências
   if (!news || news.length === 0) return null;
 
-  // Enviamos Título + Snippet para a IA ter contexto
-  const context = news.slice(0, 40).map(n => `- ${n.title} (${n.summary ? n.summary.slice(0, 80) : ''})`).join('\n');
+  // 1. OTIMIZAÇÃO DE PAYLOAD (Igual fizemos no Clustering)
+  // Envia apenas: Índice | Título | Pequeno resumo (60 letras)
+  // Isso ajuda a IA a entender o contexto sem gastar muitos tokens.
+  const context = news.slice(0, 40).map((n, index) => 
+    `${index}|${n.title}|${n.summary ? n.summary.slice(0, 60) : ''}`
+  ).join('\n');
 
   const prompt = `
-  Analise estas manchetes. Agrupe por temas e identifique os 6 Tópicos mais quentes.
+  Analise a lista (Index|Título|Resumo). Agrupe por temas e identifique os 6 Tópicos mais quentes.
   
-  Para cada tópico, siga esta lógica OBRIGATÓRIA:
-  1. Identifique a notícia "Capitânia" (a mais importante/impactante daquele grupo).
-  2. Esqueça as outras notícias menores do grupo. Foco total na Capitânia.
-  3. Escreva um resumo de 2 a 3 linhas explicando ESSE FATO específico.
+  PARA CADA TÓPICO:
+  1. Identifique a notícia principal.
+  2. Resuma o FATO principal em 1 frase (pt-BR).
   
-  Gere este JSON:
-  - "topic": Nome curto do tema (Ex: "Mercosul", "SpaceX").
-  - "score": 1 a 10.
-  - "hex": Cor hexadecimal.
-  - "summary": O texto explicando o fato principal.
-  
-  EXEMPLO DE SUMMARY (O que eu quero):
-  "Lula endurece discurso e exige que União Europeia retire taxas ambientais para fechar o acordo ainda hoje."
-  
-  EXEMPLO DO QUE NÃO FAZER (Genérico):
-  "Discussões sobre taxas e clima continuam no bloco econômico."
+  RETORNE JSON ESTRITO:
+  [ 
+    { 
+      "topic": "Nome Curto (Ex: Mercosul)", 
+      "score": 1-10, 
+      "hex": "#cor_hex", 
+      "summary": "Resumo do fato..." 
+    } 
+  ]
 
   DADOS:
   ${context}
-
-  RETORNE APENAS A LISTA JSON:
-  [ { "topic": "...", "score": 9, "hex": "#...", "summary": "..." } ]
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
@@ -1982,14 +1990,17 @@ const generateTrendRadar = async (news, apiKey) => {
     });
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
+    if (!response.ok || data.error) return null;
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
     
     const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const json = JSON.parse(cleanText);
 
     if (Array.isArray(json)) return json;
+    // Tenta achar array dentro de objeto se a IA errar o formato
     const possibleArray = Object.values(json).find(val => Array.isArray(val));
     if (possibleArray) return possibleArray;
 
@@ -2855,67 +2866,44 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
 
 
 
-// --- COMPONENTE TREND RADAR (EFEITO 3D FÍSICO / BOTÃO) ---
+// --- COMPONENTE TREND RADAR (ECONÔMICO - MANUAL) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
-
-  const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
-  const prevRefreshTrigger = useRef(refreshTrigger);
+  // Estado para controlar se já foi gerado alguma vez
+  const [hasGenerated, setHasGenerated] = useState(false);
 
   // --- LÓGICA DE ESTILO FÍSICO ---
   const getTrendStyle = (score) => {
-      // 1. FERVENDO (Vermelho): Alto relevo (4px) + Glow
-      if (score >= 9) return {
-          color: '#ef4444',
-          bottomHeight: '4px', // Base grossa
-          shadow: '0 0 15px rgba(239, 68, 68, 0.4), inset 0 2px 0 rgba(255,255,255,0.2)',
-          scale: 'scale(1.05)'
-      };
-      // 2. QUENTE (Laranja): Relevo médio (3px)
-      if (score >= 7) return {
-          color: '#f97316',
-          bottomHeight: '3px',
-          shadow: '0 0 10px rgba(249, 115, 22, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)',
-          scale: 'scale(1.02)'
-      };
-      // 3. MORNO (Verde): Relevo normal (2px)
-      if (score >= 5) return {
-          color: '#10b981',
-          bottomHeight: '2px',
-          shadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
-          scale: 'scale(1)'
-      };
-      // 4. FRIO (Azul): Baixo relevo (2px)
-      return {
-          color: '#3b82f6',
-          bottomHeight: '2px',
-          shadow: 'none',
-          scale: 'scale(0.98)'
-      };
+      if (score >= 9) return { color: '#ef4444', bottomHeight: '4px', shadow: '0 0 15px rgba(239, 68, 68, 0.4), inset 0 2px 0 rgba(255,255,255,0.2)', scale: 'scale(1.05)' };
+      if (score >= 7) return { color: '#f97316', bottomHeight: '3px', shadow: '0 0 10px rgba(249, 115, 22, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)', scale: 'scale(1.02)' };
+      if (score >= 5) return { color: '#10b981', bottomHeight: '2px', shadow: 'inset 0 1px 0 rgba(255,255,255,0.2)', scale: 'scale(1)' };
+      return { color: '#3b82f6', bottomHeight: '2px', shadow: 'none', scale: 'scale(0.98)' };
   };
 
-  useEffect(() => {
-    if (!apiKey || !newsData || newsData.length === 0) return;
-    const isUserRefresh = refreshTrigger !== prevRefreshTrigger.current;
+  // REMOVIDO O USEEFFECT AUTOMÁTICO QUE GASTAVA DINHEIRO
+  
+  const runTrendAnalysis = async () => {
+    if (!apiKey) {
+        alert("Configure sua API Key primeiro.");
+        return;
+    }
+    if (!newsData || newsData.length === 0) return;
 
-    if (hasLoadedInitial && !isUserRefresh) return;
-
-    prevRefreshTrigger.current = refreshTrigger;
-    if (!hasLoadedInitial) setHasLoadedInitial(true);
+    setLoading(true);
+    setActiveIndex(null);
     
-    const loadTrends = async () => {
-        setLoading(true);
-        setActiveIndex(null);
-        if (isUserRefresh) setTrends(null);
-        await new Promise(r => setTimeout(r, isUserRefresh ? 1000 : 600)); 
-        const data = await generateTrendRadar(newsData, apiKey);
-        if (data && Array.isArray(data)) setTrends(data);
-        setLoading(false);
-    };
-    loadTrends();
-  }, [newsData, apiKey, refreshTrigger]);
+    // Pequeno delay para UX
+    await new Promise(r => setTimeout(r, 600)); 
+    
+    const data = await generateTrendRadar(newsData, apiKey);
+    if (data && Array.isArray(data)) {
+        setTrends(data);
+        setHasGenerated(true);
+    }
+    setLoading(false);
+  };
 
   const handleToggle = (idx) => {
       setActiveIndex(activeIndex === idx ? null : idx);
@@ -2923,21 +2911,33 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
 
   const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
 
-  if ((!trends || !Array.isArray(trends)) && !loading) return null;
-
+  // RENDERIZAÇÃO
   return (
-    <div className="relative z-[50] mb-4 animate-in fade-in duration-1000 slide-in-from-right-8">
+    <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 slide-in-from-right-8 px-2">
       
-      {/* Cabeçalho */}
-      <div className={`flex items-center justify-center gap-2 mb-5 transition-all duration-500 ${loading ? 'opacity-100' : 'opacity-70'}`}>
-         {loading ? (
-             <Activity size={14} className="text-orange-500 animate-spin" />
-         ) : (
+      {/* Cabeçalho / Botão de Ativação */}
+      <div className="flex items-center justify-between mb-4 px-2">
+         <div className={`flex items-center gap-2 transition-all duration-500 ${loading ? 'opacity-100' : 'opacity-70'}`}>
              <Activity size={14} className="text-orange-500" />
-         )}
-         <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-             {loading ? 'Detecting Trends...' : 'Trend Radar'}
-         </span>
+             <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                 Trend Radar AI
+             </span>
+         </div>
+
+         {/* BOTÃO PARA GERAR (SÓ GASTA SE CLICAR) */}
+         <button 
+            onClick={runTrendAnalysis}
+            disabled={loading}
+            className={`
+                flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95
+                ${hasGenerated 
+                    ? (isDarkMode ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-200 text-zinc-600 hover:text-black') 
+                    : 'bg-orange-500 text-white shadow-lg shadow-orange-500/30 animate-pulse'}
+            `}
+         >
+            {loading ? <Loader2 size={12} className="animate-spin"/> : <RefreshCw size={12}/>}
+            {loading ? 'Analisando...' : (hasGenerated ? 'Atualizar Radar' : 'Ativar Radar')}
+         </button>
       </div>
 
       {loading ? (
@@ -2949,98 +2949,65 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
       ) : (
          <div className="flex flex-col w-full">
              
-             {/* 1. LISTA DE PÍLULAS (Scroll Horizontal) */}
-             <div className="flex justify-start md:justify-center items-center gap-4 overflow-x-auto scrollbar-hide px-4 pt-2 pb-8 snap-x relative z-20">
-                {trends.map((item, idx) => {
-                    const style = getTrendStyle(item.score);
-                    const isActive = activeIndex === idx;
-                    
-                    return (
-                        <div key={idx} className="relative flex-shrink-0 snap-center flex flex-col items-center">
-                            <button 
-                                onClick={() => handleToggle(idx)}
-                                className={`
-                                    relative group cursor-pointer transition-all duration-200 flex items-center gap-2 rounded-full
-                                    ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-800'}
-                                `}
-                                style={{ 
-                                    // AQUI ESTÁ A LÓGICA DO BORDER BOTTOM
-                                    borderColor: style.color,
-                                    borderStyle: 'solid',
-                                    borderWidth: '1px', // Bordas laterais e topo finas
-                                    borderBottomWidth: isActive ? '1px' : style.bottomHeight, // Borda grossa embaixo (some ao clicar)
-                                    
-                                    // Efeito visual
-                                    boxShadow: style.shadow,
-                                    padding: '8px 20px',
-                                    
-                                    // Movimento Físico (Afunda ao clicar ou ativar)
-                                    transform: isActive 
-                                        ? `translateY(${parseInt(style.bottomHeight) - 1}px)` // Desce a altura da borda
-                                        : 'translateY(0)',
-                                }}
-                            >
-                                {item.score >= 9 && <span className="text-[10px] animate-bounce">🔥</span>}
-                                <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
-                                
-                                {/* Indicador de Nível */}
-                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: style.color }} />
-                            </button>
+             {/* SÓ MOSTRA SE TIVER DADOS GERADOS */}
+             {trends && (
+                 <>
+                     {/* 1. LISTA DE PÍLULAS */}
+                     <div className="flex justify-start md:justify-center items-center gap-4 overflow-x-auto scrollbar-hide px-4 pt-2 pb-8 snap-x relative z-20">
+                        {trends.map((item, idx) => {
+                            const style = getTrendStyle(item.score);
+                            const isActive = activeIndex === idx;
+                            
+                            return (
+                                <div key={idx} className="relative flex-shrink-0 snap-center flex flex-col items-center">
+                                    <button 
+                                        onClick={() => handleToggle(idx)}
+                                        className={`
+                                            relative group cursor-pointer transition-all duration-200 flex items-center gap-2 rounded-full
+                                            ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-800'}
+                                        `}
+                                        style={{ 
+                                            borderColor: style.color,
+                                            borderStyle: 'solid',
+                                            borderWidth: '1px', 
+                                            borderBottomWidth: isActive ? '1px' : style.bottomHeight,
+                                            boxShadow: style.shadow,
+                                            padding: '8px 20px',
+                                            transform: isActive ? `translateY(${parseInt(style.bottomHeight) - 1}px)` : 'translateY(0)',
+                                        }}
+                                    >
+                                        {item.score >= 9 && <span className="text-[10px] animate-bounce">🔥</span>}
+                                        <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
+                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: style.color }} />
+                                    </button>
+                                    {isActive && (
+                                        <div 
+                                            className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] animate-in fade-in zoom-in duration-300 z-30"
+                                            style={{ borderBottomColor: style.color }}
+                                        />
+                                    )}
+                                </div>
+                            )
+                        })}
+                     </div>
 
-                            {/* Seta indicativa (Só aparece se ativo) */}
-                            {isActive && (
-                                <div 
-                                    className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] animate-in fade-in zoom-in duration-300 z-30"
-                                    style={{ borderBottomColor: style.color }}
-                                />
-                            )}
-                        </div>
-                    )
-                })}
-             </div>
-
-             {/* 2. ÁREA DE DETALHES */}
-             <div 
-                className={`
-                    relative w-full px-4 transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden
-                    ${activeItem ? 'max-h-[200px] opacity-100 mt-0' : 'max-h-0 opacity-0 mt-0'}
-                `}
-             >
-                {activeItem && (
-                    <div 
-                        className={`
-                            w-full md:max-w-md mx-auto p-5 rounded-3xl border-2 shadow-2xl backdrop-blur-xl flex flex-col gap-2 animate-in slide-in-from-top-4 duration-300
-                            ${isDarkMode ? 'bg-zinc-950/95 text-zinc-200' : 'bg-white/95 text-zinc-800'}
-                        `}
-                        style={{ 
-                            borderColor: getTrendStyle(activeItem.score).color,
-                            boxShadow: `0 10px 40px -10px ${getTrendStyle(activeItem.score).color}20`
-                        }}
-                    >
-                        <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
-                            <span 
-                                className="text-[10px] font-black uppercase tracking-widest"
-                                style={{ color: getTrendStyle(activeItem.score).color }}
+                     {/* 2. ÁREA DE DETALHES */}
+                     <div className={`relative w-full px-4 transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden ${activeItem ? 'max-h-[200px] opacity-100 mt-0' : 'max-h-0 opacity-0 mt-0'}`}>
+                        {activeItem && (
+                            <div 
+                                className={`w-full md:max-w-md mx-auto p-5 rounded-3xl border-2 shadow-2xl backdrop-blur-xl flex flex-col gap-2 animate-in slide-in-from-top-4 duration-300 ${isDarkMode ? 'bg-zinc-950/95 text-zinc-200' : 'bg-white/95 text-zinc-800'}`}
+                                style={{ borderColor: getTrendStyle(activeItem.score).color, boxShadow: `0 10px 40px -10px ${getTrendStyle(activeItem.score).color}20` }}
                             >
-                                Impacto: {activeItem.score}/10
-                            </span>
-                            <div className="h-1.5 w-20 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-                                <div 
-                                    className="h-full rounded-full" 
-                                    style={{ 
-                                        width: `${activeItem.score * 10}%`, 
-                                        backgroundColor: getTrendStyle(activeItem.score).color 
-                                    }} 
-                                />
+                                <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
+                                    <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: getTrendStyle(activeItem.score).color }}>Impacto: {activeItem.score}/10</span>
+                                    <div className="h-1.5 w-20 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${activeItem.score * 10}%`, backgroundColor: getTrendStyle(activeItem.score).color }} /></div>
+                                </div>
+                                <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>{activeItem.summary}</p>
                             </div>
-                        </div>
-                        
-                        <p className={`text-sm  leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                            {activeItem.summary}
-                        </p>
-                    </div>
-                )}
-             </div>
+                        )}
+                     </div>
+                 </>
+             )}
          </div>
       )}
     </div>
