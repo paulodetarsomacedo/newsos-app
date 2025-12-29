@@ -3595,102 +3595,98 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       
       const parserError = xmlDoc.querySelector("parsererror");
       if (parserError) {
-          console.error("Erro CRÍTICO de parse no XML de:", feedSource, parserError);
+          console.warn("Erro ao ler XML de:", feedSource);
           return { items: [], realTitle: feedSource, realLogo: null };
       }
 
       let detectedTitle = feedSource;
-      const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("feed > title");
+      const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
       if (channelTitle && channelTitle.textContent) {
           detectedTitle = channelTitle.textContent.trim();
       }
 
       let siteLink = "";
-      const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("feed > link[rel='alternate']") || xmlDoc.querySelector("feed > link");
+      const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("link");
       if (channelLink) {
           siteLink = channelLink.textContent || channelLink.getAttribute("href") || "";
       }
 
-      let autoLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(detectedTitle)}&background=random`;
+      let autoLogo = `https://ui-avatars.com/api/?name=${detectedTitle}&background=random`;
       if (siteLink) {
           try {
               const domain = new URL(siteLink).hostname;
               autoLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-          } catch (e) { /* ignora url inválida */ }
+          } catch (e) { /* ignora */ }
       }
 
       const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
       
       const parsedItems = items.map((node) => {
-        
         const getTxt = (tag) => {
-            const element = node.getElementsByTagName(tag)[0] || node.querySelector(tag);
-            return element?.textContent || "";
+            if (tag.includes(':')) {
+                const els = node.getElementsByTagName(tag);
+                return els.length > 0 ? els[0].textContent : "";
+            }
+            return node.querySelector(tag)?.textContent || "";
         };
 
         const linkNode = node.querySelector("link");
-        let link = linkNode?.getAttribute("href") || linkNode?.textContent || getTxt("guid") || "";
+        let link = linkNode?.getAttribute("href") || linkNode?.textContent || "";
 
-        let img = null;
-        const mediaThumb = node.getElementsByTagName("media:thumbnail")[0];
-        if (mediaThumb) img = mediaThumb.getAttribute("url");
-        if (!img) {
-            const mediaContent = node.getElementsByTagName("media:content")[0];
-            if (mediaContent) img = mediaContent.getAttribute("url");
-        }
-        if (!img) {
-            const enclosure = node.querySelector("enclosure");
-            if (enclosure && enclosure.getAttribute("type")?.startsWith("image")) {
-                img = enclosure.getAttribute("url");
-            }
-        }
-        if (!img) {
-            const content = getTxt("content:encoded") || getTxt("description") || getTxt("summary");
-            const imgMatch = content.match(/<img[^>]+src\s*=\s*["']([^"']+)["']/i);
-            if (imgMatch) img = imgMatch[1];
-        }
-
-        const title = getTxt("title");
+        const ytId = getTxt("yt:videoId") || getTxt("videoId");
+        if (ytId) link = `https://www.youtube.com/watch?v=${ytId}`;
+        
         const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated");
         const rawDateValue = pubDate ? new Date(pubDate) : null;
         
-        const summaryText = getTxt("content:encoded") || getTxt("description") || getTxt("summary");
-        const cleanSummary = summaryText.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...';
+        const description = getTxt("description") || getTxt("summary");
+        const contentEncoded = getTxt("content:encoded") || getTxt("content");
 
-        const ytId = getTxt("yt:videoId");
-        
-        // --- AQUI ESTAVA O ERRO ---
-        // Agora a linha está completa e correta.
-        if (ytId) {
-            link = `https://www.youtube.com/watch?v=${ytId}`;
+        let img = null;
+        const mediaContent = node.getElementsByTagName("media:content");
+        if (mediaContent.length > 0) img = mediaContent[0].getAttribute("url");
+        if (!img) {
+            const mediaThumb = node.getElementsByTagName("media:thumbnail")[0];
+            if (mediaThumb) img = mediaThumb.getAttribute("url");
         }
-        // --- FIM DA CORREÇÃO ---
+        if (!img) {
+            const enclosure = node.querySelector("enclosure");
+            if (enclosure && enclosure.getAttribute("type")?.includes("image")) {
+                img = enclosure.getAttribute("url");
+            }
+        }
+        if (!img) img = extractImageFromContent(contentEncoded);
+        if (!img) img = extractImageFromContent(description);
 
+        const title = getTxt("title");
         const stableId = stringToHash(title + link);
 
         return {
           id: `${feedId}-${stableId}`,
           source: detectedTitle,
           logo: autoLogo,
+          // A LINHA 'time:' FOI REMOVIDA DAQUI
           rawDate: rawDateValue,
-          title: title.trim(),
-          summary: cleanSummary,
+          title: title,
+          summary: description.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
           category: 'Geral',
           img: img,
           readTime: '3 min',
-          link: link.trim(),
+          link: link,
           origin: 'rss',
           videoId: ytId
         };
-      }).filter(item => item.title);
+      });
 
       return { items: parsedItems, realTitle: detectedTitle, realLogo: autoLogo };
 
   } catch (err) {
-      console.error("Erro fatal no NOVO parser:", err);
+      console.error("Erro fatal no parser:", err);
       return { items: [], realTitle: feedSource, realLogo: null };
   }
 };
+
+
 
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
@@ -4126,9 +4122,7 @@ const handleStoryNavigation = (direction) => {
 
  
   // --- FETCH FEEDS (V17 - COM PERSISTÊNCIA DE HORÁRIO E INTERVALO DE 10 MIN) ---
-  
-
-const fetchFeeds = async () => {
+  const fetchFeeds = async () => {
     if (userFeeds.length === 0) {
         setRealNews([]);
         setRealVideos([]);
@@ -4142,124 +4136,208 @@ const fetchFeeds = async () => {
     let allVideoItems = [];
     let allPodcastItems = [];
     let feedsThatNeedUpdate = [];
-    let newHistoryBuffer = { ...articleHistory };
     
-    const CACHE_DURATION_MS = 15 * 60 * 1000; // 15 minutos de cache no cliente
+    // Objeto temporário para acumular novos históricos sem causar re-renders no loop
+    // Iniciamos com uma cópia do histórico atual para não perder o que já existe
+    let newHistoryBuffer = { ...articleHistory };
 
     const promises = userFeeds.map(async (feed) => {
-        if (!feed.url || !feed.url.length < 5 || !feed.url.startsWith('http')) {
-            console.warn(`Feed ignorado por URL inválida: ${feed.name}`);
-            return;
-        }
-
-        let feedDataFromSource = null;
+        if (!feed.url || feed.url.length < 5 || !feed.url.startsWith('http')) {
+        console.warn("Feed ignorado por URL inválida:", feed.name);
+        return; 
+    }
 
         try {
-            // =================================================================
-            // ETAPA 1: TENTAR O MÉTODO BARATO (CLIENT-SIDE) PRIMEIRO
-            // =================================================================
-            const now = new Date().getTime();
-            const cacheKey = `feed_cache_${feed.id}`;
-            const cachedItem = JSON.parse(localStorage.getItem(cacheKey));
+            let feedItems = [];
+            let currentFeedTitle = feed.name; 
+            let detectedXmlTitle = "";
+            let feedLogo = null;
+            let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
+            
+            const isLegacySource = feed.url.includes('uol.com.br') || feed.url.includes('folha.uol.com.br');
 
-            if (cachedItem && (now - cachedItem.timestamp < CACHE_DURATION_MS)) {
-                // Se estiver no cache, usamos e pulamos a rede.
-                console.log(`[Cache] Usando cache para: ${feed.name}`);
-                feedDataFromSource = cachedItem;
-            } else {
+            // --- FETCH E PARSE ---
+            if (isLegacySource) {
                 try {
-                    console.log(`[Plano A] Tentando fetch via cliente para: ${feed.name}`);
                     const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
                     const res = await fetch(proxyUrl);
-                    
-                    // Se a resposta NÃO for OK (ex: 403, 502), nós forçamos um erro
-                    // para que o bloco CATCH seja ativado.
-                    if (!res.ok) {
-                        throw new Error(`Proxy CORS retornou status: ${res.status}`);
-                    }
-
+                    if (!res.ok) throw new Error(`Proxy error: ${res.status}`);
                     const buffer = await res.arrayBuffer();
                     const decoder = new TextDecoder('iso-8859-1'); 
                     const xmlText = decoder.decode(buffer);
-                    
                     const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
-                    feedDataFromSource = {
-                        items: parsedData.items,
-                        realTitle: parsedData.realTitle,
-                        realLogo: parsedData.realLogo,
-                    };
-                    
-                    // Salva o sucesso no cache
-                    localStorage.setItem(cacheKey, JSON.stringify({ ...feedDataFromSource, timestamp: now }));
-                
-                } catch (clientError) {
-                    // =================================================================
-                    // ETAPA 2: O MÉTODO BARATO FALHOU. ATIVAR O PLANO B (FALLBACK)
-                    // =================================================================
-                    console.warn(`[Plano A Falhou] Erro no cliente para ${feed.name}: ${clientError.message}. Ativando Plano B (Edge Function).`);
-                    
-                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
-                    
-                    if (error || !data) {
-                        throw new Error(`[Plano B Falhou] Edge Function também falhou para ${feed.name}: ${error?.message}`);
-                    }
-                    
-                    // A Edge Function nos retorna um formato ligeiramente diferente, então adaptamos.
-                    // ATENÇÃO: Verifique se sua Edge Function retorna 'title', 'items', 'image'.
-                    feedDataFromSource = {
-                        items: data.items.map(item => ({...item})), // Apenas para garantir que é um objeto parseado
-                        realTitle: data.title || feed.name,
-                        realLogo: data.image || null
-                    };
+                    feedItems = parsedData.items;
+                    detectedXmlTitle = parsedData.realTitle; 
+                    if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
+                    else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
+                } catch (legacyErr) { console.error(`Erro legado (${feed.name}):`, legacyErr); }
+            } else {
+                const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
+                if (!error && data && data.items) {
+                    feedItems = data.items;
+                    detectedXmlTitle = data.title;
+                    feedLogo = data.image;
+                    if (data.isYoutube) isFeedYoutube = true;
                 }
             }
-            
-            // Daqui para baixo, o código processa os dados, não importa de onde vieram (Plano A ou B)
-            const { items: feedItems, realTitle: detectedXmlTitle, realLogo: feedLogo } = feedDataFromSource;
 
-            // ... (o resto da sua lógica de processamento, a partir daqui, não precisa mudar) ...
-            // Cole o restante da sua função fetchFeeds (a parte que processa os itens) aqui.
-            // A parte que começa com: let currentFeedTitle = feed.name;
-            let currentFeedTitle = feed.name;
-            if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') { currentFeedTitle = detectedXmlTitle || feed.name; feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle }); }
-            let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
+            if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
+                currentFeedTitle = detectedXmlTitle || feed.name;
+                feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
+            }
+
             let finalLogo = feedLogo;
-            if (isFeedYoutube && !finalLogo) { finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`; } else if (!finalLogo) { try { const domain = new URL(feed.url).hostname; finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`; } catch (e) { finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`; } }
-            let LIMIT = 20; if (feed.type === 'podcast') LIMIT = 1; else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
+            if (isFeedYoutube && !finalLogo) {
+                finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
+            } else if (!finalLogo) {
+               try {
+                   const domain = new URL(feed.url).hostname;
+                   finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+               } catch (e) {
+                   finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`;
+               }
+            }
+
+            let LIMIT = 20; 
+            if (feed.type === 'podcast') LIMIT = 1; 
+            else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
+
+            // --- LÓGICA DE DEDUPLICAÇÃO TEMPORAL ---
+            
+            // 1. Variável de controle para este feed específico.
+            // Inicializamos com uma data futura segura ou a data do primeiro item.
+            // O truque: vamos iterar e "empurrar" para trás se necessário.
             let lastAssignedTime = 0;
+
             const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
+                // Geração de ID estável
                 const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
+
+                // Definição de data base crua vinda do XML
                 const rawDateString = item.pubDate || item.date || item.isoDate;
                 let originalTimestamp = rawDateString ? new Date(rawDateString).getTime() : new Date().getTime();
                 if (isNaN(originalTimestamp)) originalTimestamp = new Date().getTime();
+
                 let finalTimestamp;
-                if (newHistoryBuffer[uniqueId]) { finalTimestamp = newHistoryBuffer[uniqueId]; } else { const TEN_MINUTES_MS = 10 * 60 * 1000; if (index === 0) { finalTimestamp = originalTimestamp; } else { if (lastAssignedTime <= originalTimestamp + 1000) { finalTimestamp = lastAssignedTime - TEN_MINUTES_MS; } else { finalTimestamp = originalTimestamp; } } newHistoryBuffer[uniqueId] = finalTimestamp; }
+
+                // PASSO A: VERIFICAR HISTÓRICO (Memória)
+                // Se já processamos essa notícia antes, usamos o horário gravado.
+                // Isso garante que ela não mude de posição no refresh.
+                if (newHistoryBuffer[uniqueId]) {
+                    finalTimestamp = newHistoryBuffer[uniqueId];
+                } 
+                else {
+                    // PASSO B: CALCULAR NOVO HORÁRIO (Se for notícia nova)
+                    
+                    // Constante de 10 minutos em milissegundos
+                    const TEN_MINUTES_MS = 10 * 60 * 1000;
+
+                    // Se for o primeiro item do loop, aceitamos a data dele (ou a data atual se for inválida)
+                    if (index === 0) {
+                        finalTimestamp = originalTimestamp;
+                    } else {
+                        // Compara com a data atribuída ao item anterior
+                        // Se a data deste item for IGUAL ou MAIOR (mais recente/futuro) que o anterior (o que é ilógico num feed decrescente),
+                        // ou se a diferença for muito pequena, nós forçamos o recuo.
+                        
+                        // Lógica: O item anterior (index-1) deve ser mais recente. Este item (index) deve ser mais antigo.
+                        // Se lastAssignedTime (do anterior) <= originalTimestamp (deste), temos uma colisão de horários.
+                        
+                        if (lastAssignedTime <= originalTimestamp + 1000) { // +1000ms de tolerância
+                             // Força este item a ser 10 minutos MAIS VELHO que o anterior
+                             finalTimestamp = lastAssignedTime - TEN_MINUTES_MS;
+                        } else {
+                             // A data original é válida e respeita a ordem cronológica
+                             finalTimestamp = originalTimestamp;
+                        }
+                    }
+
+                    // Salva no buffer para persistir no próximo refresh
+                    newHistoryBuffer[uniqueId] = finalTimestamp;
+                }
+
+                // Atualiza a referência para a próxima iteração do loop
                 lastAssignedTime = finalTimestamp;
+                
                 const finalDateObj = new Date(finalTimestamp);
-                let primaryLink = item.link; const enclosureUrl = item.enclosure?.url || item.audio; let hasPlayableMedia = false; if (enclosureUrl) { const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || (enclosureUrl && enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i)); if (isImage) { item.img = enclosureUrl; } else { primaryLink = enclosureUrl; hasPlayableMedia = true; } }
-                const itemImg = item.img || item.image || finalLogo; const itemSummary = item.summary || item.description || ''; const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube; let finalType = 'link'; if (isYoutubeItem) finalType = 'video'; else if (hasPlayableMedia || (primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a')))) finalType = 'audio';
-                return { id: uniqueId, source: currentFeedTitle, show: currentFeedTitle, logo: finalLogo, time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), rawDate: finalDateObj, title: item.title, summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...', category: feed.type === 'podcast' ? 'Podcast' : (item.category || 'Geral'), type: finalType, img: itemImg, cover: itemImg, link: primaryLink, url: item.link, videoId: item.videoId || getVideoId(item.link), date: finalDateObj.toLocaleDateString(), };
+
+                // --- Montagem do Objeto (Mantido Igual) ---
+                let primaryLink = item.link;
+                const enclosureUrl = item.enclosure?.url || item.audio;
+                let hasPlayableMedia = false;
+                
+                if (enclosureUrl) {
+                    const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || 
+                                    (enclosureUrl && enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i));
+                    if (isImage) { item.img = enclosureUrl; } 
+                    else { primaryLink = enclosureUrl; hasPlayableMedia = true; }
+                }
+
+                const itemImg = item.img || item.image || finalLogo;
+                const itemSummary = item.summary || item.description || '';
+
+                const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
+                let finalType = 'link'; 
+                if (isYoutubeItem) finalType = 'video';
+                else if (hasPlayableMedia || (primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a')))) finalType = 'audio'; 
+
+                return {
+                    id: uniqueId,
+                    source: currentFeedTitle, 
+                    show: currentFeedTitle,
+                    logo: finalLogo, 
+                    time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    rawDate: finalDateObj, 
+                    title: item.title,
+                    summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
+                    category: feed.type === 'podcast' ? 'Podcast' : (item.category || 'Geral'),
+                    type: finalType, 
+                    img: itemImg,
+                    cover: itemImg, 
+                    link: primaryLink, 
+                    url: item.link,
+                    videoId: item.videoId || getVideoId(item.link),
+                    date: finalDateObj.toLocaleDateString(),
+                };
             });
-            if (feed.type === 'podcast') allPodcastItems.push(...processedItems); else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) allVideoItems.push(...processedItems); else allNewsItems.push(...processedItems);
-        } catch (finalError) {
-            // Se até o Plano B falhou, nós apenas registramos o erro e seguimos em frente.
-            // Isso impede que um único feed quebrado trave o app inteiro.
-            console.error(`[FALHA TOTAL] Não foi possível carregar o feed ${feed.name}. Erro: ${finalError.message}`);
-        }
+
+            if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
+            else if (feed.type === 'youtube' || (isFeedYoutube && feed.type !== 'news')) allVideoItems.push(...processedItems);
+            else allNewsItems.push(...processedItems);
+
+        } catch (err) { console.error(`Erro no feed ${feed.name}`, err); }
     });
 
     await Promise.all(promises);
-    if (feedsThatNeedUpdate.length > 0) { setUserFeeds(prev => prev.map(f => { const update = feedsThatNeedUpdate.find(u => u.id === f.id); return update ? { ...f, name: update.name } : f; })); }
+
+    // Atualiza nomes de feeds genéricos
+    if (feedsThatNeedUpdate.length > 0) {
+        setUserFeeds(prev => prev.map(f => {
+            const update = feedsThatNeedUpdate.find(u => u.id === f.id);
+            return update ? { ...f, name: update.name } : f;
+        }));
+    }
+
+    // Salva o histórico atualizado no estado do React para persistir na sessão
     setArticleHistory(newHistoryBuffer);
-    const getSafeTime = (dateInput) => { if (!dateInput) return 0; const time = new Date(dateInput).getTime(); return isNaN(time) ? 0 : time; };
+
+    const getSafeTime = (dateInput) => {
+        if (!dateInput) return 0;
+        const time = new Date(dateInput).getTime();
+        return isNaN(time) ? 0 : time;
+    };
+
     const sortFn = (a, b) => getSafeTime(b.rawDate) - getSafeTime(a.rawDate);
+    
     setRealNews([...allNewsItems].sort(sortFn));
     setRealVideos([...allVideoItems].sort(sortFn));
     setRealPodcasts([...allPodcastItems].sort(sortFn));
+    
     setIsLoadingFeeds(false);
-};
+  };
 
 
+  
 
   // --- OTIMIZAÇÃO DE MEMÓRIA: ARRAY ÚNICO MEMORIZADO ---
   // Evita criar arrays gigantes no meio da renderização, prevenindo crashes no iOS
@@ -5178,11 +5256,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 // COMPONENTE ARTICLE PANEL - OTIMIZADO PARA NAVEGAÇÃO RÁPIDA (FEED NAVIGATOR)
 // ==============================================================================
 
-// ==============================================================================
-// COMPONENTE 'ArticlePanel' COMPLETO
-// Cole este componente inteiro no seu arquivo, substituindo o antigo.
-// A lógica aqui já era boa, mas o código completo está aqui para sua referência.
-// ==============================================================================
+// --- COMPONENTE ARTICLE PANEL (CORRIGIDO) ---
 const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
   // 1. Definição de Estados e Refs
   const [viewMode, setViewMode] = useState('web'); 
@@ -5191,12 +5265,15 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [isLoading, setIsLoading] = useState(false);
   const [fontSize, setFontSize] = useState(19); 
   const [isAnimationDone, setIsAnimationDone] = useState(false);
+  
   const [isTranslated, setIsTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedData, setTranslatedData] = useState(null);
+
   const scrollContainerRef = useRef(null); 
 
-  // 2. Memos e Helpers
+  // 2. Memos e Helpers (MOVIDOS PARA CIMA PARA EVITAR O ERRO 'Cannot access before initialization')
+  
   const videoId = useMemo(() => {
       if (!article) return null;
       return article.videoId || getVideoId(article.link);
@@ -5213,14 +5290,23 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       if (!html) return "";
       let clean = html;
       const headInjection = `<base href="${article?.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
+      
       if (isProblematicSite) {
-          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "").replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "").replace(/data-src=/gi, 'src=').replace(/data-srcset=/gi, 'srcset=').replace(/loading="lazy"/gi, ''); 
+          clean = clean
+            .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
+            .replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "")
+            .replace(/data-src=/gi, 'src=')
+            .replace(/data-srcset=/gi, 'srcset=')
+            .replace(/loading="lazy"/gi, ''); 
       }
+      
       if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
       return `${headInjection}${clean}`;
   };
 
-  // 3. Efeitos
+  // 3. Efeitos (Agora seguros, pois as variáveis acima já existem)
+
+  // Timer de Animação
   useEffect(() => {
     let timer;
     if (isOpen) {
@@ -5233,10 +5319,12 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     return () => clearTimeout(timer);
   }, [isOpen]);
 
+  // Carregamento de Conteúdo
   useEffect(() => {
     if (!isOpen || !article?.link || videoId) return;
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     
+    // Resetando estados para o novo artigo
     setReaderContent(null);
     setIframeUrl(null);
     setTranslatedData(null);
@@ -5250,9 +5338,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     const fetchContent = async () => {
         setIsLoading(true);
         try {
-            // A LÓGICA DE CACHE AQUI É INTELIGENTE E DEVE SER MANTIDA!
-            // 1. Tenta buscar da tabela 'article_cache' no Supabase.
-            // Isso economiza MUITAS invocações se o artigo já foi visto por alguém.
+            // 1. TENTA BUSCAR DO CACHE PRIMEIRO
             let { data: cachedData } = await supabase
                 .from('article_cache')
                 .select('content')
@@ -5260,78 +5346,109 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 .single();
 
             if (cachedData && cachedData.content) {
-                console.log("ArticlePanel: Artigo carregado do CACHE da Supabase.");
+                // SUCESSO! Usamos o cache.
+                console.log("Artigo carregado do CACHE.");
                 setReaderContent(cachedData.content);
+                
+                // Constrói HTML para o modo Webview baseado no cache
                 const cachedHtml = `<html><head><title>${cachedData.content.title}</title></head><body><h1>${cachedData.content.title}</h1>${cachedData.content.content}</body></html>`;
                 const cleanHtml = sanitizeHtml(cachedHtml);
                 const blob = new Blob([cleanHtml], { type: 'text/html' });
                 setIframeUrl(URL.createObjectURL(blob));
 
             } else {
-                // 2. SÓ SE NÃO TIVER NO CACHE, ele invoca a Edge Function.
-                // Esta é a chamada que queremos minimizar, e o cache ajuda nisso.
-                console.log("ArticlePanel: Cache miss. Invocando 'proxy-view' Edge Function.");
+                // 2. SE NÃO ACHOU NO CACHE, invoca a Edge Function
+                console.log("Cache miss. Buscando via Edge Function...");
                 const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
                 
-                if (error || !data) throw new Error("Falha na Edge Function 'proxy-view'");
+                if (error || !data) throw new Error("Falha no proxy-view");
                 
                 const cleanHtml = sanitizeHtml(data.html);
                 const blob = new Blob([cleanHtml], { type: 'text/html' });
                 setIframeUrl(URL.createObjectURL(blob));
                 setReaderContent(data.reader);
 
-                // 3. Salva o resultado no cache para a próxima vez, economizando futuras invocações.
+                // 3. SALVA O RESULTADO NO CACHE PARA A PRÓXIMA VEZ
                 if (data.reader) {
                     await supabase.from('article_cache').upsert({
                         url: article.link,
                         content: data.reader,
                     });
-                     console.log("ArticlePanel: Artigo salvo no cache da Supabase.");
+                     console.log("Artigo salvo no cache para uso futuro.");
                 }
             }
         } catch (err) {
-            console.warn("Falha ao buscar conteúdo para o ArticlePanel:", err);
+            console.warn("Falha ao buscar conteúdo, mudando para modo Magic:", err);
             setViewMode('magic');
         } finally {
             setIsLoading(false);
         }
     };
     
+    // Pequeno delay para permitir a animação de entrada fluir antes de pesar a thread
     if (!isAnimationDone) setTimeout(fetchContent, 500);
     else fetchContent();
 
-  }, [article?.id, isOpen, videoId, isProblematicSite]);
+  }, [article?.id, isOpen, videoId, isProblematicSite]); // isProblematicSite agora é seguro aqui
 
   // 4. Handlers de Eventos
-  const handleClosePanel = useCallback(() => { onClose(); }, [onClose]);
+
+  const handleClosePanel = useCallback(() => {
+      onClose(); 
+  }, [onClose]);
+
   const handleOpenInBrowser = useCallback(async () => {
     if (!article?.link) return;
-    await Browser.open({ url: article.link, presentationStyle: 'fullscreen', toolbarColor: isDarkMode ? '#000000' : '#FFFFFF', controlsColor: isDarkMode ? '#FFFFFF' : '#000000' });
+    await Browser.open({
+        url: article.link,
+        presentationStyle: 'fullscreen',
+        toolbarColor: isDarkMode ? '#000000' : '#FFFFFF',
+        controlsColor: isDarkMode ? '#FFFFFF' : '#000000'
+    });
   }, [article, isDarkMode]);
+
   const handleToggleTranslation = async () => {
-      if (translatedData) { setIsTranslated(!isTranslated); return; }
+      if (translatedData) { 
+          setIsTranslated(!isTranslated); 
+          return; 
+      }
+      
       const contentToTranslate = readerContent || article;
       if (!contentToTranslate) return;
+      
       setIsTranslating(true);
       try {
           const newTitle = await translateText(contentToTranslate.title);
+          
           const parser = new DOMParser();
           const doc = parser.parseFromString(contentToTranslate.content || article.summary || '', 'text/html');
+          
           const textNodes = [];
           const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
           let node;
-          while (node = walker.nextNode()) { if (node.nodeValue.trim().length > 0) textNodes.push(node); }
+          while (node = walker.nextNode()) { 
+              if (node.nodeValue.trim().length > 0) textNodes.push(node); 
+          }
+          
           const BATCH_SIZE = 5; 
           for (let i = 0; i < textNodes.length; i += BATCH_SIZE) {
               const batch = textNodes.slice(i, i + BATCH_SIZE);
               await Promise.all(batch.map(async (textNode) => {
-                  try { const translated = await translateText(textNode.nodeValue); textNode.nodeValue = translated; } catch(e){}
+                  try { 
+                      const translated = await translateText(textNode.nodeValue); 
+                      textNode.nodeValue = translated; 
+                  } catch(e){}
               }));
           }
+          
           setTranslatedData({ title: newTitle, content: doc.body.innerHTML });
           setIsTranslated(true);
           if (viewMode === 'web') setViewMode('magic');
-      } catch (err) { console.error(err); } finally { setIsTranslating(false); }
+      } catch (err) { 
+          console.error(err); 
+      } finally { 
+          setIsTranslating(false); 
+      }
   };
 
   // 5. Preparação de Dados para Renderização
@@ -5349,10 +5466,13 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   return (
     <div className={containerClasses}>
         <div className="relative flex-1 w-full flex flex-col h-full overflow-hidden">
+            
+            {/* TOP BAR */}
             <div className={`flex-shrink-0 px-3 py-3 flex items-center justify-between border-b z-50 ${videoId ? 'bg-black/90 border-white/10 text-white' : (isDarkMode ? 'bg-zinc-950 border-white/10 text-zinc-300' : 'bg-white border-zinc-200 text-zinc-900')}`}>
                 <button onClick={handleClosePanel} className={`flex items-center gap-1 py-2 pr-3 text-sm font-black transition active:scale-95 ${videoId ? 'text-zinc-300 hover:text-white' : (isDarkMode ? 'text-zinc-300 hover:text-white' : 'text-zinc-600 hover:text-black')}`}>
                     <ChevronLeft size={24} /> <span className="hidden md:inline">VOLTAR</span>
                 </button>
+                
                 {!videoId && (
                     <>
                         <div className={`flex p-1 rounded-xl relative border shadow-sm ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}>
@@ -5369,22 +5489,49 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                         </div>
                     </>
                 )}
+                 {/* Barra de progresso */}
                  <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] z-[60] pointer-events-none overflow-hidden">{isLoading && isAnimationDone ? <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 blur-[1px] animate-progress-aura" style={{ width: '100%' }} /> : <div className="h-full bg-transparent" />}</div>
             </div>
+
+            {/* ÁREA DE CONTEÚDO */}
             <div ref={scrollContainerRef} className={`flex-1 relative w-full h-full overflow-y-auto overscroll-contain ${videoId ? 'bg-black text-white' : (isDarkMode ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}`}>
+                
+                {/* Só mostra loading se estiver sem conteúdo ou carregando */}
                 {(!isAnimationDone || (isLoading && !readerContent && !iframeUrl)) ? (
-                    <div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50"><Loader2 size={32} className="animate-spin text-zinc-500" /></div>
+                    <div className="flex flex-col items-center justify-center h-full space-y-4 opacity-50">
+                        <Loader2 size={32} className="animate-spin text-zinc-500" />
+                    </div>
                 ) : (
                     <>
-                        {viewMode === 'web' && (<div className="w-full h-full">{iframeUrl ? (<iframe src={iframeUrl} className="w-full h-full border-none" sandbox={isProblematicSite ? "allow-same-origin allow-popups" : "allow-same-origin allow-scripts allow-popups allow-forms"} title="Web" loading="lazy" />) : (<div className="flex flex-col items-center justify-center h-full p-12 text-center text-zinc-500"><div className="p-6 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-6"><Globe size={40} className="opacity-40" /></div><h3 className="font-black text-xl mb-2">Web Indisponível</h3><p className="max-w-xs text-sm opacity-60 mb-6">Conteúdo bloqueado.</p></div>)}</div>)}
+                        {/* Conteúdo Web */}
+                        {viewMode === 'web' && (
+                            <div className="w-full h-full">
+                                {iframeUrl ? (
+                                    <iframe src={iframeUrl} className="w-full h-full border-none" sandbox={isProblematicSite ? "allow-same-origin allow-popups" : "allow-same-origin allow-scripts allow-popups allow-forms"} title="Web" loading="lazy" />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-full p-12 text-center text-zinc-500"><div className="p-6 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-6"><Globe size={40} className="opacity-40" /></div><h3 className="font-black text-xl mb-2">Web Indisponível</h3><p className="max-w-xs text-sm opacity-60 mb-6">Conteúdo bloqueado.</p></div>
+                                )}
+                            </div>
+                        )}
                         {viewMode === 'ai' && <AIAnalysisView article={activeArticleData} isDarkMode={isDarkMode} />}
                         {viewMode === 'magic' && <MagicPremiumView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
                         {viewMode === 'reader' && <AppleReaderView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
                     </>
                 )}
             </div>
-            {isAnimationDone && !videoId && (viewMode === 'magic' || viewMode === 'reader') && (<div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 rounded-2xl backdrop-blur-xl border shadow-2xl animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-black/80 border-white/10' : 'bg-white/90 border-zinc-200'}`}><button onClick={() => setFontSize(s => Math.max(14, s - 2))} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition active:scale-90 bg-zinc-100 dark:bg-white/5"><Minus size={16}/></button><span className="text-xs font-black w-8 text-center">{fontSize}px</span><button onClick={() => setFontSize(s => Math.min(32, s + 2))} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition active:scale-90 bg-zinc-100 dark:bg-white/5"><Plus size={16}/></button></div>)}
-            {isOpen && isAnimationDone && article && feedItems && (<FeedNavigator article={article} feedItems={feedItems} onArticleChange={onArticleChange} isDarkMode={isDarkMode} />)}
+
+            {isAnimationDone && !videoId && (viewMode === 'magic' || viewMode === 'reader') && (
+                <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 rounded-2xl backdrop-blur-xl border shadow-2xl animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-black/80 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
+                    <button onClick={() => setFontSize(s => Math.max(14, s - 2))} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition active:scale-90 bg-zinc-100 dark:bg-white/5"><Minus size={16}/></button>
+                    <span className="text-xs font-black w-8 text-center">{fontSize}px</span>
+                    <button onClick={() => setFontSize(s => Math.min(32, s + 2))} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition active:scale-90 bg-zinc-100 dark:bg-white/5"><Plus size={16}/></button>
+                </div>
+            )}
+            
+            {/* Feed Navigator */}
+            {isOpen && isAnimationDone && article && feedItems && (
+                <FeedNavigator article={article} feedItems={feedItems} onArticleChange={onArticleChange} isDarkMode={isDarkMode} />
+            )}
         </div>
         <style jsx="true">{`@keyframes progress-aura { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } } .animate-progress-aura { animation: progress-aura 1.5s infinite linear; }`}</style>
     </div>
