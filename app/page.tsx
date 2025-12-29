@@ -4569,7 +4569,7 @@ const allAvailableStories = useMemo(() => {
 const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
 
   return (
-    <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-b text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
+    <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       {/* --- SPLASH SCREEN --- */}
       {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
       <div className={`transition-all duration-500 transform h-[100dvh] flex flex-col ${isMainViewReceded ? `scale-[0.9] pointer-events-none` : 'scale-100 opacity-100'}`}>
@@ -5290,93 +5290,50 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       return () => clearTimeout(timer);
   }, [isOpen]); // ATENÇÃO: removi article.id daqui para não re-animar na troca
 
-
-  // ================== COLE ESTE NOVO BLOCO NO LUGAR DO ANTIGO ==================
-
-  useEffect(() => {
-    let timer;
-    if (isOpen) {
-        timer = setTimeout(() => setIsAnimationDone(true), 450);
-    } else {
-        setIsAnimationDone(false);
-        setIframeUrl(null);
-        setReaderContent(null);
-        
-        setIsSpeakingArticle(false);
-    }
-    return () => clearTimeout(timer);
-  }, [isOpen]);
-
+  // 2. EFEITO DE CARREGAMENTO DO CONTEÚDO (Roda quando article.id muda)
   useEffect(() => {
     if (!isOpen || !article?.link || videoId) return;
+    
+    // --- O SEGREDO DA FLUIDEZ NO NAVIGATOR ---
+    // 1. Reseta o scroll para o topo imediatamente
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     
-    // Resetando estados para o novo artigo
+    // 2. Limpa o conteúdo anterior para mostrar que está carregando o novo
     setReaderContent(null);
     setIframeUrl(null);
     setTranslatedData(null);
     setIsTranslated(false);
-
-    if (isProblematicSite) {
-      setIsLoading(false);
-      return;
-    }
+    setIsLoading(true);
 
     const fetchContent = async () => {
-        setIsLoading(true);
         try {
-            // 1. TENTA BUSCAR DO CACHE PRIMEIRO
-            let { data: cachedData } = await supabase
-                .from('article_cache')
-                .select('content')
-                .eq('url', article.link)
-                .single();
-
-            if (cachedData && cachedData.content) {
-                // SUCESSO! Usamos o cache, sem invocar a função Edge.
-                console.log("Artigo carregado do CACHE.");
-                setReaderContent(cachedData.content);
-                // NOTA: O modo webview ainda precisa do HTML, mas agora podemos construí-lo a partir do cache
-                // Esta parte é um bônus, mas importante para manter a funcionalidade
-                const cachedHtml = `<html><head><title>${cachedData.content.title}</title></head><body><h1>${cachedData.content.title}</h1>${cachedData.content.content}</body></html>`;
-                const cleanHtml = sanitizeHtml(cachedHtml);
-                const blob = new Blob([cleanHtml], { type: 'text/html' });
-                setIframeUrl(URL.createObjectURL(blob));
-
-            } else {
-                // 2. SE NÃO ACHOU NO CACHE, invoca a função como antes
-                console.log("Cache miss. Buscando via Edge Function...");
-                const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-                if (error || !data) throw new Error("Falha no proxy-view");
-                
-                const cleanHtml = sanitizeHtml(data.html);
-                const blob = new Blob([cleanHtml], { type: 'text/html' });
-                setIframeUrl(URL.createObjectURL(blob));
-                setReaderContent(data.reader);
-
-                // 3. SALVA O RESULTADO NO CACHE PARA A PRÓXIMA VEZ
-                if (data.reader) {
-                    await supabase.from('article_cache').upsert({
-                        url: article.link,
-                        content: data.reader,
-                    });
-                     console.log("Artigo salvo no cache para uso futuro.");
-                }
-            }
+            const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+            if (error || !data) throw new Error();
+            
+            // Verifica se o artigo ainda é o mesmo (caso o usuário clique muito rápido em outro)
+            setIframeUrl((current) => {
+                 // Lógica simples de blob
+                 const cleanHtml = sanitizeHtml(data.html);
+                 const blob = new Blob([cleanHtml], { type: 'text/html' });
+                 return URL.createObjectURL(blob);
+            });
+            setReaderContent(data.reader);
         } catch (err) {
-            console.warn("Falha ao buscar conteúdo, usando modo Magic:", err);
+            console.warn("Falha no Web View, indo para Magic:", err);
             setViewMode('magic');
         } finally {
             setIsLoading(false);
         }
     };
     
-    if (!isAnimationDone) setTimeout(fetchContent, 500);
-    else fetchContent();
+    // Pequeno delay se a animação do painel ainda estiver rolando (primeira abertura)
+    if (!isAnimationDone) {
+        setTimeout(fetchContent, 500);
+    } else {
+        fetchContent(); // Troca instantânea se já estiver aberto (Navigator)
+    }
 
-  }, [article?.id, isOpen, videoId, isProblematicSite]);
-
-// =============================================================================
+  }, [article?.id, isOpen, videoId]); // Depende do ID do artigo
 
   // ... (Mantenha sanitizeHtml, handleClosePanel, handleOpenInBrowser, handleToggleTranslation inalterados) ...
   const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
