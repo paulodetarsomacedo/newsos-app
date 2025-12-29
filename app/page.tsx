@@ -1726,22 +1726,32 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
 };
 
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODELO 2.5 FLASH) ---
+// --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V3 - 4 CARDS + TEXTO FLUÍDO) ---
 const generateSmartClustering = async (news, apiKey, limit = 50) => { 
   if (!news || news.length < 10 || !apiKey) return null;
 
+  // Envia apenas o essencial para economizar, mas inclui o início do resumo para contexto
   const simplifiedNews = news.slice(0, limit).map((n, index) => 
     `${index}|${n.source}|${n.title}`
   ).join('\n');
 
   const prompt = `
-  Você é um Editor-Chefe. Analise a lista de manchetes abaixo (Formato: Index|Fonte|Título).
-  Agrupe as notícias em EXATAMENTE 3 (TRÊS) cards de "Contexto Global".
+  Você é um Editor Sênior de Jornalismo. Analise as manchetes abaixo.
+  
+  SUA MISSÃO:
+  Identificar os 4 (QUATRO) maiores acontecimentos do momento e criar grupos.
+  
+  PARA CADA GRUPO, CRIE UM TÍTULO QUE SEJA UMA FRASE JORNALÍSTICA COMPLETA.
+  - NÃO faça listas de palavras (ex: "Mercado, Dólar, Bolsa").
+  - FAÇA uma frase explicativa (ex: "Dólar cai e Bolsa sobe com otimismo sobre juros nos EUA").
+  - O título deve ser claro, direto e em Português do Brasil.
+  
   RETORNE APENAS JSON:
   [
     {
-      "ai_title": "Título curto (Máx 7 palavras)",
-      "representative_index": 0, 
-      "related_indices": [0, 5]
+      "ai_title": "Frase jornalística explicativa (Máx 12 palavras)",
+      "representative_index": 0, (Índice da melhor imagem para capa)
+      "related_indices": [0, 5, 8] (Pelo menos 2 índices que formam este grupo)
     }
   ]
   DADOS:
@@ -1749,7 +1759,6 @@ const generateSmartClustering = async (news, apiKey, limit = 50) => {
   `;
 
   try {
-    // ATUALIZADO PARA gemini-2.5-flash
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST", 
       headers: { "Content-Type": "application/json" },
@@ -1791,7 +1800,8 @@ const generateSmartClustering = async (news, apiKey, limit = 50) => {
         };
     }).filter(c => c.related_articles.length > 0); 
 
-    return Array.isArray(hydratedJson) ? hydratedJson : null;
+    // Garante que retornamos no máximo 4, conforme pedido, caso a IA se empolgue
+    return Array.isArray(hydratedJson) ? hydratedJson.slice(0, 4) : null;
 
   } catch (error) {
     console.error("Erro Smart Clustering:", error);
@@ -4229,6 +4239,21 @@ const handleStoryNavigation = (direction) => {
 
             lastAssignedTime = finalTimestamp;
             const finalDateObj = new Date(finalTimestamp);
+
+            // --- CORREÇÃO ESPECÍFICA PARA INVESTING BR ---
+                // Se a fonte for Investing E a data for no futuro (mais de 5 min à frente),
+                // nós forçamos a data para "Agora" para evitar que ela fure a fila do feed.
+                if (feed.url.includes('investing') || currentFeedTitle.toLowerCase().includes('investing')) {
+                    const now = new Date();
+                    // Se a data da notícia for maior que "Agora + 1 minuto"
+                    if (finalDateObj > new Date(now.getTime() + 60000)) {
+                        // Ajusta para o horário atual real
+                        finalDateObj.setTime(now.getTime());
+                        // Atualiza o timestamp também para manter a coerência
+                        lastAssignedTime = now.getTime(); 
+                    }
+                }
+                // ---------------------------------------------
 
             let primaryLink = item.link;
             const enclosureUrl = item.enclosure?.url || item.audio;
