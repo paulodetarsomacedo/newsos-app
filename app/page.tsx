@@ -4142,7 +4142,10 @@ const handleStoryNavigation = (direction) => {
     let newHistoryBuffer = { ...articleHistory };
 
     const promises = userFeeds.map(async (feed) => {
-        if (!feed.url) return;
+        if (!feed.url || feed.url.length < 5 || !feed.url.startsWith('http')) {
+        console.warn("Feed ignorado por URL inválida:", feed.name);
+        return; 
+    }
 
         try {
             let feedItems = [];
