@@ -5276,7 +5276,7 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   }, [article]);
 
 // ... (Mantenha sanitizeHtml, handleClosePanel, handleOpenInBrowser, handleToggleTranslation inalterados) ...
-  const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
+  const PROBLEMATIC_DOMAINS = ['dty.com.br'];
   const isProblematicSite = useMemo(() => {
       if (!article?.link) return false;
       return PROBLEMATIC_DOMAINS.some(domain => article.link.includes(domain));
