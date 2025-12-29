@@ -3986,10 +3986,7 @@ const [userFeeds, setUserFeeds] = useState([]);
 
 
 
-const handleHappeningRefresh = () => {
-    // Limpa a lista de IDs de stories vistos
-    
-    const handleHappeningRefresh = async () => {
+const handleHappeningRefresh = async () => {
     // Passamos TRUE para dizer: "Ignore a RAM, ignore o Disco, vá no Supabase agora!"
     await fetchFeeds(true); 
 };
@@ -6122,4 +6119,4 @@ function NewsletterTab({ openArticle, isDarkMode, newsData }) {
       </div>
     </div>
   );
-}}
+}
