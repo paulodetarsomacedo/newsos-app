@@ -1964,27 +1964,23 @@ const generateTrendRadar = async (news, apiKey) => {
   }
 };
 
-// 1. Sub-componente do Mini Navegador (Vidro - Com "Desbloqueador" de Sites)
+// 1. Sub-componente do Mini Navegador (Estilo Card de Prévia)
 const GlassBrowser = ({ article, onClose, isDarkMode }) => {
     
     // Função para abrir no Safari Nativo (In-App)
     const openInNativeBrowser = async () => {
         try {
             await Browser.open({
-                url: article.link,
+                url: article.link, // Abre o link original direto
                 presentationStyle: 'fullscreen',
                 toolbarColor: isDarkMode ? '#000000' : '#FFFFFF',
             });
-            onClose(); 
+            onClose(); // Fecha o card para quando o usuário voltar
         } catch (e) {
+            // Fallback infalível
             window.open(article.link, '_blank');
         }
     };
-
-    // TRUQUE: Usa um proxy gratuito para tentar burlar o bloqueio X-Frame-Options
-    // Se o site for muito complexo (bancos, sistemas seguros), ainda pode falhar, 
-    // mas para notícias funciona em 90% dos casos.
-    const iframeSrc = `https://corsproxy.io/?${encodeURIComponent(article.link)}`;
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
@@ -1994,73 +1990,69 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
                 onClick={onClose} 
             />
 
-            {/* A Janela de Vidro */}
+            {/* O Card de Vidro */}
             <div className={`
-                relative w-[95vw] h-[85vh] md:w-[800px] md:h-[90vh]
+                relative w-[90vw] md:w-[600px] max-h-[85vh]
                 rounded-[2.5rem] overflow-hidden shadow-2xl border flex flex-col 
                 transition-all transform scale-100 animate-in zoom-in-95 duration-300
                 ${isDarkMode 
-                    ? 'bg-zinc-900/90 border-white/10 shadow-purple-500/20' 
-                    : 'bg-white/90 border-white/40 shadow-xl'}
+                    ? 'bg-zinc-900/95 border-white/10 shadow-purple-500/20' 
+                    : 'bg-white/95 border-white/40 shadow-xl'}
                 backdrop-blur-2xl
             `}>
                 
-                {/* Header do Vidro */}
-                <div className={`
-                    flex items-center justify-between px-6 py-4 border-b flex-shrink-0
-                    ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-black/5 bg-white/40'}
-                `}>
-                    <div className="flex items-center gap-3 overflow-hidden min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-black/20 p-0.5 flex-shrink-0">
-                            <img src={article.logo} className="w-full h-full rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                            <span className={`text-[10px] font-bold uppercase tracking-wider truncate ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                                {article.source}
-                            </span>
-                            <span className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                                {article.title}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                        <button 
-                            onClick={openInNativeBrowser} 
-                            className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition active:scale-95 ${isDarkMode ? 'bg-blue-600 text-white hover:bg-blue-500' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
-                        >
-                            <Globe size={14} /> Navegador
-                        </button>
-                        <button onClick={onClose} className={`p-2.5 rounded-full transition active:scale-90 ${isDarkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-black/5 text-black hover:bg-black/10'}`}>
-                            <X size={20} />
-                        </button>
+                {/* Imagem de Capa (Hero) */}
+                <div className="relative h-48 md:h-64 w-full flex-shrink-0">
+                    <img 
+                        src={article.img || article.logo} 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => e.target.style.display = 'none'}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                    
+                    {/* Botão Fechar Flutuante */}
+                    <button 
+                        onClick={onClose} 
+                        className="absolute top-4 right-4 p-2 rounded-full bg-black/30 text-white backdrop-blur-md border border-white/20 hover:bg-black/50 transition active:scale-90"
+                    >
+                        <X size={20} />
+                    </button>
+
+                    {/* Fonte na Imagem */}
+                    <div className="absolute bottom-4 left-6 flex items-center gap-2">
+                        <img src={article.logo} className="w-6 h-6 rounded-full border border-white/50" />
+                        <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black drop-shadow-md">
+                            {article.source}
+                        </span>
                     </div>
                 </div>
 
-                {/* Conteúdo (Iframe com Proxy e Scroll) */}
-                <div className="flex-1 relative w-full h-full bg-white overflow-y-auto -webkit-overflow-scrolling-touch">
-                    <iframe 
-                        src={iframeSrc} 
-                        className="w-full h-full border-none min-h-[100%]"
-                        title="Preview"
-                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                    />
+                {/* Conteúdo do Card */}
+                <div className="p-8 flex flex-col flex-1 overflow-y-auto">
+                    <h2 className={`text-2xl font-black leading-tight mb-4 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                        {article.title}
+                    </h2>
                     
-                    {/* Aviso de erro no fundo (Caso o proxy falhe ou fique lento) */}
-                    <div className="absolute inset-0 -z-10 flex flex-col items-center justify-center p-10 text-center opacity-50 pointer-events-none">
-                        <Globe size={48} className="mb-4 text-zinc-400 animate-pulse"/>
-                        <p className="text-sm font-bold text-zinc-500">Carregando visualização rápida...</p>
-                    </div>
+                    <p className={`text-base leading-relaxed mb-8 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                        {article.summary || "Toque abaixo para ler a matéria completa diretamente na fonte original."}
+                    </p>
 
-                    {/* Botão Flutuante Inferior (Sempre visível) */}
-                    <div className="absolute bottom-8 left-0 right-0 flex justify-center pb-safe z-20 pointer-events-none">
+                    <div className="mt-auto pt-4">
                         <button 
                             onClick={openInNativeBrowser}
-                            className="pointer-events-auto shadow-[0_10px_40px_rgba(0,0,0,0.3)] bg-black text-white px-8 py-4 rounded-full text-sm font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform flex items-center gap-3 border border-white/20 backdrop-blur-md"
+                            className={`
+                                w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-lg
+                                ${isDarkMode 
+                                    ? 'bg-white text-black hover:bg-zinc-200' 
+                                    : 'bg-black text-white hover:bg-zinc-800'}
+                            `}
                         >
-                            Ler Artigo Completo <ArrowRight size={16}/>
+                            Ler Notícia Completa <ArrowRight size={18} />
                         </button>
+                        
+                        <p className="text-center text-[10px] mt-4 opacity-40 uppercase font-bold tracking-widest">
+                            Abre no navegador seguro
+                        </p>
                     </div>
                 </div>
             </div>
