@@ -3977,6 +3977,35 @@ const getFullVideoUrl = (video) => {
 
 const FEED_CACHE_PREFIX = 'newsos_cache_v1_';
 
+// --- FUNÇÃO AUXILIAR DE LOGOS (MANUAL + AUTOMÁTICO) ---
+const getSmartLogo = (feedName, feedUrl, isYoutube) => {
+    const lowerName = feedName.toLowerCase();
+    
+    // 1. Dicionário de Logos Manuais (Adicione aqui os que precisam de ajuste)
+    if (lowerName.includes('investnews')) return 'https://investnews.com.br/wp-content/uploads/2022/01/favicon-investnews.png';
+    if (lowerName.includes('valor investe')) return 'https://s2.glbimg.com/Qe_UPs8t-M3j3j6j5j4j3.png';
+    if (lowerName.includes('valor economico') || lowerName.includes('valor econômico')) return 'https://s3.glbimg.com/v1/AUTH_7d5b995057bd47d191b9bfa480b9d3ee/pub/valor/2019/09/27/favicon.ico';
+    if (lowerName.includes('estadao') || lowerName.includes('estadão')) return 'https://www.estadao.com.br/pf/resources/images/favicon.ico?d=582';
+    if (lowerName.includes('istoé') || lowerName.includes('istoe')) return 'https://www.istoedinheiro.com.br/wp-content/themes/istoe-dinheiro/assets/img/favicon.ico';
+    if (lowerName.includes('gazeta do povo')) return 'https://www.gazetadopovo.com.br/ico/favicon.ico';
+    if (lowerName.includes('uol')) return 'https://conteudo.imguol.com.br/c/home/layout/v2016/icons/favicon.ico';
+    if (lowerName.includes('cnn')) return 'https://www.cnnbrasil.com.br/wp-content/uploads/sites/12/2021/06/cnn-fav.png';
+
+    // 2. Se for YouTube, gera avatar colorido (se não tiver logo ainda)
+    if (isYoutube) {
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(feedName)}&background=ff0000&color=fff&size=128&bold=true`;
+    }
+
+    // 3. O "Salvador da Pátria": Google Favicon Service (Funciona para 99% dos sites)
+    try {
+        const domain = new URL(feedUrl).hostname;
+        return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+    } catch (e) {
+        // Último caso: Avatar com iniciais
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(feedName)}&background=random`;
+    }
+};
+
 
 
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
@@ -4317,47 +4346,8 @@ const handleStoryNavigation = (direction) => {
             feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
         }
 
-        // --- TRATAMENTO DE LOGOS ESPECÍFICOS (ATUALIZADO) ---
-            let finalLogo = feedLogo;
-            const lowerName = currentFeedTitle.toLowerCase();
-            const lowerUrl = feed.url.toLowerCase();
-
-            // 1. Dicionário Manual de Ícones Financeiros e Notícias
-            if (lowerName.includes('investnews')) {
-                finalLogo = 'https://investnews.com.br/wp-content/uploads/2022/01/favicon-investnews.png';
-            } 
-            else if (lowerName.includes('valor investe')) {
-                finalLogo = 'https://s2.glbimg.com/Qe_UPs8t-M3j3j6j5j4j3.png'; // Logo Valor Investe
-            }
-            else if (lowerName.includes('valor economico') || lowerName.includes('valor econômico')) {
-                finalLogo = 'https://s3.glbimg.com/v1/AUTH_7d5b995057bd47d191b9bfa480b9d3ee/pub/valor/2019/09/27/favicon.ico';
-            }
-            else if (lowerName.includes('estadao') || lowerName.includes('estadão')) {
-                finalLogo = 'https://www.estadao.com.br/pf/resources/images/favicon.ico?d=582';
-            }
-            else if (lowerName.includes('istoé') || lowerName.includes('istoe')) {
-                finalLogo = 'https://www.istoedinheiro.com.br/wp-content/themes/istoe-dinheiro/assets/img/favicon.ico';
-            }
-            else if (lowerName.includes('gazeta do povo')) {
-                finalLogo = 'https://www.gazetadopovo.com.br/ico/favicon.ico';
-            }
-            else if (lowerName.includes('uol')) {
-                finalLogo = 'https://conteudo.imguol.com.br/c/home/layout/v2016/icons/favicon.ico';
-            }
-            
-            // 2. Lógica para YouTube
-            else if (isFeedYoutube && !finalLogo) {
-                finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=ff0000&color=fff&size=128&font-size=0.5`;
-            } 
-            // 3. Fallback Automático
-            else if (!finalLogo) {
-               try {
-                   const domain = new URL(feed.url).hostname;
-                   finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-               } catch (e) {
-                   finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`;
-               }
-            }
+        // --- TRATAMENTO DE LOGOS ESPECÍFICOS ---
+         const finalLogo = getSmartLogo(currentFeedTitle, feed.url, isFeedYoutube);
 
         let LIMIT = 20; 
         if (feed.type === 'podcast') LIMIT = 1; 
@@ -5432,10 +5422,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         return () => clearTimeout(timer);
     }, [isOpen]); // ATENÇÃO: removi article.id daqui para não re-animar na troca
   
-    // 2. EFEITO DE CARREGAMENTO DO CONTEÚDO (COM FALLBACK PARA RSS)
+    // 2. EFEITO DE CARREGAMENTO DO CONTEÚDO (COM FORÇAMENTO DE RESUMO RSS)
   useEffect(() => {
     if (!isOpen || !article?.link || videoId) return;
     
+    // Reseta scroll
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     
     setReaderContent(null);
@@ -5447,56 +5438,65 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     const fetchContent = async () => {
         setIsLoading(true);
         try {
-            // A. Verifica Cache
+            // A. TENTA LER DO CACHE DE ARTIGOS (Banco de dados)
             let { data: cachedData } = await supabase
                 .from('article_cache')
                 .select('content')
                 .eq('url', article.link)
                 .single();
 
-            if (cachedData && cachedData.content && cachedData.content.content && cachedData.content.content.length > 200) {
-                // Cache Bom!
+            // Verifica se o cache é válido E tem conteúdo substancial
+            if (cachedData && cachedData.content && cachedData.content.content && cachedData.content.content.length > 500) {
                 console.log("Artigo carregado do CACHE.");
                 setReaderContent(cachedData.content);
                 setViewMode('magic');
             } else {
-                // B. Baixa do Supabase (Edge Function)
+                // B. SE NÃO TEM CACHE, TENTA BAIXAR
                 console.log("Baixando via Proxy...");
                 const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
                 
-                // LÓGICA DE SALVAÇÃO:
-                // Se der erro, OU se o texto retornado for muito curto (< 200 caracteres),
-                // Significa que o site bloqueou o robô.
-                // Nesse caso, usamos o "Summary" do RSS como se fosse o corpo da notícia.
-                
                 let finalContent = null;
                 let finalTitle = article.title;
+                let isProxySuccess = false;
 
-                if (!error && data && data.reader && data.reader.content && data.reader.content.length > 200) {
-                    // Sucesso real: Temos o texto completo
+                // Verifica se o download trouxe texto de verdade (> 500 letras)
+                if (!error && data && data.reader && data.reader.content && data.reader.content.length > 500) {
                     finalContent = data.reader.content;
                     finalTitle = data.reader.title || article.title;
-                } else {
-                    // Falha do Proxy (Bloqueio/Paywall): Usamos o Resumo do RSS
-                    console.warn("Proxy falhou ou retornou pouco texto. Usando Fallback RSS.");
-                    // Monta um HTML bonito com o resumo e um aviso
+                    isProxySuccess = true;
+                } 
+                
+                // C. O "PLANO B" (Se o download falhou, bloqueou ou veio vazio)
+                // Aqui usamos o que já temos no RSS para não deixar o usuário na mão
+                if (!isProxySuccess) {
+                    console.warn("Conteúdo bloqueado ou vazio. Usando Resumo do RSS.");
+                    
+                    // Monta um "Artigo Fake" com os dados do RSS
                     finalContent = `
-                        <div class="rss-fallback">
-                            <p class="intro"><strong>Nota do NewsOS:</strong> O site original (${article.source}) restringe o acesso ao texto completo via leitura rápida.</p>
-                            <hr style="margin: 20px 0; opacity: 0.2"/>
-                            <p class="summary-text" style="font-size: 1.2em; line-height: 1.6;">${article.summary}</p>
+                        <div class="rss-fallback-content">
+                            <p class="intro-note" style="background: #f3f4f6; color: #374151; padding: 12px; border-radius: 8px; font-size: 0.9em; margin-bottom: 24px;">
+                                <strong>Nota:</strong> O site ${article.source} bloqueou a leitura completa. Exibindo resumo disponível.
+                            </p>
+                            ${article.img ? `<img src="${article.img}" alt="${article.title}" style="width:100%; border-radius: 12px; margin-bottom: 20px;">` : ''}
+                            <div style="font-size: 1.25em; line-height: 1.6; font-family: 'Merriweather', serif;">
+                                <p>${article.summary || "Resumo não disponível."}</p>
+                            </div>
                             <br/>
-                            <p><em>Para continuar a leitura, clique no botão de globo acima para abrir o navegador original.</em></p>
+                            <hr style="opacity: 0.2; margin: 30px 0;"/>
+                            <div style="text-align: center;">
+                                <p style="opacity: 0.7; font-size: 0.9em;">Para ler a matéria na íntegra e ver comentários:</p>
+                            </div>
                         </div>
                     `;
                 }
 
                 const contentObj = { title: finalTitle, content: finalContent };
                 setReaderContent(contentObj);
-                setViewMode('magic'); // Força modo Magic para mostrar o resumo bonito
+                setViewMode('magic'); // Força o modo Magic para renderizar o HTML que criamos
 
-                // Salva no cache (mesmo que seja o resumo, para não tentar baixar de novo e gastar $)
-                if (finalContent) {
+                // Só salva no cache se for o conteúdo REAL do proxy. 
+                // Se for o resumo RSS, não salvamos no banco para tentar baixar o completo de novo no futuro.
+                if (isProxySuccess) {
                     await supabase.from('article_cache').upsert({
                         url: article.link,
                         content: contentObj,
@@ -5504,11 +5504,11 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                 }
             }
         } catch (err) {
-            console.warn("Erro fatal no carregamento, usando resumo:", err);
-            // Último caso: Se tudo der errado, mostra o resumo
+            console.warn("Erro fatal, exibindo fallback RSS:", err);
+            // Fallback de emergência
             setReaderContent({ 
                 title: article.title, 
-                content: `<p>${article.summary}</p><p><em>Não foi possível carregar o texto completo.</em></p>` 
+                content: `<p>${article.summary}</p>` 
             });
             setViewMode('magic');
         } finally {
