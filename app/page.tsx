@@ -1964,7 +1964,10 @@ const generateTrendRadar = async (news, apiKey) => {
   }
 };
 
-// 1. Sub-componente do Mini Navegador (Estilo Card de Prévia)
+// --- WIDGET: SMART DIGEST (DESIGN EDITORIAL PREMIUM) ---
+
+// 1. Mantemos o GlassBrowser (Mini Navegador) igual, pois ficou ótimo.
+
 const GlassBrowser = ({ article, onClose, isDarkMode }) => {
     
     // Função para abrir no Safari Nativo (In-App)
@@ -1992,7 +1995,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
 
             {/* O Card de Vidro */}
             <div className={`
-                relative w-[90vw] md:w-[600px] max-h-[85vh]
+                relative w-[98vw] md:w-[600px] max-h-[92vh]
                 rounded-[2.5rem] overflow-hidden shadow-2xl border flex flex-col 
                 transition-all transform scale-100 animate-in zoom-in-95 duration-300
                 ${isDarkMode 
@@ -2077,74 +2080,50 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     }
   }, [refreshTrigger]);
 
-  useEffect(() => {
-      return () => cancelSpeech();
-  }, []);
+  useEffect(() => { return () => cancelSpeech(); }, []);
 
   const handleGenerate = async () => {
-    if (!apiKey) {
-        alert("Configure sua API Key nas configurações primeiro.");
-        return;
-    }
+    if (!apiKey) { alert("Configure sua API Key nas configurações primeiro."); return; }
     setStatus('loading');
     await new Promise(r => setTimeout(r, 800));
-
     const result = await generateBriefing(newsData, apiKey);
-    
-    if (result) {
-        setDigest(result);
-        setStatus('success');
-    } else {
-        setStatus('error');
-    }
+    if (result) { setDigest(result); setStatus('success'); } else { setStatus('error'); }
   };
 
-  const cancelSpeech = () => {
-      if (synthRef.current) {
-          synthRef.current.cancel();
-          setIsSpeaking(false);
-      }
-  };
+  const cancelSpeech = () => { if (synthRef.current) { synthRef.current.cancel(); setIsSpeaking(false); } };
 
   const handlePlayBriefing = () => {
       if (!synthRef.current || !digest) return;
       if (isSpeaking) { cancelSpeech(); return; }
-
       setIsSpeaking(true);
-      const intro = `Resumo do News O S. ${digest.vibe_title}.`;
-      const content = digest.topics.map(t => `${t.tag}. ${t.summary}`).join('. Próximo: ');
-      const finalText = `${intro} ${content}. Fim do resumo.`;
-
+      const intro = `Briefing Executivo. ${digest.vibe_title}.`;
+      const content = digest.topics.map(t => `${t.tag}. ${t.summary}`).join('. ');
+      const finalText = `${intro} ${content}.`;
       const utterance = new SpeechSynthesisUtterance(finalText);
-      utterance.lang = 'pt-BR'; 
-      utterance.rate = 1.1; 
-      utterance.pitch = 1;
+      utterance.lang = 'pt-BR'; utterance.rate = 1.1; utterance.pitch = 1;
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
-
       synthRef.current.speak(utterance);
   };
 
-  const toggleExpand = (index) => {
-      setExpandedIndex(expandedIndex === index ? null : index);
-  };
+  const toggleExpand = (index) => { setExpandedIndex(expandedIndex === index ? null : index); };
 
   const getTag3DStyle = (index) => {
-      const base3D = "shadow-[0_2px_5px_-1px_rgba(0,0,0,0.2)] border-t border-b";
+      const base3D = "shadow-sm border-t border-b";
       if (isDarkMode) {
           const styles = [
-              `bg-gradient-to-b from-blue-500/20 to-blue-600/10 text-blue-200 border-t-blue-400/30 border-b-blue-900/50 ${base3D}`,
-              `bg-gradient-to-b from-orange-500/20 to-orange-600/10 text-orange-200 border-t-orange-400/30 border-b-orange-900/50 ${base3D}`,
-              `bg-gradient-to-b from-emerald-500/20 to-emerald-600/10 text-emerald-200 border-t-emerald-400/30 border-b-emerald-900/50 ${base3D}`,
-              `bg-gradient-to-b from-purple-500/20 to-purple-600/10 text-purple-200 border-t-purple-400/30 border-b-purple-900/50 ${base3D}`,
+              `bg-blue-500/10 text-blue-300 border-blue-500/20 ${base3D}`,
+              `bg-orange-500/10 text-orange-300 border-orange-500/20 ${base3D}`,
+              `bg-emerald-500/10 text-emerald-300 border-emerald-500/20 ${base3D}`,
+              `bg-purple-500/10 text-purple-300 border-purple-500/20 ${base3D}`,
           ];
           return styles[index % styles.length];
       } else {
           const styles = [
-              `bg-gradient-to-b from-blue-50 to-blue-100/50 text-blue-700 border-t-white border-b-blue-200 ${base3D}`,
-              `bg-gradient-to-b from-orange-50 to-orange-100/50 text-orange-700 border-t-white border-b-orange-200 ${base3D}`,
-              `bg-gradient-to-b from-emerald-50 to-emerald-100/50 text-emerald-700 border-t-white border-b-emerald-200 ${base3D}`,
-              `bg-gradient-to-b from-purple-50 to-purple-100/50 text-purple-700 border-t-white border-b-purple-200 ${base3D}`,
+              `bg-blue-50 text-blue-700 border-blue-100 ${base3D}`,
+              `bg-orange-50 text-orange-700 border-orange-100 ${base3D}`,
+              `bg-emerald-50 text-emerald-700 border-emerald-100 ${base3D}`,
+              `bg-purple-50 text-purple-700 border-purple-100 ${base3D}`,
           ];
           return styles[index % styles.length];
       }
@@ -2156,18 +2135,17 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     return (
       <div className="px-1 mb-6">
         <div className={`relative overflow-hidden rounded-[2rem] p-8 border transition-all shadow-lg ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-           <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-gradient-to-bl from-purple-500/10 to-transparent rounded-full blur-[80px] pointer-events-none -mr-20 -mt-20" />
            <div className="flex flex-col items-center text-center relative z-10">
               <div className="mb-4 p-3 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
                  <Sparkles size={24} className="text-white animate-pulse" />
               </div>
-              <h2 className={`text-xl font-black mb-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>O que está acontecendo?</h2>
+              <h2 className={`text-xl font-black mb-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Briefing Inteligente</h2>
               <p className={`text-sm mb-6 max-w-[260px] leading-relaxed opacity-70 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                Deixe a IA ler {newsData?.length || 0} manchetes e explicar o mundo para você em segundos.
+                A IA analisa {newsData?.length || 0} fatos e cria um resumo executivo para você.
               </p>
               <button onClick={handleGenerate} className={`group relative px-8 py-3 rounded-full font-bold text-xs uppercase tracking-widest overflow-hidden shadow-xl active:scale-95 transition-all ${isDarkMode ? 'bg-white text-black' : 'bg-zinc-900 text-white'}`}>
                 <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                <span className="flex items-center gap-2 relative z-10"><Zap size={14} fill="currentColor"/> Gerar Smart Digest</span>
+                <span className="flex items-center gap-2 relative z-10"><Zap size={14} fill="currentColor"/> Gerar Agora</span>
               </button>
            </div>
         </div>
@@ -2179,11 +2157,10 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     return (
       <div className="px-1 mb-6">
         <div className={`h-[350px] rounded-[2rem] flex flex-col items-center justify-center border relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
            <div className="w-16 h-16 border-4 border-t-purple-500 border-r-transparent border-b-purple-500 border-l-transparent rounded-full animate-spin mb-6" />
            <div className="text-center space-y-1 relative z-10">
-               <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Processando Fatos...</p>
-               <p className="text-xs font-mono opacity-50 uppercase tracking-widest">Lendo Fontes • Analisando Viés</p>
+               <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Redigindo Briefing...</p>
+               <p className="text-xs font-mono opacity-50 uppercase tracking-widest">Conectando Fatos</p>
            </div>
         </div>
       </div>
@@ -2194,58 +2171,68 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
       return (
         <div className="px-1 mb-6">
             <div className="p-6 rounded-[2rem] bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 text-center">
-                <p className="text-red-500 font-bold text-sm mb-2">A IA falhou ao processar.</p>
+                <p className="text-red-500 font-bold text-sm mb-2">Falha na análise.</p>
                 <button onClick={handleGenerate} className="text-xs font-bold underline decoration-red-500 underline-offset-4 opacity-80 hover:opacity-100">Tentar Novamente</button>
             </div>
         </div>
       );
   }
 
+  // --- ÁREA DE IMAGENS (COLLAGE) ---
+  // Pega a primeira imagem de cada tópico para montar o banner
+  const topicImages = digest.topics.slice(0, 4).map(t => {
+      // Tenta achar uma imagem válida no tópico
+      const articleWithImg = t.articles?.find(a => a.img && a.img.length > 10);
+      return articleWithImg ? articleWithImg.img : null;
+  });
+
   return (
     <>
     <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
       <div className={`
-        relative p-6 rounded-[2.5rem] shadow-2xl overflow-hidden border transition-all
+        relative p-0 overflow-hidden rounded-[2.5rem] shadow-2xl border transition-all
         ${isDarkMode 
             ? 'bg-zinc-950 border-white/10' 
             : 'bg-white border-white/40 shadow-indigo-500/10'}
       `}>
          
-         {/* CAMADA DE AURA */}
-         <div className={`absolute -top-24 -left-24 w-96 h-96 rounded-full blur-[100px] opacity-20 animate-pulse ${isDarkMode ? 'bg-indigo-600' : 'bg-blue-300'}`} />
-         <div className={`absolute -bottom-24 -right-24 w-96 h-96 rounded-full blur-[100px] opacity-20 animate-pulse delay-1000 ${isDarkMode ? 'bg-purple-600' : 'bg-purple-300'}`} />
-         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-soft-light pointer-events-none"></div>
-         <div className="absolute inset-0 backdrop-blur-[1px]" />
-
-         {/* CONTEÚDO */}
-         <div className="relative z-10">
+         {/* --- 1. BANNER DE IMAGENS UNIFICADAS --- */}
+         <div className="relative w-full h-32 flex">
+             {topicImages.map((img, idx) => (
+                 <div key={idx} className="flex-1 relative h-full overflow-hidden">
+                     {img ? (
+                         <img src={img} className="w-full h-full object-cover scale-110" />
+                     ) : (
+                         <div className={`w-full h-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
+                     )}
+                     {/* Efeito de Fusão (Gradient nas bordas) */}
+                     <div className={`absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent ${idx === topicImages.length - 1 ? 'to-transparent' : (isDarkMode ? 'to-zinc-950/50' : 'to-white/30')}`} />
+                     {/* Tintura Unificadora */}
+                     <div className={`absolute inset-0 ${isDarkMode ? 'bg-indigo-900/20 mix-blend-overlay' : 'bg-indigo-500/10 mix-blend-overlay'}`} />
+                 </div>
+             ))}
+             {/* Degradê inferior para mesclar com o conteúdo */}
+             <div className={`absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t ${isDarkMode ? 'from-zinc-950' : 'from-white'} to-transparent`} />
              
-             <div className="flex flex-col items-center text-center mb-8 pt-2">
-                <div className="text-5xl mb-3 animate-bounce drop-shadow-xl select-none grayscale-0">
-                    {digest.vibe_emoji}
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500 mb-1">
-                    Vibe do Momento
+             {/* Botão de Audio Flutuante no Banner */}
+             <button 
+                onClick={handlePlayBriefing}
+                className="absolute bottom-3 right-4 bg-black/50 backdrop-blur-md text-white p-2 rounded-full border border-white/20 shadow-lg active:scale-95 transition-transform"
+             >
+                {isSpeaking ? <Pause size={16} fill="white"/> : <Play size={16} fill="white" className="ml-0.5"/>}
+             </button>
+         </div>
+
+         {/* --- 2. CONTEÚDO EDITORIAL --- */}
+         <div className="px-6 pb-8 relative z-10 -mt-2">
+             
+             <div className="flex flex-col items-start text-left mb-6">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500 mb-2 flex items-center gap-2">
+                    <Sparkles size={12} /> Briefing Executivo
                 </span>
-                <h2 className={`text-2xl md:text-3xl font-black leading-tight max-w-sm mb-4 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                <h2 className={`text-2xl md:text-3xl font-serif font-black leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                     {digest.vibe_title}
                 </h2>
-                
-                <button 
-                    onClick={handlePlayBriefing}
-                    className={`
-                        flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all active:scale-95
-                        ${isSpeaking 
-                            ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' 
-                            : (isDarkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-zinc-100 text-zinc-800 hover:bg-zinc-200')}
-                    `}
-                >
-                    {isSpeaking ? (
-                        <> <Pause size={12} fill="currentColor" /> Parar Briefing </>
-                    ) : (
-                        <> <Play size={12} fill="currentColor" /> Ouvir Resumo </>
-                    )}
-                </button>
              </div>
 
              <div className="grid grid-cols-1 gap-4">
@@ -2257,94 +2244,61 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                             key={i} 
                             onClick={() => toggleExpand(i)}
                             className={`
-                                group relative p-5 rounded-3xl transition-all duration-300 backdrop-blur-md cursor-pointer
+                                group relative p-5 rounded-2xl transition-all duration-300 cursor-pointer border
                                 ${isDarkMode 
-                                    ? 'bg-zinc-900/60 border-t border-l border-white/10 border-b border-r border-black/40' 
-                                    : 'bg-white/70 border-t border-l border-white border-b border-r border-zinc-200/60'}
-                                ${isExpanded ? 'ring-2 ring-purple-500/30 scale-[1.02] z-20' : 'hover:scale-[1.01]'}
+                                    ? 'bg-zinc-900/50 border-white/5 hover:bg-zinc-800' 
+                                    : 'bg-zinc-50 border-zinc-200 hover:bg-white'}
                             `}
                         >
-                            <div className="flex justify-between items-start mb-3">
-                                <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-xl backdrop-blur-sm ${getTag3DStyle(i)}`}>
+                            <div className="flex justify-between items-start mb-2">
+                                <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md ${getTag3DStyle(i)}`}>
                                     {topic.tag}
                                 </span>
-                                
-                                <div className={`flex items-center gap-2`}>
-                                    {topic.articles && topic.articles.length > 0 && (
-                                        <span className="text-[9px] font-bold opacity-40 uppercase tracking-wide">
-                                            {topic.articles.length} {topic.articles.length === 1 ? 'Fonte' : 'Fontes'}
-                                        </span>
-                                    )}
-                                    <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} opacity-50`}>
-                                        <ChevronRight size={14} />
-                                    </div>
-                                </div>
+                                <ChevronRight size={14} className={`opacity-30 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                             </div>
                             
-                            <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
+                            <p className={`text-sm font-medium leading-relaxed font-serif ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
                                 {topic.summary}
                             </p>
 
-                            <div className={`grid transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'grid-rows-[1fr] mt-4 opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-                                <div className="min-h-0">
-                                    <div className={`h-px w-full mb-3 ${isDarkMode ? 'bg-white/10' : 'bg-black/5'}`} />
-                                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2">Baseado em:</p>
-                                    
+                            {/* Fontes (Expansível) */}
+                            {isExpanded && (
+                                <div className="mt-4 pt-4 border-t border-dashed border-zinc-500/20 animate-in slide-in-from-top-2">
+                                    <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2">Fontes Analisadas:</p>
                                     <div className="space-y-2">
-                                        {topic.articles && topic.articles.length > 0 ? (
-                                            topic.articles.map((article, idx) => (
-                                                <div 
-                                                    key={idx}
-                                                    onClick={(e) => { 
-                                                        e.stopPropagation(); 
-                                                        setGlassArticle(article); 
-                                                    }}
-                                                    className={`
-                                                        flex items-center gap-3 p-2 rounded-xl border transition-colors hover:scale-[1.01] active:scale-95
-                                                        ${isDarkMode ? 'bg-black/20 border-white/5 hover:bg-white/5' : 'bg-white/50 border-black/5 hover:bg-white'}
-                                                    `}
-                                                >
-                                                    <img 
-                                                        src={article.logo} 
-                                                        className="w-6 h-6 rounded-lg object-cover" 
-                                                        onError={(e) => e.target.style.display = 'none'}
-                                                    />
-                                                    <div className="min-w-0">
-                                                        <div className={`text-[9px] font-bold uppercase mb-0.5 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                                                            {article.source}
-                                                        </div>
-                                                        <div className={`text-xs font-bold leading-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                                                            {article.title}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="text-[10px] opacity-50 italic pl-1">
-                                                Fontes não identificadas diretamente.
+                                        {topic.articles?.map((article, idx) => (
+                                            <div 
+                                                key={idx}
+                                                onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    setGlassArticle(article); 
+                                                }}
+                                                className={`
+                                                    flex items-center gap-3 p-2 rounded-lg transition-colors
+                                                    ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-black/5'}
+                                                `}
+                                            >
+                                                <img 
+                                                    src={article.logo} 
+                                                    className="w-5 h-5 rounded-full object-cover grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100 transition-all" 
+                                                    onError={(e) => e.target.style.display = 'none'}
+                                                />
+                                                <span className={`text-xs font-bold truncate ${isDarkMode ? 'text-zinc-400 group-hover:text-white' : 'text-zinc-600 group-hover:text-black'}`}>
+                                                    {article.title}
+                                                </span>
                                             </div>
-                                        )}
+                                        ))}
                                     </div>
                                 </div>
-                            </div>
-
+                            )}
                         </div>
                     );
                 })}
              </div>
 
-             <div className="mt-6 flex justify-between items-center px-2">
-                <div className="flex items-center gap-1.5 opacity-40">
-                    <BrainCircuit size={12} />
-                    <span className="text-[10px] font-mono tracking-wide">Gemini 2.5 Flash</span>
-                </div>
-                <button 
-                    onClick={handleGenerate} 
-                    className={`p-2 rounded-full transition-all active:rotate-180 backdrop-blur-md border border-transparent hover:border-current ${isDarkMode ? 'text-zinc-400 hover:text-white hover:bg-white/10' : 'text-zinc-500 hover:text-indigo-600 hover:bg-white/50'}`}
-                    title="Regerar análise"
-                >
-                    <RefreshCw size={16}/>
-                </button>
+             <div className="mt-6 flex justify-between items-center opacity-40">
+                <span className="text-[10px] font-mono">Análise via Gemini 2.5</span>
+                <button onClick={handleGenerate} className="p-2 hover:text-indigo-500 transition-colors"><RefreshCw size={14}/></button>
              </div>
          </div>
       </div>
@@ -4477,18 +4431,7 @@ const handleStoryNavigation = (direction) => {
 
     const url = article.link;
 
-    // --- LISTA DE DOMÍNIOS BLOQUEADOS ---
-    const blockedDomains = [
-        'uol.com.br',
-        'investing.com',
-        'nytimes.com'
-    ];
-
-    const isBlockedSite = blockedDomains.some(domain =>
-        url.includes(domain)
-    );
-
-    // --- DETECÇÃO DE YOUTUBE ---
+    // --- DETECÇÃO DE YOUTUBE / VÍDEO (Mantém essa lógica separada) ---
     const videoId =
         article.videoId ||
         url.match(
@@ -4499,40 +4442,25 @@ const handleStoryNavigation = (direction) => {
     const isPodcastVideo =
         article.category === 'Podcast' && article.type === 'video';
 
-    // ===============================
-    // 1️⃣ YOUTUBE / PODCAST EM VÍDEO
-    // ===============================
+    // 1. Se for YouTube ou Vídeo de Podcast -> Abre no Player InAppBrowser (Para tocar vídeo em tela cheia)
     if (isYoutube || isPodcastVideo) {
-        const youtubeUrl = `https://m.youtube.com/watch?v=${videoId}`;
+        const youtubeUrl = videoId 
+            ? `https://www.youtube.com/watch?v=${videoId}` 
+            : url;
 
-        const options =
-            'location=no,toolbar=yes,toolbarcolor=#000000,hidenavigationbuttons=yes,hideurlbar=yes,fullscreen=yes';
-
+        const options = 'location=no,toolbar=yes,toolbarcolor=#000000,hidenavigationbuttons=yes,hideurlbar=yes,fullscreen=yes';
         InAppBrowser.create(youtubeUrl, '_blank', options);
         return;
     }
 
-    // ===============================
-    // 2️⃣ SITES BLOQUEADOS → NAVEGADOR
-    // ===============================
-    if (isBlockedSite) {
-        await Browser.open({
-            url,
-            presentationStyle: 'fullscreen',
-            toolbarColor: '#000000'
-        });
-        return;
-    }
-
-    // ===============================
-    // 3️⃣ ARTIGO NORMAL (IN-APP)
-    // ===============================
+    // 2. TODO O RESTO (UOL, Investing, G1, etc) -> ABRE NO PAINEL INTERNO (ArticlePanel)
+    // Isso é essencial para que a IA consiga ler o texto amanhã.
     setSelectedArticle(article);
 
     if (article.id && !readHistory.includes(article.id)) {
         setReadHistory(prev => [...prev, article.id]);
     }
-};
+  };
 
 
 
