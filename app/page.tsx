@@ -1813,32 +1813,30 @@ const generateSmartClustering = async (news, apiKey, limit = 50) => {
 // --- FUNÇÃO DE IA: RAIO-X CONTEXTUAL (PARA ABA WEB/MAGIC) ---
 const generateNewsContext = async (fullText, apiKey) => {
   // Verificações de segurança
-  if (!fullText || fullText.length < 200) return null;
+  if (!fullText || fullText.length < 200) {
+      console.warn("Texto muito curto para análise");
+      return null;
+  }
   if (!apiKey) {
-      alert("Chave de API de Leitura (Reader) não configurada.");
+      alert("Chave de API não configurada para o Leitor.");
       return null;
   }
 
-  // 1. OTIMIZAÇÃO DE PAYLOAD
-  // Cortamos em 8.000 caracteres (aprox 2.000 tokens). 
-  // É suficiente para a IA entender o contexto sem gastar à toa.
+  // Otimização de Payload
   const cleanText = fullText.slice(0, 8000).replace(/\s+/g, ' ').trim();
 
   const prompt = `
-  Você é um Analista de Inteligência Sênior. Analise o texto da notícia fornecido abaixo.
+  Você é um Analista de Inteligência Sênior. Analise o texto da notícia.
 
   SUA MISSÃO:
-  Identificar entre 4 a 6 termos, nomes, siglas ou conceitos que são CRUCIAIS para entender essa história específica.
+  Identificar entre 4 a 6 termos, nomes, siglas ou conceitos que são CRUCIAIS para entender essa história.
   
-  REGRAS DE OURO:
-  1. NÃO explique o que é (Definição de Dicionário).
-  2. EXPLIQUE O PAPEL DELE NESTA NOTÍCIA (Contexto Narrativo).
-  3. Seja breve e direto (máximo 20 palavras por explicação).
-  
-  Exemplo Ruim: "Copom: Comitê de Política Monetária..."
-  Exemplo Bom: "Copom: Decidiu cortar os juros hoje, surpreendendo o mercado que esperava manutenção."
+  REGRAS:
+  1. NÃO explique o que é (Definição).
+  2. EXPLIQUE O PAPEL DELE NESTA NOTÍCIA (Contexto).
+  3. Seja breve (máx 20 palavras).
 
-  RETORNE APENAS UM JSON VÁLIDO:
+  RETORNE APENAS JSON:
   [
     {
       "term": "Termo exato encontrado no texto",
@@ -1851,7 +1849,8 @@ const generateNewsContext = async (fullText, apiKey) => {
   `;
 
   try {
-    // Usamos o modelo Gemini 2.5 Flash (Rápido e Gratuito)
+    // CORREÇÃO 1: Atualizado para gemini-2.5-flash
+    // CORREÇÃO 2: Garantido method: "POST"
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1859,7 +1858,7 @@ const generateNewsContext = async (fullText, apiKey) => {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { 
             response_mime_type: "application/json",
-            temperature: 0.3 // Baixa temperatura para ser mais preciso e menos criativo
+            temperature: 0.3
         }
       })
     });
@@ -1874,8 +1873,9 @@ const generateNewsContext = async (fullText, apiKey) => {
     const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!textResponse) return null;
 
-    // Limpeza e Parse do JSON
-    const json = JSON.parse(textResponse.replace(/```json/g, '').replace(/```/g, '').trim());
+    // Limpeza de Markdown (caso a IA mande ```json)
+    const jsonString = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+    const json = JSON.parse(jsonString);
     
     return Array.isArray(json) ? json : null;
 
@@ -1884,7 +1884,6 @@ const generateNewsContext = async (fullText, apiKey) => {
     return null;
   }
 };
-
 
 // --- FUNÇÃO SMART DIGEST (MODELO 2.5 FLASH) ---
 const generateBriefing = async (news, apiKey) => {
@@ -4983,6 +4982,7 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
     onArticleChange={handleOpenArticle} 
     onToggleSave={handleToggleSave}
     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
+    readerApiKey={readerApiKey}
     isDarkMode={isDarkMode} 
     // Remova props que não usamos mais, como setIsExpanded
       />
@@ -5643,7 +5643,7 @@ const ContextDrawer = ({ items, onClose, isDarkMode }) => (
       // Se você separou as chaves no NewsOS_V12, passe a 'readerApiKey' como prop para este componente.
       // Vou assumir que você está passando 'apiKey' (a geral) ou 'readerApiKey' como prop.
       // Ajuste aqui conforme o nome da prop que você passou:
-      const terms = await generateNewsContext(textToAnalyze, apiKey); // <--- USE A CHAVE CERTA AQUI
+      const terms = await generateNewsContext(textToAnalyze, readerApikey); // <--- USE A CHAVE CERTA AQUI
 
       if (terms && Array.isArray(terms)) {
           setAnalysisItems(terms);
