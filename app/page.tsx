@@ -4982,7 +4982,8 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
     onArticleChange={handleOpenArticle} 
     onToggleSave={handleToggleSave}
     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-    readerApiKey={readerApiKey}
+    apiKey={apiKey}             // Chave Geral
+    readerApiKey={readerApiKey} // Chave Leitor (Nova)
     isDarkMode={isDarkMode} 
     // Remova props que não usamos mais, como setIsExpanded
       />
@@ -5496,7 +5497,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 // COMPONENTE ARTICLE PANEL - OTIMIZADO PARA NAVEGAÇÃO RÁPIDA (FEED NAVIGATOR)
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode }) => {
+const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticleChange, onToggleSave, isSaved, isDarkMode, apiKey, readerApiKey  }) => {
   const [viewMode, setViewMode] = useState('web'); 
   const [iframeUrl, setIframeUrl] = useState(null);     
   const [readerContent, setReaderContent] = useState(null); 
@@ -5615,10 +5616,27 @@ const ContextDrawer = ({ items, onClose, isDarkMode }) => (
   const sanitizeHtml = (html) => {
       if (!html) return "";
       let clean = html;
-      const headInjection = `<base href="${article.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>.onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, [class*="cookie"], [class*="popup"], [class*="modal"] { display: none !important; } body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }</style>`;
-      if (isProblematicSite) {
-          clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "").replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "").replace(/data-src=/gi, 'src=').replace(/data-srcset=/gi, 'srcset=').replace(/loading="lazy"/gi, ''); 
-      }
+      
+      // 1. Remove TODOS os scripts (agressivo)
+      clean = clean.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
+      
+      // 2. Remove iframes (para evitar aninhamento infinito e erros de X-Frame)
+      clean = clean.replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "");
+      
+      // 3. Remove manipuladores de eventos inline (onload, onclick, etc) que causam erros de segurança
+      clean = clean.replace(/ on\w+="[^"]*"/g, "");
+
+      // 4. Corrige caminhos de imagem preguiçosos (Lazy Load)
+      clean = clean.replace(/data-src=/gi, 'src=').replace(/data-srcset=/gi, 'srcset=').replace(/loading="lazy"/gi, ''); 
+
+      const headInjection = `<base href="${article.link}" target="_blank"><meta name="referrer" content="no-referrer"><style>
+        /* Esconde banners de cookie, ads e popups conhecidos */
+        .onetrust-banner, #onetrust-consent-sdk, .fc-ab-root, 
+        [class*="cookie"], [class*="popup"], [class*="modal"], 
+        [class*="ads"], [id*="google_ads"], iframe { display: none !important; } 
+        body { overflow-x: hidden; padding-bottom: 100px; -webkit-font-smoothing: antialiased; }
+      </style>`;
+
       if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
       return `${headInjection}${clean}`;
   };
