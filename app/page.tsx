@@ -5661,7 +5661,7 @@ const ContextDrawer = ({ items, onClose, isDarkMode }) => (
       // Se você separou as chaves no NewsOS_V12, passe a 'readerApiKey' como prop para este componente.
       // Vou assumir que você está passando 'apiKey' (a geral) ou 'readerApiKey' como prop.
       // Ajuste aqui conforme o nome da prop que você passou:
-      const terms = await generateNewsContext(textToAnalyze, readerApikey); // <--- USE A CHAVE CERTA AQUI
+      const terms = await generateNewsContext(textToAnalyze, readerApiKey); // <--- USE A CHAVE CERTA AQUI
 
       if (terms && Array.isArray(terms)) {
           setAnalysisItems(terms);
