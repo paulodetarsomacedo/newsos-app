@@ -1810,6 +1810,82 @@ const generateSmartClustering = async (news, apiKey, limit = 50) => {
 };
 
 
+// --- FUNÇÃO DE IA: RAIO-X CONTEXTUAL (PARA ABA WEB/MAGIC) ---
+const generateNewsContext = async (fullText, apiKey) => {
+  // Verificações de segurança
+  if (!fullText || fullText.length < 200) return null;
+  if (!apiKey) {
+      alert("Chave de API de Leitura (Reader) não configurada.");
+      return null;
+  }
+
+  // 1. OTIMIZAÇÃO DE PAYLOAD
+  // Cortamos em 8.000 caracteres (aprox 2.000 tokens). 
+  // É suficiente para a IA entender o contexto sem gastar à toa.
+  const cleanText = fullText.slice(0, 8000).replace(/\s+/g, ' ').trim();
+
+  const prompt = `
+  Você é um Analista de Inteligência Sênior. Analise o texto da notícia fornecido abaixo.
+
+  SUA MISSÃO:
+  Identificar entre 4 a 6 termos, nomes, siglas ou conceitos que são CRUCIAIS para entender essa história específica.
+  
+  REGRAS DE OURO:
+  1. NÃO explique o que é (Definição de Dicionário).
+  2. EXPLIQUE O PAPEL DELE NESTA NOTÍCIA (Contexto Narrativo).
+  3. Seja breve e direto (máximo 20 palavras por explicação).
+  
+  Exemplo Ruim: "Copom: Comitê de Política Monetária..."
+  Exemplo Bom: "Copom: Decidiu cortar os juros hoje, surpreendendo o mercado que esperava manutenção."
+
+  RETORNE APENAS UM JSON VÁLIDO:
+  [
+    {
+      "term": "Termo exato encontrado no texto",
+      "context": "Explicação contextual curta."
+    }
+  ]
+
+  TEXTO:
+  ${cleanText}
+  `;
+
+  try {
+    // Usamos o modelo Gemini 2.5 Flash (Rápido e Gratuito)
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { 
+            response_mime_type: "application/json",
+            temperature: 0.3 // Baixa temperatura para ser mais preciso e menos criativo
+        }
+      })
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok || data.error) {
+        console.error("Erro API Reader:", data.error);
+        return null;
+    }
+
+    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!textResponse) return null;
+
+    // Limpeza e Parse do JSON
+    const json = JSON.parse(textResponse.replace(/```json/g, '').replace(/```/g, '').trim());
+    
+    return Array.isArray(json) ? json : null;
+
+  } catch (error) {
+    console.error("Erro fatal no NewsContext:", error);
+    return null;
+  }
+};
+
+
 // --- FUNÇÃO SMART DIGEST (MODELO 2.5 FLASH) ---
 const generateBriefing = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
@@ -3991,6 +4067,7 @@ export default function NewsOS_V12() {
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
   const [apiKey, setApiKey] = useState('');
+  const [readerApiKey, setReaderApiKey] = useState(''); // Chave 2 (Leitura - NOVA)
   
 const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
@@ -4077,7 +4154,22 @@ const handleStoryNavigation = (direction) => {
           if (data.saved_items) setSavedItems(data.saved_items);
           if (data.read_history) setReadHistory(data.read_history);
           if (data.liked_items) setLikedItems(data.liked_items);
-          if (data.api_key) setApiKey(data.api_key);
+          if (data.api_key) {
+              try {
+                  // Tenta ler como JSON (formato novo com 2 chaves)
+                  const parsedKeys = JSON.parse(data.api_key);
+                  if (typeof parsedKeys === 'object') {
+                      setApiKey(parsedKeys.feed || '');
+                      setReaderApiKey(parsedKeys.reader || '');
+                  } else {
+                      // Se não for objeto, é o formato antigo (string simples)
+                      setApiKey(data.api_key);
+                  }
+              } catch (e) {
+                  // Se der erro no parse, é string antiga
+                  setApiKey(data.api_key);
+              }
+          }
           if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
           if (data.seen_story_ids) setSeenStoryIds(data.seen_story_ids);
           
@@ -4101,7 +4193,10 @@ const handleStoryNavigation = (direction) => {
               saved_items: savedItems,
               read_history: readHistory,
               liked_items: likedItems,
-              api_key: apiKey,
+              api_key: JSON.stringify({ 
+                  feed: apiKey, 
+                  reader: readerApiKey 
+              }),
               is_dark_mode: isDarkMode,
               seen_story_ids: seenStoryIds, 
               article_history: articleHistory,
@@ -4344,10 +4439,10 @@ const handleStoryNavigation = (direction) => {
                 // Favicon oficial
                 finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSzaIMqhf99JTJqG1Cbu7Kil51_jH42uWGg0w&s';
             }
-            else if (lowerName.includes('estadao investidor') || lowerName.includes('estadão')) {
+            else if (lowerName.includes('estadao investidor') || lowerName.includes('estadão e investidor')) {
                 finalLogo = 'https://m2comunicacao.com.br/wp-content/uploads/2024/06/imagem_2024-06-17_155521691.png';
             }
-            else if (lowerName.includes('estadao') || lowerName.includes('estadão')) {
+            else if (lowerName.includes('estadao') || lowerUrl.includes('estadao.com.br')) {
                 finalLogo = 'https://startse-uploader.s3.us-east-2.amazonaws.com/medium_estadao_72c3731a48.jpg';
             }
             else if (lowerName.includes('istoé dinheiro') || lowerName.includes('istoe dinheiro')) {
@@ -4361,6 +4456,9 @@ const handleStoryNavigation = (direction) => {
             }
             else if (lowerName.includes('uol notícias') || lowerUrl.includes('noticias.uol')) {
                 finalLogo = 'https://voxnews.com.br/wp-content/uploads/2019/06/uol_logo.png';
+            }
+            else if (lowerName.includes('portal band') || lowerUrl.includes('band.com.br')) {
+                finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/01/Logo-Band.png';
             }
             
             // 2. Lógica para YouTube (Avatar Colorido se não tiver imagem)
@@ -4870,6 +4968,8 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
               setFeeds={setUserFeeds}
               apiKey={apiKey}
               setApiKey={setApiKey}
+              readerApiKey={readerApiKey}      // <--- NOVA PROP
+              setReaderApiKey={setReaderApiKey} // <--- NOVA PROP
               user={user} 
           />
       )}
@@ -5790,7 +5890,7 @@ function PodNewsModal({ onClose, isDarkMode }) {
 }
 
 // --- MODAL DE CONFIGURAÇÕES (V3 - FINAL - COM LOGIN VIA CÓDIGO/OTP) ---
-function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey, user }) {
+function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey, readerApiKey, setReaderApiKey, user }) {
   const [activeTab, setActiveTab] = useState(user ? 'sources' : 'account'); 
   
   // Auth States
@@ -6061,25 +6161,51 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                 </div>
             )}
             
-            {/* ABA API */}
+       {/* ABA API (AGORA COM DUAS CHAVES) */}
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                     <div className={`p-6 rounded-3xl text-center ${isDarkMode ? 'bg-gradient-to-b from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-b from-purple-50 to-white border border-purple-100'}`}>
-                        <div className="w-16 h-16 mx-auto bg-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 mb-4">
-                            <Sparkles size={32} className="text-white animate-pulse"/>
-                        </div>
-                        <h3 className="text-xl font-black mb-2">Google Gemini AI</h3>
-                        <p className="text-sm opacity-70 mb-6 leading-relaxed">
-                            Para ativar o <strong>Smart Digest</strong> e a <strong>Análise de Notícias</strong>, você precisa de uma chave gratuita do Google AI Studio.
-                        </p>
-                        <div className="text-left mb-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 ml-1">Sua API Key</label>
-                            <div className="relative mt-1">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50"><BrainCircuit size={16}/></div>
-                                <input type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Cole sua chave aqui (AIza...)" className={`w-full pl-10 pr-4 py-3 rounded-xl border font-mono text-sm outline-none transition-all ${isDarkMode ? 'bg-black/50 border-purple-500/30 focus:border-purple-500 text-purple-300' : 'bg-white border-purple-200 focus:border-purple-500 text-purple-700 shadow-inner'}`} />
+                     <div className={`p-6 rounded-3xl text-center ${isDarkMode ? 'bg-zinc-900 border border-purple-500/20' : 'bg-white border border-purple-100'}`}>
+                        <div className="flex justify-center mb-4">
+                            <div className="p-3 bg-purple-500 rounded-2xl shadow-lg shadow-purple-500/30">
+                                <Sparkles size={24} className="text-white"/>
                             </div>
                         </div>
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-purple-500 hover:underline">Obter chave no Google AI Studio <ArrowRight size={12}/></a>
+                        
+                        <h3 className="text-lg font-black mb-1">Cérebro IA</h3>
+                        <p className="text-xs opacity-60 mb-6">Configure chaves separadas para manter a gratuidade.</p>
+
+                        {/* CAMPO 1: CHAVE GERAL (Feed/Briefing) */}
+                        <div className="text-left mb-4">
+                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 ml-1 flex items-center gap-1">
+                                <Activity size={10}/> Chave Geral (Feed & Trends)
+                            </label>
+                            <input 
+                                type="text" 
+                                value={apiKey} 
+                                onChange={(e) => setApiKey(e.target.value)} 
+                                placeholder="Chave do Projeto 1..." 
+                                className={`w-full px-4 py-3 mt-1 rounded-xl border font-mono text-xs outline-none transition-all ${isDarkMode ? 'bg-black/40 border-white/10 focus:border-purple-500' : 'bg-zinc-50 border-zinc-200 focus:border-purple-500'}`} 
+                            />
+                        </div>
+
+                        {/* CAMPO 2: CHAVE READER (NOVO) */}
+                        <div className="text-left mb-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 ml-1 flex items-center gap-1">
+                                <FileText size={10}/> Chave Leitor (Raio-X & Análise)
+                            </label>
+                            <input 
+                                type="text" 
+                                // ATENÇÃO: Você precisará passar 'readerApiKey' e 'setReaderApiKey' como props para o SettingsModal
+                                value={readerApiKey} 
+                                onChange={(e) => setReaderApiKey(e.target.value)} 
+                                placeholder="Chave do Projeto 2..." 
+                                className={`w-full px-4 py-3 mt-1 rounded-xl border font-mono text-xs outline-none transition-all ${isDarkMode ? 'bg-black/40 border-white/10 focus:border-blue-500' : 'bg-zinc-50 border-zinc-200 focus:border-blue-500'}`} 
+                            />
+                        </div>
+
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-purple-500 hover:underline">
+                            Gerar chaves no Google AI Studio <ArrowRight size={12}/>
+                        </a>
                      </div>
                 </div>
             )}
