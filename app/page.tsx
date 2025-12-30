@@ -4347,11 +4347,20 @@ const handleStoryNavigation = (direction) => {
             else if (lowerName.includes('estadao investidor') || lowerName.includes('estadão')) {
                 finalLogo = 'https://m2comunicacao.com.br/wp-content/uploads/2024/06/imagem_2024-06-17_155521691.png';
             }
-            else if (lowerName.includes('istoé dinheiro') || lowerName.includes('istoe')) {
+            else if (lowerName.includes('estadao') || lowerName.includes('estadão')) {
+                finalLogo = 'https://startse-uploader.s3.us-east-2.amazonaws.com/medium_estadao_72c3731a48.jpg';
+            }
+            else if (lowerName.includes('istoé dinheiro') || lowerName.includes('istoe dinheiro')) {
                 finalLogo = 'https://yt3.googleusercontent.com/aLYyxdR5JLMcp4KxNttXhoXM3lEDdUh22tXJsHe3rQYf71xQhv_PDAT75xpoSFtKgaALcMCw=s900-c-k-c0x00ffffff-no-rj';
             }
-            else if (lowerName.includes('uol') || lowerUrl.includes('uol.com.br')) {
-                finalLogo = 'https://conteudo.imguol.com.br/c/home/layout/v2016/icons/favicon.ico';
+            else if (lowerName.includes('uol economia') || lowerUrl.includes('uol economia')) {
+                finalLogo = 'https://conteudo.imguol.com.br/c/noticias/a9/2020/06/15/logotipo-uol---junho-2020-1592225150823_v2_826x826.png';
+            }
+            else if (lowerName.includes('folha de sao paulo') || lowerUrl.includes('folhadesaopaulo.com.br')) {
+                finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/04/Folha-de-Sao-Paulo.png';
+            }
+            else if (lowerName.includes('uol notícias') || lowerUrl.includes('noticias.uol')) {
+                finalLogo = 'https://voxnews.com.br/wp-content/uploads/2019/06/uol_logo.png';
             }
             
             // 2. Lógica para YouTube (Avatar Colorido se não tiver imagem)
