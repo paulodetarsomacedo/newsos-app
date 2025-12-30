@@ -2064,27 +2064,35 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [glassArticle, setGlassArticle] = useState(null);
 
-  const STORAGE_KEY = 'newsos_smart_digest_v1';
+  // MUDANÇA 1: Nome da chave e uso de SessionStorage
+  const SESSION_KEY = 'newsos_current_session_digest';
+  
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
 
-  // 1. CARREGAR DADOS SALVOS AO INICIAR
+  // 1. CARREGAR DADOS DA SESSÃO ATUAL
   useEffect(() => {
-      const savedData = localStorage.getItem(STORAGE_KEY);
+      // Tenta ler da memória temporária da sessão
+      const savedData = sessionStorage.getItem(SESSION_KEY);
+      
       if (savedData) {
           try {
               const parsed = JSON.parse(savedData);
-              if (parsed && parsed.topics) {
-                  setDigest(parsed);
+              // Validade de 2 horas (para garantir que não fique velho demais)
+              const now = Date.now();
+              const isValidTime = parsed.timestamp && (now - parsed.timestamp < 2 * 60 * 60 * 1000);
+
+              if (parsed && parsed.data && parsed.data.topics && isValidTime) {
+                  setDigest(parsed.data);
                   setStatus('success');
+              } else {
+                  // Se for velho ou inválido, limpa
+                  sessionStorage.removeItem(SESSION_KEY);
               }
           } catch (e) {
-              console.error("Erro ao carregar Digest salvo", e);
+              console.error("Erro ao carregar Digest da sessão", e);
           }
       }
-  }, []);
-
-  // Nota: Removi o useEffect do refreshTrigger para não apagar o digest quando der pull-to-refresh no feed.
-  // A atualização agora é estritamente manual pelo botão do widget.
+  }, []); // Roda apenas ao montar o componente (troca de aba)
 
   useEffect(() => {
       return () => cancelSpeech();
@@ -2105,8 +2113,15 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     if (result) {
         setDigest(result);
         setStatus('success');
-        // 2. SALVAR NO STORAGE
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+        
+        // MUDANÇA 2: Salva na SessionStorage (Morre ao fechar o app)
+        // Adicionamos o timestamp para controlar a validade
+        const sessionPayload = {
+            timestamp: Date.now(),
+            data: result
+        };
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(sessionPayload));
+        
     } else {
         setStatus('error');
     }
@@ -2289,7 +2304,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                                 {topic.summary}
                             </p>
 
-                            {/* FONTES (CORRIGIDO VISUAL PRETO E BRANCO AQUI) */}
+                            {/* FONTES */}
                             {isExpanded && (
                                 <div className="mt-4 pt-4 border-t border-dashed border-zinc-500/20 animate-in slide-in-from-top-2">
                                     <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2">Fontes Analisadas:</p>
@@ -2308,7 +2323,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                                                         : 'bg-white border-zinc-200 hover:bg-zinc-50'}
                                                 `}
                                             >
-                                                {/* Imagem do Artigo sem filtro feio */}
                                                 <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
                                                     <img 
                                                         src={article.logo} 
@@ -2355,7 +2369,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     </>
   );
 };
-
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
 
