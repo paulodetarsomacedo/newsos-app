@@ -2064,27 +2064,35 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [glassArticle, setGlassArticle] = useState(null);
 
-  const STORAGE_KEY = 'newsos_smart_digest_v1';
+  // MUDANÇA 1: Nome da chave e uso de SessionStorage
+  const SESSION_KEY = 'newsos_current_session_digest';
+  
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
 
-  // 1. CARREGAR DADOS SALVOS AO INICIAR
+  // 1. CARREGAR DADOS DA SESSÃO ATUAL
   useEffect(() => {
-      const savedData = localStorage.getItem(STORAGE_KEY);
+      // Tenta ler da memória temporária da sessão
+      const savedData = sessionStorage.getItem(SESSION_KEY);
+      
       if (savedData) {
           try {
               const parsed = JSON.parse(savedData);
-              if (parsed && parsed.topics) {
-                  setDigest(parsed);
+              // Validade de 2 horas (para garantir que não fique velho demais)
+              const now = Date.now();
+              const isValidTime = parsed.timestamp && (now - parsed.timestamp < 2 * 60 * 60 * 1000);
+
+              if (parsed && parsed.data && parsed.data.topics && isValidTime) {
+                  setDigest(parsed.data);
                   setStatus('success');
+              } else {
+                  // Se for velho ou inválido, limpa
+                  sessionStorage.removeItem(SESSION_KEY);
               }
           } catch (e) {
-              console.error("Erro ao carregar Digest salvo", e);
+              console.error("Erro ao carregar Digest da sessão", e);
           }
       }
-  }, []);
-
-  // Nota: Removi o useEffect do refreshTrigger para não apagar o digest quando der pull-to-refresh no feed.
-  // A atualização agora é estritamente manual pelo botão do widget.
+  }, []); // Roda apenas ao montar o componente (troca de aba)
 
   useEffect(() => {
       return () => cancelSpeech();
@@ -2105,8 +2113,15 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     if (result) {
         setDigest(result);
         setStatus('success');
-        // 2. SALVAR NO STORAGE
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+        
+        // MUDANÇA 2: Salva na SessionStorage (Morre ao fechar o app)
+        // Adicionamos o timestamp para controlar a validade
+        const sessionPayload = {
+            timestamp: Date.now(),
+            data: result
+        };
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(sessionPayload));
+        
     } else {
         setStatus('error');
     }
@@ -2289,7 +2304,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                                 {topic.summary}
                             </p>
 
-                            {/* FONTES (CORRIGIDO VISUAL PRETO E BRANCO AQUI) */}
+                            {/* FONTES */}
                             {isExpanded && (
                                 <div className="mt-4 pt-4 border-t border-dashed border-zinc-500/20 animate-in slide-in-from-top-2">
                                     <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2">Fontes Analisadas:</p>
@@ -2308,7 +2323,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                                                         : 'bg-white border-zinc-200 hover:bg-zinc-50'}
                                                 `}
                                             >
-                                                {/* Imagem do Artigo sem filtro feio */}
                                                 <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
                                                     <img 
                                                         src={article.logo} 
@@ -4303,25 +4317,39 @@ const handleStoryNavigation = (direction) => {
             feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
         }
 
-        // --- TRATAMENTO DE LOGOS ESPECÍFICOS ---
+        // --- TRATAMENTO DE LOGOS ESPECÍFICOS (ATUALIZADO) ---
             let finalLogo = feedLogo;
             const lowerName = currentFeedTitle.toLowerCase();
+            const lowerUrl = feed.url.toLowerCase();
 
-            // 1. Dicionário Manual de Ícones (Adicione seus sites aqui)
+            // 1. Dicionário Manual de Ícones Financeiros e Notícias
             if (lowerName.includes('investnews')) {
                 finalLogo = 'https://investnews.com.br/wp-content/uploads/2022/01/favicon-investnews.png';
             } 
             else if (lowerName.includes('valor investe')) {
-                finalLogo = 'https://s2.glbimg.com/Qe_UPs8t-M3j3j6j5j4j3.png'; // Favicon oficial da Globo
+                finalLogo = 'https://s2.glbimg.com/Qe_UPs8t-M3j3j6j5j4j3.png'; // Logo Valor Investe
             }
             else if (lowerName.includes('valor economico') || lowerName.includes('valor econômico')) {
-                finalLogo = 'https://valor.globo.com/favicon.ico';
+                finalLogo = 'https://s3.glbimg.com/v1/AUTH_7d5b995057bd47d191b9bfa480b9d3ee/pub/valor/2019/09/27/favicon.ico';
             }
-            // 2. Lógica para YouTube (Avatar Colorido)
+            else if (lowerName.includes('estadao') || lowerName.includes('estadão')) {
+                finalLogo = 'https://www.estadao.com.br/pf/resources/images/favicon.ico?d=582';
+            }
+            else if (lowerName.includes('istoé') || lowerName.includes('istoe')) {
+                finalLogo = 'https://www.istoedinheiro.com.br/wp-content/themes/istoe-dinheiro/assets/img/favicon.ico';
+            }
+            else if (lowerName.includes('gazeta do povo')) {
+                finalLogo = 'https://www.gazetadopovo.com.br/ico/favicon.ico';
+            }
+            else if (lowerName.includes('uol')) {
+                finalLogo = 'https://conteudo.imguol.com.br/c/home/layout/v2016/icons/favicon.ico';
+            }
+            
+            // 2. Lógica para YouTube
             else if (isFeedYoutube && !finalLogo) {
-                finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
+                finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=ff0000&color=fff&size=128&font-size=0.5`;
             } 
-            // 3. Fallback Automático (Google Favicon Service)
+            // 3. Fallback Automático
             else if (!finalLogo) {
                try {
                    const domain = new URL(feed.url).hostname;
@@ -5404,81 +5432,97 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
         return () => clearTimeout(timer);
     }, [isOpen]); // ATENÇÃO: removi article.id daqui para não re-animar na troca
   
-    // 2. EFEITO DE CARREGAMENTO DO CONTEÚDO (Roda quando article.id muda)
-    useEffect(() => {
-      if (!isOpen || !article?.link || videoId) return;
-      
-      // --- O SEGREDO DA FLUIDEZ NO NAVIGATOR ---
-      // 1. Reseta o scroll para o topo imediatamente
-      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-      
-      // 2. Limpa o conteúdo anterior para mostrar que está carregando o novo
-      setReaderContent(null);
-      setIframeUrl(null);
-      setTranslatedData(null);
-      setIsTranslated(false);
-      setIsLoading(true);
-  
-      const fetchContent = async () => {
+    // 2. EFEITO DE CARREGAMENTO DO CONTEÚDO (COM FALLBACK PARA RSS)
+  useEffect(() => {
+    if (!isOpen || !article?.link || videoId) return;
+    
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+    
+    setReaderContent(null);
+    setIframeUrl(null);
+    setTranslatedData(null);
+    setIsTranslated(false);
+    setIsLoading(true);
+
+    const fetchContent = async () => {
         setIsLoading(true);
         try {
-            // 1. TENTA BUSCAR DO CACHE PRIMEIRO
+            // A. Verifica Cache
             let { data: cachedData } = await supabase
                 .from('article_cache')
                 .select('content')
                 .eq('url', article.link)
                 .single();
 
-            if (cachedData && cachedData.content) {
-                // SUCESSO! Usamos o cache.
+            if (cachedData && cachedData.content && cachedData.content.content && cachedData.content.content.length > 200) {
+                // Cache Bom!
                 console.log("Artigo carregado do CACHE.");
                 setReaderContent(cachedData.content);
-                
-                // Constrói HTML para o modo Webview baseado no cache
-                const cachedHtml = `<html><head><title>${cachedData.content.title}</title></head><body><h1>${cachedData.content.title}</h1>${cachedData.content.content}</body></html>`;
-                const cleanHtml = sanitizeHtml(cachedHtml);
-                const blob = new Blob([cleanHtml], { type: 'text/html' });
-                setIframeUrl(URL.createObjectURL(blob));
-
+                setViewMode('magic');
             } else {
-                // 2. SE NÃO ACHOU NO CACHE, invoca a Edge Function
-                console.log("Cache miss. Buscando via Edge Function...");
+                // B. Baixa do Supabase (Edge Function)
+                console.log("Baixando via Proxy...");
                 const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
                 
-                if (error || !data) throw new Error("Falha no proxy-view");
+                // LÓGICA DE SALVAÇÃO:
+                // Se der erro, OU se o texto retornado for muito curto (< 200 caracteres),
+                // Significa que o site bloqueou o robô.
+                // Nesse caso, usamos o "Summary" do RSS como se fosse o corpo da notícia.
                 
-                const cleanHtml = sanitizeHtml(data.html);
-                const blob = new Blob([cleanHtml], { type: 'text/html' });
-                setIframeUrl(URL.createObjectURL(blob));
-                setReaderContent(data.reader);
+                let finalContent = null;
+                let finalTitle = article.title;
 
-                // 3. SALVA O RESULTADO NO CACHE PARA A PRÓXIMA VEZ
-                if (data.reader) {
+                if (!error && data && data.reader && data.reader.content && data.reader.content.length > 200) {
+                    // Sucesso real: Temos o texto completo
+                    finalContent = data.reader.content;
+                    finalTitle = data.reader.title || article.title;
+                } else {
+                    // Falha do Proxy (Bloqueio/Paywall): Usamos o Resumo do RSS
+                    console.warn("Proxy falhou ou retornou pouco texto. Usando Fallback RSS.");
+                    // Monta um HTML bonito com o resumo e um aviso
+                    finalContent = `
+                        <div class="rss-fallback">
+                            <p class="intro"><strong>Nota do NewsOS:</strong> O site original (${article.source}) restringe o acesso ao texto completo via leitura rápida.</p>
+                            <hr style="margin: 20px 0; opacity: 0.2"/>
+                            <p class="summary-text" style="font-size: 1.2em; line-height: 1.6;">${article.summary}</p>
+                            <br/>
+                            <p><em>Para continuar a leitura, clique no botão de globo acima para abrir o navegador original.</em></p>
+                        </div>
+                    `;
+                }
+
+                const contentObj = { title: finalTitle, content: finalContent };
+                setReaderContent(contentObj);
+                setViewMode('magic'); // Força modo Magic para mostrar o resumo bonito
+
+                // Salva no cache (mesmo que seja o resumo, para não tentar baixar de novo e gastar $)
+                if (finalContent) {
                     await supabase.from('article_cache').upsert({
                         url: article.link,
-                        content: data.reader,
+                        content: contentObj,
                     });
-                     console.log("Artigo salvo no cache para uso futuro.");
                 }
             }
         } catch (err) {
-            console.warn("Falha ao buscar conteúdo, mudando para modo Magic:", err);
+            console.warn("Erro fatal no carregamento, usando resumo:", err);
+            // Último caso: Se tudo der errado, mostra o resumo
+            setReaderContent({ 
+                title: article.title, 
+                content: `<p>${article.summary}</p><p><em>Não foi possível carregar o texto completo.</em></p>` 
+            });
             setViewMode('magic');
         } finally {
             setIsLoading(false);
         }
     };
     
-      
-      // Pequeno delay se a animação do painel ainda estiver rolando (primeira abertura)
-      if (!isAnimationDone) {
-          setTimeout(fetchContent, 500);
-      } else {
-          fetchContent(); // Troca instantânea se já estiver aberto (Navigator)
-      }
-  
-    }, [article?.id, isOpen, videoId]); // Depende do ID do artigo
-  
+    if (!isAnimationDone) {
+        setTimeout(fetchContent, 500);
+    } else {
+        fetchContent();
+    }
+
+  }, [article?.id, isOpen, videoId]);
    
   
 
