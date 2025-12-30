@@ -4158,21 +4158,32 @@ const handleStoryNavigation = (direction) => {
  
   // --- FUNÇÃO AUXILIAR: LIMPEZA DE CACHE (Garbage Collection) ---
   const cleanUpCache = () => {
-      try {
-          const keys = Object.keys(localStorage);
-          // AGORA ELA USA A CONSTANTE PARA SABER O QUE APAGAR
-          const cacheKeys = keys.filter(k => k.startsWith(FEED_CACHE_PREFIX));
-          
-          if (cacheKeys.length > 20) { 
-              // Ordena para apagar os mais antigos primeiro (opcional, mas bom)
-              // Aqui vamos apenas apagar para liberar espaço rápido
-              cacheKeys.forEach(key => localStorage.removeItem(key));
-              console.log("🧹 Cache limpo para liberar espaço.");
-          }
-      } catch (e) {
-          console.warn("Erro ao limpar cache:", e);
-      }
-  };
+    try {
+        console.log("🧹 Iniciando protocolo de limpeza de emergência...");
+        const keys = Object.keys(localStorage);
+
+        // Lista de chaves que PODEM ser apagadas (Lixo reciclável)
+        // Inclui: Feeds, Trend Radar antigo e Smart Digest antigo
+        const keysToRemove = keys.filter(k => 
+            k.startsWith('newsos_cache_v1_') || 
+            k.startsWith('newsos_trend_radar') ||
+            k.startsWith('newsos_smart_digest') ||
+            k.startsWith('newsos_feed_')
+        );
+        
+        // Se a memória encheu, não adianta apagar um pouco. Apaga tudo que é cache.
+        // O usuário baixa de novo o que precisar. É melhor do que o app travar.
+        if (keysToRemove.length > 0) { 
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            console.log(`✅ Faxina completa: ${keysToRemove.length} arquivos de cache removidos.`);
+            return true; // Retorna true avisando que limpou
+        }
+        return false;
+    } catch (e) {
+        console.warn("Erro ao tentar limpar cache:", e);
+        return false;
+    }
+};
 
   // --- FETCH FEEDS BLINDADO V3 (CACHE DUPLO: RAM + DISCO) ---
   const fetchFeeds = async (forceRefresh = false) => {
@@ -4333,8 +4344,8 @@ const handleStoryNavigation = (direction) => {
                 // Favicon oficial
                 finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSzaIMqhf99JTJqG1Cbu7Kil51_jH42uWGg0w&s';
             }
-            else if (lowerName.includes('estadao') || lowerName.includes('estadão')) {
-                finalLogo = 'https://www.estadao.com.br/pf/resources/images/favicon.ico?d=582';
+            else if (lowerName.includes('estadao investidor') || lowerName.includes('estadão')) {
+                finalLogo = 'https://m2comunicacao.com.br/wp-content/uploads/2024/06/imagem_2024-06-17_155521691.png';
             }
             else if (lowerName.includes('istoé dinheiro') || lowerName.includes('istoe')) {
                 finalLogo = 'https://yt3.googleusercontent.com/aLYyxdR5JLMcp4KxNttXhoXM3lEDdUh22tXJsHe3rQYf71xQhv_PDAT75xpoSFtKgaALcMCw=s900-c-k-c0x00ffffff-no-rj';
