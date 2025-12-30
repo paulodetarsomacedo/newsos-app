@@ -1,8 +1,5 @@
-// supabase/functions/proxy-view/index.ts
-
+// ARQUIVO: supabase/functions/proxy-view/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
-import { Readability } from "https://esm.sh/@mozilla/readability@0.4.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,45 +11,49 @@ serve(async (req) => {
 
   try {
     const { url } = await req.json();
-    if (!url) throw new Error("URL is required");
+    if (!url) throw new Error('URL required');
 
-    // 1. Baixa o HTML original
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      },
+    console.log(`Jina Fetching: ${url}`);
+
+    // Usamos o Jina AI Reader com a opção de retornar HTML limpo.
+    // Isso resolve codificação (ISO-8859-1 do UOL) e limpeza de anúncios.
+    const jinaResponse = await fetch(`https://r.jina.ai/${url}`, {
+        headers: {
+            'X-Return-Format': 'html', // Pede HTML direto
+            'X-Target-Selector': 'body', // Tenta focar no corpo
+            'X-With-Images-Summary': 'true' // Tenta manter imagens
+        }
     });
 
-    if (!response.ok) throw new Error(`Status: ${response.status}`);
-    let html = await response.text();
-
-    // 2. Prepara HTML para o Iframe (Modo Web)
-    const baseTag = `<base href="${url}" target="_blank">`;
-    let webHtml = html;
-    if (webHtml.includes('<head>')) {
-        webHtml = webHtml.replace('<head>', `<head>${baseTag}`);
-    } else {
-        webHtml = `${baseTag}${webHtml}`;
+    if (!jinaResponse.ok) {
+        throw new Error(`Jina Error: ${jinaResponse.status}`);
     }
-    // Remove frame busters
-    webHtml = webHtml.replace(/if\s*\(top\s*!==\s*self\)/gi, "if(false)");
 
-    // 3. Processa Modo Leitura (Modo Safari/Reader)
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const reader = new Readability(doc).parse();
+    const htmlContent = await jinaResponse.text();
 
+    // Validação básica: Se veio muito curto, é erro/bloqueio do Jina
+    if (!htmlContent || htmlContent.length < 300) {
+        throw new Error("Conteúdo retornado insuficiente.");
+    }
+
+    // Retornamos um objeto padronizado
     return new Response(JSON.stringify({ 
-        html: webHtml, // Para o Iframe
-        reader: reader // Para o Modo Leitura (Conteúdo limpo)
+      reader: {
+          title: "Artigo Processado", // O título o app já tem do RSS
+          content: htmlContent, // O HTML limpo do Jina
+          textContent: htmlContent.replace(/<[^>]*>?/gm, ''), // Texto puro para a IA
+          siteName: new URL(url).hostname
+      }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200
+      status: 200,
     });
 
   } catch (error) {
+    console.error("Proxy Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
     });
   }
 });
