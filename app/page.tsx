@@ -1966,7 +1966,94 @@ const generateTrendRadar = async (news, apiKey) => {
 
 // --- WIDGET: SMART DIGEST (DESIGN EDITORIAL PREMIUM) ---
 
-// 1. Mantemos o GlassBrowser (Mini Navegador) igual, pois ficou ótimo.
+// 1. Sub-componente do Mini Navegador (VERSÃO MAXIMIZADA)
+const GlassBrowser = ({ article, onClose, isDarkMode }) => {
+    
+    const openInNativeBrowser = async () => {
+        try {
+            await Browser.open({
+                url: article.link,
+                presentationStyle: 'fullscreen',
+                toolbarColor: isDarkMode ? '#000000' : '#FFFFFF',
+            });
+            onClose();
+        } catch (e) {
+            window.open(article.link, '_blank');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity" 
+                onClick={onClose} 
+            />
+
+            {/* AQUI ESTÁ A MUDANÇA DE TAMANHO: w-[95vw] h-[90vh] */}
+            <div className={`
+                relative w-[95vw] h-[85vh] md:w-[800px] md:h-[90vh]
+                rounded-[2.5rem] overflow-hidden shadow-2xl border flex flex-col 
+                transition-all transform scale-100 animate-in zoom-in-95 duration-300
+                ${isDarkMode 
+                    ? 'bg-zinc-900/95 border-white/10 shadow-purple-500/20' 
+                    : 'bg-white/95 border-white/40 shadow-xl'}
+                backdrop-blur-2xl
+            `}>
+                
+                {/* Imagem de Capa (Hero) - Aumentei a altura também */}
+                <div className="relative h-56 md:h-72 w-full flex-shrink-0">
+                    <img 
+                        src={article.img || article.logo} 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => e.target.style.display = 'none'}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                    
+                    <button 
+                        onClick={onClose} 
+                        className="absolute top-4 right-4 p-2 rounded-full bg-black/30 text-white backdrop-blur-md border border-white/20 hover:bg-black/50 transition active:scale-90"
+                    >
+                        <X size={20} />
+                    </button>
+
+                    <div className="absolute bottom-4 left-6 flex items-center gap-2">
+                        <img src={article.logo} className="w-6 h-6 rounded-full border border-white/50 bg-white" />
+                        <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black drop-shadow-md">
+                            {article.source}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Conteúdo do Card */}
+                <div className="p-6 md:p-8 flex flex-col flex-1 overflow-y-auto">
+                    <h2 className={`text-2xl md:text-3xl font-black leading-tight mb-4 font-serif ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                        {article.title}
+                    </h2>
+                    
+                    <div className="flex-1">
+                        <p className={`text-base md:text-lg leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                            {article.summary || "Toque abaixo para ler a matéria completa diretamente na fonte original."}
+                        </p>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-dashed border-zinc-500/20">
+                        <button 
+                            onClick={openInNativeBrowser}
+                            className={`
+                                w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-lg
+                                ${isDarkMode 
+                                    ? 'bg-white text-black hover:bg-zinc-200' 
+                                    : 'bg-black text-white hover:bg-zinc-800'}
+                            `}
+                        >
+                            Ler Notícia Completa <ArrowRight size={18} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const GlassBrowser = ({ article, onClose, isDarkMode }) => {
     
@@ -3230,7 +3317,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
               <MarketPulseWidget 
                 newsData={newsData}
-                apiKey={apiKey?.marketAnalysis} // Chave específica para análise de IA (se houver)
+                apiKey={apiKey} 
                 isDarkMode={isDarkMode}
                 openArticle={openArticle}
               />
@@ -4413,7 +4500,7 @@ const handleStoryNavigation = (direction) => {
                 time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 rawDate: finalDateObj, 
                 title: item.title,
-                summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
+                summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 800) + '...',
                 category: feed.type === 'podcast' ? 'Podcast' : (item.category || 'Geral'),
                 type: finalType, 
                 img: itemImg,
