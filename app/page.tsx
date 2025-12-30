@@ -5518,6 +5518,93 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       return article.videoId || getVideoId(article.link);
   }, [article]);
 
+
+  // --- ESTILOS INJETADOS DINAMICAMENTE PARA OS DESTAQUES ---
+const highlightStyles = `
+  .ai-highlight {
+    background: linear-gradient(120deg, rgba(168, 85, 247, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%);
+    border-bottom: 2px solid #d946ef;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0 2px;
+    transition: all 0.2s;
+    font-weight: 600;
+    color: inherit;
+  }
+  .ai-highlight:hover {
+    background: linear-gradient(120deg, rgba(168, 85, 247, 0.4) 0%, rgba(236, 72, 153, 0.4) 100%);
+    color: #d946ef;
+  }
+  .dark .ai-highlight {
+    color: #e879f9;
+  }
+`;
+
+// --- COMPONENTE: TOOLTIP DE CONTEXTO (O CARD DE VIDRO) ---
+const ContextTooltip = ({ data, onClose, isDarkMode }) => (
+    <div className="fixed inset-0 z-[6000] flex items-center justify-center p-6 animate-in fade-in duration-200">
+        <div className="absolute inset-0" onClick={onClose} /> {/* Fecha ao clicar fora */}
+        
+        <div className={`
+            relative w-full max-w-xs p-6 rounded-3xl shadow-2xl border
+            flex flex-col gap-3 animate-in zoom-in-95 slide-in-from-bottom-4 duration-300
+            ${isDarkMode 
+                ? 'bg-zinc-900/90 border-purple-500/30 shadow-purple-500/20 text-white' 
+                : 'bg-white/90 border-white/50 shadow-xl text-zinc-900'}
+            backdrop-blur-xl
+        `}>
+            <div className="flex justify-between items-start">
+                <div className="flex items-center gap-2">
+                    <Sparkles size={16} className="text-purple-500 animate-pulse"/>
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-50">NewsOS Context</span>
+                </div>
+                <button onClick={onClose}><X size={18} className="opacity-50 hover:opacity-100"/></button>
+            </div>
+            
+            <h3 className="text-xl font-black leading-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">
+                {data.term}
+            </h3>
+            
+            <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                {data.context}
+            </p>
+        </div>
+    </div>
+);
+
+// --- COMPONENTE: GAVETA DE LISTA (PARA VER TUDO DE UMA VEZ) ---
+const ContextDrawer = ({ items, onClose, isDarkMode }) => (
+    <div className="fixed inset-0 z-[6000] flex flex-col justify-end animate-in fade-in duration-300">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        
+        <div className={`
+            relative w-full max-h-[70vh] overflow-y-auto rounded-t-[2.5rem] p-6 shadow-2xl border-t
+            animate-in slide-in-from-bottom-full duration-500
+            ${isDarkMode ? 'bg-zinc-950 border-white/10' : 'bg-white border-zinc-200'}
+        `}>
+            <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-800 rounded-full mx-auto mb-6" />
+            
+            <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-purple-500/10 rounded-xl text-purple-500"><BrainCircuit size={24}/></div>
+                <div>
+                    <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Raio-X Completo</h3>
+                    <p className="text-xs opacity-50">Principais conceitos explicados pela IA.</p>
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                {items.map((item, idx) => (
+                    <div key={idx} className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+                        <h4 className={`font-bold text-sm mb-1 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>{item.term}</h4>
+                        <p className={`text-xs leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{item.context}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
+
 // ... (Mantenha sanitizeHtml, handleClosePanel, handleOpenInBrowser, handleToggleTranslation inalterados) ...
   const PROBLEMATIC_DOMAINS = ['cnnbrasil.com.br', 'estadao.com.br', 'noticiasaominuto.com.br'];
   const isProblematicSite = useMemo(() => {
@@ -5534,6 +5621,74 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       }
       if (clean.includes('<head>')) return clean.replace('<head>', `<head>${headInjection}`);
       return `${headInjection}${clean}`;
+  };
+
+
+  // --- ESTADOS PARA O RAIO-X IA ---
+  const [analysisItems, setAnalysisItems] = useState(null); // Guarda os termos
+  const [isAnalyzing, setIsAnalyzing] = useState(false); // Loading
+  const [activeTooltip, setActiveTooltip] = useState(null); // Qual termo foi clicado
+  const [showDrawer, setShowDrawer] = useState(false); // Mostrar gaveta
+
+  // --- ALGORITMO DE INJEÇÃO DE DESTAQUES ---
+  const runAnalysis = async () => {
+      // 1. Verifica se tem texto para analisar
+      const textToAnalyze = readerContent?.content || article.summary;
+      if (!textToAnalyze) return;
+
+      setIsAnalyzing(true);
+
+      // 2. Chama a IA (usando a chave Reader que passamos via props ou a geral)
+      // OBS: Precisamos garantir que 'apiKey' aqui seja a chave correta.
+      // Se você separou as chaves no NewsOS_V12, passe a 'readerApiKey' como prop para este componente.
+      // Vou assumir que você está passando 'apiKey' (a geral) ou 'readerApiKey' como prop.
+      // Ajuste aqui conforme o nome da prop que você passou:
+      const terms = await generateNewsContext(textToAnalyze, apiKey); // <--- USE A CHAVE CERTA AQUI
+
+      if (terms && Array.isArray(terms)) {
+          setAnalysisItems(terms);
+
+          // 3. INJEÇÃO NO HTML (Se estiver no modo Magic/Leitor)
+          if (readerContent && readerContent.content) {
+              let newHtml = readerContent.content;
+              
+              terms.forEach(item => {
+                  // Regex segura para substituir apenas texto fora de tags HTML
+                  // Procura o termo (case insensitive) e envolve com span
+                  const regex = new RegExp(`(?<!<[^>]*)\\b(${item.term})\\b`, 'gi');
+                  
+                  // O truque: Injetamos o JSON do contexto dentro do atributo data-context
+                  // para recuperarmos ao clicar.
+                  const safeContext = encodeURIComponent(JSON.stringify(item));
+                  
+                  newHtml = newHtml.replace(regex, 
+                      `<span class="ai-highlight" data-context="${safeContext}">$1</span>`
+                  );
+              });
+
+              // Atualiza o conteúdo do leitor com os destaques
+              setReaderContent({ ...readerContent, content: newHtml });
+          }
+          
+          // Se estivermos em um modo que não permite injeção, abrimos a gaveta direto
+          if (!readerContent) {
+              setShowDrawer(true);
+          }
+      }
+      setIsAnalyzing(false);
+  };
+
+  // --- HANDLER DE CLIQUE NO TEXTO (DELEGAÇÃO DE EVENTOS) ---
+  const handleContentClick = (e) => {
+      // Verifica se clicou num destaque
+      if (e.target.classList.contains('ai-highlight')) {
+          e.preventDefault();
+          e.stopPropagation();
+          try {
+              const data = JSON.parse(decodeURIComponent(e.target.dataset.context));
+              setActiveTooltip(data);
+          } catch (err) { console.error(err); }
+      }
   };
 
   // 1. EFEITO DE ABERTURA DO PAINEL (Só roda quando isOpen muda)
@@ -5702,6 +5857,22 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                             <button onClick={() => setViewMode('ai')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'ai' ? 'text-purple-500' : 'text-zinc-500'}`}><Sparkles size={10} /> AI</button>
                         </div>
                         <div className="flex items-center gap-2">
+                             {/* BOTÃO RAIO-X */}
+                            <button 
+                                onClick={runAnalysis} 
+                                disabled={isAnalyzing}
+                                className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-all z-10 flex items-center gap-2 ${isAnalyzing ? 'opacity-50 cursor-wait' : (analysisItems ? 'text-purple-500' : 'text-zinc-500 hover:text-purple-600')}`}
+                            >
+                                {isAnalyzing ? <Loader2 size={10} className="animate-spin"/> : <BrainCircuit size={12} />}
+                                {analysisItems ? 'RAIO-X ATIVO' : 'RAIO-X'}
+                            </button>
+                            
+                            {/* BOTÃO LISTA (Só aparece se já tiver analisado) */}
+                            {analysisItems && (
+                                <button onClick={() => setShowDrawer(true)} className="px-3 py-1.5 text-zinc-400 hover:text-purple-500 transition">
+                                    <FileText size={14}/>
+                                </button>
+                            )}
                              <button onClick={() => setViewMode(viewMode === 'magic' ? 'web' : 'magic')} className={`p-2.5 rounded-xl border ${viewMode === 'magic' ? 'bg-purple-600 text-white border-purple-500' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><Wand2 size={20} /></button>
                              <button onClick={handleToggleTranslation} className={`p-2.5 rounded-xl border ${isTranslated ? 'bg-blue-600 text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}>{isTranslating ? <Loader2 size={20} className="animate-spin" /> : <Languages size={20} />}</button>
                              <button onClick={() => setViewMode(viewMode === 'reader' ? 'web' : 'reader')} className={`p-2.5 rounded-xl border ${viewMode === 'reader' ? 'bg-black text-white' : (isDarkMode ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200')}`}><ALargeSmall size={20} /></button>
@@ -5735,8 +5906,21 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
                             </div>
                         )}
                         {viewMode === 'ai' && <AIAnalysisView article={activeArticleData} isDarkMode={isDarkMode} />}
-                        {viewMode === 'magic' && <MagicPremiumView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
-                        {viewMode === 'reader' && <AppleReaderView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />}
+{viewMode === 'magic' && (
+                            // Envolvemos com uma div para capturar os cliques nos spans injetados
+                            <div onClick={handleContentClick}>
+                                <style>{highlightStyles}</style> {/* Injeta o CSS do marca-texto */}
+                                <MagicPremiumView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />
+                            </div>
+                        )}
+                        
+                        {viewMode === 'reader' && (
+                            // Envolvemos com uma div para capturar os cliques nos spans injetados
+                            <div onClick={handleContentClick}>
+                                <style>{highlightStyles}</style> {/* Injeta o CSS do marca-texto */}
+                                <AppleReaderView article={activeArticleData} readerContent={activeReaderData} isDarkMode={isDarkMode} fontSize={fontSize} />
+                            </div>
+                        )}
                     </>
                 )}
             </div>
@@ -5753,6 +5937,25 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
             {isOpen && isAnimationDone && article && feedItems && (
                 <FeedNavigator article={article} feedItems={feedItems} onArticleChange={onArticleChange} isDarkMode={isDarkMode} />
             )}
+
+            {/* Renderiza Tooltip se houver um ativo */}
+            {activeTooltip && (
+                <ContextTooltip 
+                    data={activeTooltip} 
+                    onClose={() => setActiveTooltip(null)} 
+                    isDarkMode={isDarkMode} 
+                />
+            )}
+
+            {/* Renderiza Gaveta se solicitado */}
+            {showDrawer && analysisItems && (
+                <ContextDrawer 
+                    items={analysisItems} 
+                    onClose={() => setShowDrawer(false)} 
+                    isDarkMode={isDarkMode} 
+                />
+            )}
+
         </div>
         <style jsx="true">{`@keyframes progress-aura { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } } .animate-progress-aura { animation: progress-aura 1.5s infinite linear; }`}</style>
     </div>
