@@ -5724,65 +5724,80 @@ const ContextDrawer = ({ items, onClose, isDarkMode }) => (
         return () => clearTimeout(timer);
     }, [isOpen]); // ATENÇÃO: removi article.id daqui para não re-animar na troca
   
-// 2. EFEITO DE CARREGAMENTO (BACKGROUND FETCH)
-  // Baixa o texto para a IA usar e para o Modo Mágico, mas NÃO muda a tela sozinho.
-  useEffect(() => {
-    if (!isOpen || !article?.link || videoId) return;
-    
-    // Não resetamos o viewMode aqui. Mantemos onde o usuário estava.
-    
-    const fetchContent = async () => {
+    // 2. EFEITO DE CARREGAMENTO DO CONTEÚDO (Roda quando article.id muda)
+    useEffect(() => {
+      if (!isOpen || !article?.link || videoId) return;
+      
+      // --- O SEGREDO DA FLUIDEZ NO NAVIGATOR ---
+      // 1. Reseta o scroll para o topo imediatamente
+      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+      
+      // 2. Limpa o conteúdo anterior para mostrar que está carregando o novo
+      setReaderContent(null);
+      setIframeUrl(null);
+      setTranslatedData(null);
+      setIsTranslated(false);
+      setIsLoading(true);
+  
+      const fetchContent = async () => {
         setIsLoading(true);
         try {
-            // A. TENTA LER DO CACHE
+            // 1. TENTA BUSCAR DO CACHE PRIMEIRO
             let { data: cachedData } = await supabase
                 .from('article_cache')
                 .select('content')
                 .eq('url', article.link)
                 .single();
 
-            if (cachedData?.content?.content?.length > 300) {
-                console.log("✅ Cache encontrado (Background).");
+            if (cachedData && cachedData.content) {
+                // SUCESSO! Usamos o cache.
+                console.log("Artigo carregado do CACHE.");
                 setReaderContent(cachedData.content);
-                // NÃO mudamos o viewMode. Se o user quiser ler limpo, ele clica na varinha.
+                
+                // Constrói HTML para o modo Webview baseado no cache
+                const cachedHtml = `<html><head><title>${cachedData.content.title}</title></head><body><h1>${cachedData.content.title}</h1>${cachedData.content.content}</body></html>`;
+                const cleanHtml = sanitizeHtml(cachedHtml);
+                const blob = new Blob([cleanHtml], { type: 'text/html' });
+                setIframeUrl(URL.createObjectURL(blob));
+
             } else {
-                // B. BAIXA DO SUPABASE (JINA)
-                console.log("🌍 Baixando conteúdo limpo via Jina...");
+                // 2. SE NÃO ACHOU NO CACHE, invoca a Edge Function
+                console.log("Cache miss. Buscando via Edge Function...");
                 const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
                 
-                if (!error && data?.reader?.content?.length > 300) {
-                    setReaderContent(data.reader);
-                    // Salva no cache
+                if (error || !data) throw new Error("Falha no proxy-view");
+                
+                const cleanHtml = sanitizeHtml(data.html);
+                const blob = new Blob([cleanHtml], { type: 'text/html' });
+                setIframeUrl(URL.createObjectURL(blob));
+                setReaderContent(data.reader);
+
+                // 3. SALVA O RESULTADO NO CACHE PARA A PRÓXIMA VEZ
+                if (data.reader) {
                     await supabase.from('article_cache').upsert({
                         url: article.link,
                         content: data.reader,
                     });
-                } else {
-                    console.warn("⚠️ Jina não conseguiu extrair. IA usará resumo.");
-                    // Fallback silencioso: Prepara o objeto com o resumo para a IA usar se solicitada
-                    setReaderContent({ 
-                        title: article.title, 
-                        content: `<p>${article.summary}</p>`,
-                        isFallback: true 
-                    });
+                     console.log("Artigo salvo no cache para uso futuro.");
                 }
             }
         } catch (err) {
-            console.warn("Erro no fetch background:", err);
-            // Garante que a IA tenha pelo menos o resumo
-            setReaderContent({ 
-                title: article.title, 
-                content: `<p>${article.summary}</p>`,
-                isFallback: true
-            });
+            console.warn("Falha ao buscar conteúdo, mudando para modo Magic:", err);
+            setViewMode('magic');
         } finally {
             setIsLoading(false);
         }
     };
     
-    fetchContent();
-
-  }, [article?.id, isOpen, videoId]);
+      
+      // Pequeno delay se a animação do painel ainda estiver rolando (primeira abertura)
+      if (!isAnimationDone) {
+          setTimeout(fetchContent, 500);
+      } else {
+          fetchContent(); // Troca instantânea se já estiver aberto (Navigator)
+      }
+  
+    }, [article?.id, isOpen, videoId]); // Depende do ID do artigo
   
    
   
