@@ -1966,6 +1966,8 @@ const generateTrendRadar = async (news, apiKey) => {
 
 // --- WIDGET: SMART DIGEST (DESIGN EDITORIAL PREMIUM) ---
 
+
+
 // 1. Sub-componente do Mini Navegador (VERSÃO MAXIMIZADA)
 const GlassBrowser = ({ article, onClose, isDarkMode }) => {
     
@@ -2048,101 +2050,6 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
                         >
                             Ler Notícia Completa <ArrowRight size={18} />
                         </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const GlassBrowser = ({ article, onClose, isDarkMode }) => {
-    
-    // Função para abrir no Safari Nativo (In-App)
-    const openInNativeBrowser = async () => {
-        try {
-            await Browser.open({
-                url: article.link, // Abre o link original direto
-                presentationStyle: 'fullscreen',
-                toolbarColor: isDarkMode ? '#000000' : '#FFFFFF',
-            });
-            onClose(); // Fecha o card para quando o usuário voltar
-        } catch (e) {
-            // Fallback infalível
-            window.open(article.link, '_blank');
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
-            {/* Backdrop */}
-            <div 
-                className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity" 
-                onClick={onClose} 
-            />
-
-            {/* O Card de Vidro */}
-            <div className={`
-                relative w-[98vw] md:w-[600px] max-h-[92vh]
-                rounded-[2.5rem] overflow-hidden shadow-2xl border flex flex-col 
-                transition-all transform scale-100 animate-in zoom-in-95 duration-300
-                ${isDarkMode 
-                    ? 'bg-zinc-900/95 border-white/10 shadow-purple-500/20' 
-                    : 'bg-white/95 border-white/40 shadow-xl'}
-                backdrop-blur-2xl
-            `}>
-                
-                {/* Imagem de Capa (Hero) */}
-                <div className="relative h-48 md:h-64 w-full flex-shrink-0">
-                    <img 
-                        src={article.img || article.logo} 
-                        className="w-full h-full object-cover" 
-                        onError={(e) => e.target.style.display = 'none'}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                    
-                    {/* Botão Fechar Flutuante */}
-                    <button 
-                        onClick={onClose} 
-                        className="absolute top-4 right-4 p-2 rounded-full bg-black/30 text-white backdrop-blur-md border border-white/20 hover:bg-black/50 transition active:scale-90"
-                    >
-                        <X size={20} />
-                    </button>
-
-                    {/* Fonte na Imagem */}
-                    <div className="absolute bottom-4 left-6 flex items-center gap-2">
-                        <img src={article.logo} className="w-6 h-6 rounded-full border border-white/50" />
-                        <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black drop-shadow-md">
-                            {article.source}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Conteúdo do Card */}
-                <div className="p-8 flex flex-col flex-1 overflow-y-auto">
-                    <h2 className={`text-2xl font-black leading-tight mb-4 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                        {article.title}
-                    </h2>
-                    
-                    <p className={`text-base leading-relaxed mb-8 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                        {article.summary || "Toque abaixo para ler a matéria completa diretamente na fonte original."}
-                    </p>
-
-                    <div className="mt-auto pt-4">
-                        <button 
-                            onClick={openInNativeBrowser}
-                            className={`
-                                w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-lg
-                                ${isDarkMode 
-                                    ? 'bg-white text-black hover:bg-zinc-200' 
-                                    : 'bg-black text-white hover:bg-zinc-800'}
-                            `}
-                        >
-                            Ler Notícia Completa <ArrowRight size={18} />
-                        </button>
-                        
-                        <p className="text-center text-[10px] mt-4 opacity-40 uppercase font-bold tracking-widest">
-                            Abre no navegador seguro
-                        </p>
                     </div>
                 </div>
             </div>
