@@ -4316,25 +4316,39 @@ const handleStoryNavigation = (direction) => {
             feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
         }
 
-        // --- TRATAMENTO DE LOGOS ESPECÍFICOS ---
+        // --- TRATAMENTO DE LOGOS ESPECÍFICOS (MANUAL) ---
             let finalLogo = feedLogo;
             const lowerName = currentFeedTitle.toLowerCase();
+            const lowerUrl = feed.url.toLowerCase(); // Adicionei para segurança
 
-            // 1. Dicionário Manual de Ícones (Adicione seus sites aqui)
+            // 1. Dicionário Manual de Ícones (Prioridade Alta)
             if (lowerName.includes('investnews')) {
-                finalLogo = 'https://investnews.com.br/wp-content/uploads/2022/01/favicon-investnews.png';
+                finalLogo = 'https://media.licdn.com/dms/image/v2/D4D0BAQES2TW4kCWAHg/company-logo_200_200/company-logo_200_200/0/1709575002406/investnewsbr_logo?e=2147483647&v=beta&t=8CtOWb8yD8V_BkdM-Oc82N44dygx6y6FXUYrnOPt0IM';
             } 
             else if (lowerName.includes('valor investe')) {
-                finalLogo = 'https://s2.glbimg.com/Qe_UPs8t-M3j3j6j5j4j3.png'; // Favicon oficial da Globo
+                // Link oficial de alta resolução
+                finalLogo = 'https://s2-valor-investe.glbimg.com/aDBdPPmCO_D-Ta4FTzx4OJmuWEE=/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_f035dd6fd91c438fa04ab718d608bbaa/internal_photos/bs/2019/Q/I/KlbOBJSh6NyJ7CNJz6jA/fb-investe.png'; 
             }
             else if (lowerName.includes('valor economico') || lowerName.includes('valor econômico')) {
-                finalLogo = 'https://valor.globo.com/favicon.ico';
+                // Favicon oficial
+                finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSzaIMqhf99JTJqG1Cbu7Kil51_jH42uWGg0w&s';
             }
-            // 2. Lógica para YouTube (Avatar Colorido)
+            else if (lowerName.includes('estadao') || lowerName.includes('estadão')) {
+                finalLogo = 'https://www.estadao.com.br/pf/resources/images/favicon.ico?d=582';
+            }
+            else if (lowerName.includes('istoé dinheiro') || lowerName.includes('istoe')) {
+                finalLogo = 'https://yt3.googleusercontent.com/aLYyxdR5JLMcp4KxNttXhoXM3lEDdUh22tXJsHe3rQYf71xQhv_PDAT75xpoSFtKgaALcMCw=s900-c-k-c0x00ffffff-no-rj';
+            }
+            else if (lowerName.includes('uol') || lowerUrl.includes('uol.com.br')) {
+                finalLogo = 'https://conteudo.imguol.com.br/c/home/layout/v2016/icons/favicon.ico';
+            }
+            
+            // 2. Lógica para YouTube (Avatar Colorido se não tiver imagem)
             else if (isFeedYoutube && !finalLogo) {
-                finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
+                finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=ff0000&color=fff&size=128&bold=true`;
             } 
-            // 3. Fallback Automático (Google Favicon Service)
+            
+            // 3. Fallback Automático (Google Favicon)
             else if (!finalLogo) {
                try {
                    const domain = new URL(feed.url).hostname;
