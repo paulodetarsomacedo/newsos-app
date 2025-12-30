@@ -1,5 +1,4 @@
 // ARQUIVO: supabase/functions/proxy-view/index.ts
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
 import { Readability } from "https://esm.sh/@mozilla/readability@0.4.4";
@@ -10,88 +9,100 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // 1. Tratamento de CORS (Para o app aceitar a resposta)
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     const { url } = await req.json();
+    if (!url) throw new Error('URL required');
 
-    if (!url) {
-      return new Response(JSON.stringify({ error: 'URL required' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      });
-    }
-
-    console.log(`Buscando URL: ${url}`);
-
-    // 2. A MÁSCARA (Headers de Navegador Real)
-    // Isso engana o UOL e Investing achando que é um usuário real no Chrome
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"macOS"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro HTTP: ${response.status}`);
-    }
-
-    // 3. CORREÇÃO DE CODIFICAÇÃO (Para UOL e sites antigos)
-    const buffer = await response.arrayBuffer();
-    const contentType = response.headers.get("content-type") || "";
-    let html = "";
+    console.log(`\n--- Iniciando Extração: ${url} ---`);
     
-    // Tenta detectar charset iso-8859-1 (comum no Brasil antigo)
-    if (contentType.includes("iso-8859-1") || contentType.includes("latin1")) {
-      const decoder = new TextDecoder("iso-8859-1");
-      html = decoder.decode(buffer);
-    } else {
-      // Padrão UTF-8
-      const decoder = new TextDecoder("utf-8");
-      html = decoder.decode(buffer);
+    let finalContent = "";
+    let finalTitle = "";
+    let extractedMethod = "";
+
+    // ==============================================================================
+    // ESTRATÉGIA 1: ACESSO DIRETO (CHROME MASK) - Melhor para sites normais
+    // ==============================================================================
+    try {
+        console.log("1. Tentando acesso direto (Chrome Mask)...");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
+
+        const response = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            }
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+            const buffer = await response.arrayBuffer();
+            const decoder = new TextDecoder("utf-8"); // Decodificação padrão
+            const html = decoder.decode(buffer);
+            
+            const doc = new DOMParser().parseFromString(html, "text/html");
+            if (doc) {
+                const reader = new Readability(doc).parse();
+                if (reader && reader.content && reader.content.length > 300) {
+                    console.log("✅ Sucesso Direto!");
+                    finalContent = reader.content;
+                    finalTitle = reader.title;
+                    extractedMethod = "direct";
+                }
+            }
+        } else {
+            console.log(`❌ Direto falhou: ${response.status}`);
+        }
+    } catch (err) {
+        console.log("❌ Erro no acesso direto:", err.message);
     }
 
-    // 4. EXTRAÇÃO INTELIGENTE (Mozilla Readability)
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    
-    if (!doc) {
-        throw new Error("Falha ao fazer parse do HTML");
+    // ==============================================================================
+    // ESTRATÉGIA 2: JINA AI (BACKUP) - Para sites difíceis (UOL, Investing)
+    // ==============================================================================
+    if (!finalContent || finalContent.length < 300) {
+        console.log("2. Tentando Jina AI...");
+        try {
+            const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
+                headers: { 
+                    'X-Return-Format': 'html',
+                    'X-With-Images-Summary': 'true'
+                }
+            });
+            
+            if (jinaRes.ok) {
+                const text = await jinaRes.text();
+                // Verifica se não é mensagem de erro do Jina
+                if (text && !text.includes("Rate Limit") && text.length > 300) {
+                    console.log("✅ Sucesso Jina!");
+                    finalContent = text;
+                    finalTitle = "Artigo Processado";
+                    extractedMethod = "jina";
+                }
+            }
+        } catch (err) {
+            console.log("❌ Erro Jina:", err.message);
+        }
     }
 
-    // Remove scripts e estilos antes de ler (limpeza)
-    const scripts = doc.querySelectorAll('script, style, iframe, noscript');
-    scripts.forEach((node) => node.remove());
-
-    const reader = new Readability(doc).parse();
-
-    if (!reader) {
-         throw new Error("Readability não conseguiu extrair conteúdo");
+    // ==============================================================================
+    // RESPOSTA FINAL
+    // ==============================================================================
+    if (!finalContent || finalContent.length < 200) {
+        throw new Error("Falha total na extração. Bloqueio severo.");
     }
 
-    // 5. Retorna o conteúdo limpo
     return new Response(JSON.stringify({ 
-      html: html, // HTML Bruto (se precisar)
+      source: extractedMethod,
       reader: {
-          title: reader.title,
-          content: reader.content,
-          textContent: reader.textContent,
-          excerpt: reader.excerpt,
-          siteName: reader.siteName
+          title: finalTitle || "Sem título",
+          content: finalContent,
+          textContent: finalContent.replace(/<[^>]*>?/gm, ' '),
+          siteName: new URL(url).hostname
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -99,10 +110,10 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error("Erro no proxy:", error);
+    console.error("Critical Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
+      status: 500, // Retorna 500 para o frontend ativar o Fallback RSS
     });
   }
 });
