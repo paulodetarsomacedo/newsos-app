@@ -2070,43 +2070,83 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [glassArticle, setGlassArticle] = useState(null);
 
+  const STORAGE_KEY = 'newsos_smart_digest_v1';
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
 
+  // 1. CARREGAR DADOS SALVOS AO INICIAR
   useEffect(() => {
-    if (refreshTrigger > 0) {
-        setDigest(null);
-        setStatus('idle');
-        cancelSpeech();
-    }
-  }, [refreshTrigger]);
+      const savedData = localStorage.getItem(STORAGE_KEY);
+      if (savedData) {
+          try {
+              const parsed = JSON.parse(savedData);
+              if (parsed && parsed.topics) {
+                  setDigest(parsed);
+                  setStatus('success');
+              }
+          } catch (e) {
+              console.error("Erro ao carregar Digest salvo", e);
+          }
+      }
+  }, []);
 
-  useEffect(() => { return () => cancelSpeech(); }, []);
+  // Nota: Removi o useEffect do refreshTrigger para não apagar o digest quando der pull-to-refresh no feed.
+  // A atualização agora é estritamente manual pelo botão do widget.
+
+  useEffect(() => {
+      return () => cancelSpeech();
+  }, []);
 
   const handleGenerate = async () => {
-    if (!apiKey) { alert("Configure sua API Key nas configurações primeiro."); return; }
+    if (!apiKey) {
+        alert("Configure sua API Key nas configurações primeiro.");
+        return;
+    }
     setStatus('loading');
+    
+    // Pequeno delay para UX
     await new Promise(r => setTimeout(r, 800));
+
     const result = await generateBriefing(newsData, apiKey);
-    if (result) { setDigest(result); setStatus('success'); } else { setStatus('error'); }
+    
+    if (result) {
+        setDigest(result);
+        setStatus('success');
+        // 2. SALVAR NO STORAGE
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+    } else {
+        setStatus('error');
+    }
   };
 
-  const cancelSpeech = () => { if (synthRef.current) { synthRef.current.cancel(); setIsSpeaking(false); } };
+  const cancelSpeech = () => {
+      if (synthRef.current) {
+          synthRef.current.cancel();
+          setIsSpeaking(false);
+      }
+  };
 
   const handlePlayBriefing = () => {
       if (!synthRef.current || !digest) return;
       if (isSpeaking) { cancelSpeech(); return; }
+
       setIsSpeaking(true);
       const intro = `Briefing Executivo. ${digest.vibe_title}.`;
       const content = digest.topics.map(t => `${t.tag}. ${t.summary}`).join('. ');
       const finalText = `${intro} ${content}.`;
+
       const utterance = new SpeechSynthesisUtterance(finalText);
-      utterance.lang = 'pt-BR'; utterance.rate = 1.1; utterance.pitch = 1;
+      utterance.lang = 'pt-BR'; 
+      utterance.rate = 1.1; 
+      utterance.pitch = 1;
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
+
       synthRef.current.speak(utterance);
   };
 
-  const toggleExpand = (index) => { setExpandedIndex(expandedIndex === index ? null : index); };
+  const toggleExpand = (index) => {
+      setExpandedIndex(expandedIndex === index ? null : index);
+  };
 
   const getTag3DStyle = (index) => {
       const base3D = "shadow-sm border-t border-b";
@@ -2179,9 +2219,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   }
 
   // --- ÁREA DE IMAGENS (COLLAGE) ---
-  // Pega a primeira imagem de cada tópico para montar o banner
   const topicImages = digest.topics.slice(0, 4).map(t => {
-      // Tenta achar uma imagem válida no tópico
       const articleWithImg = t.articles?.find(a => a.img && a.img.length > 10);
       return articleWithImg ? articleWithImg.img : null;
   });
@@ -2196,7 +2234,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
             : 'bg-white border-white/40 shadow-indigo-500/10'}
       `}>
          
-         {/* --- 1. BANNER DE IMAGENS UNIFICADAS --- */}
+         {/* BANNER DE IMAGENS */}
          <div className="relative w-full h-32 flex">
              {topicImages.map((img, idx) => (
                  <div key={idx} className="flex-1 relative h-full overflow-hidden">
@@ -2205,16 +2243,12 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                      ) : (
                          <div className={`w-full h-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
                      )}
-                     {/* Efeito de Fusão (Gradient nas bordas) */}
                      <div className={`absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent ${idx === topicImages.length - 1 ? 'to-transparent' : (isDarkMode ? 'to-zinc-950/50' : 'to-white/30')}`} />
-                     {/* Tintura Unificadora */}
                      <div className={`absolute inset-0 ${isDarkMode ? 'bg-indigo-900/20 mix-blend-overlay' : 'bg-indigo-500/10 mix-blend-overlay'}`} />
                  </div>
              ))}
-             {/* Degradê inferior para mesclar com o conteúdo */}
              <div className={`absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t ${isDarkMode ? 'from-zinc-950' : 'from-white'} to-transparent`} />
              
-             {/* Botão de Audio Flutuante no Banner */}
              <button 
                 onClick={handlePlayBriefing}
                 className="absolute bottom-3 right-4 bg-black/50 backdrop-blur-md text-white p-2 rounded-full border border-white/20 shadow-lg active:scale-95 transition-transform"
@@ -2223,7 +2257,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
              </button>
          </div>
 
-         {/* --- 2. CONTEÚDO EDITORIAL --- */}
+         {/* CONTEÚDO EDITORIAL */}
          <div className="px-6 pb-8 relative z-10 -mt-2">
              
              <div className="flex flex-col items-start text-left mb-6">
@@ -2261,7 +2295,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                                 {topic.summary}
                             </p>
 
-                            {/* Fontes (Expansível) */}
+                            {/* FONTES (CORRIGIDO VISUAL PRETO E BRANCO AQUI) */}
                             {isExpanded && (
                                 <div className="mt-4 pt-4 border-t border-dashed border-zinc-500/20 animate-in slide-in-from-top-2">
                                     <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2">Fontes Analisadas:</p>
@@ -2274,18 +2308,31 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                                                     setGlassArticle(article); 
                                                 }}
                                                 className={`
-                                                    flex items-center gap-3 p-2 rounded-lg transition-colors
-                                                    ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-black/5'}
+                                                    flex items-center gap-3 p-3 rounded-xl border transition-colors
+                                                    ${isDarkMode 
+                                                        ? 'bg-black/30 border-white/10 hover:bg-white/5' 
+                                                        : 'bg-white border-zinc-200 hover:bg-zinc-50'}
                                                 `}
                                             >
-                                                <img 
-                                                    src={article.logo} 
-                                                    className="w-5 h-5 rounded-full object-cover grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100 transition-all" 
-                                                    onError={(e) => e.target.style.display = 'none'}
-                                                />
-                                                <span className={`text-xs font-bold truncate ${isDarkMode ? 'text-zinc-400 group-hover:text-white' : 'text-zinc-600 group-hover:text-black'}`}>
-                                                    {article.title}
-                                                </span>
+                                                {/* Imagem do Artigo sem filtro feio */}
+                                                <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
+                                                    <img 
+                                                        src={article.logo} 
+                                                        className="w-full h-full object-cover" 
+                                                        onError={(e) => e.target.style.display = 'none'}
+                                                    />
+                                                </div>
+                                                
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className={`text-[9px] font-bold uppercase tracking-wide truncate ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
+                                                        {article.source}
+                                                    </span>
+                                                    <span className={`text-xs font-bold truncate leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
+                                                        {article.title}
+                                                    </span>
+                                                </div>
+                                                
+                                                <ArrowRight size={12} className="opacity-30 ml-auto" />
                                             </div>
                                         ))}
                                     </div>
@@ -2298,7 +2345,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
 
              <div className="mt-6 flex justify-between items-center opacity-40">
                 <span className="text-[10px] font-mono">Análise via Gemini 2.5</span>
-                <button onClick={handleGenerate} className="p-2 hover:text-indigo-500 transition-colors"><RefreshCw size={14}/></button>
+                <button onClick={handleGenerate} className="p-2 hover:text-indigo-500 transition-colors" title="Atualizar Briefing"><RefreshCw size={14}/></button>
              </div>
          </div>
       </div>
@@ -2314,7 +2361,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     </>
   );
 };
-
 
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
@@ -4263,17 +4309,33 @@ const handleStoryNavigation = (direction) => {
             feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
         }
 
-        let finalLogo = feedLogo;
-        if (isFeedYoutube && !finalLogo) {
-            finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
-        } else if (!finalLogo) {
-           try {
-               const domain = new URL(feed.url).hostname;
-               finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-           } catch (e) {
-               finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`;
-           }
-        }
+        // --- TRATAMENTO DE LOGOS ESPECÍFICOS ---
+            let finalLogo = feedLogo;
+            const lowerName = currentFeedTitle.toLowerCase();
+
+            // 1. Dicionário Manual de Ícones (Adicione seus sites aqui)
+            if (lowerName.includes('investnews')) {
+                finalLogo = 'https://investnews.com.br/wp-content/uploads/2022/01/favicon-investnews.png';
+            } 
+            else if (lowerName.includes('valor investe')) {
+                finalLogo = 'https://s2.glbimg.com/Qe_UPs8t-M3j3j6j5j4j3.png'; // Favicon oficial da Globo
+            }
+            else if (lowerName.includes('valor economico') || lowerName.includes('valor econômico')) {
+                finalLogo = 'https://valor.globo.com/favicon.ico';
+            }
+            // 2. Lógica para YouTube (Avatar Colorido)
+            else if (isFeedYoutube && !finalLogo) {
+                finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128`;
+            } 
+            // 3. Fallback Automático (Google Favicon Service)
+            else if (!finalLogo) {
+               try {
+                   const domain = new URL(feed.url).hostname;
+                   finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+               } catch (e) {
+                   finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`;
+               }
+            }
 
         let LIMIT = 20; 
         if (feed.type === 'podcast') LIMIT = 1; 
