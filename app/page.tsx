@@ -3920,7 +3920,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
   }
 };
 
-// --- COMPONENTE: PLAYER GLOBAL (APENAS MP3/RSS NATIVO) ---
+// --- COMPONENTE: PLAYER GLOBAL (YOUTUBE EMBED + MP3) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const audioRef = useRef(null);
   
@@ -3928,8 +3928,16 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isYoutube, setIsYoutube] = useState(false);
 
-  // Efeito de Carregamento Simples
+  // Extrai ID do YouTube de forma robusta
+  const ytId = useMemo(() => {
+      if (!track) return null;
+      // Suporta link normal, encurtado, shorts, embed
+      const match = track.link?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+      return track.videoId || (match ? match[1] : null);
+  }, [track]);
+
   useEffect(() => {
     if (!track) return;
 
@@ -3939,24 +3947,35 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
     setCurrentTime(0);
     setDuration(0);
 
-    if (audioRef.current) {
-        audioRef.current.src = track.link;
-        audioRef.current.load();
-        audioRef.current.play()
-            .then(() => setIsPlaying(true))
-            .catch(e => console.log("Autoplay bloqueado (toque no play)", e));
+    if (ytId) {
+        setIsYoutube(true);
+        // YouTube não precisa de "load()" manual aqui, o iframe carrega sozinho
+    } else {
+        setIsYoutube(false);
+        if (audioRef.current) {
+            audioRef.current.src = track.link;
+            audioRef.current.load();
+            audioRef.current.play()
+                .then(() => setIsPlaying(true))
+                .catch(e => console.log("Autoplay áudio bloqueado", e));
+        }
     }
-  }, [track]);
+  }, [track, ytId]);
 
-  const togglePlay = () => {
-      if (audioRef.current) {
-          if (isPlaying) audioRef.current.pause();
-          else audioRef.current.play();
-          setIsPlaying(!isPlaying);
+  // Sincronização de Tempo para YouTube (Simulado visualmente)
+  useEffect(() => {
+      let interval = null;
+      if (isYoutube && isPlaying) {
+          interval = setInterval(() => {
+              setCurrentTime(prev => prev + 0.5);
+              if (duration > 0) setProgress((currentTime / duration) * 100);
+          }, 500);
       }
-  };
+      return () => clearInterval(interval);
+  }, [isYoutube, isPlaying, currentTime, duration]);
 
-  const handleTimeUpdate = () => {
+  // Métodos de Áudio Nativo
+  const handleNativeTimeUpdate = () => {
       if (audioRef.current) {
           setCurrentTime(audioRef.current.currentTime);
           if (audioRef.current.duration) {
@@ -3966,16 +3985,20 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       }
   };
 
-  const handleSeek = (e) => {
-      if (audioRef.current && duration) {
-          const seekTo = (Number(e.target.value) / 100) * duration;
-          audioRef.current.currentTime = seekTo;
-          setProgress(Number(e.target.value));
+  const togglePlay = () => {
+      if (isYoutube) {
+          // No modo Iframe simples, o botão de play/pause externo é difícil de sincronizar 
+          // sem a API pesada do Google. 
+          // SOLUÇÃO UX: O usuário clica no vídeo para pausar/tocar.
+          // O botão aqui vira apenas um indicador visual ou "Mute".
+          setIsPlaying(!isPlaying); 
+      } else {
+          if (audioRef.current) {
+              if (isPlaying) audioRef.current.pause();
+              else audioRef.current.play();
+              setIsPlaying(!isPlaying);
+          }
       }
-  };
-
-  const skipTime = (seconds) => {
-      if (audioRef.current) audioRef.current.currentTime += seconds;
   };
 
   const formatTime = (t) => {
@@ -3990,49 +4013,81 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   return (
     <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-4 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
         
-        <audio 
-            ref={audioRef} 
-            onTimeUpdate={handleTimeUpdate} 
-            onLoadedMetadata={(e) => setDuration(e.target.duration)} 
-            onEnded={() => setIsPlaying(false)}
-            playsInline // Importante para iOS
-        />
+        {/* ENGINE MP3 (Nativo) */}
+        {!isYoutube && (
+            <audio 
+                ref={audioRef} 
+                onTimeUpdate={handleNativeTimeUpdate} 
+                onLoadedMetadata={(e) => setDuration(e.target.duration)} 
+                onEnded={() => setIsPlaying(false)}
+                playsInline 
+            />
+        )}
         
-        {/* BARRA DE PROGRESSO */}
-        <div className="absolute top-0 left-4 right-4 -mt-1.5 h-4 group cursor-pointer flex items-center z-20">
-             <input type="range" min="0" max="100" value={progress || 0} onChange={handleSeek} className="w-full h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:rounded-full transition-all accent-orange-500 cursor-pointer" />
+        {/* BARRA DE PROGRESSO (Visual apenas no YouTube) */}
+        <div className="absolute top-0 left-4 right-4 -mt-1.5 h-4 flex items-center z-20">
+             <div className="w-full h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full overflow-hidden">
+                <div className="h-full bg-orange-500 transition-all duration-500" style={{ width: `${progress}%` }} />
+             </div>
         </div>
 
         <div className="flex items-center gap-4 mt-2">
-            {/* CAPA */}
-            <div className="w-12 h-12 rounded-lg bg-zinc-800 flex-shrink-0 overflow-hidden relative shadow-md group border border-white/10">
-                <img src={track.cover} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
-                <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
-                    <Mic size={20} className="text-white drop-shadow-md"/>
-                </div>
+            
+            {/* --- AQUI FICA O VÍDEO --- */}
+            <div className="w-20 h-14 rounded-lg bg-black flex-shrink-0 overflow-hidden relative shadow-md border border-white/10">
+                {isYoutube ? (
+                    // IFRAME DO YOUTUBE REAL
+                    <iframe
+                        width="100%"
+                        height="100%"
+                        // playsinline=1 é OBRIGATÓRIO para não ir para fullscreen no iOS
+                        src={`https://www.youtube.com/embed/${ytId}?autoplay=1&playsinline=1&controls=0&modestbranding=1&rel=0`}
+                        title="YouTube Player"
+                        frameBorder="0"
+                        allow="autoplay; encrypted-media; picture-in-picture"
+                        allowFullScreen
+                        style={{ pointerEvents: 'auto' }} // Garante que o toque funcione
+                    />
+                ) : (
+                    // Capa para Podcast Normal
+                    <img src={track.cover} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                )}
             </div>
             
             {/* INFO */}
             <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-bold leading-tight truncate">{track.title}</h4>
                 <p className="text-[10px] opacity-60 truncate flex items-center gap-1 mt-1">
-                    <span className="text-blue-500 font-bold">Podcast</span>
-                    <span>• {formatTime(currentTime)} / {formatTime(duration)}</span>
+                    {isYoutube ? (
+                        <span className="text-red-500 font-bold flex items-center gap-1"><Youtube size={10}/> YouTube</span>
+                    ) : (
+                        <span className="text-blue-500 font-bold flex items-center gap-1"><Mic size={10}/> Podcast</span>
+                    )}
+                    <span>• {isYoutube ? "Ao Vivo / Tocando" : `${formatTime(currentTime)} / ${formatTime(duration)}`}</span>
                 </p>
             </div>
 
             {/* CONTROLES */}
             <div className="flex items-center gap-3">
-                <button onClick={() => skipTime(-15)} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><span className="text-[10px] font-bold">-15s</span></button>
-                <button onClick={togglePlay} className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg bg-orange-500 hover:scale-105 active:scale-95 transition">
-                    {isPlaying ? <Pause size={20} fill="white"/> : <Play size={20} fill="white" className="ml-1"/>}
-                </button>
-                <button onClick={() => { setIsPlaying(false); onClose(); }} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-zinc-500"><X size={24} /></button>
+                {!isYoutube && (
+                    <button onClick={togglePlay} className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg bg-orange-500 hover:scale-105 active:scale-95 transition">
+                        {isPlaying ? <Pause size={18} fill="white"/> : <Play size={18} fill="white" className="ml-1"/>}
+                    </button>
+                )}
+                
+                {isYoutube && (
+                    <div className="text-[9px] text-zinc-500 font-bold uppercase w-16 text-right leading-tight">
+                        Toque no vídeo para pausar
+                    </div>
+                )}
+                
+                <button onClick={() => { setIsPlaying(false); onClose(); }} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-zinc-500"><X size={20} /></button>
             </div>
         </div>
     </div>
   );
 };
+
 
 // --- COMPONENTE: SPLASH SCREEN (LOGO + NOME COM AURA) ---
 const SplashScreen = ({ onFinish }) => {
@@ -4964,30 +5019,12 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     savedItems={savedItems}
                     onToggleSave={handleToggleSave}
                     onPlayAudio={(pod) => {
-                        // 1. Verifica se é YouTube (Vídeo ID ou Link)
-                        const videoId = pod.videoId || (pod.link && (pod.link.match(/v=([^&]+)/)?.[1] || (pod.link.includes('youtu.be/') ? pod.link.split('youtu.be/')[1] : null)));
-
-                        if (videoId) {
-                            // Cenario A: É YouTube -> Manda para o YouTube Music no Navegador
-                            // Isso permite que o usuário veja a interface de música.
-                            const musicUrl = `https://music.youtube.com/watch?v=${videoId}`;
-                            
-                            // Fecha o player interno se estiver tocando outra coisa
-                            setPlayingAudio(null);
-                            
-                            // Abre o navegador nativo (Safari View Controller)
-                            Browser.open({
-                                url: musicUrl,
-                                presentationStyle: 'fullscreen',
-                                toolbarColor: isDarkMode ? '#000000' : '#FFFFFF'
-                            });
-                        } else {
-                            // Cenario B: É Podcast Real (RSS/MP3) -> Toca no Player Interno
-                            // Fecha modais de vídeo/artigo
-                            handleOpenArticle(null); 
-                            // Abre a barra de áudio
-                            setPlayingAudio(pod);
-                        }
+                        // MUDANÇA: NÃO abrimos mais o Browser.open.
+                        // Mandamos TUDO para o Player Interno (GlobalAudioPlayer).
+                        // O Player Interno saberá lidar com o YouTube.
+                        
+                        handleOpenArticle(null); // Garante que fecha modais de texto
+                        setPlayingAudio(pod);    // Abre a barra inferior
                     }}
                 />
             )}
@@ -6116,17 +6153,28 @@ const ContextDrawer = ({ items, onClose, isDarkMode }) => (
                 
                 {!videoId && (
                     <>
-                        <div className={`flex p-1 rounded-xl relative border shadow-sm ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}>
-                            <div className={`absolute top-1 bottom-1 w-[48%] rounded-lg shadow-sm transition-all duration-300 ease-out ${viewMode === 'ai' ? 'left-[50%]' : 'left-1'} ${isDarkMode ? 'bg-zinc-800' : 'bg-white'} ${viewMode === 'magic' || viewMode === 'reader' ? 'opacity-0' : 'opacity-100'}`} />
-                            <button onClick={() => setViewMode('web')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'web' && viewMode !== 'magic' && viewMode !== 'reader' ? (isDarkMode ? 'text-white' : 'text-black') : 'text-zinc-500'}`}>WEB</button>
-                            <button onClick={() => setViewMode('ai')} className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'ai' ? 'text-purple-500' : 'text-zinc-500'}`}><Sparkles size={10} /> AI</button>
+                   {/* Aumentei o padding do container para p-1.5 */}
+                        <div className={`flex p-1.5 rounded-xl relative border shadow-sm ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}>
+                            
+                            {/* Ajustei o top/bottom do slider para acompanhar o padding do container */}
+                            <div className={`absolute top-1.5 bottom-1.5 w-[48%] rounded-lg shadow-sm transition-all duration-300 ease-out ${viewMode === 'ai' ? 'left-[50%]' : 'left-1.5'} ${isDarkMode ? 'bg-zinc-800' : 'bg-white'} ${viewMode === 'magic' || viewMode === 'reader' ? 'opacity-0' : 'opacity-100'}`} />
+                            
+                            {/* BOTÃO WEB: Aumentei px-6, py-2.5 e text-xs */}
+                            <button onClick={() => setViewMode('web')} className={`relative px-6 md:px-8 py-2.5 text-xs font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'web' && viewMode !== 'magic' && viewMode !== 'reader' ? (isDarkMode ? 'text-white' : 'text-black') : 'text-zinc-500'}`}>
+                                WEB
+                            </button>
+                            
+                            {/* BOTÃO AI: Aumentei px-6, py-2.5, text-xs e o ícone para size={12} */}
+                            <button onClick={() => setViewMode('ai')} className={`relative px-6 md:px-8 py-2.5 text-xs font-black transition-colors z-10 flex items-center gap-2 ${viewMode === 'ai' ? 'text-purple-500' : 'text-zinc-500'}`}>
+                                <Sparkles size={12} /> AI
+                            </button>
                         </div>
                         <div className="flex items-center gap-2">
                              {/* BOTÃO RAIO-X */}
                             <button 
                                 onClick={runAnalysis} 
                                 disabled={isAnalyzing}
-                                className={`relative px-4 md:px-6 py-1.5 text-[10px] font-black transition-all z-10 flex items-center gap-2 ${isAnalyzing ? 'opacity-50 cursor-wait' : (analysisItems ? 'text-purple-500' : 'text-zinc-500 hover:text-purple-600')}`}
+                                className={`relative px-4 md:px-6 py-1.5 text-[14px] font-black transition-all z-10 flex items-center gap-2 ${isAnalyzing ? 'opacity-50 cursor-wait' : (analysisItems ? 'text-purple-500' : 'text-zinc-500 hover:text-purple-600')}`}
                             >
                                 {isAnalyzing ? <Loader2 size={10} className="animate-spin"/> : <BrainCircuit size={12} />}
                                 {analysisItems ? 'RAIO-X ATIVO' : 'RAIO-X'}
