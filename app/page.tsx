@@ -3922,80 +3922,145 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
 
 
 
-// --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL ---
+// --- COMPONENTE: PLAYER GLOBAL HÍBRIDO (ÁUDIO + YOUTUBE) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const audioRef = useRef(null);
+  const iframeRef = useRef(null);
+  
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [loadError, setLoadError] = useState(false);
+  const [isYoutube, setIsYoutube] = useState(false);
+  const [ytReady, setYtReady] = useState(false);
 
+  // Detecta o tipo de mídia ao carregar
   useEffect(() => {
-    if (!track || !track.link) return;
+    if (!track) return;
 
-    // Se o link for do YouTube ou não for de áudio, aborta para não gerar erro
-    if (track.link.includes('youtube.com') || track.link.includes('youtu.be')) {
-        setLoadError(true);
-        return;
-    }
+    // Reseta estados
+    setIsPlaying(false);
+    setProgress(0);
+    setCurrentTime(0);
+    setDuration(0);
+    setYtReady(false);
 
-    const playAudio = async () => {
-        try {
-            setLoadError(false);
-            setIsPlaying(false);
-            setProgress(0);
-            
-            if (audioRef.current) {
-                audioRef.current.src = track.link;
-                audioRef.current.load();
-                
-                // Tenta tocar e captura o AbortError se o usuário trocar rápido
-                await audioRef.current.play();
-                setIsPlaying(true);
-            }
-        } catch (error) {
-            // Ignora AbortError (normal em navegação rápida)
-            if (error.name !== 'AbortError') {
-                console.error("Erro de reprodução:", error);
-                // Se der NotSupportedError, marcamos erro na UI
-                if (error.name === 'NotSupportedError') setLoadError(true);
-            }
+    const isYt = !!track.videoId || (track.link && (track.link.includes('youtube.com') || track.link.includes('youtu.be')));
+    setIsYoutube(isYt);
+
+    if (!isYt) {
+        // MODO ÁUDIO NATIVO (MP3)
+        if (audioRef.current) {
+            audioRef.current.src = track.link;
+            audioRef.current.load();
+            audioRef.current.play().then(() => setIsPlaying(true)).catch(e => console.log("Autoplay bloqueado", e));
         }
-    };
-
-    playAudio();
-
+    }
+    // Se for YouTube, o Iframe vai carregar e disparar o evento onReady
   }, [track]);
 
-  const togglePlay = () => {
-      if (!audioRef.current) return;
-      if (isPlaying) audioRef.current.pause();
-      else audioRef.current.play().catch(() => {}); // Catch vazio para ignorar erros de interação
-      setIsPlaying(!isPlaying);
-  };
+  // --- CONTROLES UNIFICADOS ---
 
-  const handleTimeUpdate = () => {
-      if (!audioRef.current) return;
-      setCurrentTime(audioRef.current.currentTime);
-      if (audioRef.current.duration) {
-          setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+  const togglePlay = () => {
+      if (isYoutube) {
+          if (iframeRef.current && ytReady) {
+              const command = isPlaying ? 'pauseVideo' : 'playVideo';
+              iframeRef.current.contentWindow.postMessage(JSON.stringify({
+                  event: 'command',
+                  func: command,
+                  args: []
+              }), '*');
+              setIsPlaying(!isPlaying);
+          }
+      } else {
+          if (audioRef.current) {
+              if (isPlaying) audioRef.current.pause();
+              else audioRef.current.play();
+              setIsPlaying(!isPlaying);
+          }
       }
   };
 
   const handleSeek = (e) => {
-      if (!audioRef.current) return;
-      const newTime = (Number(e.target.value) / 100) * audioRef.current.duration;
-      if(isFinite(newTime)) {
-          audioRef.current.currentTime = newTime;
-          setProgress(Number(e.target.value));
+      const seekTo = (Number(e.target.value) / 100) * duration;
+      
+      if (isYoutube) {
+          if (iframeRef.current && ytReady) {
+              iframeRef.current.contentWindow.postMessage(JSON.stringify({
+                  event: 'command',
+                  func: 'seekTo',
+                  args: [seekTo, true]
+              }), '*');
+              setProgress(Number(e.target.value));
+          }
+      } else {
+          if (audioRef.current) {
+              audioRef.current.currentTime = seekTo;
+              setProgress(Number(e.target.value));
+          }
       }
   };
 
   const skipTime = (seconds) => {
-      if (!audioRef.current) return;
-      audioRef.current.currentTime += seconds;
+      const newTime = currentTime + seconds;
+      if (isYoutube) {
+           if (iframeRef.current && ytReady) {
+              iframeRef.current.contentWindow.postMessage(JSON.stringify({
+                  event: 'command',
+                  func: 'seekTo',
+                  args: [newTime, true]
+              }), '*');
+           }
+      } else {
+          if (audioRef.current) audioRef.current.currentTime = newTime;
+      }
   };
+
+  // --- SINCRONIZAÇÃO DE TEMPO (O Coração do Player) ---
+  useEffect(() => {
+      let interval = null;
+
+      if (isYoutube && isPlaying) {
+          // Polling para YouTube (já que iframe não emite evento de tempo constante para fora facilmente)
+          interval = setInterval(() => {
+              // Infelizmente, sem a API JS completa do YT carregada, não conseguimos ler o tempo exato de volta
+              // de forma limpa via postMessage apenas.
+              // Para manter simples e sem carregar scripts pesados do Google, vamos SIMULAR o progresso visualmente
+              // se o vídeo estiver tocando.
+              
+              setCurrentTime(prev => {
+                  if (prev >= duration && duration > 0) return duration;
+                  return prev + 0.5; // +500ms
+              });
+          }, 500);
+      }
+
+      return () => clearInterval(interval);
+  }, [isYoutube, isPlaying, duration]);
+
+  // Atualização MP3 Nativo
+  const handleNativeTimeUpdate = () => {
+      if (audioRef.current) {
+          setCurrentTime(audioRef.current.currentTime);
+          if (audioRef.current.duration) {
+              setDuration(audioRef.current.duration);
+              setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+          }
+      }
+  };
+
+  // Atualização da Barra de Progresso Visual (YouTube)
+  useEffect(() => {
+      if (isYoutube && duration > 0) {
+          setProgress((currentTime / duration) * 100);
+      }
+  }, [currentTime, duration, isYoutube]);
+
+
+  if (!track) return null;
+
+  // Extrai ID do YouTube
+  const ytId = track.videoId || (track.link.match(/v=([^&]+)/)?.[1]);
 
   const formatTime = (t) => {
       if (!t || isNaN(t)) return "0:00";
@@ -4004,41 +4069,70 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       return `${min}:${sec < 10 ? '0' + sec : sec}`;
   };
 
-  if (!track) return null;
-
   return (
     <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-4 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
-        <audio 
-            ref={audioRef} 
-            onTimeUpdate={handleTimeUpdate} 
-            onLoadedMetadata={(e) => setDuration(e.target.duration)} 
-            onEnded={() => setIsPlaying(false)}
-            onError={() => { 
-                console.log("Erro no audio tag");
-                setLoadError(true); 
-                setIsPlaying(false); 
-            }}
-        />
         
+        {/* ENGINE: MP3 NATIVO */}
+        {!isYoutube && (
+            <audio 
+                ref={audioRef} 
+                onTimeUpdate={handleNativeTimeUpdate} 
+                onLoadedMetadata={(e) => setDuration(e.target.duration)} 
+                onEnded={() => setIsPlaying(false)}
+            />
+        )}
+
+        {/* ENGINE: YOUTUBE INVISÍVEL (MAS PRESENTE) */}
+        {isYoutube && ytId && (
+            <div className="absolute top-0 left-0 w-1 h-1 opacity-0 overflow-hidden pointer-events-none">
+                <iframe
+                    ref={iframeRef}
+                    width="100%"
+                    height="100%"
+                    src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&autoplay=1&controls=0&modestbranding=1&playsinline=1`}
+                    title="YouTube Audio Engine"
+                    frameBorder="0"
+                    allow="autoplay; encrypted-media"
+                    onLoad={() => {
+                        setYtReady(true);
+                        setIsPlaying(true);
+                        // Estimativa de duração (YouTube API via postMessage não retorna duration fácil sem script externo)
+                        // Vamos assumir 10 min padrão ou tentar pegar de dados meta se tivermos
+                        setDuration(600); // Fallback visual
+                    }}
+                ></iframe>
+            </div>
+        )}
+        
+        {/* INTERFACE DE CONTROLE (Igual para ambos) */}
         <div className="absolute top-0 left-4 right-4 -mt-1.5 h-4 group cursor-pointer flex items-center">
              <input type="range" min="0" max="100" value={progress || 0} onChange={handleSeek} className="w-full h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:rounded-full transition-all accent-orange-500" />
         </div>
 
         <div className="flex items-center gap-4 mt-2">
-            <div className="w-12 h-12 rounded-lg bg-zinc-800 flex-shrink-0 overflow-hidden relative shadow-md">
+            {/* Capa */}
+            <div className="w-12 h-12 rounded-lg bg-zinc-800 flex-shrink-0 overflow-hidden relative shadow-md group">
                 <img src={track.cover} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                {isYoutube && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Youtube size={16} className="text-white"/></div>}
             </div>
+            
+            {/* Textos */}
             <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-bold leading-tight truncate">{track.title}</h4>
-                <p className="text-[10px] opacity-60 truncate">
-                    {loadError ? <span className="text-red-500 font-bold">Erro: Formato de áudio inválido</span> : `${track.source} • ${formatTime(currentTime)} / ${formatTime(duration)}`}
+                <p className="text-[10px] opacity-60 truncate flex items-center gap-1">
+                    {isYoutube ? <span className="text-red-500 font-bold">YouTube Audio</span> : <span className="text-blue-500 font-bold">Podcast</span>}
+                    <span>• {formatTime(currentTime)} / {formatTime(duration)}</span>
                 </p>
             </div>
+
+            {/* Botões */}
             <div className="flex items-center gap-3">
                 <button onClick={() => skipTime(-15)} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><span className="text-[10px] font-bold">-15s</span></button>
-                <button onClick={togglePlay} disabled={loadError} className={`w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg transition ${loadError ? 'bg-zinc-500 opacity-50' : 'bg-orange-500 hover:scale-105 active:scale-95'}`}>
+                
+                <button onClick={togglePlay} className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg bg-orange-500 hover:scale-105 active:scale-95 transition">
                     {isPlaying ? <Pause size={20} fill="white"/> : <Play size={20} fill="white" className="ml-1"/>}
                 </button>
+                
                 <button onClick={() => { setIsPlaying(false); onClose(); }} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-zinc-500"><X size={24} /></button>
             </div>
         </div>
@@ -4975,13 +5069,13 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     podcastsData={realPodcasts} 
                     isLoading={isLoadingFeeds}
                     onPlayAudio={(pod) => {
-                        if (pod.type === 'video') {
-                            setPlayingAudio(null); 
-                            handleOpenArticle(pod); 
-                        } else {
-                            handleOpenArticle(null);
-                            setPlayingAudio(pod);
-                        }
+                        // AQUI ESTÁ O SEGREDO:
+                        // Se for Podcast (mesmo que vídeo), queremos tocar no Player de Áudio.
+                        // Então setamos playingAudio diretamente.
+                        setPlayingAudio(pod);
+                        
+                        // E garantimos que o ArticlePanel/Modal de Vídeo NÃO abram
+                        handleOpenArticle(null); 
                     }}
                     savedItems={savedItems}
                     onToggleSave={handleToggleSave}
@@ -5725,6 +5819,13 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
   const [aiData, setAiData] = useState(null); // Guarda o Super JSON
   const [aiLoading, setAiLoading] = useState(false);
   const [summaryMode, setSummaryMode] = useState('executive'); // 'executive', 'tldr', 'eli5', 'bullets'
+  useEffect(() => {
+      // Sempre que abrir uma nova notícia (article.id mudou),
+      // limpamos os dados da IA anterior para não misturar as bolas.
+      setAiData(null);
+      setAiLoading(false);
+      setSummaryMode('executive'); // Volta para o padrão
+  }, [article?.id]);
 
   // --- ESTILOS INJETADOS DINAMICAMENTE PARA OS DESTAQUES ---
 const highlightStyles = `
