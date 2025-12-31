@@ -3920,9 +3920,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
   }
 };
 
-
-
-// --- COMPONENTE: PLAYER GLOBAL (COM ROTAÇÃO DE APIs ANTI-FALHA) ---
+// --- COMPONENTE: PLAYER GLOBAL (APENAS MP3/RSS NATIVO) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const audioRef = useRef(null);
   
@@ -3930,100 +3928,26 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [isLoadingStream, setIsLoadingStream] = useState(false);
-  const [isYoutubeSource, setIsYoutubeSource] = useState(false);
-  
-  // Lista de servidores Piped (Mirrors) para tentar em ordem
-  const PIPED_MIRRORS = [
-      "https://pipedapi.kavin.rocks",
-      "https://api.piped.privacy.com.de",
-      "https://pipedapi.drg.li",
-      "https://api.piped.projectsegfau.lt"
-  ];
 
-  // Extrai ID do YouTube
-  const ytId = useMemo(() => {
-      if (!track) return null;
-      return track.videoId || (track.link?.match(/v=([^&]+)/)?.[1]);
-  }, [track]);
-
-  // Função Robusta de Extração (Tenta vários servidores)
-  const fetchAudioStream = async (videoId) => {
-      for (const host of PIPED_MIRRORS) {
-          try {
-              console.log(`Tentando extrair de: ${host}...`);
-              // Timeout curto de 3s para não travar o app se o servidor estiver lento
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 3500);
-              
-              const response = await fetch(`${host}/streams/${videoId}`, { 
-                  signal: controller.signal 
-              });
-              clearTimeout(timeoutId);
-
-              if (!response.ok) throw new Error("Erro HTTP");
-              
-              const data = await response.json();
-              
-              if (data && data.audioStreams && data.audioStreams.length > 0) {
-                  // Prefere m4a (melhor para iOS) ou o primeiro disponível
-                  const stream = data.audioStreams.find(s => s.mimeType === 'audio/mp4') || data.audioStreams[0];
-                  if (stream) return stream.url;
-              }
-          } catch (e) {
-              console.warn(`Falha no mirror ${host}, tentando próximo...`);
-          }
-      }
-      return null; // Falhou em todos
-  };
-
-  // Efeito Principal
+  // Efeito de Carregamento Simples
   useEffect(() => {
     if (!track) return;
 
-    // Reset total
+    // Reset
     setIsPlaying(false);
     setProgress(0);
     setCurrentTime(0);
     setDuration(0);
-    setIsLoadingStream(true);
 
-    const loadAudio = async () => {
-        if (ytId) {
-            setIsYoutubeSource(true);
-            const streamUrl = await fetchAudioStream(ytId);
-            
-            if (streamUrl && audioRef.current) {
-                console.log("✅ Áudio extraído com sucesso!");
-                audioRef.current.src = streamUrl;
-                audioRef.current.load();
-                // Tenta autoplay suave
-                audioRef.current.play()
-                    .then(() => setIsPlaying(true))
-                    .catch(() => console.log("Autoplay precisa de toque"));
-                setIsLoadingStream(false);
-            } else {
-                console.error("❌ Falha total na extração do áudio.");
-                setIsLoadingStream(false);
-                alert("Não foi possível extrair o áudio em segundo plano. O YouTube bloqueou as conexões externas.");
-                onClose(); // Fecha o player para não ficar travado
-            }
-        } else {
-            // Podcast Normal (MP3)
-            setIsYoutubeSource(false);
-            if (audioRef.current) {
-                audioRef.current.src = track.link;
-                audioRef.current.load();
-                audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-            }
-            setIsLoadingStream(false);
-        }
-    };
+    if (audioRef.current) {
+        audioRef.current.src = track.link;
+        audioRef.current.load();
+        audioRef.current.play()
+            .then(() => setIsPlaying(true))
+            .catch(e => console.log("Autoplay bloqueado (toque no play)", e));
+    }
+  }, [track]);
 
-    loadAudio();
-  }, [track, ytId]);
-
-  // Controles e Updates (Iguais ao anterior)
   const togglePlay = () => {
       if (audioRef.current) {
           if (isPlaying) audioRef.current.pause();
@@ -4066,31 +3990,25 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   return (
     <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-4 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
         
-        {/* PLAYER NATIVO (Escondido visualmente, mas funcional) */}
         <audio 
             ref={audioRef} 
             onTimeUpdate={handleTimeUpdate} 
             onLoadedMetadata={(e) => setDuration(e.target.duration)} 
             onEnded={() => setIsPlaying(false)}
-            playsInline 
+            playsInline // Importante para iOS
         />
         
         {/* BARRA DE PROGRESSO */}
         <div className="absolute top-0 left-4 right-4 -mt-1.5 h-4 group cursor-pointer flex items-center z-20">
-             <input type="range" min="0" max="100" value={progress || 0} onChange={handleSeek} disabled={isLoadingStream} className="w-full h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:rounded-full transition-all accent-orange-500 cursor-pointer" />
+             <input type="range" min="0" max="100" value={progress || 0} onChange={handleSeek} className="w-full h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:rounded-full transition-all accent-orange-500 cursor-pointer" />
         </div>
 
         <div className="flex items-center gap-4 mt-2">
-            
-            {/* CAPA COM STATUS */}
+            {/* CAPA */}
             <div className="w-12 h-12 rounded-lg bg-zinc-800 flex-shrink-0 overflow-hidden relative shadow-md group border border-white/10">
                 <img src={track.cover} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
-                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                    {isLoadingStream ? (
-                        <Loader2 size={20} className="text-white animate-spin"/>
-                    ) : (
-                        isYoutubeSource ? <Youtube size={20} className="text-white"/> : <Mic size={20} className="text-white"/>
-                    )}
+                <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                    <Mic size={20} className="text-white drop-shadow-md"/>
                 </div>
             </div>
             
@@ -4098,25 +4016,17 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
             <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-bold leading-tight truncate">{track.title}</h4>
                 <p className="text-[10px] opacity-60 truncate flex items-center gap-1 mt-1">
-                    {isLoadingStream ? (
-                        <span className="text-orange-500 font-bold animate-pulse">Buscando sinal de áudio...</span>
-                    ) : (
-                        <>
-                            {isYoutubeSource ? <span className="text-red-500 font-bold">YouTube Audio</span> : <span className="text-blue-500 font-bold">Podcast</span>}
-                            <span>• {formatTime(currentTime)} / {formatTime(duration)}</span>
-                        </>
-                    )}
+                    <span className="text-blue-500 font-bold">Podcast</span>
+                    <span>• {formatTime(currentTime)} / {formatTime(duration)}</span>
                 </p>
             </div>
 
             {/* CONTROLES */}
             <div className="flex items-center gap-3">
-                <button onClick={() => skipTime(-15)} disabled={isLoadingStream} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30"><span className="text-[10px] font-bold">-15s</span></button>
-                
-                <button onClick={togglePlay} disabled={isLoadingStream} className={`w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg transition ${isLoadingStream ? 'bg-zinc-500 cursor-wait' : 'bg-orange-500 hover:scale-105 active:scale-95'}`}>
+                <button onClick={() => skipTime(-15)} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><span className="text-[10px] font-bold">-15s</span></button>
+                <button onClick={togglePlay} className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg bg-orange-500 hover:scale-105 active:scale-95 transition">
                     {isPlaying ? <Pause size={20} fill="white"/> : <Play size={20} fill="white" className="ml-1"/>}
                 </button>
-                
                 <button onClick={() => { setIsPlaying(false); onClose(); }} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-zinc-500"><X size={24} /></button>
             </div>
         </div>
@@ -5054,9 +4964,30 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     savedItems={savedItems}
                     onToggleSave={handleToggleSave}
                     onPlayAudio={(pod) => {
-                        // AGORA MANDAMOS TUDO (Inclusive YouTube) PARA O PLAYER DE ÁUDIO
-                        handleOpenArticle(null); 
-                        setPlayingAudio(pod);
+                        // 1. Verifica se é YouTube (Vídeo ID ou Link)
+                        const videoId = pod.videoId || (pod.link && (pod.link.match(/v=([^&]+)/)?.[1] || (pod.link.includes('youtu.be/') ? pod.link.split('youtu.be/')[1] : null)));
+
+                        if (videoId) {
+                            // Cenario A: É YouTube -> Manda para o YouTube Music no Navegador
+                            // Isso permite que o usuário veja a interface de música.
+                            const musicUrl = `https://music.youtube.com/watch?v=${videoId}`;
+                            
+                            // Fecha o player interno se estiver tocando outra coisa
+                            setPlayingAudio(null);
+                            
+                            // Abre o navegador nativo (Safari View Controller)
+                            Browser.open({
+                                url: musicUrl,
+                                presentationStyle: 'fullscreen',
+                                toolbarColor: isDarkMode ? '#000000' : '#FFFFFF'
+                            });
+                        } else {
+                            // Cenario B: É Podcast Real (RSS/MP3) -> Toca no Player Interno
+                            // Fecha modais de vídeo/artigo
+                            handleOpenArticle(null); 
+                            // Abre a barra de áudio
+                            setPlayingAudio(pod);
+                        }
                     }}
                 />
             )}

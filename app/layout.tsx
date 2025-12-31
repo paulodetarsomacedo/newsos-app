@@ -15,26 +15,43 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: 'NewsOS',
   description: 'Sua central de inteligência.',
-  manifest: '/manifest.json', // Link para o arquivo que criamos
+  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'black-translucent', // Isso ajuda a fundir o topo
     title: 'NewsOS',
   },
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false, // Impede zoom acidental, parece app nativo
-  themeColor: '#000000',
+  userScalable: false,
+  themeColor: '#09090b', // Ajustei para zinc-950 (preto suave) para bater com o Dark Mode
+  // 1. A SOLUÇÃO MÁGICA ESTÁ AQUI:
+  viewportFit: 'cover', 
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
-      <body>{children}</body>
+    // 2. Adicione h-full no html para garantir altura total
+    <html lang="pt-BR" className="h-full">
+      <body 
+        className={`
+          ${geistSans.variable} ${geistMono.variable}
+          h-full w-full overflow-hidden antialiased
+          
+          /* 3. AQUI ESTÁ A CORREÇÃO DA FAIXA BRANCA: */
+          /* Pintamos o fundo do "papel" (body) com a cor escura do app */
+          bg-slate-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100
+          
+          /* Evita o efeito elástico que revela o fundo branco */
+          overscroll-none
+        `}
+      >
+        {children}
+      </body>
     </html>
   );
 }
