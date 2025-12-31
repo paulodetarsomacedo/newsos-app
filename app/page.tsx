@@ -91,7 +91,7 @@ const SAVED_ITEMS = [
 
 const SAVED_CATEGORIES = ['Tudo', 'Tech', 'Economia', 'Design', 'Ciência', 'Música', 'Vídeo'];
 
-const FEED_CATEGORIES = ['Geral', 'Política', 'Tecnologia', 'Economia', 'Saúde', 'Local', 'Carros', 'Esportes', 'Mundo', 'Ciência'];
+const FEED_CATEGORIES = ['Tudo', 'Geral', 'Política', 'Tecnologia', 'Economia', 'Saúde', 'Local', 'Carros', 'Esportes', 'Mundo', 'Ciência'];
 const YOUTUBE_CATEGORIES = ['Tudo', 'Tech', 'Finanças', 'Ciência'];
 
 
@@ -668,18 +668,19 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
 
 function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
   return (
-    <div className="w-full flex justify-center sticky top-0 z-30 py-2 pointer-events-none">
+    // Adicionei pl-14 para empurrar a barra para a direita, livrando o botão de fontes (SourceSelector)
+    <div className="w-full flex justify-start pl-14 pr-4 sticky top-0 z-30 py-2 pointer-events-none">
+      
       <div className={`
         pointer-events-auto
         flex overflow-x-auto scrollbar-hide snap-x items-center
-        max-w-[95%] 
-        rounded-2xl border gap-1 
-        p-1.5
+        w-full
+        rounded-2xl 
+        p-1
         shadow-lg
-        /* AQUI: Removido backdrop-blur-xl e aumentado opacidade do bg */
         ${isDarkMode 
-          ? 'bg-zinc-900/95 border-white/10'
-          : 'bg-white/95 border-zinc-200'
+          ? 'bg-zinc-900/95 shadow-black/20' // Removi a borda externa cinza
+          : 'bg-white/95 shadow-zinc-200/50' // Removi a borda externa cinza
         }
       `}>
         {categories.map((cat) => {
@@ -689,10 +690,10 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
               key={cat} 
               onClick={() => onChange(cat)} 
               className={`
-                relative px-7 py-2 rounded-xl text-sm transition-all duration-200 whitespace-nowrap snap-center min-w-fit font-bold
+                relative px-5 py-2 rounded-xl text-xs font-bold transition-all duration-300 whitespace-nowrap snap-center flex-shrink-0
                 ${isActive 
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : (isDarkMode ? 'text-zinc-400 hover:text-white hover:bg-white/10' : 'text-zinc-600 hover:text-black hover:bg-zinc-100')}
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : (isDarkMode ? 'text-zinc-400 hover:text-white hover:bg-white/5' : 'text-zinc-500 hover:text-black hover:bg-zinc-100')}
               `}
             >
               {cat}
