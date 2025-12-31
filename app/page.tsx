@@ -91,7 +91,7 @@ const SAVED_ITEMS = [
 
 const SAVED_CATEGORIES = ['Tudo', 'Tech', 'Economia', 'Design', 'Ciência', 'Música', 'Vídeo'];
 
-const FEED_CATEGORIES = ['Tudo', 'Política', 'Tecnologia', 'Economia', 'Saúde', 'Local', 'Carros'];
+const AVAILABLE_CATEGORIES = ['Geral', 'Política', 'Tecnologia', 'Economia', 'Saúde', 'Local', 'Carros', 'Esportes', 'Mundo', 'Ciência'];
 const YOUTUBE_CATEGORIES = ['Tudo', 'Tech', 'Finanças', 'Ciência'];
 
 
@@ -6327,54 +6327,145 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                 </div>
             )}
 
-            {/* ABA FONTES (Mantida idêntica) */}
+            {/* ABA FONTES (ATUALIZADA COM CATEGORIAS) */}
             {activeTab === 'sources' && (
                 <div className="space-y-6">
+                    {/* Botão Importar OPML (Mantido igual) */}
                     <div className="flex gap-2 mb-2">
                         <input type="file" accept=".opml,.xml" ref={fileInputRef} onChange={handleImportOPML} className="hidden" />
                         <button onClick={handleImportClick} className="flex-1 py-3 bg-zinc-200 dark:bg-zinc-800 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-zinc-300 dark:hover:bg-zinc-700 transition flex items-center justify-center gap-2">
                             <Layers size={14}/> Importar OPML
                         </button>
                     </div>
+
+                    {/* ÁREA DE ADICIONAR NOVA FONTE */}
                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-                        <label className="text-xs font-bold uppercase tracking-wider opacity-60 mb-3 block">Adicionar Fonte</label>
-                        <div className="flex gap-2 mb-4">
-                            <input type="text" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="Link RSS" className={`flex-1 px-3 py-2 rounded-lg text-sm outline-none border transition-all ${isDarkMode ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-300'}`} />
+                        <label className="text-xs font-bold uppercase tracking-wider opacity-60 mb-3 block">Adicionar Fonte Manual</label>
+                        
+                        {/* Input URL */}
+                        <div className="flex gap-2 mb-3">
+                            <input type="text" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="Link RSS (ex: g1.globo.com/rss)" className={`flex-1 px-3 py-2 rounded-lg text-sm outline-none border transition-all ${isDarkMode ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-300'}`} />
                             <button onClick={handleAutoDiscover} disabled={isDiscovering || !newUrl} className={`p-2 rounded-lg border w-10 flex items-center justify-center ${isDarkMode ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-indigo-100 text-indigo-700'}`}>{isDiscovering ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18} />}</button>
                         </div>
-                        <div className="mb-4">
-                            <label className="text-[10px] font-bold uppercase opacity-50 mb-1.5 block">Tipo</label>
-                            <div className="grid grid-cols-3 gap-2">
-                                <button onClick={() => setFeedType('news')} className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${feedType === 'news' ? 'bg-blue-600 border-blue-500 text-white' : 'opacity-50 hover:opacity-100'}`}><FileText size={16}/> Notícia</button>
-                                <button onClick={() => setFeedType('youtube')} className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${feedType === 'youtube' ? 'bg-red-600 border-red-500 text-white' : 'opacity-50 hover:opacity-100'}`}><Youtube size={16}/> Vídeo</button>
-                                <button onClick={() => setFeedType('podcast')} className={`p-2 rounded-lg text-xs font-bold border transition-all flex flex-col items-center gap-1 ${feedType === 'podcast' ? 'bg-orange-500 border-orange-400 text-white' : 'opacity-50 hover:opacity-100'}`}><Mic size={16}/> Podcast</button>
+
+                        {/* Seletores de Tipo e Categoria */}
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                            {/* Tipo (News/Youtube/Pod) */}
+                            <div>
+                                <label className="text-[10px] font-bold uppercase opacity-50 mb-1 block">Tipo</label>
+                                <select 
+                                    value={feedType} 
+                                    onChange={(e) => setFeedType(e.target.value)}
+                                    className={`w-full p-2 rounded-lg text-xs font-bold border outline-none appearance-none ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-white border-zinc-300 text-zinc-800'}`}
+                                >
+                                    <option value="news">📰 Notícia</option>
+                                    <option value="youtube">▶️ Vídeo</option>
+                                    <option value="podcast">🎙️ Podcast</option>
+                                </select>
+                            </div>
+
+                            {/* Categoria (Para o Filtro Liquid) */}
+                            <div>
+                                <label className="text-[10px] font-bold uppercase opacity-50 mb-1 block">Categoria</label>
+                                <select 
+                                    value={targetBanca ? 'Revistas' : 'Geral'} // Fallback visual simples, mas a lógica real está no onChange ou state dedicado se quiser
+                                    onChange={(e) => {
+                                        // Aqui você pode criar um state para 'selectedCategory' se quiser, 
+                                        // ou apenas salvar direto no objeto feed quando clicar em adicionar.
+                                        // Vou assumir que vamos usar o valor direto na hora de adicionar.
+                                        document.getElementById('new-feed-category').value = e.target.value;
+                                    }}
+                                    id="new-feed-category"
+                                    className={`w-full p-2 rounded-lg text-xs font-bold border outline-none appearance-none ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-white border-zinc-300 text-zinc-800'}`}
+                                >
+                                    {AVAILABLE_CATEGORIES.map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
-                        <div className="mb-4">
-                            <label className="text-[10px] font-bold uppercase opacity-50 mb-1.5 block">Exibir em:</label>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div onClick={() => setTargetFeed(!targetFeed)} className={`cursor-pointer p-3 rounded-lg border flex items-center gap-3 transition-all select-none ${targetFeed ? 'bg-zinc-800 border-zinc-600 text-white shadow-inner' : (isDarkMode ? 'bg-zinc-900 border-zinc-700 text-zinc-500' : 'bg-white border-zinc-200 text-zinc-400')}`}><Rss size={16} /> <span className="font-bold text-sm">No Feed</span> {targetFeed && <CheckCircle size={16} className="ml-auto text-green-500" />}</div>
-                                <div onClick={() => setTargetBanca(!targetBanca)} className={`cursor-pointer p-3 rounded-lg border flex items-center gap-3 transition-all select-none ${targetBanca ? 'bg-zinc-800 border-zinc-600 text-white shadow-inner' : (isDarkMode ? 'bg-zinc-900 border-zinc-700 text-zinc-500' : 'bg-white border-zinc-200 text-zinc-400')}`}><LayoutGrid size={16} /> <span className="font-bold text-sm">Na Banca</span> {targetBanca && <CheckCircle size={16} className="ml-auto text-green-500" />}</div>
-                            </div>
-                        </div>
-                        <button onClick={handleAddFeed} disabled={!newUrl || (!targetFeed && !targetBanca)} className="w-full py-3 bg-purple-600 text-white rounded-lg font-bold text-sm transition hover:bg-purple-500 disabled:opacity-50">Adicionar Fonte</button>
+
+                        <button 
+                            onClick={() => {
+                                if (!newUrl.trim()) return;
+                                let formattedUrl = newUrl.trim();
+                                if (!formattedUrl.startsWith('http')) formattedUrl = 'https://' + formattedUrl;
+                                
+                                // Pega a categoria selecionada
+                                const selectedCat = document.getElementById('new-feed-category')?.value || 'Geral';
+
+                                const newFeed = { 
+                                    id: Date.now(), 
+                                    name: 'Nova Fonte', 
+                                    url: formattedUrl, 
+                                    type: feedType, 
+                                    category: selectedCat, // <--- AQUI SALVA A CATEGORIA CERTA
+                                    display: { feed: true, banca: false } 
+                                };
+                                setFeeds(prev => [...prev, newFeed]);
+                                setNewUrl('');
+                            }} 
+                            className="w-full py-3 bg-purple-600 text-white rounded-lg font-bold text-sm transition hover:bg-purple-500"
+                        >
+                            Adicionar Fonte
+                        </button>
                     </div>
+
+                    {/* LISTA DE FONTES ATIVAS */}
                     <div>
                         <label className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2 block">Fontes Ativas</label>
-                        <div className="space-y-2">
+                        <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1 custom-scrollbar">
                             {feeds.map(feed => (
-                                <div key={feed.id} className={`flex justify-between items-center p-3 rounded-lg border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-                                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        {feed.type === 'podcast' ? <Mic size={14} className="text-orange-500 shrink-0"/> : feed.type === 'youtube' ? <Youtube size={14} className="text-red-500 shrink-0"/> : <Rss size={14} className="text-blue-500 shrink-0"/>}
-                                        {editingId === feed.id ? (
-                                            <div className="flex items-center gap-2 w-full pr-2 animate-in fade-in duration-200"><input type="text" autoFocus value={tempName} onChange={(e) => setTempName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveName(feed.id)} className={`w-full text-sm bg-transparent border-b outline-none pb-1 ${isDarkMode ? 'border-white/20 text-white focus:border-purple-500' : 'border-black/20 text-black focus:border-purple-500'}`} /></div>
-                                        ) : (
-                                            <div className="min-w-0 flex-1"><p className={`font-bold text-sm truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{feed.name}</p></div>
-                                        )}
+                                <div key={feed.id} className={`flex flex-col gap-2 p-3 rounded-lg border ${isDarkMode ? 'bg-zinc-800/30 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+                                    
+                                    {/* Linha 1: Nome e Ações */}
+                                    <div className="flex justify-between items-center gap-2">
+                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            {feed.type === 'podcast' ? <Mic size={14} className="text-orange-500 shrink-0"/> : feed.type === 'youtube' ? <Youtube size={14} className="text-red-500 shrink-0"/> : <Rss size={14} className="text-blue-500 shrink-0"/>}
+                                            {editingId === feed.id ? (
+                                                <input type="text" autoFocus value={tempName} onChange={(e) => setTempName(e.target.value)} className={`w-full text-sm bg-transparent border-b outline-none ${isDarkMode ? 'text-white border-white/30' : 'text-black border-black/20'}`} />
+                                            ) : (
+                                                <p className={`font-bold text-sm truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{feed.name}</p>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-1">
+                                            {editingId === feed.id ? (
+                                                <><button onClick={() => saveName(feed.id)} className="text-green-500 p-1.5"><Check size={16}/></button><button onClick={cancelEditing} className="text-zinc-500 p-1.5"><X size={16}/></button></>
+                                            ) : (
+                                                <><button onClick={() => startEditing(feed)} className="text-zinc-400 hover:text-blue-500 p-1.5"><Pencil size={14}/></button><button onClick={() => removeFeed(feed.id)} className="text-zinc-400 hover:text-red-500 p-1.5"><Trash2 size={14}/></button></>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        {editingId === feed.id ? (<><button onClick={() => saveName(feed.id)} className="text-green-500 p-2"><Check size={16} /></button><button onClick={cancelEditing} className="text-zinc-500 p-2"><X size={16} /></button></>) : (<><button onClick={() => startEditing(feed)} className="text-zinc-400 hover:text-blue-500 p-2"><Pencil size={16} /></button><button onClick={() => removeFeed(feed.id)} className="text-zinc-400 hover:text-red-500 p-2"><Trash2 size={16} /></button></>)}
+
+                                    {/* Linha 2: Seletor de Categoria (Compacto) */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="relative group">
+                                            <select 
+                                                value={feed.category || 'Geral'} 
+                                                onChange={(e) => {
+                                                    // Atualiza a categoria do feed no estado principal
+                                                    setFeeds(prev => prev.map(f => f.id === feed.id ? { ...f, category: e.target.value } : f));
+                                                }}
+                                                className={`
+                                                    appearance-none pl-2 pr-6 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border cursor-pointer outline-none transition-colors
+                                                    ${isDarkMode 
+                                                        ? 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200' 
+                                                        : 'bg-white border-zinc-300 text-zinc-600 hover:border-zinc-400 hover:text-black'}
+                                                `}
+                                            >
+                                                {AVAILABLE_CATEGORIES.map(cat => (
+                                                    <option key={cat} value={cat}>{cat}</option>
+                                                ))}
+                                            </select>
+                                            {/* Ícone de seta fake para ficar bonito */}
+                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                                                <ChevronDown size={10} />
+                                            </div>
+                                        </div>
+                                        <span className="text-[9px] font-mono opacity-30 truncate max-w-[150px]">{feed.url}</span>
                                     </div>
+
                                 </div>
                             ))}
                         </div>
