@@ -11,7 +11,7 @@ import {
   Sparkles, Layers, LayoutGrid, Youtube, Bookmark, 
   ChevronLeft, Share, MoreHorizontal, Play, Pause, 
   Maximize2, X, Globe, ArrowRight,
-  Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, 
+  Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, Telescope,
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
   Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown
@@ -2706,6 +2706,73 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
 
     const data = await response.json();
 
+
+
+    // --- FUNÇÃO DE IA: ANÁLISE COMPLETA 360º (1 Chamada = Tudo) ---
+const generateFullAnalysis = async (text, apiKey) => {
+  if (!text || text.length < 100 || !apiKey) return null;
+
+  // Limpa e corta para não estourar tokens desnecessariamente
+  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 12000);
+
+  const prompt = `
+  Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
+  
+  GERE UM JSON ESTRITO COM ESTA ESTRUTURA EXATA (Tudo em PT-BR):
+  {
+    "summaries": {
+      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos e bem explicados).",
+      "tldr": "Resumo em 1 única frase de impacto (Too Long Didn't Read).",
+      "eli5": "Explicação didática como se fosse para uma criança de 5 anos (analogias).",
+      "bullets": ["Ponto chave 1", "Ponto chave 2", "Ponto chave 3", "Ponto chave 4"]
+    },
+    "mindmap": {
+      "center": "O tema central (2 palavras)",
+      "nodes": ["Conceito A", "Pessoa B", "Consequência C", "Causa D"] (Máximo 4 nós conectados)
+    },
+    "timeline": [
+      { "time": "Passado", "event": "O que causou isso?" },
+      { "time": "Ontem/Recente", "event": "O gatilho recente" },
+      { "time": "Hoje", "event": "O fato da notícia" }
+    ],
+    "future": {
+      "optimistic": "Melhor cenário possível a longo prazo.",
+      "pessimistic": "Pior cenário/Riscos envolvidos.",
+      "probable": "O que realmente deve acontecer (análise realista)."
+    }
+  }
+
+  TEXTO:
+  ${cleanText}
+  `;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error?.message || "Erro API");
+
+    const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text
+        .replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    return JSON.parse(jsonString);
+
+  } catch (error) {
+    console.error("Erro Full Analysis:", error);
+    return null;
+  }
+};
+
+
+
+
     // ==========================================================
     // CORREÇÃO FINAL: Sintaxe correta para acessar os arrays
     // ==========================================================
@@ -4051,6 +4118,8 @@ const getFullVideoUrl = (video) => {
 
 
 const FEED_CACHE_PREFIX = 'newsos_cache_v1_';
+
+
 
 
 
@@ -5494,6 +5563,81 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
       </div>
 ));
 
+
+// --- WIDGETS VISUAIS DA ABA AI ---
+
+// 1. Mindmap (Visual Teia)
+const MindMapWidget = ({ data, isDarkMode }) => (
+    <div className={`p-6 rounded-3xl border mb-6 relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
+        <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-6 flex items-center gap-2"><Share size={12}/> Mapa Mental</h4>
+        <div className="flex flex-col items-center relative z-10">
+            {/* Nó Central */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-center shadow-lg shadow-indigo-500/30 mb-8 z-20 relative">
+                {data.center}
+                {/* Linhas (CSS Puro) */}
+                <div className="absolute top-full left-1/2 w-0.5 h-8 bg-indigo-500/30 -translate-x-1/2"></div>
+                <div className="absolute top-full left-0 w-full h-0.5 bg-indigo-500/30 translate-y-8"></div>
+            </div>
+            {/* Nós Filhos */}
+            <div className="grid grid-cols-2 gap-4 w-full">
+                {data.nodes.map((node, i) => (
+                    <div key={i} className={`p-3 rounded-xl text-xs font-medium text-center border relative ${isDarkMode ? 'bg-black/20 border-white/10 text-zinc-300' : 'bg-zinc-50 border-zinc-200 text-zinc-700'}`}>
+                        {/* Linhas verticais conectando na linha horizontal */}
+                        <div className={`absolute bottom-full left-1/2 w-0.5 h-4 bg-indigo-500/30 -translate-x-1/2`}></div>
+                        {node}
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
+// 2. Timeline (Contexto Histórico)
+const TimelineWidget = ({ items, isDarkMode }) => (
+    <div className={`p-6 rounded-3xl border mb-6 ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
+        <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-6 flex items-center gap-2"><Clock size={12}/> Contexto Temporal</h4>
+        <div className="space-y-0">
+            {items.map((item, i) => (
+                <div key={i} className="flex gap-4 relative pb-8 last:pb-0">
+                    {/* Linha Vertical */}
+                    {i !== items.length - 1 && <div className="absolute left-[19px] top-8 bottom-0 w-0.5 bg-zinc-200 dark:bg-zinc-800"></div>}
+                    
+                    <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold z-10 ${i === items.length-1 ? 'bg-green-500 text-white shadow-lg shadow-green-500/30' : (isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500')}`}>
+                        {i === items.length-1 ? 'HOJE' : i+1}
+                    </div>
+                    <div>
+                        <span className="text-[10px] font-bold text-indigo-500 uppercase block mb-1">{item.time}</span>
+                        <p className={`text-sm leading-tight ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{item.event}</p>
+                    </div>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+// 3. Cenários Futuros (What's Next)
+const FutureWidget = ({ data, isDarkMode }) => (
+    <div className="mb-8">
+        <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4 px-2 flex items-center gap-2"><Telescope size={12}/> Cenários Futuros</h4>
+        <div className="flex overflow-x-auto gap-3 pb-4 px-1 snap-x scrollbar-hide">
+            <div className="snap-center flex-shrink-0 w-64 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase mb-2"><TrendingUp size={14}/> Otimista</div>
+                <p className="text-xs leading-relaxed text-emerald-900 dark:text-emerald-100">{data.optimistic}</p>
+            </div>
+            <div className="snap-center flex-shrink-0 w-64 p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-black text-xs uppercase mb-2"><Activity size={14}/> Provável</div>
+                <p className="text-xs leading-relaxed text-blue-900 dark:text-blue-100">{data.probable}</p>
+            </div>
+            <div className="snap-center flex-shrink-0 w-64 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-black text-xs uppercase mb-2"><TrendingDown size={14}/> Pessimista</div>
+                <p className="text-xs leading-relaxed text-rose-900 dark:text-rose-100">{data.pessimistic}</p>
+            </div>
+        </div>
+    </div>
+);
+
+
+
 // ==============================================================================
 // COMPONENTE ARTICLE PANEL - OTIMIZADO PARA NAVEGAÇÃO RÁPIDA (FEED NAVIGATOR)
 // ==============================================================================
@@ -5520,6 +5664,9 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       return article.videoId || getVideoId(article.link);
   }, [article]);
 
+  const [aiData, setAiData] = useState(null); // Guarda o Super JSON
+  const [aiLoading, setAiLoading] = useState(false);
+  const [summaryMode, setSummaryMode] = useState('executive'); // 'executive', 'tldr', 'eli5', 'bullets'
 
   // --- ESTILOS INJETADOS DINAMICAMENTE PARA OS DESTAQUES ---
 const highlightStyles = `
@@ -5643,6 +5790,8 @@ const ContextDrawer = ({ items, onClose, isDarkMode }) => (
   };
 
 
+
+
   // --- ESTADOS PARA O RAIO-X IA ---
   const [analysisItems, setAnalysisItems] = useState(null); // Guarda os termos
   const [isAnalyzing, setIsAnalyzing] = useState(false); // Loading
@@ -5709,6 +5858,34 @@ const ContextDrawer = ({ items, onClose, isDarkMode }) => (
           } catch (err) { console.error(err); }
       }
   };
+
+  // Dispara a análise completa quando entra na aba AI
+  const loadFullAnalysis = async () => {
+      // Evita chamar se já tiver dados ou estiver carregando
+      if (aiData || aiLoading) return;
+      
+      const textToAnalyze = readerContent?.content || article.summary;
+      if (!textToAnalyze) return;
+
+      setAiLoading(true);
+      
+      // Usa a Reader Key (Nova) ou fallback para a Geral
+      const activeKey = readerApiKey || apiKey; 
+      
+      const result = await generateFullAnalysis(textToAnalyze, activeKey);
+      
+      if (result) {
+          setAiData(result);
+      }
+      setAiLoading(false);
+  };
+
+  // Efeito para chamar automaticamente ao mudar para a aba AI
+  useEffect(() => {
+      if (viewMode === 'ai') {
+          loadFullAnalysis();
+      }
+  }, [viewMode]);
 
   // 1. EFEITO DE ABERTURA DO PAINEL (Só roda quando isOpen muda)
   useEffect(() => {
@@ -5924,7 +6101,70 @@ const ContextDrawer = ({ items, onClose, isDarkMode }) => (
                                 )}
                             </div>
                         )}
-                        {viewMode === 'ai' && <AIAnalysisView article={activeArticleData} isDarkMode={isDarkMode} />}
+                        {viewMode === 'ai' && (
+                            <div className="px-6 py-8 pb-32 animate-in fade-in slide-in-from-bottom-4">
+                                {aiLoading ? (
+                                    <div className="flex flex-col items-center justify-center h-64 opacity-50 space-y-4">
+                                        <div className="relative">
+                                            <div className="absolute inset-0 bg-purple-500 blur-xl opacity-20 animate-pulse"></div>
+                                            <BrainCircuit size={48} className="text-purple-500 animate-bounce relative z-10"/>
+                                        </div>
+                                        <p className="text-xs font-bold uppercase tracking-widest">Processando Inteligência...</p>
+                                    </div>
+                                ) : aiData ? (
+                                    <>
+                                        {/* 1. SELETORES DE RESUMO */}
+                                        <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800/50 mb-6 overflow-x-auto">
+                                            {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
+                                                <button
+                                                    key={mode}
+                                                    onClick={() => setSummaryMode(mode)}
+                                                    className={`flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap
+                                                        ${summaryMode === mode 
+                                                            ? 'bg-white dark:bg-zinc-700 text-purple-600 shadow-sm' 
+                                                            : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'}
+                                                    `}
+                                                >
+                                                    {mode === 'executive' ? 'Executivo' : mode === 'tldr' ? 'Curto' : mode === 'eli5' ? 'Didático' : 'Tópicos'}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* 2. ÁREA DO RESUMO */}
+                                        <div className="mb-10 animate-in fade-in duration-300" key={summaryMode}>
+                                            <h2 className={`text-2xl font-black mb-4 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                                                {summaryMode === 'executive' ? 'Análise Executiva' : summaryMode === 'tldr' ? 'Em uma frase' : summaryMode === 'eli5' ? 'Explicação Simples' : 'Pontos Chave'}
+                                            </h2>
+                                            
+                                            <div className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                                                {summaryMode === 'bullets' ? (
+                                                    <ul className="list-disc pl-5 space-y-2">
+                                                        {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
+                                                    </ul>
+                                                ) : (
+                                                    <p>{aiData.summaries[summaryMode]}</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* 3. WIDGETS VISUAIS */}
+                                        {aiData.mindmap && <MindMapWidget data={aiData.mindmap} isDarkMode={isDarkMode} />}
+                                        {aiData.timeline && <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />}
+                                        {aiData.future && <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />}
+                                        
+                                        {/* Créditos */}
+                                        <div className="text-center opacity-30 mt-8">
+                                            <p className="text-[10px] font-mono">Powered by Gemini 2.5 Flash</p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-center py-20 opacity-50">
+                                        <p>Falha na análise. Tente novamente.</p>
+                                        <button onClick={loadFullAnalysis} className="mt-4 text-xs font-bold underline">Reconectar</button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 {viewMode === 'magic' && (
                             // Envolvemos com uma div para capturar os cliques nos spans injetados
                             <div onClick={handleContentClick}>
