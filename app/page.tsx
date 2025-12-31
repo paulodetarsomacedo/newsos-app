@@ -1726,6 +1726,64 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
     }
 };
 
+// --- FUNÇÃO DE IA: ANÁLISE COMPLETA (ABA AI) ---
+const generateFullAnalysis = async (text, apiKey) => {
+  if (!text || text.length < 100 || !apiKey) return null;
+
+  // Limpa e corta para economizar tokens
+  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 12000);
+
+  const prompt = `
+  Aja como um Analista de Inteligência. Analise o texto:
+  GERE UM JSON ESTRITO (PT-BR):
+  {
+    "summaries": {
+      "executive": "Resumo formal (3 parágrafos).",
+      "tldr": "Resumo em 1 frase.",
+      "eli5": "Explicação para criança de 5 anos.",
+      "bullets": ["Ponto 1", "Ponto 2", "Ponto 3"]
+    },
+    "mindmap": {
+      "center": "Tema Central",
+      "nodes": ["A", "B", "C", "D"]
+    },
+    "timeline": [
+      { "time": "Passado", "event": "Causa" },
+      { "time": "Hoje", "event": "Fato" }
+    ],
+    "future": {
+      "optimistic": "Melhor caso",
+      "pessimistic": "Pior caso",
+      "probable": "Realista"
+    }
+  }
+  TEXTO: ${cleanText}
+  `;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok || data.error) return null;
+
+    const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text
+        .replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    return JSON.parse(jsonString);
+
+  } catch (error) {
+    console.error("Erro Full Analysis:", error);
+    return null;
+  }
+};
+
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODELO 2.5 FLASH) ---
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V3 - 4 CARDS + TEXTO FLUÍDO) ---
 const generateSmartClustering = async (news, apiKey, limit = 50) => { 
@@ -4432,28 +4490,37 @@ const handleStoryNavigation = (direction) => {
 
             try {
                 if (isLegacySource) {
-                    // Proxy Gratuito
+                try {
                     const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
                     const res = await fetch(proxyUrl);
-                    if (!res.ok) throw new Error(`Proxy status: ${res.status}`);
+                    if (!res.ok) throw new Error(`Proxy error: ${res.status}`);
                     const buffer = await res.arrayBuffer();
-                    const decoder = new TextDecoder('iso-8859-1'); 
-                    const parsedData = parseXMLToNewsItems(decoder.decode(buffer), feed.name, feed.id);
+                    
+                    // --- CORREÇÃO DE CODIFICAÇÃO (BAND vs UOL) ---
+                    let xmlText;
+                    // O Portal Band usa UTF-8, diferente da Folha/UOL que usam ISO-8859-1
+                    if (feed.url.includes('band.uol') || feed.url.includes('band.com')) {
+                         const decoder = new TextDecoder('utf-8');
+                         xmlText = decoder.decode(buffer);
+                    } else {
+                         // Padrão antigo para Folha e UOL Clássico
+                         const decoder = new TextDecoder('iso-8859-1');
+                         xmlText = decoder.decode(buffer);
+                    }
+                    // ----------------------------------------------
+
+                    const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
                     feedItems = parsedData.items;
                     detectedXmlTitle = parsedData.realTitle; 
+                    
                     if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
+                    else if (feed.url.includes('band')) feedLogo = "https://www.google.com/s2/favicons?domain=band.uol.com.br&sz=128";
                     else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
 
-                } else {
-                    // Supabase (Pago)
-                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
-                    if (!error && data && data.items) {
-                        feedItems = data.items;
-                        detectedXmlTitle = data.title;
-                        feedLogo = data.image;
-                        if (data.isYoutube) isFeedYoutube = true;
-                    }
+                } catch (legacyErr) { 
+                    console.error(`Erro legado (${feed.name}):`, legacyErr); 
                 }
+            }
 
                 // Se baixou dados com sucesso...
                 if (feedItems && feedItems.length > 0) {
