@@ -4552,7 +4552,7 @@ const handleStoryNavigation = (direction) => {
                 rawDate: finalDateObj, 
                 title: item.title,
                 summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 800) + '...',
-                category: feed.type === 'podcast' ? 'Podcast' : (item.category || 'Geral'),
+                category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'),
                 type: finalType, 
                 img: itemImg,
                 cover: itemImg, 
