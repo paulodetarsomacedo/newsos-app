@@ -91,7 +91,7 @@ const SAVED_ITEMS = [
 
 const SAVED_CATEGORIES = ['Tudo', 'Tech', 'Economia', 'Design', 'Ciência', 'Música', 'Vídeo'];
 
-const AVAILABLE_CATEGORIES = ['Geral', 'Política', 'Tecnologia', 'Economia', 'Saúde', 'Local', 'Carros', 'Esportes', 'Mundo', 'Ciência'];
+const FEED_CATEGORIES = ['Geral', 'Política', 'Tecnologia', 'Economia', 'Saúde', 'Local', 'Carros', 'Esportes', 'Mundo', 'Ciência'];
 const YOUTUBE_CATEGORIES = ['Tudo', 'Tech', 'Finanças', 'Ciência'];
 
 
