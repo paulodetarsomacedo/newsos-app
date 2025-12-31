@@ -3922,7 +3922,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
 
 
 
-// --- COMPONENTE: PLAYER GLOBAL HÍBRIDO (ÁUDIO + YOUTUBE) ---
+// --- COMPONENTE: PLAYER GLOBAL HÍBRIDO (COM SUPORTE IPAD) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const audioRef = useRef(null);
   const iframeRef = useRef(null);
@@ -3932,7 +3932,12 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isYoutube, setIsYoutube] = useState(false);
-  const [ytReady, setYtReady] = useState(false);
+  
+  // Extrai ID do YouTube de forma segura
+  const ytId = useMemo(() => {
+      if (!track) return null;
+      return track.videoId || (track.link?.match(/v=([^&]+)/)?.[1]);
+  }, [track]);
 
   // Detecta o tipo de mídia ao carregar
   useEffect(() => {
@@ -3943,9 +3948,8 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
     setProgress(0);
     setCurrentTime(0);
     setDuration(0);
-    setYtReady(false);
 
-    const isYt = !!track.videoId || (track.link && (track.link.includes('youtube.com') || track.link.includes('youtu.be')));
+    const isYt = !!ytId;
     setIsYoutube(isYt);
 
     if (!isYt) {
@@ -3953,17 +3957,20 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
         if (audioRef.current) {
             audioRef.current.src = track.link;
             audioRef.current.load();
-            audioRef.current.play().then(() => setIsPlaying(true)).catch(e => console.log("Autoplay bloqueado", e));
+            audioRef.current.play()
+                .then(() => setIsPlaying(true))
+                .catch(e => console.log("Autoplay de áudio bloqueado (normal em mobile)", e));
         }
     }
-    // Se for YouTube, o Iframe vai carregar e disparar o evento onReady
-  }, [track]);
+    // Se for YouTube, o autoplay está na URL do iframe, mas pode ser bloqueado pelo iOS.
+    // A correção visual abaixo resolve isso permitindo o clique manual.
+  }, [track, ytId]);
 
   // --- CONTROLES UNIFICADOS ---
 
   const togglePlay = () => {
       if (isYoutube) {
-          if (iframeRef.current && ytReady) {
+          if (iframeRef.current) {
               const command = isPlaying ? 'pauseVideo' : 'playVideo';
               iframeRef.current.contentWindow.postMessage(JSON.stringify({
                   event: 'command',
@@ -3982,10 +3989,10 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   };
 
   const handleSeek = (e) => {
-      const seekTo = (Number(e.target.value) / 100) * duration;
+      const seekTo = (Number(e.target.value) / 100) * (duration || 1); // Evita divisão por zero
       
       if (isYoutube) {
-          if (iframeRef.current && ytReady) {
+          if (iframeRef.current) {
               iframeRef.current.contentWindow.postMessage(JSON.stringify({
                   event: 'command',
                   func: 'seekTo',
@@ -4004,33 +4011,31 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const skipTime = (seconds) => {
       const newTime = currentTime + seconds;
       if (isYoutube) {
-           if (iframeRef.current && ytReady) {
+           if (iframeRef.current) {
+              // Busca o tempo atual via estimativa para somar
               iframeRef.current.contentWindow.postMessage(JSON.stringify({
                   event: 'command',
                   func: 'seekTo',
                   args: [newTime, true]
               }), '*');
+              setCurrentTime(newTime); // Atualiza visualmente
            }
       } else {
           if (audioRef.current) audioRef.current.currentTime = newTime;
       }
   };
 
-  // --- SINCRONIZAÇÃO DE TEMPO (O Coração do Player) ---
+  // --- SINCRONIZAÇÃO DE TEMPO (SIMULADA PARA YOUTUBE) ---
   useEffect(() => {
       let interval = null;
 
       if (isYoutube && isPlaying) {
-          // Polling para YouTube (já que iframe não emite evento de tempo constante para fora facilmente)
           interval = setInterval(() => {
-              // Infelizmente, sem a API JS completa do YT carregada, não conseguimos ler o tempo exato de volta
-              // de forma limpa via postMessage apenas.
-              // Para manter simples e sem carregar scripts pesados do Google, vamos SIMULAR o progresso visualmente
-              // se o vídeo estiver tocando.
-              
+              // Como não temos a API completa carregada para não pesar, 
+              // incrementamos o tempo visualmente enquanto estiver tocando.
               setCurrentTime(prev => {
-                  if (prev >= duration && duration > 0) return duration;
-                  return prev + 0.5; // +500ms
+                  const next = prev + 0.5;
+                  return (duration && next >= duration) ? duration : next;
               });
           }, 500);
       }
@@ -4038,7 +4043,6 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       return () => clearInterval(interval);
   }, [isYoutube, isPlaying, duration]);
 
-  // Atualização MP3 Nativo
   const handleNativeTimeUpdate = () => {
       if (audioRef.current) {
           setCurrentTime(audioRef.current.currentTime);
@@ -4049,18 +4053,11 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       }
   };
 
-  // Atualização da Barra de Progresso Visual (YouTube)
   useEffect(() => {
       if (isYoutube && duration > 0) {
           setProgress((currentTime / duration) * 100);
       }
   }, [currentTime, duration, isYoutube]);
-
-
-  if (!track) return null;
-
-  // Extrai ID do YouTube
-  const ytId = track.videoId || (track.link.match(/v=([^&]+)/)?.[1]);
 
   const formatTime = (t) => {
       if (!t || isNaN(t)) return "0:00";
@@ -4069,10 +4066,12 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       return `${min}:${sec < 10 ? '0' + sec : sec}`;
   };
 
+  if (!track) return null;
+
   return (
     <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-4 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
         
-        {/* ENGINE: MP3 NATIVO */}
+        {/* ENGINE: MP3 NATIVO (Invisível, só lógica) */}
         {!isYoutube && (
             <audio 
                 ref={audioRef} 
@@ -4081,46 +4080,45 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                 onEnded={() => setIsPlaying(false)}
             />
         )}
-
-        {/* ENGINE: YOUTUBE INVISÍVEL (MAS PRESENTE) */}
-        {isYoutube && ytId && (
-            <div className="absolute top-0 left-0 w-1 h-1 opacity-0 overflow-hidden pointer-events-none">
-                <iframe
-                    ref={iframeRef}
-                    width="100%"
-                    height="100%"
-                    src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&autoplay=1&controls=0&modestbranding=1&playsinline=1`}
-                    title="YouTube Audio Engine"
-                    frameBorder="0"
-                    allow="autoplay; encrypted-media"
-                    onLoad={() => {
-                        setYtReady(true);
-                        setIsPlaying(true);
-                        // Estimativa de duração (YouTube API via postMessage não retorna duration fácil sem script externo)
-                        // Vamos assumir 10 min padrão ou tentar pegar de dados meta se tivermos
-                        setDuration(600); // Fallback visual
-                    }}
-                ></iframe>
-            </div>
-        )}
         
-        {/* INTERFACE DE CONTROLE (Igual para ambos) */}
-        <div className="absolute top-0 left-4 right-4 -mt-1.5 h-4 group cursor-pointer flex items-center">
+        {/* BARRA DE PROGRESSO */}
+        <div className="absolute top-0 left-4 right-4 -mt-1.5 h-4 group cursor-pointer flex items-center z-20">
              <input type="range" min="0" max="100" value={progress || 0} onChange={handleSeek} className="w-full h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:rounded-full transition-all accent-orange-500" />
         </div>
 
         <div className="flex items-center gap-4 mt-2">
-            {/* Capa */}
-            <div className="w-12 h-12 rounded-lg bg-zinc-800 flex-shrink-0 overflow-hidden relative shadow-md group">
-                <img src={track.cover} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
-                {isYoutube && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Youtube size={16} className="text-white"/></div>}
+            
+            {/* --- A CORREÇÃO MÁGICA: PLAYER VISUAL --- */}
+            {/* Se for YouTube, o iframe fica AQUI dentro, clicável */}
+            <div className="w-16 h-16 rounded-lg bg-black flex-shrink-0 overflow-hidden relative shadow-md group border border-white/10">
+                {isYoutube ? (
+                    // Iframe do YouTube visível (mas pequeno)
+                    <iframe
+                        ref={iframeRef}
+                        width="100%"
+                        height="100%"
+                        src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&autoplay=1&controls=0&modestbranding=1&playsinline=1&rel=0&fs=0`}
+                        title="YouTube Audio"
+                        frameBorder="0"
+                        allow="autoplay; encrypted-media"
+                        style={{ pointerEvents: 'auto' }} // Permite clique se o autoplay falhar
+                        onLoad={() => {
+                             // Tenta dar play e define duração estimada
+                             setIsPlaying(true); 
+                             setDuration(600); // Estimativa visual
+                        }}
+                    />
+                ) : (
+                    // Capa Normal para MP3
+                    <img src={track.cover} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                )}
             </div>
             
             {/* Textos */}
             <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-bold leading-tight truncate">{track.title}</h4>
-                <p className="text-[10px] opacity-60 truncate flex items-center gap-1">
-                    {isYoutube ? <span className="text-red-500 font-bold">YouTube Audio</span> : <span className="text-blue-500 font-bold">Podcast</span>}
+                <p className="text-[10px] opacity-60 truncate flex items-center gap-1 mt-1">
+                    {isYoutube ? <span className="text-red-500 font-bold flex items-center gap-1"><Youtube size={10}/> YouTube</span> : <span className="text-blue-500 font-bold flex items-center gap-1"><Mic size={10}/> Podcast</span>}
                     <span>• {formatTime(currentTime)} / {formatTime(duration)}</span>
                 </p>
             </div>
