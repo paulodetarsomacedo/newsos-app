@@ -4902,10 +4902,10 @@ const handleStoryNavigation = (direction) => {
         }
 
         // --- CAMADA 3: FETCH REAL (Custo $$) ---
-        if (!usedCache) {
-const isLegacySource = feed.url.includes('uol.com.br') || 
-                       feed.url.includes('folha.uol.com.br') || 
-                       feed.url.includes('moneytimes.com.br');
+     if (!usedCache) {
+            const isLegacySource = feed.url.includes('uol.com.br') || 
+                                   feed.url.includes('folha.uol.com.br') || 
+                                   feed.url.includes('moneytimes.com.br');
             try {
                 if (isLegacySource) {
                     // Proxy Gratuito
@@ -4913,12 +4913,11 @@ const isLegacySource = feed.url.includes('uol.com.br') ||
                     const res = await fetch(proxyUrl);
                     if (!res.ok) throw new Error(`Proxy status: ${res.status}`);
                     const buffer = await res.arrayBuffer();
-                    const decoder = new TextDecoder('iso-8859-1'); 
-                    const parsedData = parseXMLToNewsItems(decoder.decode(buffer), feed.name, feed.id);
-                    feedItems = parsedData.items;
-                    detectedXmlTitle = parsedData.realTitle; 
-                    if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
-                    else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
+                    
+                    // 1. DECLARA A VARIÁVEL AQUI FORA (O Balde Vazio)
+                    let xmlText = ""; 
+
+                    // 2. ENCHE O BALDE COM A CODIFICAÇÃO CORRETA
                     if (feed.url.includes('band.uol') || feed.url.includes('band.com') || feed.url.includes('moneytimes')) {
                          const decoder = new TextDecoder('utf-8');
                          xmlText = decoder.decode(buffer);
@@ -4927,6 +4926,16 @@ const isLegacySource = feed.url.includes('uol.com.br') ||
                          const decoder = new TextDecoder('iso-8859-1');
                          xmlText = decoder.decode(buffer);
                     }
+
+                    // 3. USA A VARIÁVEL PREENCHIDA (Agora ela existe e tem o texto certo)
+                    const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
+                    
+                    feedItems = parsedData.items;
+                    detectedXmlTitle = parsedData.realTitle; 
+                    
+                    // Ajuste de logos legados
+                    if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
+                    else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
 
                 } else {
                     // Supabase (Pago)
