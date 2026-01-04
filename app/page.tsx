@@ -467,14 +467,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
           setAiStatus(`Acessando arquivos de ${newDate.toLocaleDateString()}...`);
       }
   };
-const triggerSearch = () => {
-      const term = searchInputRef.current?.value; // Pega o texto do input
-      if (term && term.trim() && onSearch) {
-          onSearch(term);        // Manda pesquisar
-          setIsSearchOpen(false); // Fecha a barra
-          searchInputRef.current.value = ''; // Limpa o texto
-      }
-  };
+
   const fetchMarketData = async () => {
     const symbols = ['USDBRL=X', 'EURBRL=X', 'BTC-USD', '^BVSP', '^IXIC', 'VALE3.SA', 'PETR4.SA'];
     const newData = {};
@@ -537,6 +530,15 @@ const triggerSearch = () => {
        <span className="text-[10px] font-bold text-white">{value}</span>
     </div>
   );
+
+  const triggerSearch = () => {
+      const term = searchInputRef.current?.value; // Pega o texto do input
+      if (term && term.trim() && onSearch) {
+          onSearch(term);        // Manda pesquisar
+          setIsSearchOpen(false); // Fecha a barra
+          searchInputRef.current.value = ''; // Limpa o texto
+      }
+  };
 
   return (
     <div className="relative z-20 pb-2">
