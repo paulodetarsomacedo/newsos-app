@@ -325,24 +325,21 @@ function CalendarModal({ isOpen, onClose, selectedDate, onSelectDate, isDarkMode
 }
 
 
-// --- HEADER DASHBOARD (CORRIGIDO E BLINDADO) ---
+// --- HEADER DASHBOARD (CORRIGIDO - LÓGICA INLINE) ---
 function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, selectedSource, onSearch }) {
   const [aiStatus, setAiStatus] = useState("Inicializando sistemas...");
   
-  // 1. Definição dos Estados Principais
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // 1. Definição dos Estados
+  const [isSearchOpen, setIsSearchOpen] = useState(false); // <--- ESTADO DEFINIDO AQUI
   const [data, setData] = useState({});
   const [currentDate, setCurrentDate] = useState(null);
-  
-  // 2. Estados de Interface
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [dragStartX, setDragStartX] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
 
-  // 3. Referência para o Input (Essencial para o botão funcionar)
+  // 2. Referência
   const searchInputRef = useRef(null);
 
-  // --- CORREÇÃO DE HIDRATAÇÃO ---
   useEffect(() => {
     setCurrentDate(new Date());
   }, []);
@@ -391,7 +388,6 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
     return () => clearInterval(interval);
   }, []);
 
-  // --- FRASES DE STATUS ---
   const PHRASES = {
     loading: ["Sincronizando...", "Processando feed...", "Baixando dados...", "Atualizando..."],
     feed_general: ["Monitorando pulso...", "Curadoria ativa...", "Filtrando ruído...", "Analisando tendências..."],
@@ -425,13 +421,13 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
         default: setAiStatus(getRandomPhrase('feed_general')); break;
     }
   }, [activeTab, isLoading, selectedSource]);
-
-  // --- FUNÇÕES DE INTERFACE (DATA E DRAG) ---
+  
   const formatDate = (date) => {
     const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
     const str = new Intl.DateTimeFormat('pt-BR', options).format(date);
     return str.charAt(0).toUpperCase() + str.slice(1);
   };
+  
   const handleDragStart = (clientX) => setDragStartX(clientX);
   const handleDragMove = (clientX) => { if (dragStartX !== null) setDragOffset(clientX - dragStartX); };
   const handleDragEnd = () => {
@@ -468,18 +464,6 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
        <span className="text-[10px] font-bold text-white">{value}</span>
     </div>
   );
-
-  // -----------------------------------------------------------
-  // AQUI ESTAVA O PROBLEMA: A FUNÇÃO DEVE ESTAR DENTRO DO COMPONENTE
-  // -----------------------------------------------------------
-  const triggerSearch = () => {
-      const term = searchInputRef.current?.value; 
-      if (term && term.trim() && onSearch) {
-          onSearch(term);        
-          setIsSearchOpen(false); // Agora ela enxerga o setIsSearchOpen
-          if (searchInputRef.current) searchInputRef.current.value = ''; 
-      }
-  };
 
   return (
     <div className="relative z-20 pb-2">
@@ -573,7 +557,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                     <div className="relative flex items-center bg-white/5 backdrop-blur-3xl border border-white/20 rounded-2xl p-1 shadow-inner">
                         <div className="pl-4 pr-3 text-white/30"><Search size={18} /></div>
                         
-                        {/* INPUT COM REF E ENTER */}
+                        {/* INPUT: LÓGICA INLINE AQUI (SEM CHAMAR FUNÇÃO EXTERNA) */}
                         <input 
                             ref={searchInputRef}
                             type="text" 
@@ -581,14 +565,28 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                             placeholder="O que você deseja saber?" 
                             className="w-full bg-transparent text-white placeholder:text-white/30 text-sm font-medium py-3 outline-none" 
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter') triggerSearch();
+                                if (e.key === 'Enter') {
+                                    const term = searchInputRef.current?.value; 
+                                    if (term && term.trim() && onSearch) {
+                                        onSearch(term);        
+                                        setIsSearchOpen(false); 
+                                        if (searchInputRef.current) searchInputRef.current.value = ''; 
+                                    }
+                                }
                             }}
                         />
                         
-                        {/* BOTÃO COM CLICK */}
+                        {/* BOTÃO: LÓGICA INLINE AQUI (SEM CHAMAR FUNÇÃO EXTERNA) */}
                         <div className="pr-1.5">
                             <button 
-                                onClick={triggerSearch}
+                                onClick={() => {
+                                    const term = searchInputRef.current?.value; 
+                                    if (term && term.trim() && onSearch) {
+                                        onSearch(term);        
+                                        setIsSearchOpen(false); 
+                                        if (searchInputRef.current) searchInputRef.current.value = ''; 
+                                    }
+                                }}
                                 className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg"
                             >
                                 <ArrowRight size={16} />
@@ -598,6 +596,8 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                 </div>
               </div>
            </div>
+           
+           {/* Ticker */}
            <div className={`
               relative w-full overflow-hidden transition-all duration-700
               [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]
