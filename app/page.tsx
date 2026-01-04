@@ -325,26 +325,40 @@ function CalendarModal({ isOpen, onClose, selectedDate, onSelectDate, isDarkMode
 }
 
 
-// --- HEADER DASHBOARD (CORRIGIDO - LÓGICA INLINE) ---
+// --- HEADER DASHBOARD (VERSÃO BLINDADA E CORRIGIDA) ---
 function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, selectedSource, onSearch }) {
   const [aiStatus, setAiStatus] = useState("Inicializando sistemas...");
   
-  // 1. Definição dos Estados
-  const [isSearchOpen, setIsSearchOpen] = useState(false); // <--- ESTADO DEFINIDO AQUI
+  // 1. Definição dos Estados (TUDO AQUI NO TOPO)
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [data, setData] = useState({});
   const [currentDate, setCurrentDate] = useState(null);
+  
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [dragStartX, setDragStartX] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
 
-  // 2. Referência
+  // 2. Referência para o Input
   const searchInputRef = useRef(null);
+
+  // 3. A FUNÇÃO DE BUSCA (DECLARADA AQUI DENTRO, SEGURA)
+  const handleSearchAction = () => {
+      // Pega o valor direto da referência
+      const term = searchInputRef.current?.value; 
+      
+      if (term && term.trim() && onSearch) {
+          onSearch(term);           // Chama a função do pai
+          setIsSearchOpen(false);   // Fecha a barra (Agora funciona pois está no escopo)
+          if (searchInputRef.current) {
+              searchInputRef.current.value = ''; // Limpa o input
+          }
+      }
+  };
 
   useEffect(() => {
     setCurrentDate(new Date());
   }, []);
 
-  // --- LÓGICA DE DADOS DE MERCADO ---
   const fetchMarketData = async () => {
     const symbols = ['USDBRL=X', 'EURBRL=X', 'BTC-USD', '^BVSP', '^IXIC', 'VALE3.SA', 'PETR4.SA'];
     const newData = {};
@@ -486,6 +500,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
 
         <div className="relative px-6 pt-6 pb-4 flex flex-col gap-4">
            
+           {/* Barra de Data e Drag */}
            <div 
              className="absolute top-0 right-0 z-50 cursor-ew-resize select-none touch-none group"
              onMouseDown={(e) => handleDragStart(e.clientX)}
@@ -543,6 +558,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                 {!isSearchOpen && <span className="text-[10px] font-black uppercase tracking-widest px-4">Ask AI</span>}
               </button>
            </div>
+           
            <div className={`
               grid transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
               ${isSearchOpen ? 'grid-rows-[1fr] mt-2 mb-2' : 'grid-rows-[0fr] mt-0 mb-0'}
@@ -557,7 +573,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                     <div className="relative flex items-center bg-white/5 backdrop-blur-3xl border border-white/20 rounded-2xl p-1 shadow-inner">
                         <div className="pl-4 pr-3 text-white/30"><Search size={18} /></div>
                         
-                        {/* INPUT: LÓGICA INLINE AQUI (SEM CHAMAR FUNÇÃO EXTERNA) */}
+                        {/* INPUT USANDO A NOVA FUNÇÃO INTERNA */}
                         <input 
                             ref={searchInputRef}
                             type="text" 
@@ -565,28 +581,14 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                             placeholder="O que você deseja saber?" 
                             className="w-full bg-transparent text-white placeholder:text-white/30 text-sm font-medium py-3 outline-none" 
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    const term = searchInputRef.current?.value; 
-                                    if (term && term.trim() && onSearch) {
-                                        onSearch(term);        
-                                        setIsSearchOpen(false); 
-                                        if (searchInputRef.current) searchInputRef.current.value = ''; 
-                                    }
-                                }
+                                if (e.key === 'Enter') handleSearchAction();
                             }}
                         />
                         
-                        {/* BOTÃO: LÓGICA INLINE AQUI (SEM CHAMAR FUNÇÃO EXTERNA) */}
+                        {/* BOTÃO USANDO A NOVA FUNÇÃO INTERNA */}
                         <div className="pr-1.5">
                             <button 
-                                onClick={() => {
-                                    const term = searchInputRef.current?.value; 
-                                    if (term && term.trim() && onSearch) {
-                                        onSearch(term);        
-                                        setIsSearchOpen(false); 
-                                        if (searchInputRef.current) searchInputRef.current.value = ''; 
-                                    }
-                                }}
+                                onClick={handleSearchAction}
                                 className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg"
                             >
                                 <ArrowRight size={16} />
@@ -597,7 +599,6 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
               </div>
            </div>
            
-           {/* Ticker */}
            <div className={`
               relative w-full overflow-hidden transition-all duration-700
               [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]
