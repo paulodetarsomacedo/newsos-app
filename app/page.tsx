@@ -324,90 +324,129 @@ function CalendarModal({ isOpen, onClose, selectedDate, onSelectDate, isDarkMode
   );
 }
 
-// --- CONSTANTES GLOBAIS (FORA DO COMPONENTE) ---
 
-const PHRASES = {
-  loading: ["Sincronizando...", "Processando feed...", "Baixando dados...", "Atualizando..."],
-  feed_general: ["Monitorando pulso...", "Curadoria ativa...", "Filtrando ruído...", "Analisando tendências..."],
-  youtube: ["Otimizando buffer...", "Renderizando feed...", "Sintonizando canais...", "Carregando conteúdo..."],
-  podcast: ["Calibrando áudio...", "Sincronizando feeds...", "Isolando ruído...", "Preparando briefing..."],
-  happening: ["Detectando News...", "Tempo real...", "Analisando eventos...", "Rastreando picos..."],
-  newsletter: ["Descriptografando...", "Organizando inbox...", "Resumindo boletins..."],
-  banca: ["Imprimindo...", "Organizando capas...", "Acessando acervo..."],
-  saved: ["Acessando memória...", "Recuperando arquivos...", "Organizando biblioteca..."]
-};
-
-const TICKERS = [
-    { id: 'USDBRL=X', label: 'USD', icon: DollarSign },
-    { id: 'EURBRL=X', label: 'EUR', icon: Euro },
-    { id: 'BTC-USD',  label: 'BTC', icon: Bitcoin },
-    { id: '^BVSP',    label: 'IBOV', icon: Activity },
-    { id: '^IXIC',    label: 'NDX',  icon: Zap },
-    { id: 'VALE3.SA', label: 'VALE3', icon: TrendingUp },
-    { id: 'PETR4.SA', label: 'PETR4', icon: TrendingDown },
-];
-
-const TickerItem = ({ label, value, up, icon: Icon }) => (
-  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 mx-1">
-     <span className={`text-[10px] ${up ? 'text-emerald-400' : 'text-rose-400'}`}>{up ? <TrendingUp size={10}/> : <TrendingDown size={10}/>}</span>
-     <span className="text-[10px] font-bold text-white/60">{label}</span>
-     <span className="text-[10px] font-bold text-white">{value}</span>
-  </div>
-);
-
-
-// --- HEADER DASHBOARD ---
 function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, selectedSource, onSearch }) {
   const [aiStatus, setAiStatus] = useState("Inicializando sistemas...");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [data, setData] = useState({});
-  const [currentDate, setCurrentDate] = useState(null);
-  
+  const searchInputRef = useRef(null); 
+
+  // --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI ---
+  // 1. Inicializa a data como 'null' no servidor.
+  const [currentDate, setCurrentDate] = useState(null); 
+  // --- FIM DA CORREÇÃO ---
+
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [dragStartX, setDragStartX] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
-  
-  const searchInputRef = useRef(null);
 
+  // --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI ---
+  // 2. A data real (local do usuário) só é definida no navegador, após a primeira renderização.
   useEffect(() => {
     setCurrentDate(new Date());
   }, []);
+  // --- FIM DA CORREÇÃO ---
 
-  const fetchMarketData = async () => {
-    // ... (sua lógica de fetch do yahoo finance pode ficar aqui ou fora, mas dentro é ok) ...
-    // Vou resumir para caber, mas mantenha a lógica do fetch que estava funcionando
-    const symbols = ['USDBRL=X', 'EURBRL=X', 'BTC-USD', '^BVSP', '^IXIC', 'VALE3.SA', 'PETR4.SA'];
-    const newData = {};
-    // ... (lógica do fetch continua a mesma) ...
-    // SE PRECISAR DO CODIGO DO FETCH ME AVISE, MAS ELE NAO MUDOU
+  const PHRASES = {
+    loading: [
+        "Sincronizando satélites de dados...",
+        "Processando feed neural...",
+        "Baixando pacotes criptografados...",
+        "Atualizando matriz de informação..."
+    ],
+    feed_general: [
+        "Monitorando o pulso global...",
+        "Curadoria por IA ativa...",
+        "Filtrando ruído, entregando sinais...",
+        "Analisando tendências de mercado..."
+    ],
+    youtube: [
+        "Otimizando buffer de vídeo...",
+        "Renderizando feed visual...",
+        "Sintonizando canais prioritários...",
+        "Carregando criadores de conteúdo..."
+    ],
+    podcast: [
+        "Calibrando frequências de áudio...",
+        "Sincronizando feeds de voz...",
+        "Isolando ruído de fundo...",
+        "Preparando briefing auditivo..."
+    ],
+    happening: [
+        "Detectando Breaking News...",
+        "Monitoramento em tempo real...",
+        "Analisando eventos críticos agora...",
+        "Rastreando picos de interesse..."
+    ],
+    newsletter: [
+        "Descriptografando inbox...",
+        "Organizando correspondência digital...",
+        "Resumindo boletins diários..."
+    ],
+    banca: [
+        "Imprimindo edições digitais...",
+        "Organizando capas de hoje...",
+        "Acessando acervo editorial..."
+    ],
+    saved: [
+        "Acessando memória de longo prazo...",
+        "Recuperando arquivos salvos...",
+        "Organizando sua biblioteca pessoal..."
+    ]
   };
-  
-  // Como PHRASES está fora, aqui só usamos:
+
   const getRandomPhrase = (key) => {
       const list = PHRASES[key] || PHRASES['feed_general'];
       return list[Math.floor(Math.random() * list.length)];
   };
 
   useEffect(() => {
-    if (isLoading) { setAiStatus(getRandomPhrase('loading')); return; }
-    // ... lógica das frases ...
-    const key = activeTab === 'feed' ? 'feed_general' : (PHRASES[activeTab] ? activeTab : 'feed_general');
-    const list = PHRASES[key];
-    setAiStatus(list[Math.floor(Math.random() * list.length)]);
+    if (isLoading) {
+        setAiStatus(getRandomPhrase('loading'));
+        return;
+    }
+
+    if (activeTab === 'feed' && selectedSource && selectedSource !== 'all') {
+        const sourceName = selectedSource.charAt(0).toUpperCase() + selectedSource.slice(1);
+        const sourcePhrases = [
+            `Focando nos dados de ${sourceName}...`,
+            `Extraindo inteligência de ${sourceName}...`,
+            `Lendo feeds exclusivos de ${sourceName}...`
+        ];
+        setAiStatus(sourcePhrases[Math.floor(Math.random() * sourcePhrases.length)]);
+        return;
+    }
+
+    switch (activeTab) {
+        case 'youtube': setAiStatus(getRandomPhrase('youtube')); break;
+        case 'podcast': setAiStatus(getRandomPhrase('podcast')); break;
+        case 'happening': setAiStatus(getRandomPhrase('happening')); break;
+        case 'newsletter': setAiStatus(getRandomPhrase('newsletter')); break;
+        case 'banca': setAiStatus(getRandomPhrase('banca')); break;
+        case 'saved': setAiStatus(getRandomPhrase('saved')); break;
+        default: setAiStatus(getRandomPhrase('feed_general')); break;
+    }
+
   }, [activeTab, isLoading, selectedSource]);
 
-  // --- INTERFACE ---
   const formatDate = (date) => {
     const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
     const str = new Intl.DateTimeFormat('pt-BR', options).format(date);
     return str.charAt(0).toUpperCase() + str.slice(1);
   };
-  
+
   const handleDragStart = (clientX) => setDragStartX(clientX);
-  const handleDragMove = (clientX) => { if (dragStartX !== null) setDragOffset(clientX - dragStartX); };
+  
+  const handleDragMove = (clientX) => {
+    if (dragStartX === null) return;
+    setDragOffset(clientX - dragStartX);
+  };
+
   const handleDragEnd = () => {
-    if (!currentDate) return;
-    if (Math.abs(dragOffset) < 5) { setIsCalendarOpen(true); } 
+    if (!currentDate) return; // Proteção extra
+    if (Math.abs(dragOffset) < 5) {
+        setIsCalendarOpen(true);
+    } 
     else if (Math.abs(dragOffset) > 50) { 
       const newDate = new Date(currentDate);
       if (dragOffset > 0) newDate.setDate(currentDate.getDate() - 1);
@@ -415,37 +454,144 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
         const today = new Date();
         if (newDate < today.setHours(0,0,0,0)) newDate.setDate(currentDate.getDate() + 1);
       }
-      setCurrentDate(newDate);
+      handleDateChange(newDate);
     }
     setDragStartX(null);
     setDragOffset(0);
   };
-  const handleDateChange = (newDate) => { setCurrentDate(newDate); };
+
+  const handleDateChange = (newDate) => {
+      setCurrentDate(newDate);
+      const isToday = newDate.toDateString() === new Date().toDateString();
+      if (!isToday) {
+          setAiStatus(`Acessando arquivos de ${newDate.toLocaleDateString()}...`);
+      }
+  };
+const triggerSearch = () => {
+      const term = searchInputRef.current?.value; // Pega o texto do input
+      if (term && term.trim() && onSearch) {
+          onSearch(term);        // Manda pesquisar
+          setIsSearchOpen(false); // Fecha a barra
+          searchInputRef.current.value = ''; // Limpa o texto
+      }
+  };
+  const fetchMarketData = async () => {
+    const symbols = ['USDBRL=X', 'EURBRL=X', 'BTC-USD', '^BVSP', '^IXIC', 'VALE3.SA', 'PETR4.SA'];
+    const newData = {};
+    try {
+        await Promise.all(symbols.map(async (symbol) => {
+            try {
+                const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+                const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(targetUrl);
+                const res = await fetch(proxyUrl);
+                if (!res.ok) throw new Error('Network err');
+                const json = await res.json();
+                const meta = json.chart?.result?.[0]?.meta;
+                if (meta) {
+                    const price = meta.regularMarketPrice;
+                    const prevClose = meta.chartPreviousClose;
+                    const change = price - prevClose;
+                    const isUp = change >= 0;
+                    let valDisplay = '...';
+                    if (price) {
+                        if (symbol === '^BVSP' || symbol === '^IXIC' || symbol === 'BTC-USD') {
+                            valDisplay = (price / 1000).toFixed(1) + 'k';
+                        } else {
+                            valDisplay = price.toFixed(2).replace('.', ',');
+                        }
+                    }
+                    newData[symbol] = { val: valDisplay, up: isUp };
+                }
+            } catch (err) {
+                newData[symbol] = { val: '...', up: true };
+            }
+        }));
+        setData(prev => ({ ...prev, ...newData }));
+    } catch (error) {
+        console.error("Erro geral no fetch:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchMarketData();
+    const interval = setInterval(fetchMarketData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const TICKERS = [
+      { id: 'USDBRL=X', label: 'USD', icon: DollarSign },
+      { id: 'EURBRL=X', label: 'EUR', icon: Euro },
+      { id: 'BTC-USD',  label: 'BTC', icon: Bitcoin },
+      { id: '^BVSP',    label: 'IBOV', icon: Activity },
+      { id: '^IXIC',    label: 'NDX',  icon: Zap },
+      { id: 'VALE3.SA', label: 'VALE3', icon: TrendingUp },
+      { id: 'PETR4.SA', label: 'PETR4', icon: TrendingDown },
+  ];
+
+  const TickerItem = ({ label, value, up, icon: Icon }) => (
+    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 mx-1">
+       <span className={`text-[10px] ${up ? 'text-emerald-400' : 'text-rose-400'}`}>
+          {up ? <TrendingUp size={10}/> : <TrendingDown size={10}/>}
+       </span>
+       <span className="text-[10px] font-bold text-white/60">{label}</span>
+       <span className="text-[10px] font-bold text-white">{value}</span>
+    </div>
+  );
 
   return (
     <div className="relative z-20 pb-2">
-      {currentDate && <CalendarModal isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} selectedDate={currentDate} onSelectDate={handleDateChange} isDarkMode={isDarkMode} />}
+      {/* O CalendarModal só é renderizado se a data existir */}
+      {currentDate && <CalendarModal 
+        isOpen={isCalendarOpen} 
+        onClose={() => setIsCalendarOpen(false)}
+        selectedDate={currentDate}
+        onSelectDate={handleDateChange}
+        isDarkMode={isDarkMode}
+      />}
 
-      <div className={`relative w-full overflow-hidden rounded-b-[2.5rem] shadow-2xl border-b border-white/10 transition-all duration-500 ease-in-out ${isDarkMode ? 'bg-zinc-950' : 'bg-slate-900'}`}>
+      <div className={`
+        relative w-full overflow-hidden rounded-b-[2.5rem] shadow-2xl border-b border-white/10 
+        transition-all duration-500 ease-in-out
+        ${isDarkMode ? 'bg-zinc-950' : 'bg-slate-900'}
+      `}>
         <div className="absolute top-[-50%] left-[-20%] w-[80%] h-[150%] bg-indigo-600/20 blur-[100px] rounded-full animate-pulse pointer-events-none" />
         <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[100%] bg-teal-600/10 blur-[80px] rounded-full pointer-events-none" />
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 mix-blend-soft-light pointer-events-none"></div>
 
         <div className="relative px-6 pt-6 pb-4 flex flex-col gap-4">
            
-           {/* Barra de Data */}
-           <div className="absolute top-0 right-0 z-50 cursor-ew-resize select-none touch-none group" onMouseDown={(e) => handleDragStart(e.clientX)} onMouseMove={(e) => handleDragMove(e.clientX)} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd} onTouchStart={(e) => handleDragStart(e.touches[0].clientX)} onTouchMove={(e) => handleDragMove(e.touches[0].clientX)} onTouchEnd={handleDragEnd}>
-              <div className={`flex items-center gap-3 px-5 py-3 rounded-b-2xl border-x border-b border-white/10 bg-black/20 backdrop-blur-xl shadow-lg transition-all duration-200 ease-out ${Math.abs(dragOffset) > 0 ? 'translate-y-1 bg-black/40' : 'hover:bg-black/30 hover:pt-4'}`} style={{ transform: `translateX(${dragOffset}px)` }}>
+           <div 
+             className="absolute top-0 right-0 z-50 cursor-ew-resize select-none touch-none group"
+             onMouseDown={(e) => handleDragStart(e.clientX)}
+             onMouseMove={(e) => handleDragMove(e.clientX)}
+             onMouseUp={handleDragEnd}
+             onMouseLeave={handleDragEnd}
+             onTouchStart={(e) => handleDragStart(e.touches[0].clientX)}
+             onTouchMove={(e) => handleDragMove(e.touches[0].clientX)}
+             onTouchEnd={handleDragEnd}
+           >
+              <div 
+                className={`
+                    flex items-center gap-3 px-5 py-3 
+                    rounded-b-2xl border-x border-b border-white/10
+                    bg-black/20 backdrop-blur-xl shadow-lg
+                    transition-all duration-200 ease-out
+                    ${Math.abs(dragOffset) > 0 ? 'translate-y-1 bg-black/40' : 'hover:bg-black/30 hover:pt-4'}
+                `}
+                style={{ transform: `translateX(${dragOffset}px)` }}
+              >
                   <ChevronLeft size={14} className={`text-white/40 transition-opacity ${Math.abs(dragOffset) > 0 ? 'opacity-100' : 'group-hover:opacity-100'}`} />
                   <span className="text-sm font-bold text-green-400 whitespace-nowrap tracking-wide flex items-center gap-2 uppercase text-[10px]">
+                      {/* --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI --- */}
+                      {/* 3. Renderiza a data apenas se ela já foi definida no cliente */}
                       {currentDate ? formatDate(currentDate) : <>&nbsp;</>}
+                      {/* --- FIM DA CORREÇÃO --- */}
                       <CalendarIcon size={10} className="opacity-50" />
                   </span>
                   <ChevronRight size={14} className={`text-white/40 transition-opacity ${Math.abs(dragOffset) > 0 ? 'opacity-100' : 'group-hover:opacity-100'}`} />
               </div>
            </div>
 
-           {/* Status e Botão Ask AI */}
            <div className="flex justify-between items-center mt-10">
               <div className="flex items-center gap-3">
                  <div onClick={onOpenSettings} className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] cursor-pointer hover:scale-105 transition-transform shadow-lg">
@@ -455,23 +601,38 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                     <h1 className="text-[10px] font-black uppercase text-white/40 tracking-[0.15em] leading-none mb-1">System Status</h1>
                     <div className="flex items-center gap-1.5">
                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-                       <span className="text-xs font-bold text-white tracking-wide animate-in fade-in slide-in-from-left-2 duration-500" key={aiStatus}>{aiStatus}</span>
+                       <span className="text-xs font-bold text-white tracking-wide animate-in fade-in slide-in-from-left-2 duration-500" key={aiStatus}>
+                           {aiStatus}
+                       </span>
                     </div>
                  </div>
               </div>
-              <button onClick={() => setIsSearchOpen(!isSearchOpen)} className={`relative z-[60] p-2.5 rounded-xl transition-all duration-500 flex items-center gap-2 border -mr-6 ${isSearchOpen ? 'bg-white text-black border-white shadow-[0_0_30px_rgba(255,255,255,0.2)] scale-90' : 'bg-white/5 border-white/10 text-white hover:bg-white/10 active:scale-95'}`}>
+              <button 
+                onClick={() => setIsSearchOpen(!isSearchOpen)}
+                className={`
+                    relative z-[60] p-2.5 rounded-xl transition-all duration-500 flex items-center gap-2 border -mr-6
+                    ${isSearchOpen 
+                        ? 'bg-white text-black border-white shadow-[0_0_30px_rgba(255,255,255,0.2)] scale-90' 
+                        : 'bg-white/5 border-white/10 text-white hover:bg-white/10 active:scale-95'}
+                `}
+              >
                 {isSearchOpen ? <X size={18} /> : <Sparkles size={18} className="text-purple-400 animate-pulse" />}
                 {!isSearchOpen && <span className="text-[10px] font-black uppercase tracking-widest px-4">Ask AI</span>}
               </button>
            </div>
-           
-           {/* BARRA DE PESQUISA */}
-           <div className={`grid transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isSearchOpen ? 'grid-rows-[1fr] mt-2 mb-2' : 'grid-rows-[0fr] mt-0 mb-0'}`}>
+           <div className={`
+              grid transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+              ${isSearchOpen ? 'grid-rows-[1fr] mt-2 mb-2' : 'grid-rows-[0fr] mt-0 mb-0'}
+           `}>
               <div className="overflow-hidden">
-                <div className={`transition-all duration-500 delay-[50ms] origin-top-right ${isSearchOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-0 opacity-0 -translate-y-4'}`}>
+                <div 
+                    className={`
+                        transition-all duration-500 delay-[50ms] origin-top-right
+                        ${isSearchOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-0 opacity-0 -translate-y-4'}
+                    `}
+                >
                     <div className="relative flex items-center bg-white/5 backdrop-blur-3xl border border-white/20 rounded-2xl p-1 shadow-inner">
                         <div className="pl-4 pr-3 text-white/30"><Search size={18} /></div>
-                        
                         <input 
                             ref={searchInputRef}
                             type="text" 
@@ -479,42 +640,45 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                             placeholder="O que você deseja saber?" 
                             className="w-full bg-transparent text-white placeholder:text-white/30 text-sm font-medium py-3 outline-none" 
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    const term = searchInputRef.current?.value; 
-                                    if (term && term.trim() && onSearch) {
-                                        onSearch(term);        
-                                        setIsSearchOpen(false); 
-                                        if (searchInputRef.current) searchInputRef.current.value = ''; 
-                                    }
-                                }
-                            }}
-                        />
-                        
+        if (e.key === 'Enter' && e.target.value.trim()) {
+            // Ele tenta chamar onSearch. Se onSearch não foi passado no Passo 1, ele quebra aqui.
+            if (onSearch) {
+                onSearch(e.target.value);
+                setIsSearchOpen(false); // Fecha a barra
+            }
+            e.target.value = ''; 
+        }
+    }}
+    // ----------------------------
+/>
                         <div className="pr-1.5">
-                            <button 
-                                onClick={() => {
-                                    const term = searchInputRef.current?.value; 
-                                    if (term && term.trim() && onSearch) {
-                                        onSearch(term);        
-                                        setIsSearchOpen(false); 
-                                        if (searchInputRef.current) searchInputRef.current.value = ''; 
-                                    }
-                                }}
-                                className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg"
-                            >
-                                <ArrowRight size={16} />
-                            </button>
-                        </div>
+    <button 
+        onClick={triggerSearch} // <--- AQUI ESTÁ A MÁGICA
+        className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg"
+    >
+        <ArrowRight size={16} />
+    </button>
+</div>
                     </div>
                 </div>
               </div>
            </div>
-           
-           {/* TICKER */}
-           <div className={`relative w-full overflow-hidden transition-all duration-700 [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)] ${isSearchOpen ? 'opacity-20  scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
+           <div className={`
+              relative w-full overflow-hidden transition-all duration-700
+              [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]
+              ${isSearchOpen ? 'opacity-20  scale-95 pointer-events-none' : 'opacity-100 scale-100'}
+           `}>
               <style>{`@keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
               <div className="flex w-max animate-[scroll_40s_linear_infinite] hover:[animation-play-state:paused]">
-                  {[...TICKERS, ...TICKERS, ...TICKERS].map((item, index) => <TickerItem key={`${item.id}-${index}`} label={item.label} value={data[item.id]?.val || '...'} up={data[item.id]?.up} icon={item.icon} />)}
+                  {[...TICKERS, ...TICKERS, ...TICKERS].map((item, index) => (
+                      <TickerItem 
+                        key={`${item.id}-${index}`} 
+                        label={item.label} 
+                        value={data[item.id]?.val || '...'} 
+                        up={data[item.id]?.up} 
+                        icon={item.icon} 
+                      />
+                  ))}
               </div>
            </div>
         </div>
@@ -522,9 +686,6 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
     </div>
   );
 }
-
-
-
 
 // --- LIQUID FILTER ---
 
