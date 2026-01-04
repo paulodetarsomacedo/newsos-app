@@ -329,6 +329,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
   const [aiStatus, setAiStatus] = useState("Inicializando sistemas...");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [data, setData] = useState({});
+  const searchInputRef = useRef(null); 
 
   // --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI ---
   // 1. Inicializa a data como 'null' no servidor.
@@ -466,7 +467,14 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
           setAiStatus(`Acessando arquivos de ${newDate.toLocaleDateString()}...`);
       }
   };
-
+const triggerSearch = () => {
+      const term = searchInputRef.current?.value; // Pega o texto do input
+      if (term && term.trim() && onSearch) {
+          onSearch(term);        // Manda pesquisar
+          setIsSearchOpen(false); // Fecha a barra
+          searchInputRef.current.value = ''; // Limpa o texto
+      }
+  };
   const fetchMarketData = async () => {
     const symbols = ['USDBRL=X', 'EURBRL=X', 'BTC-USD', '^BVSP', '^IXIC', 'VALE3.SA', 'PETR4.SA'];
     const newData = {};
@@ -626,16 +634,25 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                     <div className="relative flex items-center bg-white/5 backdrop-blur-3xl border border-white/20 rounded-2xl p-1 shadow-inner">
                         <div className="pl-4 pr-3 text-white/30"><Search size={18} /></div>
                         <input 
+                            ref={searchInputRef}
                             type="text" 
                             autoFocus={isSearchOpen}
                             placeholder="O que você deseja saber?" 
                             className="w-full bg-transparent text-white placeholder:text-white/30 text-sm font-medium py-3 outline-none" 
-                        />
+                            onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+            triggerSearch(); // Usa a função nova
+        }
+    }}
+/>
                         <div className="pr-1.5">
-                            <button className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg">
-                                <ArrowRight size={16} />
-                            </button>
-                        </div>
+    <button 
+        onClick={triggerSearch} // <--- AQUI ESTÁ A MÁGICA
+        className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg"
+    >
+        <ArrowRight size={16} />
+    </button>
+</div>
                     </div>
                 </div>
               </div>
