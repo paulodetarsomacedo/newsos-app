@@ -325,7 +325,7 @@ function CalendarModal({ isOpen, onClose, selectedDate, onSelectDate, isDarkMode
 }
 
 
-function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, selectedSource }) {
+function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, selectedSource, onSearch }) {
   const [aiStatus, setAiStatus] = useState("Inicializando sistemas...");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [data, setData] = useState({});
@@ -1056,6 +1056,10 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  useEffect(() => {
+      setSourceFilter('all');
+  }, [category, setSourceFilter]);
+
   // Inicialização
   useEffect(() => {
     if (newsData && newsData.length > 0 && !hasLoaded) {
@@ -1165,8 +1169,13 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
       {/* CABEÇALHO */}
       <div className="sticky top-0 z-[1000] w-full flex justify-center py-2 pointer-events-none">
           <div className="pointer-events-auto">
-             <SourceSelector news={safeNews} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} />
-          </div>
+<SourceSelector 
+    news={filteredByCategory} 
+    selectedSource={sourceFilter} 
+    onSelect={setSourceFilter} 
+    isDarkMode={isDarkMode} 
+/>          
+</div>
           <LiquidFilterBar 
             categories={FEED_CATEGORIES} 
             active={category} 
@@ -1281,7 +1290,19 @@ function YouTubeVerticalFilter({ categories, active, onChange, isDarkMode }) {
             <div className={`absolute flex items-center gap-2 px-3 py-2 rounded-2xl border transition-all duration-300 w-32 
                 ${isDarkMode ? 'bg-zinc-800 border-white/10 text-white focus-within:border-red-500' : 'bg-zinc-100 border-zinc-200 text-zinc-800 focus-within:border-red-500'}
             `} style={{ transform: 'rotate(-90deg)', transformOrigin: 'center center' }}>
-                <input type="text" placeholder="Buscar..." className="bg-transparent border-none outline-none text-xs font-bold uppercase tracking-wider w-full placeholder:text-zinc-500" />
+<input 
+                            type="text" 
+                            autoFocus={isSearchOpen}
+                            placeholder="O que você deseja saber?" 
+                            className="w-full bg-transparent text-white placeholder:text-white/30 text-sm font-medium py-3 outline-none"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && e.target.value.trim()) {
+                                    onSearch(e.target.value); // <--- CHAMA A FUNÇÃO DO PAI
+                                    setIsSearchOpen(false); // Fecha a barra
+                                    e.target.value = ''; // Limpa
+                                }
+                            }}
+                        />
                 <Search size={14} className={`flex-shrink-0 rotate-90 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`} />
             </div>
         </div>
@@ -2198,6 +2219,23 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [glassArticle, setGlassArticle] = useState(null);
 
+  const [voices, setVoices] = useState([]);
+
+  useEffect(() => {
+    const loadVoices = () => {
+        if (!synthRef.current) return;
+        const available = synthRef.current.getVoices();
+        setVoices(available);
+    };
+
+    if (synthRef.current) {
+        // Tenta carregar imediatamente
+        loadVoices();
+        // Chrome precisa desse evento
+        synthRef.current.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
   // MUDANÇA 1: Nome da chave e uso de SessionStorage
   const SESSION_KEY = 'newsos_current_session_digest';
   
@@ -2268,19 +2306,45 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
       }
   };
 
-  const handlePlayBriefing = () => {
+ const handlePlayBriefing = () => {
       if (!synthRef.current || !digest) return;
       if (isSpeaking) { cancelSpeech(); return; }
 
       setIsSpeaking(true);
-      const intro = `Briefing Executivo. ${digest.vibe_title}.`;
-      const content = digest.topics.map(t => `${t.tag}. ${t.summary}`).join('. ');
-      const finalText = `${intro} ${content}.`;
+      const intro = `Briefing Executivo do News O S. ${digest.vibe_title}.`;
+      
+      // Adicionei pausas estratégicas (vírgulas e pontos) para melhorar a cadência
+      const content = digest.topics.map(t => `${t.tag}. ${t.summary}`).join('. ... Próximo: ');
+      const finalText = `${intro} ... ${content}. ... Fim do resumo.`;
 
       const utterance = new SpeechSynthesisUtterance(finalText);
+      
+      // --- A MÁGICA DA VOZ (SELEÇÃO INTELIGENTE) ---
+      // Tenta achar vozes "Premium" gratuitas do sistema
+      const ptVoices = voices.filter(v => v.lang.includes('pt-BR'));
+      
+      // Prioridade 1: Voz do Google (Android/Chrome) - Geralmente a mais natural
+      let bestVoice = ptVoices.find(v => v.name.includes('Google'));
+      
+      // Prioridade 2: Voz "Luciana" ou "Joana" (iOS) - São as melhores da Apple
+      if (!bestVoice) bestVoice = ptVoices.find(v => v.name.includes('Luciana (Aprimorada)') || v.name.includes('Joana'));
+      
+      // Prioridade 3: Qualquer voz "Enhanced" (Melhorada)
+      if (!bestVoice) bestVoice = ptVoices.find(v => v.name.includes('Enhanced'));
+      
+      // Fallback: A primeira que achar em PT-BR
+      if (!bestVoice) bestVoice = ptVoices[0];
+
+      if (bestVoice) {
+          utterance.voice = bestVoice;
+          console.log("Voz selecionada:", bestVoice.name);
+      }
+
+      // AJUSTES DE ENTONAÇÃO (Tuning)
       utterance.lang = 'pt-BR'; 
-      utterance.rate = 1.1; 
-      utterance.pitch = 1;
+      utterance.rate = 1; // Um pouco mais rápido para parecer fluído
+      utterance.pitch = 0.95; // Levemente mais grave (tira o efeito "robô de lata")
+      
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
 
@@ -3290,7 +3354,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey, savedClusters, setSavedClusters  }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey, savedClusters, setSavedClusters, seenStoryIds }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [startY, setStartY] = useState(0);
@@ -3369,15 +3433,49 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       </div>
       
       {/* Área de Stories */}
-      <div className="flex items-center gap-4 px-2 pt-2 relative z-10">
+       <div className="flex items-center gap-4 px-2 pt-2 relative z-10">
         <div className="flex-1 min-w-0"> 
             <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
-                {storiesToDisplay && storiesToDisplay.length === 0 && <div className="flex flex-col justify-center h-full pl-2 opacity-50"><span className="text-[10px] font-bold uppercase tracking-widest">Nada de novo por aqui</span><span className="text-[9px]">Puxe para atualizar o feed</span></div>}
-                {storiesToDisplay && storiesToDisplay.map((story) => <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0"><div className="relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-lg shadow-rose-500/20"><div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}><img src={story.avatar} className="w-full h-full object-cover" alt="" /></div></div><span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span></div>)}
+                
+                {/* LÓGICA DE FILTRO VISUAL: Filtra os vistos SÓ aqui no visual */}
+                {storiesToDisplay && storiesToDisplay
+                    .filter(story => !seenStoryIds?.includes(story.id))
+                    .map((story) => (
+                    <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
+                        <div className="relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-lg shadow-rose-500/20">
+                            <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
+                                <img src={story.avatar} className="w-full h-full object-cover" alt="" onError={(e) => e.target.style.display = 'none'} />
+                            </div>
+                        </div>
+                        <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                            {story.name}
+                        </span>
+                    </div>
+                ))}
+
+                {/* MENSAGEM SE TUDO FOI VISTO */}
+                {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).length === 0 && (
+                    <div className="flex flex-col justify-center h-full pl-2 opacity-50">
+                        <span className="text-[10px] font-bold uppercase tracking-widest">Tudo visto por aqui</span>
+                        <span className="text-[9px]">Puxe para atualizar</span>
+                    </div>
+                )}
+
             </div>
         </div>
+
+        {/* BOTÃO DO PODCAST (Lateral Direita) */}
         <div className="flex-shrink-0 pl-2 border-l border-dashed border-zinc-300 dark:border-zinc-700">
-            <button onClick={() => setIsPodcastOpen(true)} className="group relative flex flex-col items-center justify-center gap-1.5 w-20 transition-all hover:scale-105 active:scale-95"><div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20"><Sparkles size={14} className="absolute top-1 right-1 text-white/60 animate-pulse" /><Headphones size={20} className="text-white" /></div><div className="text-center leading-none"><span className={`block text-[10px] font-black uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</span><span className="text-[8px] text-purple-500 font-bold">07:00</span></div></button>
+            <button onClick={() => setIsPodcastOpen(true)} className="group relative flex flex-col items-center justify-center gap-1.5 w-20 transition-all hover:scale-105 active:scale-95">
+                <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                    <Sparkles size={14} className="absolute top-1 right-1 text-white/60 animate-pulse" />
+                    <Headphones size={20} className="text-white" />
+                </div>
+                <div className="text-center leading-none">
+                    <span className={`block text-[10px] font-black uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</span>
+                    <span className="text-[8px] text-purple-500 font-bold">07:00</span>
+                </div>
+            </button>
         </div>
       </div>
       
@@ -3920,7 +4018,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
   }
 };
 
-// --- COMPONENTE: PLAYER GLOBAL (YOUTUBE EMBED + MP3) ---
+// --- COMPONENTE: PLAYER GLOBAL (YOUTUBE EMBED SEGURO) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const audioRef = useRef(null);
   
@@ -3930,18 +4028,18 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const [duration, setDuration] = useState(0);
   const [isYoutube, setIsYoutube] = useState(false);
 
-  // Extrai ID do YouTube de forma robusta
+  // Extração de ID à prova de falhas
   const ytId = useMemo(() => {
       if (!track) return null;
-      // Suporta link normal, encurtado, shorts, embed
+      // Regex poderoso que pega Shorts, Links normais, Links curtos
       const match = track.link?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
-      return track.videoId || (match ? match[1] : null);
+      const idFromVideoId = track.videoId;
+      return idFromVideoId || (match ? match[1] : null);
   }, [track]);
 
   useEffect(() => {
     if (!track) return;
 
-    // Reset
     setIsPlaying(false);
     setProgress(0);
     setCurrentTime(0);
@@ -3949,7 +4047,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 
     if (ytId) {
         setIsYoutube(true);
-        // YouTube não precisa de "load()" manual aqui, o iframe carrega sozinho
+        // YouTube carrega via Iframe abaixo
     } else {
         setIsYoutube(false);
         if (audioRef.current) {
@@ -3962,19 +4060,20 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
     }
   }, [track, ytId]);
 
-  // Sincronização de Tempo para YouTube (Simulado visualmente)
+  // Simulação de progresso para YouTube (já que a API real é pesada)
   useEffect(() => {
       let interval = null;
       if (isYoutube && isPlaying) {
           interval = setInterval(() => {
-              setCurrentTime(prev => prev + 0.5);
+              setCurrentTime(prev => prev + 1);
+              // Avança a barra visualmente
               if (duration > 0) setProgress((currentTime / duration) * 100);
-          }, 500);
+          }, 1000);
       }
       return () => clearInterval(interval);
   }, [isYoutube, isPlaying, currentTime, duration]);
 
-  // Métodos de Áudio Nativo
+  // Handlers
   const handleNativeTimeUpdate = () => {
       if (audioRef.current) {
           setCurrentTime(audioRef.current.currentTime);
@@ -3986,19 +4085,13 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   };
 
   const togglePlay = () => {
-      if (isYoutube) {
-          // No modo Iframe simples, o botão de play/pause externo é difícil de sincronizar 
-          // sem a API pesada do Google. 
-          // SOLUÇÃO UX: O usuário clica no vídeo para pausar/tocar.
-          // O botão aqui vira apenas um indicador visual ou "Mute".
-          setIsPlaying(!isPlaying); 
-      } else {
-          if (audioRef.current) {
-              if (isPlaying) audioRef.current.pause();
-              else audioRef.current.play();
-              setIsPlaying(!isPlaying);
-          }
+      if (!isYoutube && audioRef.current) {
+          if (isPlaying) audioRef.current.pause();
+          else audioRef.current.play();
+          setIsPlaying(!isPlaying);
       }
+      // Para YouTube, o controle é direto no Iframe (clique no vídeo)
+      // O botão vira apenas um indicador visual se for YouTube
   };
 
   const formatTime = (t) => {
@@ -4013,7 +4106,6 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   return (
     <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-4 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
         
-        {/* ENGINE MP3 (Nativo) */}
         {!isYoutube && (
             <audio 
                 ref={audioRef} 
@@ -4024,7 +4116,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
             />
         )}
         
-        {/* BARRA DE PROGRESSO (Visual apenas no YouTube) */}
+        {/* BARRA DE PROGRESSO */}
         <div className="absolute top-0 left-4 right-4 -mt-1.5 h-4 flex items-center z-20">
              <div className="w-full h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full overflow-hidden">
                 <div className="h-full bg-orange-500 transition-all duration-500" style={{ width: `${progress}%` }} />
@@ -4033,23 +4125,21 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 
         <div className="flex items-center gap-4 mt-2">
             
-            {/* --- AQUI FICA O VÍDEO --- */}
-            <div className="w-20 h-14 rounded-lg bg-black flex-shrink-0 overflow-hidden relative shadow-md border border-white/10">
+            {/* --- O SEGREDO DO YOUTUBE --- */}
+            <div className="w-24 h-16 rounded-lg bg-black flex-shrink-0 overflow-hidden relative shadow-md border border-white/10">
                 {isYoutube ? (
-                    // IFRAME DO YOUTUBE REAL
+                    // Iframe Direto do YouTube (Isso impede abrir o App externo)
+                    // playsinline=1 é OBRIGATÓRIO no iOS
                     <iframe
                         width="100%"
                         height="100%"
-                        // playsinline=1 é OBRIGATÓRIO para não ir para fullscreen no iOS
-                        src={`https://www.youtube.com/embed/${ytId}?autoplay=1&playsinline=1&controls=0&modestbranding=1&rel=0`}
-                        title="YouTube Player"
+                        src={`https://www.youtube.com/embed/${ytId}?playsinline=1&controls=0&modestbranding=1&rel=0&showinfo=0`}
+                        title="YouTube"
                         frameBorder="0"
                         allow="autoplay; encrypted-media; picture-in-picture"
-                        allowFullScreen
-                        style={{ pointerEvents: 'auto' }} // Garante que o toque funcione
+                        style={{ pointerEvents: 'auto' }} // Permite clicar para dar play/pause
                     />
                 ) : (
-                    // Capa para Podcast Normal
                     <img src={track.cover} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                 )}
             </div>
@@ -4058,16 +4148,12 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
             <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-bold leading-tight truncate">{track.title}</h4>
                 <p className="text-[10px] opacity-60 truncate flex items-center gap-1 mt-1">
-                    {isYoutube ? (
-                        <span className="text-red-500 font-bold flex items-center gap-1"><Youtube size={10}/> YouTube</span>
-                    ) : (
-                        <span className="text-blue-500 font-bold flex items-center gap-1"><Mic size={10}/> Podcast</span>
-                    )}
-                    <span>• {isYoutube ? "Ao Vivo / Tocando" : `${formatTime(currentTime)} / ${formatTime(duration)}`}</span>
+                    {isYoutube ? <span className="text-red-500 font-bold flex items-center gap-1"><Youtube size={10}/> YouTube</span> : <span className="text-blue-500 font-bold flex items-center gap-1"><Mic size={10}/> Podcast</span>}
+                    <span>• {isYoutube ? "Toque no vídeo" : `${formatTime(currentTime)} / ${formatTime(duration)}`}</span>
                 </p>
             </div>
 
-            {/* CONTROLES */}
+            {/* CONTROLES (Só funcionam bem pra MP3 Nativo) */}
             <div className="flex items-center gap-3">
                 {!isYoutube && (
                     <button onClick={togglePlay} className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg bg-orange-500 hover:scale-105 active:scale-95 transition">
@@ -4077,7 +4163,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                 
                 {isYoutube && (
                     <div className="text-[9px] text-zinc-500 font-bold uppercase w-16 text-right leading-tight">
-                        Toque no vídeo para pausar
+                        Vídeo Ativo
                     </div>
                 )}
                 
@@ -4217,9 +4303,254 @@ const getFullVideoUrl = (video) => {
 
 
 
+// --- FUNÇÃO 1: BUSCA NA WEB (DUCKDUCKGO VIA PROXY) ---
+const searchWeb = async (query) => {
+    try {
+        // Usa a versão HTML (Lite) do DuckDuckGo que é mais fácil de ler e não bloqueia tanto
+        const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(`https://html.duckduckgo.com/html/?q=${query}&kl=br-pt`);
+        
+        const res = await fetch(proxyUrl);
+        const html = await res.text();
+        
+        // Parser simples para extrair resultados do HTML cru
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        const results = [];
+        
+        const nodes = doc.querySelectorAll('.result');
+        nodes.forEach((node) => {
+            const titleNode = node.querySelector('.result__a');
+            const snippetNode = node.querySelector('.result__snippet');
+            
+            if (titleNode && snippetNode) {
+                results.push({
+                    title: titleNode.textContent,
+                    link: titleNode.getAttribute('href'),
+                    snippet: snippetNode.textContent
+                });
+            }
+        });
+
+        // Retorna os 5 melhores
+        return results.slice(0, 5);
+    } catch (e) {
+        console.error("Erro na busca web:", e);
+        return [];
+    }
+};
+
+// --- FUNÇÃO 2: GERAR RESPOSTA IA (GEMINI) ---
+const askGeminiWithContext = async (question, contextResults, apiKey) => {
+    if (!apiKey) return null;
+
+    // Monta o contexto com os dados da busca
+    const contextText = contextResults.map((r, i) => 
+        `[Fonte ${i+1}]: ${r.title} - ${r.snippet}`
+    ).join('\n');
+
+    const prompt = `
+    PERGUNTA DO USUÁRIO: "${question}"
+
+    INFORMAÇÕES RECENTES DA WEB:
+    ${contextText}
+
+    SUA MISSÃO:
+    Responda a pergunta do usuário usando APENAS as informações fornecidas acima.
+    - Seja direto, jornalístico e imparcial.
+    - Se a informação não estiver no texto, diga que não encontrou resultados recentes.
+    - Cite as fontes pelos números (ex: [1], [2]) quando afirmar algo.
+    - Resposta em Português do Brasil. Máximo 3 parágrafos.
+    `;
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "Erro ao gerar resposta.";
+    } catch (e) {
+        return "Erro de conexão com a IA.";
+    }
+};
+
+
+
+
 const FEED_CACHE_PREFIX = 'newsos_cache_v1_';
 
 
+
+
+
+// --- COMPONENTE: ASK AI MODAL ---
+const AskAIModal = ({ question, answer, sources, isLoading, onClose, isDarkMode }) => {
+    return (
+        <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
+            
+            <div className={`
+                relative w-full max-w-md rounded-3xl p-6 shadow-2xl border flex flex-col gap-4
+                ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}
+            `}>
+                {/* Pergunta */}
+                <div className="flex items-start gap-3 border-b pb-4 border-dashed border-zinc-500/20">
+                    <div className="p-2 rounded-full bg-indigo-500 text-white shrink-0">
+                        <Search size={20} />
+                    </div>
+                    <div>
+                        <span className="text-[10px] font-bold uppercase opacity-50 tracking-wider">Você perguntou</span>
+                        <h3 className={`font-bold text-lg leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                            {question}
+                        </h3>
+                    </div>
+                </div>
+
+                {/* Resposta */}
+                <div className="min-h-[100px]">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center h-32 gap-3 opacity-50">
+                            <Loader2 size={32} className="animate-spin text-purple-500"/>
+                            <p className="text-xs font-bold uppercase">Pesquisando na web & Escrevendo...</p>
+                        </div>
+                    ) : (
+                        <div className={`text-sm leading-relaxed whitespace-pre-wrap ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                            {answer}
+                        </div>
+                    )}
+                </div>
+
+                {/* Fontes */}
+                {!isLoading && sources && sources.length > 0 && (
+                    <div className="pt-2">
+                        <span className="text-[10px] font-bold uppercase opacity-40 mb-2 block">Fontes Consultadas</span>
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                            {sources.map((source, i) => (
+                                <a 
+                                    key={i} 
+                                    href={source.link} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className={`
+                                        flex-shrink-0 px-3 py-2 rounded-lg text-[10px] font-bold max-w-[120px] truncate border
+                                        ${isDarkMode ? 'bg-zinc-800 border-white/5 hover:bg-zinc-700' : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100'}
+                                    `}
+                                >
+                                    [{i+1}] {source.title}
+                                </a>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <button onClick={onClose} className="absolute top-4 right-4 opacity-50 hover:opacity-100">
+                    <X size={20} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+
+
+// --- COMPONENTE: STORY OVERLAY (CORRIGIDO ERRO CONFIGURAÇÃO) ---
+const StoryOverlay = ({ story, onClose, openArticle, onMarkAsSeen, allStories, onNavigate }) => {
+  
+  useEffect(() => {
+    if (story && story.id && onMarkAsSeen) {
+        onMarkAsSeen(story.id); 
+    }
+  }, [story, onMarkAsSeen]);
+
+  const currentIndex = Array.isArray(allStories) ? allStories.findIndex(s => s.id === story.id) : -1;
+  const hasPrevStory = currentIndex > 0;
+  const hasNextStory = currentIndex >= 0 && currentIndex < (allStories?.length || 0) - 1;
+
+  if (!story || !story.items || story.items.length === 0) return null;
+  const currentItem = story.items[0];
+
+  // Detecta se é Short
+  const isShort = currentItem.link?.includes('/shorts/') || currentItem.title?.toLowerCase().includes('#shorts');
+  
+  // Extrai ID
+  const match = currentItem.link?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+  const videoId = currentItem.videoId || (match ? match[1] : null);
+
+  // --- CORREÇÃO DO ERRO DE CONFIGURAÇÃO ---
+  // Precisamos passar a origem exata para o YouTube autorizar o embed
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  const handleOpenFullArticle = () => {
+      onClose();
+      openArticle({ ...currentItem, source: story.name, category: 'Story', origin: 'rss' });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[10000] bg-black flex flex-col animate-in zoom-in-95 duration-300">
+       <div className="relative w-full h-full md:max-w-[60vh] md:aspect-[9/16] md:mx-auto md:my-auto md:rounded-3xl overflow-hidden bg-zinc-900 shadow-2xl border border-white/5">
+        
+        <div className="absolute inset-0 bg-black">
+            {isShort && videoId ? (
+                // IFRAME BLINDADO COM ORIGIN
+                <iframe
+                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&modestbranding=1&playsinline=1&rel=0&fs=0&loop=1&playlist=${videoId}&enablejsapi=1&origin=${origin}&widgetid=1`}
+                    className="w-full h-full object-cover pointer-events-auto"
+                    title="Shorts Player"
+                    frameBorder="0"
+                    allow="autoplay; encrypted-media"
+                    referrerPolicy="strict-origin-when-cross-origin" // Importante para segurança
+                />
+            ) : (
+                <>
+                    <img src={currentItem.img} className="w-full h-full object-cover" alt="Story" onError={(e) => { e.target.style.display = 'none'; }}/>
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/90" />
+                </>
+            )}
+        </div>
+
+        {/* CONTROLES DE NAVEGAÇÃO */}
+        <div className="absolute inset-0 z-20 flex pointer-events-none">
+            <div className="w-[20%] h-full pointer-events-auto" onClick={() => onNavigate('prev')} />
+            <div className="flex-1 h-full" />
+            <div className="w-[20%] h-full pointer-events-auto" onClick={() => onNavigate('next')} />
+        </div>
+
+        {/* CABEÇALHO */}
+        <div className="absolute top-0 left-0 right-0 p-4 pt-10 md:pt-8 z-30 space-y-2 pointer-events-none">
+          <div className="flex gap-1.5 h-1">
+              {allStories && allStories.map((s, idx) => (
+                  <div key={s.id} className={`flex-1 rounded-full h-full ${idx < currentIndex ? 'bg-white' : (idx === currentIndex ? 'bg-white animate-[progress_5s_linear]' : 'bg-white/20')}`} />
+              ))}
+          </div>
+          <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full border-2 border-white/30 p-[2px] bg-black/20 backdrop-blur-md">
+                      <img src={story.avatar} className="w-full h-full rounded-full object-cover" />
+                  </div>
+                  <div className="flex flex-col drop-shadow-md">
+                      <span className="text-white font-black text-sm tracking-tight">{story.name}</span>
+                      <span className="text-zinc-300 text-[10px] font-bold opacity-90">{currentItem.time}</span>
+                  </div>
+              </div>
+              <button onClick={onClose} className="pointer-events-auto p-2.5 text-white/80 hover:text-white backdrop-blur-xl rounded-full bg-white/10 border border-white/10 active:scale-90"><X size={26} /></button>
+          </div>
+        </div>
+
+        {!isShort && (
+            <div className="absolute bottom-0 left-0 right-0 p-8 z-30 pb-12 md:pb-10 pointer-events-none">
+                <div className="pointer-events-auto flex flex-col items-center">
+                    <h2 className="text-white text-2xl md:text-3xl font-black leading-tight mb-8 drop-shadow-2xl font-serif text-center line-clamp-5">{currentItem.title}</h2>
+                    <button onClick={(e) => { e.stopPropagation(); handleOpenFullArticle(); }} className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100"><span className="text-sm uppercase tracking-widest">Ler Notícia Completa</span><ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></button>
+                </div>
+            </div>
+        )}
+       </div>
+       <div className="fixed inset-0 -z-10 bg-zinc-950/95 backdrop-blur-3xl md:block hidden" onClick={onClose} />
+    </div>
+  );
+}
 
 
 
@@ -4259,6 +4590,31 @@ const [userFeeds, setUserFeeds] = useState([]);
   const [isLoadingFeeds, setIsLoadingFeeds] = useState(false);
   const [realPodcasts, setRealPodcasts] = useState([]);
 
+  // --- ESTADOS ASK AI ---
+  const [askQuestion, setAskQuestion] = useState(null);
+  const [askAnswer, setAskAnswer] = useState(null);
+  const [askSources, setAskSources] = useState([]);
+  const [isAskLoading, setIsAskLoading] = useState(false);
+
+  const handleAskAI = async (query) => {
+      setAskQuestion(query);
+      setAskAnswer(null);
+      setAskSources([]);
+      setIsAskLoading(true);
+
+      // 1. Busca na Web (Gratuita)
+      const results = await searchWeb(query);
+      setAskSources(results);
+
+      // 2. Pergunta pro Gemini
+      // Usa a chave Reader (preferencial) ou Geral
+      const activeKey = readerApiKey || apiKey;
+      const aiResponse = await askGeminiWithContext(query, results, activeKey);
+      
+      setAskAnswer(aiResponse);
+      setIsAskLoading(false);
+  };
+
   // --- AUTENTICAÇÃO E SYNC ---
   const [user, setUser] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false); 
@@ -4271,23 +4627,23 @@ const handleHappeningRefresh = async () => {
 };
 
 const handleStoryNavigation = (direction) => {
-    // AQUI, use 'allAvailableStories'
-    if (!selectedStory || !allAvailableStories) return;
+    // MUDANÇA: Agora olhamos para 'storiesForHappeningTab' (a lista real que o usuário vê)
+    if (!selectedStory || !storiesForHappeningTab) return;
 
-    const currentIndex = allAvailableStories.findIndex(s => s.id === selectedStory.id);
+    const currentIndex = storiesForHappeningTab.findIndex(s => s.id === selectedStory.id);
     if (currentIndex === -1) return;
 
     if (direction === 'next') {
         const nextIndex = currentIndex + 1;
-        if (nextIndex < allAvailableStories.length) {
-            setSelectedStory(allAvailableStories[nextIndex]);
+        if (nextIndex < storiesForHappeningTab.length) {
+            setSelectedStory(storiesForHappeningTab[nextIndex]);
         } else {
-            closeStory();
+            closeStory(); // Acabou, fecha
         }
     } else if (direction === 'prev') {
         const prevIndex = currentIndex - 1;
         if (prevIndex >= 0) {
-            setSelectedStory(allAvailableStories[prevIndex]);
+            setSelectedStory(storiesForHappeningTab[prevIndex]);
         }
     }
   };
@@ -4528,8 +4884,9 @@ const handleStoryNavigation = (direction) => {
 
         // --- CAMADA 3: FETCH REAL (Custo $$) ---
         if (!usedCache) {
-            const isLegacySource = feed.url.includes('uol.com.br') || feed.url.includes('folha.uol.com.br');
-
+const isLegacySource = feed.url.includes('uol.com.br') || 
+                       feed.url.includes('folha.uol.com.br') || 
+                       feed.url.includes('moneytimes.com.br');
             try {
                 if (isLegacySource) {
                     // Proxy Gratuito
@@ -4543,6 +4900,14 @@ const handleStoryNavigation = (direction) => {
                     detectedXmlTitle = parsedData.realTitle; 
                     if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
                     else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
+                    if (feed.url.includes('band.uol') || feed.url.includes('band.com') || feed.url.includes('moneytimes')) {
+                         const decoder = new TextDecoder('utf-8');
+                         xmlText = decoder.decode(buffer);
+                    } else {
+                         // Padrão antigo para Folha e UOL Clássico
+                         const decoder = new TextDecoder('iso-8859-1');
+                         xmlText = decoder.decode(buffer);
+                    }
 
                 } else {
                     // Supabase (Pago)
@@ -4629,11 +4994,44 @@ const handleStoryNavigation = (direction) => {
             else if (lowerName.includes('portal band') || lowerUrl.includes('band.com.br')) {
                 finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/01/Logo-Band.png';
             }
+            else if (lowerName.includes('fox news') || lowerUrl.includes('foxnews.com')) {
+                finalLogo = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png';
+            }
+            else if (lowerName.includes('tech tudo') || lowerUrl.includes('techtudo.com.br')) {
+                finalLogo = 'https://s2-techtudo.glbimg.com/ClxoTfu8WQM9Z32HOq8-JoIn6kQ=/0x0:1000x1000/https://i.s3.glbimg.com/v1/AUTH_08fbf48bc0524877943fe86e43087e7a/internal_photos/bs/2024/D/y/j1anEBTaq7PDyELOMlsQ/techtudo-logo.png';
+            }
+            else if (lowerName.includes('money times') || lowerUrl.includes('moneytimes.com.br')) {
+                finalLogo = 'https://yt3.googleusercontent.com/2_4tkB-A3O4dkQUh697ksz6cNVDltiVMlSFmnWF9-7yBytKquVH_myUmtYiv3PKufBreGsYlmQ=s900-c-k-c0x00ffffff-no-rj';
+            }
+            else if (lowerName.includes('piaui hoje') || lowerUrl.includes('piauihoje.com')) {
+                finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6uiO4AtPH2uxKoEbqmsLXA5qR0voQ7Dd3xg&s';
+            }
+            else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) {
+                finalLogo = 'https://cdn.motor1.com/custom/share/motor1_loadimage.png';
+            }
             
-            // 2. Lógica para YouTube (Avatar Colorido se não tiver imagem)
-            else if (isFeedYoutube && !finalLogo) {
-                finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=ff0000&color=fff&size=128&bold=true`;
-            } 
+            // 2. Lógica para YouTube (Cores Dinâmicas + Foto Real)
+            else if (isFeedYoutube) {
+                // CORREÇÃO 1: Mudei '&background=ff0000' para '&background=random'
+                // Isso garante que cada canal tenha uma cor diferente se a foto falhar.
+                const letterAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128&bold=true`;
+                
+                // Tenta extrair o ID do canal
+                const channelIdMatch = feed.url.match(/channel_id=([^&]+)/);
+                const userMatch = feed.url.match(/user=([^&]+)/);
+                
+                if (channelIdMatch) {
+                    // Tenta Unavatar com o ID limpo
+                    finalLogo = `https://unavatar.io/youtube/${channelIdMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
+                } 
+                else if (userMatch) {
+                    finalLogo = `https://unavatar.io/youtube/${userMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
+                } 
+                else {
+                    // Se não tiver ID, usa as letras coloridas direto
+                    finalLogo = letterAvatar;
+                }
+            }
             
             // 3. Fallback Automático (Google Favicon)
             else if (!finalLogo) {
@@ -4905,39 +5303,46 @@ const handleStoryNavigation = (direction) => {
 const storiesForHappeningTab = useMemo(() => {
     if (!realNews || realNews.length === 0) return [];
 
-    const sortedEverything = [...realNews].sort((a, b) => {
-        const timeA = new Date(a.rawDate).getTime() || 0;
-        const timeB = new Date(b.rawDate).getTime() || 0;
-        return timeB - timeA;
+    const latestBySource = new Map();
+    // Ordena cronologicamente
+    const chronologicalNews = [...realNews].sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+    
+    chronologicalNews.forEach(item => {
+        const sourceName = (item.source || "Fonte").trim();
+        // Pega a mais recente de cada fonte (SEM FILTRAR OS VISTOS AQUI)
+        if (!latestBySource.has(sourceName)) {
+            latestBySource.set(sourceName, item);
+        }
     });
 
-    const uniqueStories = [];
-    const seenSources = new Set();
-    
-    for (const item of sortedEverything) {
-        const sourceName = (item.source || "Fonte").trim();
-        
-        if (!seenSources.has(sourceName)) {
-            seenSources.add(sourceName);
+    let storyCandidates = Array.from(latestBySource.values());
 
-            // A lógica de filtro permanece AQUI
-            if (seenStoryIds.includes(item.id)) {
-                continue;
-            }
+    // EMBARALHAMENTO ESTÁVEL (Semente baseada no tamanho para não pular toda hora)
+    // Para evitar que a lista mude a cada clique, vamos apenas inverter ou manter fixa por enquanto,
+    // ou usar um shuffle simples que só roda quando a lista de notícias muda.
+    const BUCKET_SIZE = 5;
+    const shuffledStories = [];
 
-            const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
-            const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
-
-            uniqueStories.push({
-                id: item.id,
-                name: sourceName,
-                avatar: item.logo || `https://ui-avatars.com/api/?name=${sourceName}&background=random&color=fff`,
-                items: [{ ...item, img: finalImg, origin: 'story' }]
-            });
-        }
+    for (let i = 0; i < storyCandidates.length; i += BUCKET_SIZE) {
+        let chunk = storyCandidates.slice(i, i + BUCKET_SIZE);
+        // Shuffle simples
+        chunk = chunk.sort(() => Math.random() - 0.5);
+        shuffledStories.push(...chunk);
     }
-    return uniqueStories;
-}, [realNews, seenStoryIds]);
+
+    return shuffledStories.map(item => {
+         const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
+         const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
+
+         return {
+            id: item.id,
+            name: item.source,
+            avatar: item.logo || `https://ui-avatars.com/api/?name=${item.source}&background=random&color=fff`,
+            items: [{ ...item, img: finalImg, origin: 'story' }]
+         };
+    });
+
+  }, [realNews]); // REMOVIDO 'seenStoryIds' DAS DEPENDÊNCIAS
 
 
 // 2. Esta lista é para a NAVEGAÇÃO. Ela contém TODOS os stories, sem filtro.
@@ -4990,6 +5395,7 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
              activeTab={activeTab}
              isLoading={isLoadingFeeds}
              selectedSource={sourceFilter}
+             onSearch={handleAskAI} 
           />
 
           <main ref={mainRef} className="flex-1 overflow-y-auto pb-40 px-4 md:px-6 scrollbar-hide pt-2">
@@ -5001,7 +5407,7 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
         isDarkMode={isDarkMode} 
         newsData={realNews} // Garanta que esta linha está presente
         onRefresh={handleHappeningRefresh}
-        
+        seenStoryIds={seenStoryIds} 
         onMarkAsSeen={markStoryAsSeen}
         apiKey={apiKey}
         storiesToDisplay={storiesForHappeningTab}
@@ -5018,13 +5424,29 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     isLoading={isLoadingFeeds}
                     savedItems={savedItems}
                     onToggleSave={handleToggleSave}
-                    onPlayAudio={(pod) => {
-                        // MUDANÇA: NÃO abrimos mais o Browser.open.
-                        // Mandamos TUDO para o Player Interno (GlobalAudioPlayer).
-                        // O Player Interno saberá lidar com o YouTube.
-                        
-                        handleOpenArticle(null); // Garante que fecha modais de texto
-                        setPlayingAudio(pod);    // Abre a barra inferior
+                    onPlayAudio={async (pod) => {
+                        // 1. Extração de ID (Youtube)
+                        const url = pod.link || "";
+                        const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+                        const videoId = pod.videoId || (match ? match[1] : null);
+
+                        if (videoId) {
+                            // CENÁRIO YOUTUBE: Abre no Safari In-App (Seguro e Estável)
+                            // Isso impede que abra o App nativo do YouTube se configurado corretamente,
+                            // e garante que o vídeo toque.
+                            
+                            setPlayingAudio(null); // Fecha o player de áudio interno
+                            
+                            await Browser.open({
+                                url: `https://www.youtube.com/watch?v=${videoId}`,
+                                presentationStyle: 'fullscreen', // Ou 'popover' no iPad
+                                toolbarColor: isDarkMode ? '#000000' : '#FFFFFF'
+                            });
+                        } else {
+                            // CENÁRIO MP3: Player Interno
+                            handleOpenArticle(null); 
+                            setPlayingAudio(pod);
+                        }
                     }}
                 />
             )}
@@ -5093,6 +5515,17 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                 />
             )}
 
+            {askQuestion && (
+          <AskAIModal 
+              question={askQuestion} 
+              answer={askAnswer} 
+              sources={askSources} 
+              isLoading={isAskLoading} 
+              onClose={() => setAskQuestion(null)} 
+              isDarkMode={isDarkMode} 
+          />
+      )}
+
             <nav className={`
                 relative w-full overflow-hidden flex flex-col border-t shadow-[0_-10px_50px_rgba(0,0,0,0.5)] border-white/20  
                 transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1)
@@ -5159,7 +5592,19 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
       
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
-{selectedStory && <StoryOverlay story={selectedStory} onClose={closeStory} openArticle={handleOpenArticle} onMarkAsSeen={markStoryAsSeen} allStories={allAvailableStories}  onNavigate={handleStoryNavigation}/>}
+{selectedStory && (
+    <StoryOverlay 
+        story={selectedStory} 
+        onClose={closeStory} 
+        openArticle={handleOpenArticle} 
+        onMarkAsSeen={markStoryAsSeen} 
+        
+        // A CORREÇÃO: Usamos a mesma lista que aparece na tela (Embaralhada e Filtrada)
+        allStories={storiesForHappeningTab} 
+        
+        onNavigate={handleStoryNavigation}
+    />
+)}
       {playingAudio && (
           <GlobalAudioPlayer 
               track={playingAudio} 
@@ -5288,97 +5733,6 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
   );
 }
 
-function StoryOverlay({ story, onClose, openArticle, onMarkAsSeen, allStories, onNavigate }) {
-  
-  // --- INÍCIO DO BLOCO DE DIAGNÓSTICO ---
-  console.log("--- DEBUG STORY OVERLAY ---");
-  console.log("Story atual recebido (prop 'story'):", story);
-  console.log("ID que estamos procurando:", story?.id);
-  console.log("Lista completa recebida (prop 'allStories'):", allStories);
-  console.log("A lista 'allStories' é um array?", Array.isArray(allStories));
-  if (Array.isArray(allStories)) {
-    console.log("Total de stories na lista:", allStories.length);
-    console.log("IDs presentes na lista:", allStories.map(s => s.id));
-  }
-  // --- FIM DO BLOCO DE DIAGNÓSTICO ---
-
-  useEffect(() => {
-    if (story && story.id && onMarkAsSeen) {
-        onMarkAsSeen(story.id); 
-    }
-  }, [story, onMarkAsSeen]);
-
-  // Esta linha é o ponto de falha. Vamos logar o resultado dela.
-  const currentIndex = Array.isArray(allStories) ? allStories.findIndex(s => s.id === story.id) : -1;
-  console.log("Resultado do findIndex (currentIndex):", currentIndex);
-
-  const hasPrevStory = currentIndex > 0;
-  const hasNextStory = currentIndex >= 0 && currentIndex < (allStories?.length || 0) - 1;
-  
-  console.log("hasPrevStory:", hasPrevStory, "| hasNextStory:", hasNextStory);
-  console.log("--------------------------");
-
-
-  if (!story || !story.items || story.items.length === 0) return null;
-
-  const currentItem = story.items[0];
-
-  const handleOpenFullArticle = () => {
-      onClose();
-      openArticle({ 
-        ...currentItem, 
-        source: story.name, 
-        category: 'Story',
-        origin: 'rss' 
-      });
-  };
-
-  // O resto do componente continua igual, apenas o início foi modificado para os logs.
-  return (
-    <div className="fixed inset-0 z-[10000] bg-black flex flex-col animate-in zoom-in-95 duration-300">
-       <div className="relative w-full h-full md:max-w-[60vh] md:aspect-[9/16] md:mx-auto md:my-auto md:rounded-3xl overflow-hidden bg-zinc-900 shadow-2xl border border-white/5">
-        <div className="absolute inset-0">
-            <img src={currentItem.img} className="w-full h-full object-cover" alt="Fundo do Story" onError={(e) => { e.target.style.display = 'none'; }}/>
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/90" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60" />
-        </div>
-        <div className="absolute top-0 left-0 right-0 p-4 pt-10 md:pt-8 z-30 space-y-4">
-          <div className="flex gap-1.5 h-1">
-              {allStories && allStories.map((s, idx) => (
-                  <div key={s.id} className={`flex-1 rounded-full h-full ${idx < currentIndex ? 'bg-white' : (idx === currentIndex ? 'bg-white animate-[progress_5s_linear]' : 'bg-white/20')}`} />
-              ))}
-          </div>
-          <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full border-2 border-white/30 p-[2px] bg-black/20 backdrop-blur-md">
-                      <img src={story.avatar} className="w-full h-full rounded-full object-cover" alt="Logo" />
-                  </div>
-                  <div className="flex flex-col">
-                      <span className="text-white font-black text-sm drop-shadow-md tracking-tight">{story.name}</span>
-                      <span className="text-zinc-300 text-[10px] font-bold drop-shadow-md opacity-90">{currentItem.rawDate ? new Date(currentItem.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                  </div>
-              </div>
-              <button onClick={onClose} className="p-2.5 text-white/80 hover:text-white backdrop-blur-xl rounded-full bg-white/10 border border-white/10 transition-transform active:scale-90"><X size={26} /></button>
-          </div>
-        </div>
-        <div className="absolute inset-0 z-20 flex">
-            <div className="w-[30%] h-full" onClick={() => onNavigate('prev')} />
-            <div className="w-[70%] h-full" onClick={() => onNavigate('next')} />
-        </div>
-        {hasPrevStory && ( <button onClick={(e) => { e.stopPropagation(); onNavigate('prev'); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"><ChevronLeft size={28} /></button> )}
-        {hasNextStory && ( <button onClick={(e) => { e.stopPropagation(); onNavigate('next'); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-black/20 backdrop-blur-md text-white/70 hover:bg-white/20 hover:text-white transition-all"><ChevronRight size={28} /></button> )}
-        <div className="absolute bottom-0 left-0 right-0 p-8 z-30 pb-12 md:pb-10 pointer-events-none">
-            <div className="pointer-events-auto flex flex-col items-center">
-                <h2 className="text-white text-2xl md:text-3xl font-black leading-tight mb-8 drop-shadow-2xl font-serif text-center line-clamp-5">{currentItem.title}</h2>
-                <button onClick={(e) => { e.stopPropagation(); handleOpenFullArticle(); }} className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100"><span className="text-sm uppercase tracking-widest">Ler Notícia Completa</span><ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></button>
-            </div>
-        </div>
-       </div>
-       <div className="fixed inset-0 -z-10 bg-zinc-950/95 backdrop-blur-3xl md:block hidden" onClick={onClose} />
-       <style jsx="true">{`@keyframes progress { 0% { width: 0%; } 100% { width: 100%; } }`}</style>
-    </div>
-  );
-}
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
 // Usa a API 'gtx' do Google (gratuita/pública) para traduzir textos mantendo estrutura
