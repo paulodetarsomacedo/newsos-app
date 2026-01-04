@@ -1317,24 +1317,19 @@ function YouTubeVerticalFilter({ categories, active, onChange, isDarkMode }) {
         {/* Divisória */}
         <div className={`w-full h-[1px] my-1 ${isDarkMode ? 'bg-white/10' : 'bg-black/5'}`} />
 
-        {/* Barra de Pesquisa */}
+        {/* Barra de Pesquisa (Apenas Visual - Sem lógica complexa para não dar erro) */}
         <div className="relative w-8 h-32 flex items-center justify-center py-2">
             <div className={`absolute flex items-center gap-2 px-3 py-2 rounded-2xl border transition-all duration-300 w-32 
                 ${isDarkMode ? 'bg-zinc-800 border-white/10 text-white focus-within:border-red-500' : 'bg-zinc-100 border-zinc-200 text-zinc-800 focus-within:border-red-500'}
             `} style={{ transform: 'rotate(-90deg)', transformOrigin: 'center center' }}>
-<input 
-                            type="text" 
-                            autoFocus={isSearchOpen}
-                            placeholder="O que você deseja saber?" 
-                            className="w-full bg-transparent text-white placeholder:text-white/30 text-sm font-medium py-3 outline-none"
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && e.target.value.trim()) {
-                                    onSearch(e.target.value); // <--- CHAMA A FUNÇÃO DO PAI
-                                    setIsSearchOpen(false); // Fecha a barra
-                                    e.target.value = ''; // Limpa
-                                }
-                            }}
-                        />
+                
+                {/* INPUT LIMPO - SEM REF, SEM AUTO FOCUS, SEM ISSEARCHOPEN */}
+                <input 
+                    type="text" 
+                    placeholder="Buscar..." 
+                    className="bg-transparent border-none outline-none text-xs font-bold uppercase tracking-wider w-full placeholder:text-zinc-500" 
+                />
+                
                 <Search size={14} className={`flex-shrink-0 rotate-90 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`} />
             </div>
         </div>
