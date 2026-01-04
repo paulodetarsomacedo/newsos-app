@@ -325,149 +325,29 @@ function CalendarModal({ isOpen, onClose, selectedDate, onSelectDate, isDarkMode
 }
 
 
+// --- HEADER DASHBOARD (CORRIGIDO E BLINDADO) ---
 function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, selectedSource, onSearch }) {
   const [aiStatus, setAiStatus] = useState("Inicializando sistemas...");
+  
+  // 1. Definição dos Estados Principais
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [data, setData] = useState({});
-  const searchInputRef = useRef(null); 
-
-  // --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI ---
-  // 1. Inicializa a data como 'null' no servidor.
-  const [currentDate, setCurrentDate] = useState(null); 
-  // --- FIM DA CORREÇÃO ---
-
+  const [currentDate, setCurrentDate] = useState(null);
+  
+  // 2. Estados de Interface
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [dragStartX, setDragStartX] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
 
-  // --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI ---
-  // 2. A data real (local do usuário) só é definida no navegador, após a primeira renderização.
+  // 3. Referência para o Input (Essencial para o botão funcionar)
+  const searchInputRef = useRef(null);
+
+  // --- CORREÇÃO DE HIDRATAÇÃO ---
   useEffect(() => {
     setCurrentDate(new Date());
   }, []);
-  // --- FIM DA CORREÇÃO ---
 
-  const PHRASES = {
-    loading: [
-        "Sincronizando satélites de dados...",
-        "Processando feed neural...",
-        "Baixando pacotes criptografados...",
-        "Atualizando matriz de informação..."
-    ],
-    feed_general: [
-        "Monitorando o pulso global...",
-        "Curadoria por IA ativa...",
-        "Filtrando ruído, entregando sinais...",
-        "Analisando tendências de mercado..."
-    ],
-    youtube: [
-        "Otimizando buffer de vídeo...",
-        "Renderizando feed visual...",
-        "Sintonizando canais prioritários...",
-        "Carregando criadores de conteúdo..."
-    ],
-    podcast: [
-        "Calibrando frequências de áudio...",
-        "Sincronizando feeds de voz...",
-        "Isolando ruído de fundo...",
-        "Preparando briefing auditivo..."
-    ],
-    happening: [
-        "Detectando Breaking News...",
-        "Monitoramento em tempo real...",
-        "Analisando eventos críticos agora...",
-        "Rastreando picos de interesse..."
-    ],
-    newsletter: [
-        "Descriptografando inbox...",
-        "Organizando correspondência digital...",
-        "Resumindo boletins diários..."
-    ],
-    banca: [
-        "Imprimindo edições digitais...",
-        "Organizando capas de hoje...",
-        "Acessando acervo editorial..."
-    ],
-    saved: [
-        "Acessando memória de longo prazo...",
-        "Recuperando arquivos salvos...",
-        "Organizando sua biblioteca pessoal..."
-    ]
-  };
-
-  const getRandomPhrase = (key) => {
-      const list = PHRASES[key] || PHRASES['feed_general'];
-      return list[Math.floor(Math.random() * list.length)];
-  };
-
-  useEffect(() => {
-    if (isLoading) {
-        setAiStatus(getRandomPhrase('loading'));
-        return;
-    }
-
-    if (activeTab === 'feed' && selectedSource && selectedSource !== 'all') {
-        const sourceName = selectedSource.charAt(0).toUpperCase() + selectedSource.slice(1);
-        const sourcePhrases = [
-            `Focando nos dados de ${sourceName}...`,
-            `Extraindo inteligência de ${sourceName}...`,
-            `Lendo feeds exclusivos de ${sourceName}...`
-        ];
-        setAiStatus(sourcePhrases[Math.floor(Math.random() * sourcePhrases.length)]);
-        return;
-    }
-
-    switch (activeTab) {
-        case 'youtube': setAiStatus(getRandomPhrase('youtube')); break;
-        case 'podcast': setAiStatus(getRandomPhrase('podcast')); break;
-        case 'happening': setAiStatus(getRandomPhrase('happening')); break;
-        case 'newsletter': setAiStatus(getRandomPhrase('newsletter')); break;
-        case 'banca': setAiStatus(getRandomPhrase('banca')); break;
-        case 'saved': setAiStatus(getRandomPhrase('saved')); break;
-        default: setAiStatus(getRandomPhrase('feed_general')); break;
-    }
-
-  }, [activeTab, isLoading, selectedSource]);
-
-  const formatDate = (date) => {
-    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-    const str = new Intl.DateTimeFormat('pt-BR', options).format(date);
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  };
-
-  const handleDragStart = (clientX) => setDragStartX(clientX);
-  
-  const handleDragMove = (clientX) => {
-    if (dragStartX === null) return;
-    setDragOffset(clientX - dragStartX);
-  };
-
-  const handleDragEnd = () => {
-    if (!currentDate) return; // Proteção extra
-    if (Math.abs(dragOffset) < 5) {
-        setIsCalendarOpen(true);
-    } 
-    else if (Math.abs(dragOffset) > 50) { 
-      const newDate = new Date(currentDate);
-      if (dragOffset > 0) newDate.setDate(currentDate.getDate() - 1);
-      else {
-        const today = new Date();
-        if (newDate < today.setHours(0,0,0,0)) newDate.setDate(currentDate.getDate() + 1);
-      }
-      handleDateChange(newDate);
-    }
-    setDragStartX(null);
-    setDragOffset(0);
-  };
-
-  const handleDateChange = (newDate) => {
-      setCurrentDate(newDate);
-      const isToday = newDate.toDateString() === new Date().toDateString();
-      if (!isToday) {
-          setAiStatus(`Acessando arquivos de ${newDate.toLocaleDateString()}...`);
-      }
-  };
-
+  // --- LÓGICA DE DADOS DE MERCADO ---
   const fetchMarketData = async () => {
     const symbols = ['USDBRL=X', 'EURBRL=X', 'BTC-USD', '^BVSP', '^IXIC', 'VALE3.SA', 'PETR4.SA'];
     const newData = {};
@@ -511,6 +391,66 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
     return () => clearInterval(interval);
   }, []);
 
+  // --- FRASES DE STATUS ---
+  const PHRASES = {
+    loading: ["Sincronizando...", "Processando feed...", "Baixando dados...", "Atualizando..."],
+    feed_general: ["Monitorando pulso...", "Curadoria ativa...", "Filtrando ruído...", "Analisando tendências..."],
+    youtube: ["Otimizando buffer...", "Renderizando feed...", "Sintonizando canais...", "Carregando conteúdo..."],
+    podcast: ["Calibrando áudio...", "Sincronizando feeds...", "Isolando ruído...", "Preparando briefing..."],
+    happening: ["Detectando News...", "Tempo real...", "Analisando eventos...", "Rastreando picos..."],
+    newsletter: ["Descriptografando...", "Organizando inbox...", "Resumindo boletins..."],
+    banca: ["Imprimindo...", "Organizando capas...", "Acessando acervo..."],
+    saved: ["Acessando memória...", "Recuperando arquivos...", "Organizando biblioteca..."]
+  };
+  
+  const getRandomPhrase = (key) => {
+      const list = PHRASES[key] || PHRASES['feed_general'];
+      return list[Math.floor(Math.random() * list.length)];
+  };
+
+  useEffect(() => {
+    if (isLoading) { setAiStatus(getRandomPhrase('loading')); return; }
+    if (activeTab === 'feed' && selectedSource && selectedSource !== 'all') {
+        const sourceName = selectedSource.charAt(0).toUpperCase() + selectedSource.slice(1);
+        setAiStatus(`Focando nos dados de ${sourceName}...`);
+        return;
+    }
+    switch (activeTab) {
+        case 'youtube': setAiStatus(getRandomPhrase('youtube')); break;
+        case 'podcast': setAiStatus(getRandomPhrase('podcast')); break;
+        case 'happening': setAiStatus(getRandomPhrase('happening')); break;
+        case 'newsletter': setAiStatus(getRandomPhrase('newsletter')); break;
+        case 'banca': setAiStatus(getRandomPhrase('banca')); break;
+        case 'saved': setAiStatus(getRandomPhrase('saved')); break;
+        default: setAiStatus(getRandomPhrase('feed_general')); break;
+    }
+  }, [activeTab, isLoading, selectedSource]);
+
+  // --- FUNÇÕES DE INTERFACE (DATA E DRAG) ---
+  const formatDate = (date) => {
+    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    const str = new Intl.DateTimeFormat('pt-BR', options).format(date);
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  };
+  const handleDragStart = (clientX) => setDragStartX(clientX);
+  const handleDragMove = (clientX) => { if (dragStartX !== null) setDragOffset(clientX - dragStartX); };
+  const handleDragEnd = () => {
+    if (!currentDate) return;
+    if (Math.abs(dragOffset) < 5) { setIsCalendarOpen(true); } 
+    else if (Math.abs(dragOffset) > 50) { 
+      const newDate = new Date(currentDate);
+      if (dragOffset > 0) newDate.setDate(currentDate.getDate() - 1);
+      else {
+        const today = new Date();
+        if (newDate < today.setHours(0,0,0,0)) newDate.setDate(currentDate.getDate() + 1);
+      }
+      setCurrentDate(newDate);
+    }
+    setDragStartX(null);
+    setDragOffset(0);
+  };
+  const handleDateChange = (newDate) => { setCurrentDate(newDate); };
+
   const TICKERS = [
       { id: 'USDBRL=X', label: 'USD', icon: DollarSign },
       { id: 'EURBRL=X', label: 'EUR', icon: Euro },
@@ -520,29 +460,29 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
       { id: 'VALE3.SA', label: 'VALE3', icon: TrendingUp },
       { id: 'PETR4.SA', label: 'PETR4', icon: TrendingDown },
   ];
-
+  
   const TickerItem = ({ label, value, up, icon: Icon }) => (
     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 mx-1">
-       <span className={`text-[10px] ${up ? 'text-emerald-400' : 'text-rose-400'}`}>
-          {up ? <TrendingUp size={10}/> : <TrendingDown size={10}/>}
-       </span>
+       <span className={`text-[10px] ${up ? 'text-emerald-400' : 'text-rose-400'}`}>{up ? <TrendingUp size={10}/> : <TrendingDown size={10}/>}</span>
        <span className="text-[10px] font-bold text-white/60">{label}</span>
        <span className="text-[10px] font-bold text-white">{value}</span>
     </div>
   );
 
+  // -----------------------------------------------------------
+  // AQUI ESTAVA O PROBLEMA: A FUNÇÃO DEVE ESTAR DENTRO DO COMPONENTE
+  // -----------------------------------------------------------
   const triggerSearch = () => {
-      const term = searchInputRef.current?.value; // Pega o texto do input
+      const term = searchInputRef.current?.value; 
       if (term && term.trim() && onSearch) {
-          onSearch(term);        // Manda pesquisar
-          setIsSearchOpen(false); // Fecha a barra
-          searchInputRef.current.value = ''; // Limpa o texto
+          onSearch(term);        
+          setIsSearchOpen(false); // Agora ela enxerga o setIsSearchOpen
+          if (searchInputRef.current) searchInputRef.current.value = ''; 
       }
   };
 
   return (
     <div className="relative z-20 pb-2">
-      {/* O CalendarModal só é renderizado se a data existir */}
       {currentDate && <CalendarModal 
         isOpen={isCalendarOpen} 
         onClose={() => setIsCalendarOpen(false)}
@@ -584,10 +524,7 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
               >
                   <ChevronLeft size={14} className={`text-white/40 transition-opacity ${Math.abs(dragOffset) > 0 ? 'opacity-100' : 'group-hover:opacity-100'}`} />
                   <span className="text-sm font-bold text-green-400 whitespace-nowrap tracking-wide flex items-center gap-2 uppercase text-[10px]">
-                      {/* --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI --- */}
-                      {/* 3. Renderiza a data apenas se ela já foi definida no cliente */}
                       {currentDate ? formatDate(currentDate) : <>&nbsp;</>}
-                      {/* --- FIM DA CORREÇÃO --- */}
                       <CalendarIcon size={10} className="opacity-50" />
                   </span>
                   <ChevronRight size={14} className={`text-white/40 transition-opacity ${Math.abs(dragOffset) > 0 ? 'opacity-100' : 'group-hover:opacity-100'}`} />
@@ -635,6 +572,8 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                 >
                     <div className="relative flex items-center bg-white/5 backdrop-blur-3xl border border-white/20 rounded-2xl p-1 shadow-inner">
                         <div className="pl-4 pr-3 text-white/30"><Search size={18} /></div>
+                        
+                        {/* INPUT COM REF E ENTER */}
                         <input 
                             ref={searchInputRef}
                             type="text" 
@@ -642,19 +581,19 @@ function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, sel
                             placeholder="O que você deseja saber?" 
                             className="w-full bg-transparent text-white placeholder:text-white/30 text-sm font-medium py-3 outline-none" 
                             onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-            triggerSearch(); // Usa a função nova
-        }
-    }}
-/>
+                                if (e.key === 'Enter') triggerSearch();
+                            }}
+                        />
+                        
+                        {/* BOTÃO COM CLICK */}
                         <div className="pr-1.5">
-    <button 
-        onClick={triggerSearch} // <--- AQUI ESTÁ A MÁGICA
-        className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg"
-    >
-        <ArrowRight size={16} />
-    </button>
-</div>
+                            <button 
+                                onClick={triggerSearch}
+                                className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg"
+                            >
+                                <ArrowRight size={16} />
+                            </button>
+                        </div>
                     </div>
                 </div>
               </div>
