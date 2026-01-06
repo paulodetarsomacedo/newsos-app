@@ -3632,7 +3632,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
 
 // --- COMPONENTE: STORY GRÁFICO (CAPA DE REVISTA IA) ---
-const GraphicStoryOverlay = ({ story, onClose, onNavigate, onOpenArticle, isDarkMode, apiKey }) => {
+const GraphicStoryOverlay = ({ story, onClose, onNavigate, onOpenArticle, isDarkMode, apiKey, onMarkAsSeen }) => {
   const [visuals, setVisuals] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
