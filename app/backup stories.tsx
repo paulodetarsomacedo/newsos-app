@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
@@ -91,7 +92,7 @@ const SAVED_ITEMS = [
 
 const SAVED_CATEGORIES = ['Tudo', 'Tech', 'Economia', 'Design', 'Ciência', 'Música', 'Vídeo'];
 
-const FEED_CATEGORIES = ['Tudo', 'Geral', 'Economia', 'Tecnologia', 'Local', 'Carros', 'Mundo','Política', 'Saúde',  'Esportes',  'Ciência'];
+const FEED_CATEGORIES = ['Tudo', 'Geral', 'Economia', 'Tecnologia', 'Local', 'Carros', 'Política', 'Saúde',  'Esportes',  'Ciência'];
 const YOUTUBE_CATEGORIES = ['Tudo', 'Tech', 'Finanças', 'Ciência'];
 
 
@@ -2637,68 +2638,6 @@ const generateHeuristicClusters = (news) => {
 };
 
 
-// --- 1. FUNÇÃO DE IA: GERADOR DE CONCEITO VISUAL PARA STORY ---
-const generateStoryVisuals = async (title, apiKey) => {
-  if (!title || !apiKey) return null;
-
-  const prompt = `
-  Você é um Diretor de Arte de uma revista digital (The Verge, Wired). Analise a manchete abaixo.
-
-  Sua missão é extrair 3 elementos para criar uma capa de story impactante:
-  1.  **cover_title:** Um título de capa ultra curto e poderoso em PT-BR (Máximo 4 palavras).
-  2.  **emoji:** Um único emoji que capture o sentimento ou tema central.
-  3.  **image_keyword:** Duas ou três palavras-chave em INGLÊS para buscar uma foto de fundo simbólica e de alta qualidade (ex: 'political debate', 'stock market crash', 'brazil flag').
-
-  RETORNE APENAS O JSON.
-
-  MANCHETE: "${title}"
-  `;
-
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { 
-            response_mime_type: "application/json",
-            temperature: 0.5 
-        }
-      })
-    });
-    const data = await response.json();
-    if (!response.ok || data.error) return null;
-
-    const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text
-        .replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    return JSON.parse(jsonString);
-
-  } catch (error) {
-    console.error("Erro ao gerar visuais do Story:", error);
-    return null;
-  }
-};
-
-// --- 2. FUNÇÃO DE BUSCA DE IMAGEM (UNSPLASH) ---
-// COLOQUE SUA CHAVE UNSPLASH AQUI DENTRO
-const UNSPLASH_ACCESS_KEY = 'DbzcHDS10Ta8QSkJAU-5DwP8TU05npx3RBObZQ49a54';
-
-const searchUnsplashPhoto = async (keyword) => {
-    if (!keyword || !UNSPLASH_ACCESS_KEY.includes('-')) return null;
-
-    try {
-        const response = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(keyword)}&per_page=1&orientation=portrait&client_id=${UNSPLASH_ACCESS_KEY}`);
-        const data = await response.json();
-        
-        // Retorna a URL da imagem em qualidade "regular" (boa para mobile)
-        return data.results?.[0]?.urls?.regular || null;
-    } catch (error) {
-        console.error("Erro na busca do Unsplash:", error);
-        return null;
-    }
-};
-
 
 // --- WIDGET: CONTEXTO GLOBAL (V2 - SEM TÍTULO INTERNO) ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters, onContextReady }) => {
@@ -3630,137 +3569,6 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   );
 }
 
-
-// --- COMPONENTE: STORY GRÁFICO (CAPA DE REVISTA IA) ---
-const GraphicStoryOverlay = ({ story, onClose, onNavigate, onOpenArticle, isDarkMode, apiKey }) => {
-  const [visuals, setVisuals] = useState(null);
-  const [imageUrl, setImageUrl] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isOpening, setIsOpening] = useState(false);
-
-  // --- A CORREÇÃO ESTÁ AQUI ---
-  // Este efeito roda UMA VEZ quando o story abre e marca ele como visto
-  useEffect(() => {
-      if (story && story.id && onOpenArticle) { // Renomeei onMarkAsSeen para onOpenArticle
-          onMarkAsSeen(story.id);
-      }
-      // A dependência [story.id] garante que ele só rode quando o story mudar
-  }, [story.id, onOpenArticle]); // Renomeei onMarkAsSeen para onOpenArticle
-  // Efeito que gera o visual do Story
-  useEffect(() => {
-    const generate = async () => {
-        if (!story || !story.items || !story.items[0]) return;
-        
-        setIsLoading(true);
-        const mainArticle = story.items[0];
-
-        // 1. Pede o conceito para a IA
-        const aiVisuals = await generateStoryVisuals(mainArticle.title, apiKey);
-        if (aiVisuals) {
-            setVisuals(aiVisuals);
-            // 2. Busca a imagem no Unsplash
-            const photoUrl = await searchUnsplashPhoto(aiVisuals.image_keyword);
-            setImageUrl(photoUrl);
-        }
-        setIsLoading(false);
-    };
-
-    generate();
-  }, [story, apiKey]);
-
-  if (!story) return null;
-
-  const currentItem = story.items[0];
-
-  return (
-    <div className="fixed inset-0 z-[10000] bg-black flex flex-col animate-in zoom-in-95 duration-300">
-       <div className="relative w-full h-full md:max-w-[60vh] md:aspect-[9/16] md:mx-auto md:my-auto md:rounded-3xl overflow-hidden bg-zinc-900 shadow-2xl border border-white/5">
-        
-        {/* FUNDO */}
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-black">
-            {isLoading ? (
-                <div className="w-full h-full flex items-center justify-center">
-                    <Loader2 size={32} className="text-white/50 animate-spin"/>
-                </div>
-            ) : (
-                imageUrl && <img src={imageUrl} className="w-full h-full object-cover opacity-30" />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-        </div>
-
-        {/* CONTROLES DE NAVEGAÇÃO LATERAIS */}
-        <div className="absolute inset-0 z-20 flex">
-            <div className="w-[20%] h-full" onClick={() => onNavigate('prev')} />
-            <div className="flex-1 h-full" />
-            <div className="w-[20%] h-full" onClick={() => onNavigate('next')} />
-        </div>
-
-        {/* CABEÇALHO */}
-        <div className="absolute top-0 left-0 right-0 p-4 pt-10 md:pt-8 z-30 space-y-2">
-          <div className="flex gap-1.5 h-1"><div className="flex-1 rounded-full h-full bg-white animate-[progress_10s_linear]" /></div>
-          <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full border-2 border-white/30 p-[2px] bg-black/20 backdrop-blur-md">
-                      <img src={story.avatar} className="w-full h-full rounded-full object-cover" />
-                  </div>
-                  <span className="text-white font-black text-sm drop-shadow-md tracking-tight">{story.name}</span>
-              </div>
-              <button onClick={onClose} className="p-2.5 text-white/80 hover:text-white backdrop-blur-xl rounded-full bg-white/10 border border-white/10 active:scale-90"><X size={26} /></button>
-          </div>
-        </div>
-
-        {/* CONTEÚDO CENTRAL */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center z-10 pointer-events-none">
-            {visuals && (
-                <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
-                    <div className="text-7xl mb-6 drop-shadow-2xl">{visuals.emoji}</div>
-                    <h1 className="text-white text-4xl md:text-5xl font-black leading-tight drop-shadow-2xl font-serif">
-                        {visuals.cover_title}
-                    </h1>
-                </div>
-            )}
-        </div>
-        
-        {/* RODAPÉ */}
-        <div className="absolute bottom-0 left-0 right-0 p-8 z-30 pb-12 md:pb-10">
-<button 
-                onClick={(e) => { 
-                    e.stopPropagation(); 
-                    setIsOpening(true); // Ativa o estado de "abrindo"
-                    
-                    // Pequeno delay para o usuário ver o efeito antes de fechar
-                    setTimeout(() => {
-                        onOpenArticle(currentItem); 
-                        onClose(); 
-                    }, 300); // 300ms de delay
-                }} 
-                // Adicione a classe de animação se estiver abrindo
-                className={`group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] 
-                    ${isOpening 
-                        ? 'scale-95 bg-purple-500 text-white animate-pulse' 
-                        : 'active:scale-95 hover:bg-zinc-100'}
-                `}
-                disabled={isOpening} // Desativa o botão após o primeiro clique
-            >
-                {isOpening ? (
-                    <>
-                        <Loader2 size={16} className="animate-spin" />
-                        <span>Abrindo...</span>
-                    </>
-                ) : (
-                    <>
-                        <span className="text-sm uppercase tracking-widest">Ler Notícia Original</span>
-                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                    </>
-                )}
-            </button>
-        </div>
-
-       </div>
-       <div className="fixed inset-0 -z-10 bg-zinc-950/95 backdrop-blur-3xl md:block hidden" onClick={onClose} />
-    </div>
-  );
-}
 
 
 function BancaTab({ openOutlet, isDarkMode }) {
@@ -5814,18 +5622,18 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
       
 {selectedStory && (
-    
-
-    <GraphicStoryOverlay 
-              story={selectedStory} 
-              onClose={closeStory} 
-              onNavigate={handleStoryNavigation}
-              onOpenArticle={handleOpenArticle} // Passa a função para abrir o painel completo
-              onMarkAsSeen={markStoryAsSeen} // <--- ADICIONE ESTA LINHA
-              isDarkMode={isDarkMode}
-              apiKey={readerApiKey || apiKey} // Usa a chave correta para a IA
-          />
-      )}
+    <StoryOverlay 
+        story={selectedStory} 
+        onClose={closeStory} 
+        openArticle={handleOpenArticle} 
+        onMarkAsSeen={markStoryAsSeen} 
+        
+        // A CORREÇÃO: Usamos a mesma lista que aparece na tela (Embaralhada e Filtrada)
+        allStories={storiesForHappeningTab} 
+        
+        onNavigate={handleStoryNavigation}
+    />
+)}
       {playingAudio && (
           <GlobalAudioPlayer 
               track={playingAudio} 
