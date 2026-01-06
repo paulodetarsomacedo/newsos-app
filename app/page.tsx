@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallba
 import { createClient } from '@supabase/supabase-js'
 import { Browser } from '@capacitor/browser';
 import { InAppBrowser } from '@awesome-cordova-plugins/in-app-browser';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
@@ -690,34 +691,60 @@ const triggerSearch = () => {
 
 // --- LIQUID FILTER ---
 
-function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
+const SlidingPillFilter = ({ categories, active, onChange, isDarkMode }) => {
+  const tabsRef = useRef([]);
+
   return (
-    // Adicionei pl-14 para empurrar a barra para a direita, livrando o botão de fontes (SourceSelector)
+    // Container principal com padding para livrar o botão de fontes
     <div className="w-full flex justify-start pl-14 pr-4 sticky top-0 z-30 py-2 pointer-events-none">
       
+      {/* O fundo de Vidro (Glassmorphism) */}
       <div className={`
         pointer-events-auto
-        flex overflow-x-auto scrollbar-hide snap-x items-center
-        w-full
-        rounded-2xl 
-        p-1
+        relative flex items-center
+        w-full p-1 rounded-2xl
         shadow-lg
+        border
         ${isDarkMode 
-          ? 'bg-zinc-900/95 shadow-black/20' // Removi a borda externa cinza
-          : 'bg-white/95 shadow-zinc-200/50' // Removi a borda externa cinza
-        }
+          ? 'bg-zinc-800/60 border-white/10 backdrop-blur-md' 
+          : 'bg-white/60 border-white/30 backdrop-blur-md'}
       `}>
+        
+        {/* A PÍLULA BRANCA DESLIZANTE */}
+        <AnimatePresence>
+            {active && (
+                <motion.div
+                    // A "Mágica" da animação:
+                    layoutId="activePill" // Identificador para a animação
+                    className={`
+                        absolute inset-y-1 my-auto h-[85%] rounded-xl
+                        ${isDarkMode ? 'bg-zinc-600/50' : 'bg-white/80 shadow-md'}
+                    `}
+                    // Define a posição e tamanho baseado no botão ativo
+                    initial={false}
+                    animate={{ 
+                        x: tabsRef.current[active]?.offsetLeft || 0,
+                        width: tabsRef.current[active]?.offsetWidth || 0,
+                    }}
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                />
+            )}
+        </AnimatePresence>
+
+        {/* Os BOTÕES (Texto) */}
         {categories.map((cat) => {
           const isActive = active === cat;
           return (
             <button 
               key={cat} 
-              onClick={() => onChange(cat)} 
+              onClick={() => onChange(cat)}
+              // Liga o botão à referência para a pílula saber onde ir
+              ref={(el) => (tabsRef.current[cat] = el)}
               className={`
-                relative px-5 py-2 rounded-xl text-xs font-bold transition-all duration-300 whitespace-nowrap snap-center flex-shrink-0
+                relative z-10 px-5 py-2.5 rounded-xl text-xs font-bold transition-colors duration-300 whitespace-nowrap flex-shrink-0
                 ${isActive 
-                  ? 'bg-purple-600 text-white shadow-md'
-                  : (isDarkMode ? 'text-zinc-400 hover:text-white hover:bg-white/5' : 'text-zinc-500 hover:text-black hover:bg-zinc-100')}
+                  ? (isDarkMode ? 'text-white' : 'text-black') // Texto do botão ativo
+                  : (isDarkMode ? 'text-zinc-400 hover:text-zinc-100' : 'text-zinc-500 hover:text-black')}
               `}
             >
               {cat}
@@ -727,7 +754,7 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
       </div>
     </div>
   );
-}
+};
 
 
 function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
@@ -1201,14 +1228,12 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
     isDarkMode={isDarkMode} 
 />          
 </div>
-          <LiquidFilterBar 
-            categories={FEED_CATEGORIES} 
-            active={category} 
-            onChange={setCategory} 
-            isDarkMode={isDarkMode} 
-            accentColor="purple" 
-            borderColor={{ light: 'border-white', dark: 'border-[#a78bfa]' }} 
-          />
+         <SlidingPillFilter 
+  categories={FEED_CATEGORIES} 
+  active={category} 
+  onChange={setCategory} 
+  isDarkMode={isDarkMode} 
+/>
       </div>
 
       {/* LOADING */}
@@ -5037,6 +5062,9 @@ const handleStoryNavigation = (direction) => {
             }
             else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) {
                 finalLogo = 'https://cdn.motor1.com/custom/share/motor1_loadimage.png';
+            }
+            else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) {
+                finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
             }
             
             // 2. Lógica para YouTube (Cores Dinâmicas + Foto Real)
