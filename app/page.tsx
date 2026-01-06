@@ -5230,6 +5230,9 @@ const handleStoryNavigation = (direction) => {
             else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) {
                 finalLogo = 'https://cdn.motor1.com/custom/share/motor1_loadimage.png';
             }
+            else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) {
+                finalLogo = 'https://s2-autoesporte.glbimg.com/xs2Me_2f3-BhKSx_qPR3JHHD87Y=/0x0:1900x1174/888x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_cf9d035bf26b4646b105bd958f32089d/internal_photos/bs/2024/V/Z/kAS78jRJSAy4fI1b1WHA/logo-fundo-vermelho.jpg';
+            }
             
             // 2. Lógica para YouTube (Cores Dinâmicas + Foto Real)
             else if (isFeedYoutube) {
