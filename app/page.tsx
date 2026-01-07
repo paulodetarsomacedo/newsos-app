@@ -6229,8 +6229,18 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
     setIframeUrl(null);
     
     // Se não for site "Forçado Magic", tenta mostrar Iframe enquanto carrega o Magic
-    if (!isForcedMagic) setIframeUrl(article.link);
+    if (!isForcedMagic) setIframeUrl(article.link);if (!isForcedMagic) {
+        // Lista de sites que bloqueiam Iframe mas funcionam com Proxy
+        // Adicione aqui todos que derem erro vermelho no console (exceto UOL/Investing que são Magic forçado)
+        const needsProxy = ['globo.com', 'valor', 'estadao', 'moneytimes'].some(d => article.link.includes(d));
 
+        if (needsProxy) {
+            // O Proxy remove a trava de segurança e permite o site abrir no App
+            setIframeUrl(`https://corsproxy.io/?${encodeURIComponent(article.link)}`);
+        } else {
+            setIframeUrl(article.link);
+        }
+    }
     const fetchContent = async () => {
         setIsLoading(true);
         
