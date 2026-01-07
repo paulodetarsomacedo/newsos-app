@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallba
 import { createClient } from '@supabase/supabase-js'
 import { Browser } from '@capacitor/browser';
 import { InAppBrowser } from '@awesome-cordova-plugins/in-app-browser';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
@@ -15,7 +16,7 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, Telescope,
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History
 } from 'lucide-react';
 
 
@@ -92,7 +93,7 @@ const SAVED_ITEMS = [
 
 const SAVED_CATEGORIES = ['Tudo', 'Tech', 'Economia', 'Design', 'Ciência', 'Música', 'Vídeo'];
 
-const FEED_CATEGORIES = ['Tudo', 'Geral', 'Economia', 'Tecnologia', 'Local', 'Carros', 'Política', 'Saúde',  'Esportes',  'Ciência'];
+const FEED_CATEGORIES = ['Tudo', 'Geral', 'Economia', 'Tecnologia', 'Local', 'Carros', 'Mundo','Política', 'Saúde',  'Esportes',  'Ciência'];
 const YOUTUBE_CATEGORIES = ['Tudo', 'Tech', 'Finanças', 'Ciência'];
 
 
@@ -690,35 +691,58 @@ const triggerSearch = () => {
 
 // --- LIQUID FILTER ---
 
-function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
+const SlidingPillFilter = ({ categories, active, onChange, isDarkMode }) => {
+  const tabsRef = useRef([]);
+
   return (
-    // Adicionei pl-14 para empurrar a barra para a direita, livrando o botão de fontes (SourceSelector)
     <div className="w-full flex justify-start pl-14 pr-4 sticky top-0 z-30 py-2 pointer-events-none">
       
       <div className={`
         pointer-events-auto
-        flex overflow-x-auto scrollbar-hide snap-x items-center
-        w-full
-        rounded-2xl 
-        p-1
+        relative flex items-center
+        w-full p-1 rounded-full 
         shadow-lg
+        border
         ${isDarkMode 
-          ? 'bg-zinc-900/95 shadow-black/20' // Removi a borda externa cinza
-          : 'bg-white/95 shadow-zinc-200/50' // Removi a borda externa cinza
-        }
+          ? 'bg-zinc-800/60 border-white/10 backdrop-blur-md' 
+          : 'bg-white/60 border-white/30 backdrop-blur-md'}
       `}>
+        
+        {/* PÍLULA INTERNA - COM INSET PARA SIMETRIA PERFEITA */}
+        <AnimatePresence>
+            {active && (
+                <motion.div
+                    layoutId="activePill"
+                    className={`
+                        absolute inset-1 rounded-full /* <-- MUDANÇA PRINCIPAL AQUI */
+                        ${isDarkMode ? 'bg-zinc-700/60' : 'bg-white/90 shadow-sm'}
+                    `}
+                    initial={false}
+                    animate={{ 
+                        x: tabsRef.current[active]?.offsetLeft || 0,
+                        width: tabsRef.current[active]?.offsetWidth || 0,
+                    }}
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                />
+            )}
+        </AnimatePresence>
+
+        {/* BOTÕES - MENOS ALTURA, MAIS LARGURA */}
         {categories.map((cat) => {
           const isActive = active === cat;
           return (
             <button 
               key={cat} 
-              onClick={() => onChange(cat)} 
+              onClick={() => onChange(cat)}
+              ref={(el) => (tabsRef.current[cat] = el)}
               className={`
-                relative px-5 py-2 rounded-xl text-xs font-bold transition-all duration-300 whitespace-nowrap snap-center flex-shrink-0
+                relative z-10 px-5 py-1.5 rounded-full /* <-- MUDANÇA AQUI */
+                text-xs font-bold transition-colors duration-300 whitespace-nowrap flex-shrink-0
                 ${isActive 
-                  ? 'bg-purple-600 text-white shadow-md'
-                  : (isDarkMode ? 'text-zinc-400 hover:text-white hover:bg-white/5' : 'text-zinc-500 hover:text-black hover:bg-zinc-100')}
-              `}
+      // A CORREÇÃO ESTÁ AQUI:
+      ? 'text-purple-600 dark:text-purple-400' 
+      : (isDarkMode ? 'text-zinc-400 hover:text-zinc-100' : 'text-zinc-500 hover:text-black')}
+  `}
             >
               {cat}
             </button>
@@ -727,8 +751,7 @@ function LiquidFilterBar({ categories, active, onChange, isDarkMode }) {
       </div>
     </div>
   );
-}
-
+};
 
 function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -987,7 +1010,7 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
-const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike }) => {
+const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onToggleSave, onToggleLike, isViewedFromStory }) => {
   const displayTime = news.rawDate 
     ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
     : '...';
@@ -998,30 +1021,37 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       style={{ zIndex: isSelected ? 50 : 1 }}
       className={`
         group relative cursor-pointer 
-        transition-transform duration-200 ease-out will-change-transform
+        transition-all duration-300 ease-out will-change-transform
         flex flex-col overflow-hidden rounded-3xl
         ${isSelected 
-          ? (isDarkMode 
-              ? 'bg-zinc-900 scale-[1.02] border-2 border-purple-500 shadow-2xl shadow-black/50' 
-              : 'bg-white scale-[1.02] border-2 border-purple-500 shadow-2xl shadow-purple-900/10')
-          : (isDarkMode 
-              ? 'bg-zinc-900 border border-white/5 active:scale-[0.98]' 
-              : 'bg-white border border-zinc-200 shadow-sm active:scale-[0.98]')
-        }
+          ? 'scale-[1.02] shadow-2xl' 
+          : 'active:scale-[0.98]'}
+        ${isViewedFromStory && !isSelected 
+          ? (isDarkMode ? 'border-2 border-indigo-500/50' : 'border-2 border-indigo-200 shadow-lg') 
+          : (isDarkMode ? 'border border-white/5' : 'border border-zinc-200 shadow-sm')}
+        ${isDarkMode 
+          ? (isSelected ? 'bg-zinc-800' : 'bg-zinc-900') 
+          : (isSelected ? 'bg-white' : 'bg-white')}
       `}
     >
-      {/* OTIMIZAÇÃO: Auras de blur removidas para não travar o iPad */}
+      
+      {/* --- O NOVO SELO DE DESTAQUE --- */}
+      {isViewedFromStory && !isSelected && (
+          <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white animate-in fade-in zoom-in-50">
+              <History size={12} className="text-indigo-400" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Visto no Story</span>
+          </div>
+      )}
       
       <div className="relative z-10 flex flex-row gap-5 w-full p-3 items-start">
           <div className={`relative overflow-hidden rounded-2xl flex-shrink-0 shadow-sm w-28 h-28 md:w-36 md:h-36 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
             <SmartImage src={news.img} title={news.title} logo={news.logo} sourceName={news.source} isDarkMode={isDarkMode} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"/>
-            {isSelected && <div className="absolute inset-0 bg-[#4c1d95]/10 mix-blend-overlay pointer-events-none" />}
+            {isSelected && <div className="absolute inset-0 bg-purple-600/10 mix-blend-overlay pointer-events-none" />}
           </div>
 
           <div className="flex-1 flex flex-col justify-start gap-1 py-1 min-w-0">
             <div>
                 <div className="flex justify-between items-center mb-2">
-                    {/* RESTAURADO: O bloco do Logo Quadrado + Nome da Fonte */}
                     <div className="flex items-center">
                         <div className={`relative z-20 w-8 h-8 rounded-lg overflow-hidden border shadow-sm shrink-0 ${isDarkMode ? 'border-zinc-700 bg-zinc-800' : 'border-zinc-200 bg-white'}`}>
                             <img src={news.logo} className="w-full h-full object-cover" alt="" onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${news.source}&background=random`}/>
@@ -1030,16 +1060,15 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
                             {news.source}
                         </div>
                     </div>
-
                     <div className="flex items-center gap-1">
-                      {isRead && !isSelected && (<div className="flex items-center gap-1 bg-red-500 px-1.5 py-0.5 rounded text-white" title="Notícia já lida"><CheckCircle size={10} /><span className="text-[9px] font-bold uppercase">Lido</span></div>)}
+                      {isRead && !isSelected && (<div className="flex items-center gap-1 bg-green-500 px-1.5 py-0.5 rounded text-white" title="Notícia já lida"><CheckCircle size={10} /><span className="text-[9px] font-bold uppercase">Lido</span></div>)}
                       <span className={`text-[10px] font-bold tracking-wide ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>{displayTime}</span>
                     </div>
                 </div>
                 
-                {isSelected && (<div className="flex items-center gap-2 mb-1.5 animate-pulse"><Sparkles size={16} className="text-[#047857] dark:text-[#4ade80]" /><span className="text-[16px] font-black font-bold uppercase tracking-widest text-[green] dark:text-[#4ade80] drop-shadow-sm">Lendo Agora</span></div>)}
+                {isSelected && (<div className="flex items-center gap-2 mb-1.5 animate-pulse"><Sparkles size={16} className="text-purple-500" /><span className="text-sm font-black uppercase tracking-widest text-purple-500">Lendo Agora</span></div>)}
                 
-                <h3 className={`text-lg font-bold leading-snug tracking-tight transition-colors line-clamp-3 ${isSelected ? 'text-[purple] dark:text-[#4ade80]' : isRead ? (isDarkMode ? 'text-zinc-500' : 'text-zinc-400') : (isDarkMode ? 'text-zinc-100 group-hover:text-purple-400' : 'text-zinc-800 group-hover:text-[#4c1d95]')}`}>{news.title}</h3>
+                <h3 className={`text-lg font-bold leading-snug tracking-tight transition-colors line-clamp-3 ${isSelected ? (isDarkMode ? 'text-purple-400' : 'text-purple-600') : isRead ? (isDarkMode ? 'text-zinc-500' : 'text-zinc-400') : (isDarkMode ? 'text-zinc-100 group-hover:text-purple-400' : 'text-zinc-800 group-hover:text-purple-600')}`}>{news.title}</h3>
             </div>
             <p className={`text-sm leading-relaxed line-clamp-2 font-medium mt-0 ${isRead ? 'text-zinc-500/60' : (isSelected ? (isDarkMode ? 'text-zinc-300' : 'text-zinc-600') : (isDarkMode ? 'text-zinc-500' : 'text-zinc-500'))}`}>{news.summary}</p>
           </div>
@@ -1047,30 +1076,24 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
 
       <div className="absolute bottom-3 right-3 flex items-center gap-2 z-30">
           <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border backdrop-blur-md select-none ${isDarkMode ? 'bg-black/20 border-white/5 text-zinc-400' : 'bg-white/40 border-black/5 text-zinc-500'}`}><Clock size={10} className={isDarkMode ? 'text-zinc-500' : 'text-zinc-400'} /><span className="text-[9px] font-bold uppercase tracking-wider">{news.readTime || '3 min'}</span></div>
-          
           <button onClick={(e) => { e.stopPropagation(); if (onToggleLike) onToggleLike(news);}} className={`p-2 rounded-full transition-all duration-300 active:scale-75 group/like ${isLiked ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' : (isDarkMode ? 'bg-black/20 text-zinc-400 hover:text-rose-500' : 'bg-white/40 text-zinc-500 hover:text-rose-500')}`} title="Curtir"><Heart size={18} fill={isLiked ? "currentColor" : "none"} className="transition-transform group-hover/like:scale-110" /></button>
-          
-          {/* RESTAURADO: Botão de Áudio/Resumo */}
-          <button onClick={(e) => { e.stopPropagation(); alert(`Iniciando leitura por IA de: ${news.title}`); }} className={`p-2 rounded-full transition-all duration-300 active:scale-90 group/audio ${isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95] text-zinc-400 hover:text-white' : 'bg-white/40 hover:bg-[#4c1d95] text-zinc-500 hover:text-white'}`} title="Ouvir Resumo"><Headphones size={18} /></button>
-          
-          <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2 rounded-full transition-all duration-300 active:scale-75 group/save ${isSaved ? 'bg-[#4c1d95] text-white shadow-lg shadow-purple-500/30' : (isDarkMode ? 'bg-black/20 hover:bg-[#4c1d95]/20 text-zinc-400 hover:text-[#a78bfa]' : 'bg-white/40 hover:bg-[#4c1d95]/10 text-zinc-500 hover:text-[#4c1d95]')}`} title="Salvar para ler depois"><Bookmark size={18} fill={isSaved ? "currentColor" : "none"} className="transition-transform group-hover/save:scale-110" /></button>
+          <button onClick={(e) => { e.stopPropagation(); alert(`Iniciando leitura por IA de: ${news.title}`); }} className={`p-2 rounded-full transition-all duration-300 active:scale-90 group/audio ${isDarkMode ? 'bg-black/20 hover:bg-purple-600 text-zinc-400 hover:text-white' : 'bg-white/40 hover:bg-purple-600 text-zinc-500 hover:text-white'}`} title="Ouvir Resumo"><Headphones size={18} /></button>
+          <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2 rounded-full transition-all duration-300 active:scale-75 group/save ${isSaved ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : (isDarkMode ? 'bg-black/20 hover:bg-purple-600/20 text-zinc-400 hover:text-purple-400' : 'bg-white/40 hover:bg-purple-600/10 text-zinc-500 hover:text-purple-600')}`} title="Salvar para ler depois"><Bookmark size={18} fill={isSaved ? "currentColor" : "none"} className="transition-transform group-hover/save:scale-110" /></button>
       </div>
     </div>
-  );
-}, (prev, next) => {
-  return (
-    prev.news.id === next.news.id &&
-    prev.isSelected === next.isSelected &&
-    prev.isRead === next.isRead &&
-    prev.isSaved === next.isSaved &&
-    prev.isLiked === next.isLiked &&
-    prev.isDarkMode === next.isDarkMode
   );
 });
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
-function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh }) {
+function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId }) {
   const [category, setCategory] = useState('Tudo');
+  const feedContainerRef = useRef(null);
+  useEffect(() => {
+      // Se a função foi passada, chama ela
+      if (onCategoryChange) {
+          onCategoryChange();
+      }
+  }, [category, onCategoryChange]); // Dispara sempre que a categoria mudar
   
   // Estado de Dados Estáveis
   const [stableData, setStableData] = useState([]);
@@ -1185,6 +1208,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
 
   return (
     <div 
+    ref={feedContainerRef} 
       className="space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 pt-2 min-h-screen overscroll-y-none touch-pan-y"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -1201,14 +1225,12 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
     isDarkMode={isDarkMode} 
 />          
 </div>
-          <LiquidFilterBar 
-            categories={FEED_CATEGORIES} 
-            active={category} 
-            onChange={setCategory} 
-            isDarkMode={isDarkMode} 
-            accentColor="purple" 
-            borderColor={{ light: 'border-white', dark: 'border-[#a78bfa]' }} 
-          />
+         <SlidingPillFilter 
+  categories={FEED_CATEGORIES} 
+  active={category} 
+  onChange={setCategory} 
+  isDarkMode={isDarkMode} 
+/>
       </div>
 
       {/* LOADING */}
@@ -1269,6 +1291,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
               onToggleSave={onToggleSave}
               isLiked={likedItems?.includes(news.id)}
               onToggleLike={onToggleLike}
+              isViewedFromStory={news.id === viewedInStoryId}
             />
         ))}
       </div>
@@ -4615,6 +4638,7 @@ const [userFeeds, setUserFeeds] = useState([]);
   const [askAnswer, setAskAnswer] = useState(null);
   const [askSources, setAskSources] = useState([]);
   const [isAskLoading, setIsAskLoading] = useState(false);
+  const [viewedInStoryId, setViewedInStoryId] = useState(null);
 
   const handleAskAI = async (query) => {
       setAskQuestion(query);
@@ -5038,6 +5062,9 @@ const handleStoryNavigation = (direction) => {
             else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) {
                 finalLogo = 'https://cdn.motor1.com/custom/share/motor1_loadimage.png';
             }
+            else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) {
+                finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
+            }
             
             // 2. Lógica para YouTube (Cores Dinâmicas + Foto Real)
             else if (isFeedYoutube) {
@@ -5432,7 +5459,10 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
             {activeTab === 'happening' && (
                 <HappeningTab 
                     openArticle={handleOpenArticle} 
-        openStory={setSelectedStory} 
+        openStory={(story) => {
+        setSelectedStory(story); // Abre o story
+        setViewedInStoryId(story.id); // GRAVA O ID DO STORY VISTO
+    }}
         isDarkMode={isDarkMode} 
         newsData={realNews} // Garanta que esta linha está presente
         onRefresh={handleHappeningRefresh}
@@ -5495,6 +5525,12 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}
                     onToggleLike={handleToggleLike}
+                      onCategoryChange={() => {
+                        if (mainRef.current) {
+                          mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                    }}
+                    viewedInStoryId={viewedInStoryId}
                 />
             )}
             
