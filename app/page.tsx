@@ -6220,75 +6220,78 @@ const ArticlePanel = React.memo(({ article, feedItems, isOpen, onClose, onArticl
       setAnalysisItems(null);
   }, [article?.id]);
 
-  // 2. CARREGAMENTO INTELIGENTE
+  // 2. EFEITO DE CARREGAMENTO (COM FALLBACK RSS AUTOMÁTICO)
   useEffect(() => {
     if (!isOpen || !article?.link || videoId) return;
-    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     
-    if (!isForcedMagic) {
-        setIframeUrl(article.link);
-    }
+    // Limpa a tela
+    setReaderContent(null);
+    setIframeUrl(null);
     
+    // Se não for site "Forçado Magic", tenta mostrar Iframe enquanto carrega o Magic
+    if (!isForcedMagic) setIframeUrl(article.link);
+
     const fetchContent = async () => {
         setIsLoading(true);
+        
+        // Função de emergência (Resumo RSS)
+        const useFallback = () => {
+            console.warn("⚠️ Usando Fallback RSS (Resumo)");
+            const fallbackHTML = `
+                <div style="font-family: sans-serif; color: #333; padding: 20px; line-height: 1.6;">
+                    <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9em;">
+                        <strong>Leitura Simplificada:</strong> O texto completo não pôde ser extraído. Exibindo resumo oficial.
+                    </div>
+                    ${article.img ? `<img src="${article.img}" style="width:100%; border-radius: 12px; margin-bottom: 20px; object-fit: cover;">` : ''}
+                    <h2 style="font-size: 1.4em; font-weight: bold; margin-bottom: 15px;">${article.title}</h2>
+                    <p style="font-size: 1.1em; opacity: 0.9;">${article.summary || "Sem descrição disponível."}</p>
+                    <br/>
+                    <div style="text-align: center; margin-top: 30px;">
+                        <button style="opacity: 0.6; font-size: 0.8em;">Toque no globo 🌐 para ver o original</button>
+                    </div>
+                </div>
+            `;
+            setReaderContent({ 
+                title: article.title, 
+                content: fallbackHTML,
+                textContent: article.summary // Passa o resumo para a IA ler!
+            });
+        };
+
         try {
-            // A. Cache
-            let { data: cachedData } = await supabase
-                .from('article_cache').select('content').eq('url', article.link).single();
+            // Tenta Cache
+            let { data: cachedData } = await supabase.from('article_cache').select('content').eq('url', article.link).single();
 
             if (cachedData?.content?.content?.length > 300) {
-                console.log("✅ Cache encontrado.");
+                console.log("✅ Cache OK");
                 setReaderContent(cachedData.content);
             } else {
-                // B. Download Robusto
-                console.log("🌍 Baixando via Proxy...");
+                // Tenta Baixar Limpo
+                console.log("🌍 Baixando...");
                 const { data, error } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
                 
                 if (!error && data?.reader?.content?.length > 300) {
                     setReaderContent(data.reader);
-                    // Salva Cache (Pode dar erro 403 se não configurar RLS, mas não trava o app)
-                    await supabase.from('article_cache').upsert({
-                        url: article.link,
-                        content: data.reader,
-                    }).catch(e => console.warn("Erro ao salvar cache (RLS):", e));
+                    // Salva no cache
+                    supabase.from('article_cache').upsert({ url: article.link, content: data.reader });
                 } else {
-                    throw new Error("Conteúdo insuficiente.");
+                    // Se falhar o download, usa o resumo
+                    useFallback();
                 }
             }
         } catch (err) {
-            console.warn("⚠️ Falha no download. Usando Fallback RSS.");
-            const fallbackHTML = `
-                <div class="rss-fallback-container" style="font-family: 'Merriweather', serif; color: #333; padding: 20px;">
-                    <div style="background: #fff4e5; color: #663c00; padding: 16px; border-radius: 12px; font-size: 0.85em; margin-bottom: 24px; border: 1px solid #ffcc80;">
-                        <strong>Nota:</strong> O site original (${article.source}) bloqueou a leitura completa. Exibindo resumo oficial.
-                    </div>
-                    ${article.img ? `<img src="${article.img}" alt="${article.title}" style="width:100%; border-radius: 12px; margin-bottom: 24px; object-fit: cover;">` : ''}
-                    <h3 style="font-size: 1.5em; font-weight: 900; line-height: 1.3; margin-bottom: 16px;">${article.title}</h3>
-                    <div style="font-size: 1.2em; line-height: 1.6; opacity: 0.9;">
-                        <p>${article.summary || "Sem resumo disponível."}</p>
-                    </div>
-                    <br/>
-                    <hr style="opacity: 0.1; margin: 30px 0;"/>
-                    <div style="text-align: center; opacity: 0.6; font-size: 0.9em; font-family: sans-serif;">
-                        Para ler na íntegra, use o botão <span style="font-weight:bold">Globo 🌐</span> acima.
-                    </div>
-                </div>
-            `;
-            
-            setReaderContent({ 
-                title: article.title, 
-                content: fallbackHTML,
-                textContent: article.summary 
-            });
+            console.error("Erro geral:", err);
+            useFallback();
         } finally {
             setIsLoading(false);
         }
     };
     
-    fetchContent();
+    // Pequeno delay para a animação
+    if (!isAnimationDone) setTimeout(fetchContent, 500);
+    else fetchContent();
 
   }, [article?.id, isOpen, videoId, isForcedMagic]);
-
   const runAnalysis = async () => {
       const textToAnalyze = readerContent?.textContent || readerContent?.content || article.summary; 
       if (!textToAnalyze || textToAnalyze.length < 50) {
