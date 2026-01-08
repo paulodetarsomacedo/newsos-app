@@ -4609,8 +4609,50 @@ export default function NewsOS_V12() {
   
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
-  const [apiKey, setApiKey] = useState('');
-  const [readerApiKey, setReaderApiKey] = useState(''); // Chave 2 (Leitura - NOVA)
+// --- NOVO ESTADO DE CHAVES (SUBSTITUI OS ANTIGOS) ---
+  const [apiKeys, setApiKeys] = useState([
+    { id: 1, value: '', type: 'free' },
+    { id: 2, value: '', type: 'free' },
+    { id: 3, value: '', type: 'free' },
+    { id: 4, value: '', type: 'free' },
+    { id: 5, value: '', type: 'billing_text' }, // Antiga 'reader' turbinada
+    { id: 6, value: '', type: 'billing_audio' },
+  ]);
+
+  // Índice para rotação das chaves gratuitas (Ref para não causar re-render)
+  const rotationIndex = useRef(0);
+
+  // --- A FUNÇÃO MESTRA: DISTRIBUIDOR DE CHAVES ---
+  // Use esta função sempre que precisar de uma chave para IA
+  const getApiKey = useCallback((purpose) => {
+    // 1. Chaves para Widgets e Chat (Gratuitas em Rotação)
+    if (purpose === 'widgets' || purpose === 'chat') {
+        const freeKeys = apiKeys.filter(k => k.type === 'free' && k.value.trim() !== '');
+        if (freeKeys.length === 0) return null;
+        
+        // Rotação simples: pega a atual e incrementa o índice
+        const key = freeKeys[rotationIndex.current % freeKeys.length];
+        rotationIndex.current += 1; 
+        console.log(`Usando Chave Gratuita #${key.id} para ${purpose}`);
+        return key.value;
+    }
+
+    // 2. Chave para Análise Pesada e Roteiro (Texto com Billing)
+    if (purpose === 'analysis' || purpose === 'script') {
+        const key = apiKeys.find(k => k.id === 5);
+        return key?.value || null;
+    }
+
+    // 3. Chave para Áudio (Audio com Billing)
+    if (purpose === 'audio') {
+        const key = apiKeys.find(k => k.id === 6);
+        // Fallback: se não tiver a 6, tenta usar a 5
+        return key?.value || apiKeys.find(k => k.id === 5)?.value || null;
+    }
+
+    return null;
+  }, [apiKeys]);
+  
   
 const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
@@ -4723,20 +4765,24 @@ const handleStoryNavigation = (direction) => {
           if (data.saved_items) setSavedItems(data.saved_items);
           if (data.read_history) setReadHistory(data.read_history);
           if (data.liked_items) setLikedItems(data.liked_items);
-          if (data.api_key) {
+       if (data.api_key) {
               try {
-                  // Tenta ler como JSON (formato novo com 2 chaves)
-                  const parsedKeys = JSON.parse(data.api_key);
-                  if (typeof parsedKeys === 'object') {
-                      setApiKey(parsedKeys.feed || '');
-                      setReaderApiKey(parsedKeys.reader || '');
-                  } else {
-                      // Se não for objeto, é o formato antigo (string simples)
-                      setApiKey(data.api_key);
+                  const parsed = JSON.parse(data.api_key);
+                  // Verifica se é o formato novo de array
+                  if (Array.isArray(parsed) && parsed.length === 6) {
+                      setApiKeys(parsed);
+                  } 
+                  // Migração: Se for formato antigo (objeto ou string), tenta adaptar
+                  else if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+                      setApiKeys(prev => prev.map(k => {
+                          if (k.id === 5) return { ...k, value: parsed.reader || parsed.feed || '' };
+                          if (k.id === 1) return { ...k, value: parsed.feed || '' };
+                          return k;
+                      }));
                   }
               } catch (e) {
-                  // Se der erro no parse, é string antiga
-                  setApiKey(data.api_key);
+                  // Se for string pura (muito antigo), bota na chave 1
+                  setApiKeys(prev => prev.map(k => k.id === 1 ? { ...k, value: data.api_key } : k));
               }
           }
           if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
@@ -4762,10 +4808,7 @@ const handleStoryNavigation = (direction) => {
               saved_items: savedItems,
               read_history: readHistory,
               liked_items: likedItems,
-              api_key: JSON.stringify({ 
-                  feed: apiKey, 
-                  reader: readerApiKey 
-              }),
+              api_key: JSON.stringify(apiKeys),
               is_dark_mode: isDarkMode,
               seen_story_ids: seenStoryIds, 
               article_history: articleHistory,
@@ -4784,7 +4827,7 @@ const handleStoryNavigation = (direction) => {
       }, 2000);
 
       return () => clearTimeout(timer);
-  }, [user, userFeeds, savedItems, readHistory, likedItems, apiKey, isDarkMode, seenStoryIds, articleHistory]);
+  }, [user, userFeeds, savedItems, readHistory, likedItems, apiKeys, isDarkMode, seenStoryIds, articleHistory]);
 
 
   // --- FUNÇÕES DE AUXÍLIO ---
@@ -7250,50 +7293,73 @@ function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey
                 </div>
             )}
             
-       {/* ABA API (AGORA COM DUAS CHAVES) */}
+       {/* --- NOVA ABA DE API (6 CHAVES) --- */}
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                     <div className={`p-6 rounded-3xl text-center ${isDarkMode ? 'bg-zinc-900 border border-purple-500/20' : 'bg-white border border-purple-100'}`}>
-                        <div className="flex justify-center mb-4">
-                            <div className="p-3 bg-purple-500 rounded-2xl shadow-lg shadow-purple-500/30">
-                                <Sparkles size={24} className="text-white"/>
-                            </div>
+                     
+                     {/* GRUPO 1: GRATUITAS */}
+                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Activity size={14} className="text-blue-500"/>
+                            <h3 className="text-sm font-bold">Rotação Gratuita (Widgets & Chat)</h3>
                         </div>
+                        <p className="text-[10px] opacity-60 mb-4 leading-relaxed">
+                            Estas chaves alimentam a Home e o Chat. Use projetos <strong>sem cartão</strong> (Free Tier) para garantir custo zero. O app alterna entre elas para evitar limites.
+                        </p>
                         
-                        <h3 className="text-lg font-black mb-1">Cérebro IA</h3>
-                        <p className="text-xs opacity-60 mb-6">Configure chaves separadas para manter a gratuidade.</p>
-
-                        {/* CAMPO 1: CHAVE GERAL (Feed/Briefing) */}
-                        <div className="text-left mb-4">
-                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 ml-1 flex items-center gap-1">
-                                <Activity size={10}/> Chave Geral (Feed & Trends)
-                            </label>
-                            <input 
-                                type="text" 
-                                value={apiKey} 
-                                onChange={(e) => setApiKey(e.target.value)} 
-                                placeholder="Chave do Projeto 1..." 
-                                className={`w-full px-4 py-3 mt-1 rounded-xl border font-mono text-xs outline-none transition-all ${isDarkMode ? 'bg-black/40 border-white/10 focus:border-purple-500' : 'bg-zinc-50 border-zinc-200 focus:border-purple-500'}`} 
-                            />
+                        <div className="space-y-2">
+                            {apiKeys.filter(k => k.type === 'free').map((key) => (
+                                <input 
+                                    key={key.id}
+                                    type="text" 
+                                    value={key.value} 
+                                    onChange={(e) => handleKeyChange(key.id, e.target.value)} 
+                                    placeholder={`Chave Gratuita ${key.id}...`} 
+                                    className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-blue-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+                                />
+                            ))}
                         </div>
+                     </div>
 
-                        {/* CAMPO 2: CHAVE READER (NOVO) */}
-                        <div className="text-left mb-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 ml-1 flex items-center gap-1">
-                                <FileText size={10}/> Chave Leitor (Raio-X & Análise)
-                            </label>
-                            <input 
-                                type="text" 
-                                // ATENÇÃO: Você precisará passar 'readerApiKey' e 'setReaderApiKey' como props para o SettingsModal
-                                value={readerApiKey} 
-                                onChange={(e) => setReaderApiKey(e.target.value)} 
-                                placeholder="Chave do Projeto 2..." 
-                                className={`w-full px-4 py-3 mt-1 rounded-xl border font-mono text-xs outline-none transition-all ${isDarkMode ? 'bg-black/40 border-white/10 focus:border-blue-500' : 'bg-zinc-50 border-zinc-200 focus:border-blue-500'}`} 
-                            />
+                     {/* GRUPO 2: PAGA (TEXTO) */}
+                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <FileText size={14} className="text-green-500"/>
+                            <h3 className="text-sm font-bold">Chave 5: Usina de Texto</h3>
                         </div>
+                        <p className="text-[10px] opacity-60 mb-2 leading-relaxed">
+                            Use um projeto <strong>com billing</strong>. Gera análises completas e roteiros. Custo zero devido à cota de 1M tokens/dia.
+                        </p>
+                        <input 
+                            type="text" 
+                            value={apiKeys.find(k => k.id === 5)?.value || ''} 
+                            onChange={(e) => handleKeyChange(5, e.target.value)} 
+                            placeholder="Chave do Projeto com Billing (Texto)..." 
+                            className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-green-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+                        />
+                     </div>
 
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-purple-500 hover:underline">
-                            Gerar chaves no Google AI Studio <ArrowRight size={12}/>
+                     {/* GRUPO 3: PAGA (ÁUDIO) */}
+                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Headphones size={14} className="text-purple-500"/>
+                            <h3 className="text-sm font-bold">Chave 6: Voz Neural</h3>
+                        </div>
+                        <p className="text-[10px] opacity-60 mb-2 leading-relaxed">
+                            Use um projeto <strong>com billing</strong> (pode ser o mesmo da Chave 5). Gera o áudio MP3 sob demanda.
+                        </p>
+                        <input 
+                            type="text" 
+                            value={apiKeys.find(k => k.id === 6)?.value || ''} 
+                            onChange={(e) => handleKeyChange(6, e.target.value)} 
+                            placeholder="Chave do Projeto com Billing (Áudio)..." 
+                            className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-purple-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+                        />
+                     </div>
+
+                     <div className="text-center pt-2">
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] font-bold text-blue-500 hover:underline">
+                            Gerar chaves no Google AI Studio
                         </a>
                      </div>
                 </div>
