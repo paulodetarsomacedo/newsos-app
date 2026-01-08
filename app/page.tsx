@@ -4682,7 +4682,7 @@ const [userFeeds, setUserFeeds] = useState([]);
   const [isAskLoading, setIsAskLoading] = useState(false);
   const [viewedInStoryId, setViewedInStoryId] = useState(null);
 
-  const handleAskAI = async (query) => {
+ const handleAskAI = async (query) => {
       setAskQuestion(query);
       setAskAnswer(null);
       setAskSources([]);
@@ -4693,8 +4693,15 @@ const [userFeeds, setUserFeeds] = useState([]);
       setAskSources(results);
 
       // 2. Pergunta pro Gemini
-      // Usa a chave Reader (preferencial) ou Geral
-      const activeKey = readerApiKey || apiKey;
+      // CORREÇÃO: Usamos o getApiKey para pegar uma chave de rotação (chat/widgets)
+      const activeKey = getApiKey('chat'); 
+      
+      if (!activeKey) {
+          setAskAnswer("Erro: Nenhuma chave de API configurada para o chat.");
+          setIsAskLoading(false);
+          return;
+      }
+
       const aiResponse = await askGeminiWithContext(query, results, activeKey);
       
       setAskAnswer(aiResponse);
@@ -5511,7 +5518,7 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
         onRefresh={handleHappeningRefresh}
         seenStoryIds={seenStoryIds} 
         onMarkAsSeen={markStoryAsSeen}
-        apiKey={apiKey}
+        apiKey={getApiKey('widgets')} 
         storiesToDisplay={storiesForHappeningTab}
         savedClusters={globalClusters}
                     setSavedClusters={setGlobalClusters}
@@ -5677,8 +5684,8 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
               setFeeds={setUserFeeds}
               apiKey={apiKey}
               setApiKey={setApiKey}
-              readerApiKey={readerApiKey}      // <--- NOVA PROP
-              setReaderApiKey={setReaderApiKey} // <--- NOVA PROP
+              apiKeys={apiKeys}
+              setApiKeys={setApiKeys}
               user={user} 
           />
       )}
@@ -5692,8 +5699,8 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
     onArticleChange={handleOpenArticle} 
     onToggleSave={handleToggleSave}
     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-    apiKey={apiKey}             // Chave Geral
-    readerApiKey={readerApiKey} // Chave Leitor (Nova)
+    apiKey={getApiKey('analysis')} // Chave de texto (Chave 5 - Billing)
+        readerApiKey={getApiKey('analysis')} // Retrocompatibilidade (Chave 5)
     isDarkMode={isDarkMode} 
     // Remova props que não usamos mais, como setIsExpanded
       />
