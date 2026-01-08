@@ -6938,8 +6938,8 @@ function PodNewsModal({ onClose, isDarkMode }) {
 }
 
 // --- MODAL DE CONFIGURAÇÕES (V3 - FINAL - COM LOGIN VIA CÓDIGO/OTP) ---
-function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKey, setApiKey, readerApiKey, setReaderApiKey, user }) {
-  const [activeTab, setActiveTab] = useState(user ? 'sources' : 'account'); 
+function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKeys, setApiKeys, user }) {
+const [activeTab, setActiveTab] = useState(user ? 'sources' : 'account'); 
   
   // Auth States
   const [email, setEmail] = useState('');
