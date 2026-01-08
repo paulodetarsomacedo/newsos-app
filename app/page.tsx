@@ -5682,8 +5682,8 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
               isDarkMode={isDarkMode}
               feeds={userFeeds}
               setFeeds={setUserFeeds}
-              apiKey={apiKey}
-              setApiKey={setApiKey}
+              
+              
               apiKeys={apiKeys}
               setApiKeys={setApiKeys}
               user={user} 
