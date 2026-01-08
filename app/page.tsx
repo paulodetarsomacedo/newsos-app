@@ -7062,6 +7062,15 @@ const [activeTab, setActiveTab] = useState(user ? 'sources' : 'account');
     setNewUrl(''); setTargetFeed(true); setTargetBanca(false); setFeedType('news');
   };
 
+const handleKeyChange = (targetId, newValue) => {
+    // Essa função pega a lista antiga de chaves e atualiza só a que você está digitando
+    setApiKeys(currentKeys => 
+      currentKeys.map(key => 
+        key.id === targetId ? { ...key, value: newValue } : key
+      )
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
