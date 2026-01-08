@@ -6126,66 +6126,7 @@ const resolveBrandColor = (sourceName, isDarkMode) => {
     return SAFE_PALETTE[Math.abs(hash) % SAFE_PALETTE.length];
 };
 
-// 2. SUB-COMPONENTES DE VISUALIZAÇÃO
-const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontSize }) => {
-    const data = readerContent || article;
-    if (!data) return null;
 
-    const identity = getBrandIdentity(article.source);
-    const brandColor = resolveBrandColor(article.source, isDarkMode);
-    const formattedDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(article.rawDate || Date.now()));
-  // NOVO: Lógica de Scroll e Highlight
-    useEffect(() => {
-        if (highlightText) {
-            setTimeout(() => {
-                // Procura o texto na página (simples e eficaz)
-                // Em produção real, usaríamos IDs, mas window.find funciona bem para demo
-                if (window.find && window.getSelection) {
-                    window.find(highlightText); 
-                }
-            }, 500);
-        }
-    }, [highlightText]);
-    return (
-        <div className="animate-in fade-in slide-in-from-bottom-8 duration-500 bg-transparent w-full transform-gpu">
-             <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,900;1,6..96,400&family=Inter:wght@300;400;800;900&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,400&family=Oswald:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Roboto:wght@300;400;700&family=UnifrakturMaguntia&family=Source+Serif+Pro:wght@400;600&display=swap');
-                :root { --brand-color: ${brandColor}; }
-                .magic-body { font-family: ${identity.fontBody}; line-height: 1.8; color: ${isDarkMode ? '#e4e4e7' : '#111'}; }
-                .magic-body p { margin-bottom: 1.5em; font-size: 1.1em; letter-spacing: -0.01em; }
-                .magic-body h1, .magic-body h2, .magic-body h3 { font-family: ${identity.type === 'tech' ? identity.fontHeader : identity.fontBody}; font-weight: 800; margin-top: 2em; margin-bottom: 0.5em; line-height: 1.1; color: ${isDarkMode ? '#fff' : '#000'}; }
-                .magic-body a { color: var(--brand-color); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; font-weight: 600; }
-                .magic-body blockquote { border-left: 4px solid var(--brand-color); padding-left: 1.5em; font-style: italic; margin: 2em 0; font-size: 1.2em; font-weight: 500; color: ${isDarkMode ? '#fff' : '#000'}; background: ${isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'}; padding: 1rem; }
-                .magic-body img { width: 100%; height: auto; display: block; margin: 2.5em 0; border-radius: 0; }
-                .magic-body ul, .magic-body ol { margin-left: 1.5em; margin-bottom: 1.5em; }
-                .magic-body li { margin-bottom: 0.5em; padding-left: 0.5em; }
-                ${(identity.type === 'newspaper' || identity.type === 'magazine') ? `.magic-body > p:first-of-type::first-letter { float: left; font-size: 4.8em; line-height: 0.8em; padding-right: 0.1em; padding-top: 0.1em; font-family: ${identity.fontHeader}; font-weight: 900; color: var(--brand-color); }` : ''}
-                .masthead-newspaper { border-bottom: 1px double ${isDarkMode ? '#fff' : '#000'}; border-top: 1px solid ${isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}; padding: 2rem 0; text-align: center; }
-                .masthead-tech { text-align: left; border-top: 6px solid var(--brand-color); padding: 2rem 0; background: ${isDarkMode ? 'linear-gradient(to right, rgba(255,255,255,0.05), transparent)' : 'linear-gradient(to right, rgba(0,0,0,0.03), transparent)'}; }
-                .masthead-magazine { text-align: center; padding: 3rem 0; border-bottom: 1px solid ${isDarkMode ? '#fff' : '#000'}; }
-                .masthead-broadcast { display: flex; align-items: center; gap: 1rem; padding: 1.5rem 0; border-bottom: 4px solid var(--brand-color); }
-                .masthead-default { text-align: center; padding: 2rem 0; border-bottom: 1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}; }
-            `}</style>
-            
-            <div className={`w-full ${isDarkMode ? 'bg-zinc-950' : 'bg-[#f8f9fa]'}`}>
-                <div className="max-w-3xl mx-auto px-6">
-                    {identity.type === 'newspaper' && (<div className="masthead-newspaper"><div className="text-[10px] font-bold uppercase tracking-[0.2em] mb-4 flex justify-center gap-4 opacity-60"><span>{formattedDate}</span><span>•</span><span>{article.category}</span></div><h1 className="text-5xl md:text-7xl mb-2 text-current" style={{ fontFamily: identity.fontHeader, fontWeight: 400 }}>{article.source}</h1></div>)}
-                    {identity.type === 'tech' && (<div className="masthead-tech pl-4"><div className="flex items-center gap-3 mb-4"><img src={article.logo} className="w-8 h-8 rounded-md" /><span className="text-xs font-bold uppercase tracking-widest" style={{ color: brandColor }}>/ {article.category}</span></div><h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter italic leading-none" style={{ fontFamily: identity.fontHeader, letterSpacing: '-0.05em' }}>{article.source}</h1></div>)}
-                    {identity.type === 'magazine' && (<div className="masthead-magazine"><h1 className="text-6xl md:text-8xl font-bold uppercase leading-none mb-2" style={{ fontFamily: identity.fontHeader, letterSpacing: '0.05em' }}>{article.source}</h1><div className="w-16 h-1 mx-auto mb-4" style={{ backgroundColor: brandColor }}></div><div className="flex justify-between border-t border-b border-current py-1 text-[10px] font-bold uppercase tracking-[0.2em]"><span>Exclusive</span><span>Story</span><span>NewsOS</span></div></div>)}
-                    {identity.type === 'broadcast' && (<div className="masthead-broadcast"><div className="text-white p-2 px-3 font-bold text-3xl tracking-tighter rounded-sm" style={{ backgroundColor: brandColor, fontFamily: identity.fontHeader }}>{article.source.substring(0, 4).toUpperCase()}</div><div className="h-8 w-[1px] bg-current opacity-20"></div><div className="flex flex-col"><span className="text-xs font-bold uppercase tracking-wider opacity-60">{formattedDate}</span><span className="text-sm font-black uppercase tracking-tight" style={{ color: brandColor }}>Breaking News</span></div></div>)}
-                    {identity.type === 'default' && (<div className="masthead-default"><img src={article.logo} className="w-16 h-16 mx-auto mb-4 rounded-full shadow-md border-4 border-white dark:border-zinc-800" /><h1 className="text-3xl font-black uppercase tracking-widest opacity-90">{article.source}</h1><div className="w-8 h-1 mx-auto mt-4 rounded-full" style={{ backgroundColor: brandColor }}></div></div>)}
-                </div>
-            </div>
-
-            <div className="max-w-3xl mx-auto px-6 py-12 pb-32">
-                <h2 className={`text-3xl md:text-5xl leading-[1.1] mb-8 ${identity.align === 'center' ? 'text-center' : 'text-left'} ${isDarkMode ? 'text-white' : 'text-zinc-900'}`} style={{ fontFamily: identity.type === 'tech' ? identity.fontHeader : (identity.type === 'newspaper' ? identity.fontHeader : identity.fontBody), fontWeight: identity.type === 'newspaper' ? 400 : 900, letterSpacing: identity.type === 'tech' ? '-0.03em' : 'normal' }}>{data.title}</h2>
-                <div className={`flex items-center gap-4 mb-10 border-t border-b py-3 border-zinc-200 dark:border-zinc-800 text-xs font-bold uppercase tracking-wider opacity-60 ${identity.align === 'center' ? 'justify-center' : 'justify-start'}`}><span>Por Redação</span><span className="w-1 h-1 bg-current rounded-full"></span><span>{article.readTime || '3 min'}</span></div>
-                {article.img && (<figure className="w-full mb-12"><img src={article.img} className="w-full h-auto object-cover shadow-sm" alt={article.title} /><figcaption className="text-[10px] mt-2 opacity-60 font-sans text-center uppercase tracking-wide">Foto: Reprodução / {article.source}</figcaption></figure>)}
-                <div className="magic-body" style={{ fontSize: `${fontSize}px` }} dangerouslySetInnerHTML={{ __html: readerContent?.content || `<p>${article.summary}</p>` }} />
-            </div>
-        </div>
-    );
-});
 
 const AppleReaderView = React.memo(({ article, readerContent, isDarkMode, fontSize }) => {
     const data = readerContent || article;
