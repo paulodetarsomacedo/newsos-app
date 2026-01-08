@@ -6211,77 +6211,7 @@ const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
 ));
 
 
-// --- WIDGETS VISUAIS DA ABA AI ---
 
-// 1. Mindmap (Visual Teia)
-const MindMapWidget = ({ data, isDarkMode }) => (
-    <div className={`p-6 rounded-3xl border mb-6 relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-        <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-6 flex items-center gap-2"><Share size={12}/> Mapa Mental</h4>
-        <div className="flex flex-col items-center relative z-10">
-            {/* Nó Central */}
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-center shadow-lg shadow-indigo-500/30 mb-8 z-20 relative">
-                {data.center}
-                {/* Linhas (CSS Puro) */}
-                <div className="absolute top-full left-1/2 w-0.5 h-8 bg-indigo-500/30 -translate-x-1/2"></div>
-                <div className="absolute top-full left-0 w-full h-0.5 bg-indigo-500/30 translate-y-8"></div>
-            </div>
-            {/* Nós Filhos */}
-            <div className="grid grid-cols-2 gap-4 w-full">
-                {data.nodes.map((node, i) => (
-                    <div key={i} className={`p-3 rounded-xl text-xs font-medium text-center border relative ${isDarkMode ? 'bg-black/20 border-white/10 text-zinc-300' : 'bg-zinc-50 border-zinc-200 text-zinc-700'}`}>
-                        {/* Linhas verticais conectando na linha horizontal */}
-                        <div className={`absolute bottom-full left-1/2 w-0.5 h-4 bg-indigo-500/30 -translate-x-1/2`}></div>
-                        {node}
-                    </div>
-                ))}
-            </div>
-        </div>
-    </div>
-);
-
-// 2. Timeline (Contexto Histórico)
-const TimelineWidget = ({ items, isDarkMode }) => (
-    <div className={`p-6 rounded-3xl border mb-6 ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-        <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-6 flex items-center gap-2"><Clock size={12}/> Contexto Temporal</h4>
-        <div className="space-y-0">
-            {items.map((item, i) => (
-                <div key={i} className="flex gap-4 relative pb-8 last:pb-0">
-                    {/* Linha Vertical */}
-                    {i !== items.length - 1 && <div className="absolute left-[19px] top-8 bottom-0 w-0.5 bg-zinc-200 dark:bg-zinc-800"></div>}
-                    
-                    <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold z-10 ${i === items.length-1 ? 'bg-green-500 text-white shadow-lg shadow-green-500/30' : (isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500')}`}>
-                        {i === items.length-1 ? 'HOJE' : i+1}
-                    </div>
-                    <div>
-                        <span className="text-[10px] font-bold text-indigo-500 uppercase block mb-1">{item.time}</span>
-                        <p className={`text-sm leading-tight ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{item.event}</p>
-                    </div>
-                </div>
-            ))}
-        </div>
-    </div>
-);
-
-// 3. Cenários Futuros (What's Next)
-const FutureWidget = ({ data, isDarkMode }) => (
-    <div className="mb-8">
-        <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4 px-2 flex items-center gap-2"><Telescope size={12}/> Cenários Futuros</h4>
-        <div className="flex overflow-x-auto gap-3 pb-4 px-1 snap-x scrollbar-hide">
-            <div className="snap-center flex-shrink-0 w-64 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase mb-2"><TrendingUp size={14}/> Otimista</div>
-                <p className="text-xs leading-relaxed text-emerald-900 dark:text-emerald-100">{data.optimistic}</p>
-            </div>
-            <div className="snap-center flex-shrink-0 w-64 p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20">
-                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-black text-xs uppercase mb-2"><Activity size={14}/> Provável</div>
-                <p className="text-xs leading-relaxed text-blue-900 dark:text-blue-100">{data.probable}</p>
-            </div>
-            <div className="snap-center flex-shrink-0 w-64 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
-                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-black text-xs uppercase mb-2"><TrendingDown size={14}/> Pessimista</div>
-                <p className="text-xs leading-relaxed text-rose-900 dark:text-rose-100">{data.pessimistic}</p>
-            </div>
-        </div>
-    </div>
-);
 
 
 
