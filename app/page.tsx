@@ -6227,9 +6227,9 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
 const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
     <div className="fixed inset-0 z-[6000] flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-        <div className={`relative w-full max-w-md p-6 rounded-3xl shadow-2xl border flex flex-col gap-6 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+        {/* --- MUDANÇA AQUI: de max-w-sm para max-w-md --- */}
+        <div className={`relative w-full max-w-md p-8 rounded-3xl shadow-2xl border flex flex-col gap-6 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
             
-            {/* Cabeçalho */}
             <div className="flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mb-4">
                     <BrainCircuit size={32} className="text-white" />
@@ -6238,24 +6238,22 @@ const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
                 <h3 className="text-2xl font-black">{data.mindmap.center}</h3>
             </div>
             
-            {/* Resumo */}
-            <div className={`p-4 rounded-xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
-                <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+            <div className={`p-5 rounded-xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
+                <p className={`text-base leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
                     {data.summaries.executive}
                 </p>
             </div>
 
-            {/* Pontos Chave e Conexões */}
-            <div className="grid grid-cols-2 gap-4 text-xs">
+            <div className="grid grid-cols-2 gap-6 text-sm">
                 <div>
                     <h4 className="font-bold mb-2 opacity-60">Pontos Principais:</h4>
-                    <ul className="list-disc pl-4 space-y-1 marker:text-purple-400">
+                    <ul className="list-disc pl-5 space-y-2 marker:text-purple-400">
                         {data.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}
                     </ul>
                 </div>
                 <div>
                     <h4 className="font-bold mb-2 opacity-60">Conexões no Mapa:</h4>
-                    <ul className="list-none space-y-1">
+                    <ul className="list-none space-y-2">
                         {data.mindmap.nodes.map((node, i) => <li key={i} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>{node}</li>)}
                     </ul>
                 </div>
@@ -6295,7 +6293,7 @@ const ConstellationWidget = ({ mindmap, onNodeClick, onCenterClick, isDarkMode }
                     </div>
                 </div>
                 {mindmap.nodes.slice(0, 4).map((node, i) => (
-                    <button key={i} onClick={() => onNodeClick(node)} className={`absolute z-30 px-5 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:border-purple-500 hover:z-40 max-w-[160px] group ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-800'}`} style={{ top: `${nodesPos[i].y}%`, left: `${nodesPos[i].x}%`, transform: 'translate(-50%, -50%)' }}>
+                    <button key={i} onClick={() => onNodeClick(node, { x: nodesPos[i].x, y: nodesPos[i].y })} className={`absolute z-30 px-5 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:border-purple-500 hover:z-40 max-w-[160px] group ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-800'}`} style={{ top: `${nodesPos[i].y}%`, left: `${nodesPos[i].x}%`, transform: 'translate(-50%, -50%)' }}>
                         <span className="text-[10px] font-bold leading-tight block text-center group-hover:text-purple-400 transition-colors">{node}</span>
                     </button>
                 ))}
@@ -6523,10 +6521,16 @@ const prompt = `
       } catch (err) { setLoadingState('error'); }
   }, [apiKey, article]);
 
-  const handleNodeClick = useCallback((nodeName) => {
+const handleNodeClick = useCallback((nodeName, position) => {
       if (!aiData?.contextualTerms) return;
+      
       const nodeData = aiData.contextualTerms.find(t => t.term.toLowerCase().includes(nodeName.toLowerCase()) || nodeName.toLowerCase().includes(t.term.toLowerCase()));
-      setFocusedNode(nodeData || { name: nodeName, context: "Contexto geral.", sentiment: "neutral", evidence_quotes: [] });
+      
+      const dataToSet = nodeData || { name: nodeName, context: "Contexto geral.", sentiment: "neutral", evidence_quotes: [] };
+      
+      // Salva a posição para o CSS usar
+      setFocusedNode({ ...dataToSet, position }); 
+      
       setViewMode('drilldown');
   }, [aiData]);
   
@@ -6582,7 +6586,7 @@ const prompt = `
                             <div className="w-12 h-12 rounded-2xl border-2 border-white/20 bg-white p-1 shadow-lg">
                                 <img src={article.logo} className="w-full h-full object-contain rounded-lg"/>
                             </div>
-                            <span className="text-lg font-black text-indigo-400 uppercase tracking-widest drop-shadow-lg">{article.source}</span>
+                            <span className="text-lg font-black text-white/80 uppercase tracking-widest drop-shadow-lg">{article.source}</span>
                         </div>
                         <h1 className="text-3xl md:text-4xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
                     </div>
@@ -6608,43 +6612,57 @@ const prompt = `
                         </div>
                     )}
                     {viewMode === 'drilldown' && focusedNode && (
-                        <div className="animate-in slide-in-from-right">
-                            <button onClick={() => setViewMode('analysis')} className="mb-6 text-xs font-bold text-zinc-500 hover:text-black dark:hover:text-white flex items-center gap-2"><ChevronLeft size={16}/> VOLTAR AO MAPA</button>
-                            <div className={`p-8 rounded-[2.5rem] border-2 shadow-2xl ${isDarkMode ? 'bg-zinc-900 border-indigo-500/50' : 'bg-white border-indigo-100'}`}>
-                            {/* FONTE DA NOTÍCIA (GARANTIDA) */}
-                                <div className="flex items-center gap-2 mb-4 opacity-70">
-                                    <img src={article.logo} className="w-5 h-5 rounded-full" />
-                                    <span className="text-xs font-bold uppercase tracking-wider">{article.source}</span>
-                                </div>
-                                <h2 className="text-3xl font-black text-indigo-500 mb-4">{focusedNode.name || focusedNode.term}</h2>
-                                   {/* FALLBACK INTELIGENTE */}
-                                {(!focusedNode.context || focusedNode.context.toLowerCase().includes('contexto geral')) ? (
-                                    <div>
-                                        <p className="text-sm italic opacity-60 mb-4">A IA não forneceu um contexto detalhado. Veja os pontos principais relacionados:</p>
-                                        <ul className="list-disc pl-5 ...">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                                    </div>
-                                ) : (
-                                <p className={`text-lg leading-relaxed mb-6 font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>{focusedNode.context}</p>
-                                  )}
-                                  {/* TERMOS RELACIONADOS (NOVO) */}
-                                {focusedNode.related_keywords && (
-                                    <div className="mt-8">
-                                        <h4 className="text-xs font-bold opacity-50 mb-2">Termos Relacionados</h4>
-                                        <div className="flex flex-wrap gap-2">
-                                            {focusedNode.related_keywords.map(kw => (
-                                                <div key={kw} className={`px-3 py-1 text-xs font-medium rounded-full ${isDarkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-600'}`}>{kw}</div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="space-y-4">
-                                    <h4 className={`text-xs font-black uppercase tracking-widest opacity-50 ${isDarkMode ? 'text-white' : 'text-black'}`}>Evidências</h4>
-                                    {focusedNode.evidence_quotes?.map((quote, i) => (<div key={i} onClick={() => handleQuoteClick(quote)} className={`p-4 rounded-xl border cursor-pointer hover:border-purple-500 ${isDarkMode ? 'bg-black/20 border-white/10 text-zinc-300' : 'bg-zinc-50 border-zinc-200 text-zinc-700'}`}>"{quote}"</div>))}
-                                    {focusedNode.related_nodes && <div className="mt-6"><h4 className={`text-xs font-black uppercase tracking-widest opacity-50 mb-2 ${isDarkMode ? 'text-white' : 'text-black'}`}>Conexões</h4><div className="flex flex-wrap gap-2">{focusedNode.related_nodes.map(node => (<button key={node} onClick={() => handleNodeClick(node)} className={`px-3 py-1 text-xs font-bold rounded-full border ${isDarkMode ? 'bg-zinc-800 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}>{node}</button>))}</div></div>}
-                                </div>
-                            </div>
-                        </div>
-                    )}
+    // Container absoluto que preenche a tela para capturar o clique de fechar
+    <div className="absolute inset-0 z-30" onClick={() => setViewMode('analysis')}>
+        
+        {/* O Painel de Foco (posicionado dinamicamente) */}
+        {/* Clicar dentro dele não fecha (e.stopPropagation) */}
+        <div 
+            onClick={(e) => e.stopPropagation()}
+            className={`
+                absolute w-96 p-6 rounded-3xl shadow-2xl border backdrop-blur-xl animate-in zoom-in-90
+                ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
+            `}
+            // Lógica de posicionamento (exemplo para 4 nós)
+            style={{ 
+                top: `${focusedNode.position?.y}%` || '50%', 
+                left: `${focusedNode.position?.x}%` || '50%',
+                transform: `translate(-50%, -50%)` // Centraliza no ponto
+            }}
+        >
+            <div className="flex items-start justify-between mb-4">
+                <div>
+                    <div className="flex items-center gap-2 mb-2 opacity-70">
+                        <img src={article.logo} className="w-4 h-4 rounded-full" />
+                        <span className="text-[9px] font-bold uppercase tracking-wider">{article.source}</span>
+                    </div>
+                    <h2 className="text-xl font-black text-indigo-400 leading-tight">{focusedNode.name || focusedNode.term}</h2>
+                </div>
+                <button onClick={() => setViewMode('analysis')} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
+            </div>
+            
+            {/* Contexto ou Fallback */}
+            {(!focusedNode.context || focusedNode.context.toLowerCase().includes('contexto geral')) ? (
+                <div>
+                    <p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p>
+                    <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                </div>
+            ) : (
+                <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{focusedNode.context}</p>
+            )}
+            
+            {/* Evidências */}
+            <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
+                <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Evidências</h4>
+                {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
+                    focusedNode.evidence_quotes.map((quote, i) => (
+                        <div key={i} onClick={() => handleQuoteClick(quote)} className={`p-3 rounded-xl border cursor-pointer text-xs italic ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>"{quote}"</div>
+                    ))
+                ) : <p className="text-xs opacity-50 italic">Nenhuma citação direta encontrada.</p>}
+            </div>
+        </div>
+    </div>
+)}
                     {viewMode === 'magic' && (<MagicPremiumView article={article} readerContent={readerContent} highlightText={highlightRequest} isDarkMode={isDarkMode} fontSize={fontSize} />)}
                 </div>
             </div>
