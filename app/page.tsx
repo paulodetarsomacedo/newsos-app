@@ -1097,10 +1097,10 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
                 onError={(e) => e.target.style.display = 'none'} 
             />
             {/* PÍLULA APENAS NO NOME */}
-            <div className="bg-black/90 backdrop-blur-md px-2 py-2 rounded-md border border-white/10 shadow-lg">
+            <div className="bg-black/20 backdrop-blur-md px-1 py-1 rounded-md border border-white/10 shadow-lg">
                 <span className="text-[10px] font-black text-white uppercase tracking-wider">{news.source}</span>
             </div>
-            <div className="bg-black/90 backdrop-blur-md px-2 py-2 rounded-full border border-white/5">
+            <div className="bg-black/20 backdrop-blur-md px-1 py-1 rounded-full border border-white/5">
                 <span className="text-[10px] font-bold text-white">{displayTime}</span>
             </div>
         </div>
