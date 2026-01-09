@@ -4204,7 +4204,8 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
   }
 };
 
-// --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL (CORRIGIDO) ---
+
+// --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL (BLINDADO) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const audioRef = useRef(null);
   
@@ -4213,6 +4214,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isYoutube, setIsYoutube] = useState(false);
+  const [hasError, setHasError] = useState(false); // Novo estado de erro visual
 
   // 1. Extração de ID Segura
   const ytId = useMemo(() => {
@@ -4222,30 +4224,41 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       return match ? match[1] : null;
   }, [track]);
 
-  // 2. Setup Inicial
+  // 2. Setup Inicial (Com Try/Catch agressivo)
   useEffect(() => {
     if (!track || track.isGenerating) return;
 
+    // Reset dos estados
     setIsPlaying(false);
     setProgress(0);
     setCurrentTime(0);
     setDuration(0);
+    setHasError(false);
 
     if (ytId) {
         setIsYoutube(true);
     } else {
         setIsYoutube(false);
+        // Tenta iniciar o áudio apenas se a ref existir
         if (audioRef.current) {
-            // Garante que o áudio pare antes de carregar o novo
-            audioRef.current.pause();
-            audioRef.current.src = track.audio || track.link;
-            audioRef.current.load();
-            
-            const playPromise = audioRef.current.play();
-            if (playPromise !== undefined) {
-                playPromise
-                    .then(() => setIsPlaying(true))
-                    .catch(e => console.log("Autoplay bloqueado:", e));
+            try {
+                // Se for link HTTP em site HTTPS, o navegador bloqueia (Mixed Content)
+                // Vamos tentar usar o link direto
+                audioRef.current.src = track.audio || track.link;
+                audioRef.current.load();
+                
+                const playPromise = audioRef.current.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => setIsPlaying(true))
+                        .catch(err => {
+                            console.warn("Autoplay impedido ou falha de fonte:", err);
+                            // Não marcamos erro fatal aqui para não travar a UI, apenas não toca
+                        });
+                }
+            } catch (e) {
+                console.error("Erro fatal ao iniciar áudio:", e);
+                setHasError(true);
             }
         }
     }
@@ -4263,27 +4276,33 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       return () => clearInterval(interval);
   }, [isYoutube, isPlaying, currentTime, duration]);
 
-  // --- HANDLER DE FECHAR BLINDADO ---
+  // --- HANDLER DE FECHAR (FORÇA BRUTA) ---
   const handleClose = (e) => {
-      // 1. Impede que o clique passe para o player ou container
+      // 1. Para propagação imediatamente
       if (e) {
-        e.stopPropagation();
         e.preventDefault();
+        e.stopPropagation();
       }
       
-      // 2. Pausa o áudio nativo imediatamente
-      if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.src = ""; // Limpa a fonte para parar o download
+      // 2. Tenta limpar o áudio, mas se falhar, ignora e fecha mesmo assim
+      try {
+          if (audioRef.current) {
+              audioRef.current.pause();
+              audioRef.current.currentTime = 0;
+              audioRef.current.src = ""; // Mata o download
+          }
+      } catch (err) {
+          console.warn("Erro ao limpar áudio no fechamento (ignorado):", err);
       }
       
-      // 3. Chama o fechamento do pai (Isso desmonta o componente)
+      // 3. FECHA O COMPONENTE PAI (Isso é o mais importante)
       if (onClose) onClose();
   };
 
   // --- RENDERIZAÇÃO ---
   if (!track) return null;
 
+  // Tela de Loading da IA
   if (track.isGenerating) {
       return (
         <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-6 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 flex items-center gap-4 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
@@ -4292,8 +4311,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                 <h4 className="text-sm font-bold animate-pulse">Sintetizando Voz Neural...</h4>
                 <p className="text-[10px] opacity-60">Usando Google Cloud TTS</p>
             </div>
-            {/* Permite cancelar o loading */}
-            <button onClick={handleClose} className="ml-auto p-2"><X size={20}/></button>
+            <button onClick={handleClose} className="ml-auto p-2 hover:bg-black/10 rounded-full"><X size={20}/></button>
         </div>
       );
   }
@@ -4301,10 +4319,12 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   // Handlers de Áudio Nativo
   const handleNativeTimeUpdate = () => {
       if (audioRef.current) {
-          setCurrentTime(audioRef.current.currentTime);
-          if (audioRef.current.duration) {
-              setDuration(audioRef.current.duration);
-              setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+          const curr = audioRef.current.currentTime;
+          const dur = audioRef.current.duration;
+          if (isFinite(curr)) setCurrentTime(curr);
+          if (isFinite(dur) && dur > 0) {
+              setDuration(dur);
+              setProgress((curr / dur) * 100);
           }
       }
   };
@@ -4313,7 +4333,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       e.stopPropagation();
       if (!isYoutube && audioRef.current) {
           if (isPlaying) audioRef.current.pause();
-          else audioRef.current.play();
+          else audioRef.current.play().catch(e => console.warn("Play failed:", e));
           setIsPlaying(!isPlaying);
       }
   };
@@ -4325,6 +4345,13 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       return `${min}:${sec < 10 ? '0' + sec : sec}`;
   };
 
+  // Handler de erro do elemento <audio>
+  const handleAudioError = (e) => {
+      console.error("Erro no elemento de áudio:", e.target.error);
+      setHasError(true);
+      setIsPlaying(false);
+  };
+
   return (
     <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-4 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
         
@@ -4334,17 +4361,21 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                 onTimeUpdate={handleNativeTimeUpdate} 
                 onLoadedMetadata={(e) => setDuration(e.target.duration)} 
                 onEnded={() => setIsPlaying(false)}
+                onError={handleAudioError} // Captura o erro do console
                 playsInline 
             />
         )}
         
-        <div className="absolute top-0 left-4 right-4 -mt-1.5 h-4 flex items-center z-20">
-             <div className="w-full h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full overflow-hidden">
-                <div className="h-full bg-orange-500 transition-all duration-500" style={{ width: `${progress}%` }} />
+        {/* Barra de Progresso */}
+        <div className="absolute top-0 left-4 right-4 -mt-1.5 h-4 flex items-center z-20 pointer-events-none">
+             <div className={`w-full h-1.5 rounded-full overflow-hidden ${hasError ? 'bg-red-500/30' : (isDarkMode ? 'bg-zinc-700' : 'bg-zinc-300')}`}>
+                <div className={`h-full transition-all duration-500 ${hasError ? 'bg-red-500 w-full' : 'bg-orange-500'}`} style={{ width: hasError ? '100%' : `${progress}%` }} />
              </div>
         </div>
 
         <div className="flex items-center gap-4 mt-2 relative z-30"> 
+            
+            {/* Capa */}
             <div className="w-24 h-16 rounded-lg bg-black flex-shrink-0 overflow-hidden relative shadow-md border border-white/10">
                 {isYoutube ? (
                     <iframe
@@ -4354,29 +4385,47 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                         title="YouTube"
                         frameBorder="0"
                         allow="autoplay; encrypted-media; picture-in-picture"
-                        style={{ pointerEvents: 'none' }} // Bloqueia clique no iframe
+                        style={{ pointerEvents: 'none' }} 
                     />
                 ) : (
                     <img src={track.cover || track.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                 )}
             </div>
             
+            {/* Informações */}
             <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-bold leading-tight truncate">{track.title}</h4>
+                <h4 className={`text-sm font-bold leading-tight truncate ${hasError ? 'text-red-500' : ''}`}>
+                    {hasError ? "Erro na reprodução" : track.title}
+                </h4>
                 <p className="text-[10px] opacity-60 truncate flex items-center gap-1 mt-1">
-                    {isYoutube ? <span className="text-red-500 font-bold flex items-center gap-1"><Youtube size={10}/> YouTube</span> : <span className="text-blue-500 font-bold flex items-center gap-1"><Mic size={10}/> Podcast</span>}
-                    <span>• {isYoutube ? "Reproduzindo" : `${formatTime(currentTime)} / ${formatTime(duration)}`}</span>
+                    {hasError 
+                        ? "Formato inválido ou bloqueado (Mixed Content)" 
+                        : (isYoutube 
+                            ? <><Youtube size={10} className="text-red-500"/> YouTube</> 
+                            : <><Mic size={10} className="text-blue-500"/> {track.source} • {formatTime(currentTime)} / {formatTime(duration)}</>
+                        )
+                    }
                 </p>
             </div>
 
+            {/* Controles */}
             <div className="flex items-center gap-3">
-                {!isYoutube && (
-                    <button onClick={togglePlay} className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg bg-orange-500 hover:scale-105 active:scale-95 transition cursor-pointer">
+                {!isYoutube && !hasError && (
+                    <button 
+                        onClick={togglePlay} 
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg bg-orange-500 hover:scale-105 active:scale-95 transition cursor-pointer"
+                    >
                         {isPlaying ? <Pause size={18} fill="white"/> : <Play size={18} fill="white" className="ml-1"/>}
                     </button>
                 )}
+
+                {hasError && (
+                     <div className="p-2 bg-red-500/10 rounded-full text-red-500">
+                        <VolumeX size={20} />
+                     </div>
+                )}
                 
-                {/* BOTÃO DE FECHAR (Agora com a função correta) */}
+                {/* BOTÃO DE FECHAR (Blinded) */}
                 <button 
                     onClick={handleClose} 
                     className="p-3 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-zinc-500 cursor-pointer z-50 pointer-events-auto active:scale-90 transition-transform"
@@ -4388,6 +4437,8 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
     </div>
   );
 };
+
+
 
 // --- COMPONENTE: SPLASH SCREEN (AJUSTADO) ---
 const SplashScreen = ({ onFinish }) => {
