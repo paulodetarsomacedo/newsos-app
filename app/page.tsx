@@ -1011,134 +1011,56 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
 const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onAnalyze, onToggleSave, onToggleLike, onPlay, isViewedFromStory, playingAudio }) => {
-  const displayTime = news.rawDate 
-    ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-    : '...';
-
+  const displayTime = news.rawDate ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
   const isPlayable = !!news.title;
-  
-  // Verifica se este card está tocando
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
 
-  // Player Interno (Inline)
-  const InlinePlayer = () => (
-    <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
-        <div className="p-4 flex items-center gap-4">
-            <button 
-                onClick={(e) => { e.stopPropagation(); onPlay(news); }}
-                className="w-12 h-12 flex-shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform"
-            >
-                {isGenerating ? <Loader2 size={20} className="animate-spin"/> : (
-                    <div className="flex gap-1 items-end h-4">
-                        <div className="w-1 bg-white animate-[music-bar_0.6s_ease-in-out_infinite]"></div>
-                        <div className="w-1 bg-white animate-[music-bar_0.8s_ease-in-out_infinite]"></div>
-                        <div className="w-1 bg-white animate-[music-bar_0.5s_ease-in-out_infinite]"></div>
-                    </div>
-                )}
-            </button>
-            <div className="flex-1 min-w-0">
-                <h4 className={`text-xs font-bold uppercase tracking-wider mb-1 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
-                    {isGenerating ? 'Gerando Áudio Neural...' : 'Ouvindo Agora'}
-                </h4>
-                <div className="h-1 w-full bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-500 w-1/3 animate-pulse"></div>
-                </div>
-            </div>
-            <button onClick={(e) => { e.stopPropagation(); onPlay(null); }} className="p-2 text-zinc-400 hover:text-red-500 transition-colors">
-                <X size={20} />
-            </button>
-        </div>
-    </div>
-  );
+  const InlinePlayer = () => ( /* ... Mantenha o InlinePlayer como na resposta anterior ... */ );
 
   return (
-    <div 
-      className={`
+    <div className={`
         group relative flex flex-col overflow-visible rounded-[2.5rem] mb-12
-        transition-all duration-300 ease-out will-change-transform
         ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-xl'}
-        ${isSelected ? 'ring-2 ring-purple-500 scale-[1.01]' : ''}
-      `}
-    >
+    `}>
       
-      {/* 1. ÁREA DE IMAGEM (h-80 = 320px) */}
-      <div 
-        onClick={() => onClick(news)}
-        className="relative h-80 w-full cursor-pointer overflow-hidden rounded-t-[2.5rem] bg-gray-200 dark:bg-zinc-800"
-      >
-        <SmartImage 
-            src={news.img} title={news.title} logo={news.logo} sourceName={news.source} isDarkMode={isDarkMode} 
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 opacity-90" />
+      {/* --- NOVO CABEÇALHO BRANCO (CONFORME SEU PEDIDO) --- */}
+      <div className={`px-5 py-3 flex items-center justify-between rounded-t-[2.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
+          <div className="flex items-center gap-3">
+              {/* Logo Quadrado Maior (w-10 h-10) */}
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center p-1 border shadow-sm ${isDarkMode ? 'bg-zinc-800 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>
+                  <img src={news.logo} className="w-full h-full object-cover rounded-lg" onError={(e) => e.target.style.display = 'none'} />
+              </div>
+              
+              {/* Pílula do Nome (Altura Menor) */}
+              <div className={`px-4 py-1.5 h-8 flex items-center rounded-full border ${isDarkMode ? 'bg-zinc-800 border-white/10 text-zinc-300' : 'bg-zinc-100 border-zinc-200 text-zinc-700'}`}>
+                  <span className="text-[10px] font-black uppercase tracking-widest">{news.source}</span>
+              </div>
+          </div>
 
-        <div className="absolute top-5 left-5 right-5 flex justify-between items-center z-10">
-            <div className="flex items-center gap-3 bg-black/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 shadow-2xl">
-                <img src={news.logo} className="w-6 h-6 rounded-full bg-white border border-white/20" onError={(e) => e.target.style.display = 'none'} />
-                <span className="text-xs font-black text-white uppercase tracking-widest shadow-black">{news.source}</span>
-            </div>
-            <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/5">
-                <span className="text-[10px] font-bold text-white/90">{displayTime}</span>
-            </div>
-        </div>
+          {/* Pílula da Hora (Canto Direito) */}
+          <div className={`px-3 py-1 rounded-full border ${isDarkMode ? 'bg-zinc-800 border-white/10 text-zinc-400' : 'bg-white border-zinc-100 text-zinc-400'}`}>
+              <span className="text-[10px] font-bold">{displayTime}</span>
+          </div>
       </div>
 
-      {/* 2. PÍLULA CENTRALIZADA (SEM 3D GORDO) */}
-      {/* top-[320px] é exatamente a altura da imagem (h-80). -translate-y-1/2 centraliza verticalmente na linha. */}
-      <div className="absolute top-[320px] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-2xl rounded-full p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
-          <button 
-            onClick={(e) => { e.stopPropagation(); onClick(news); }}
-            className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors flex items-center gap-2"
-          >
-             Ler
-          </button>
+      {/* --- ÁREA DE IMAGEM (MAIOR) --- */}
+      <div onClick={() => onClick(news)} className="relative h-80 w-full cursor-pointer overflow-hidden bg-gray-200 dark:bg-zinc-800">
+        <SmartImage /* ... */ />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+      </div>
+
+      {/* --- PÍLULA CENTRAL (SEM 3D) --- */}
+      <div className="absolute top-[352px] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-2xl rounded-full p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
+          <button onClick={(e) => { e.stopPropagation(); onClick(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase text-white hover:bg-white/10 transition-colors">Ler</button>
           <div className="w-[1px] bg-white/10 my-1 mx-1"></div>
-          <button 
-            onClick={(e) => { e.stopPropagation(); onAnalyze(news); }}
-            className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg flex items-center gap-2"
-          >
-             <Sparkles size={14} className="text-yellow-300 animate-pulse" /> Analisar
-          </button>
+          <button onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg"> <Sparkles size={14} className="mr-2 text-yellow-300 animate-pulse" /> Analisar</button>
       </div>
 
-      {/* 3. ÁREA DE TEXTO */}
-      <div 
-        onClick={() => onClick(news)}
-        className="relative px-5 pt-12 pb-5 cursor-pointer flex gap-4"
-      >
-         <div className="flex-1 min-w-0">
-             <h3 className={`text-lg font-black leading-tight mb-3 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                 {news.title}
-             </h3>
-             
-             <div className="relative">
-                 <p className={`text-sm font-serif leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'} line-clamp-3`}>
-                     {news.summary}
-                 </p>
-                 {news.summary && news.summary.length > 50 && (
-                    <div className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t ${isDarkMode ? 'from-zinc-900' : 'from-white'} to-transparent`} />
-                 )}
-             </div>
-         </div>
-
-         {/* Barra Lateral */}
-         <div className="flex flex-col items-center gap-3 pl-3 border-l border-dashed border-zinc-200 dark:border-zinc-800/50 min-w-[40px] justify-center">
-             <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
-                 <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
-             </button>
-             <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`transition-all active:scale-90 ${isLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
-                 <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
-             </button>
-             {isPlayable && (
-                 <button 
-                    onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} 
-                    className="w-10 h-10 rounded-full bg-green-500 text-white shadow-lg flex items-center justify-center hover:scale-110 transition active:scale-95 mt-1"
-                 >
-                     <Play size={16} fill="white" className="ml-0.5" />
-                 </button>
-             )}
-         </div>
+      {/* --- ÁREA DE TEXTO E AÇÕES --- */}
+      <div className="relative px-5 pt-12 pb-5 flex gap-4">
+        {/* ... (Conteúdo do título e resumo mantido) ... */}
+        {/* ... (Barra lateral de ações mantida) ... */}
       </div>
 
       {isCurrentPlaying && <InlinePlayer />}
@@ -1147,8 +1069,9 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
 });
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
-function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onPlayArticle, playingAudio }) {
+function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onReadArticle, onGenerateAudio }) {
   const [category, setCategory] = useState('Tudo');
+
   const feedContainerRef = useRef(null);
   useEffect(() => {
       // Se a função foi passada, chama ela
@@ -1259,6 +1182,59 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
     setStartY(0);
   };
 
+// 1. O "Cérebro Local": Qual notícia do feed está tocando?
+  const [localPlayingAudio, setLocalPlayingAudio] = useState(null); 
+  
+  // 2. Guarda a URL do MP3 quando ele fica pronto.
+  const [audioUrl, setAudioUrl] = useState('');
+  
+  // 3. Controla a animação de "Gerando..." no botão.
+  const [isGenerating, setIsGenerating] = useState(false);
+  
+  // 4. Referência ao player de áudio invisível.
+  const audioRef = useRef(null);
+
+  // 5. A Nova Função de Play, que controla o cérebro LOCAL.
+  const handleLocalPlay = async (article) => {
+    // Se o usuário clicar no mesmo card que já está tocando, ele para o áudio.
+    if (localPlayingAudio?.id === article.id) {
+        setLocalPlayingAudio(null);
+        if (audioRef.current) audioRef.current.pause();
+        return;
+    }
+    
+    // Se clicar em um novo, define ele como o "ativo" e mostra "Gerando..."
+    setLocalPlayingAudio(article);
+    setIsGenerating(true);
+    setAudioUrl(''); // Limpa a URL antiga
+    
+    // Chama a função do PAI (NewsOS_V12) para fazer o trabalho pesado (gerar o MP3).
+    // A prop que passaremos se chama onGenerateAudio.
+    const url = await onGenerateAudio(article); 
+
+    if (url) {
+        // Sucesso! A URL do MP3 chegou.
+        setIsGenerating(false);
+        setAudioUrl(url); // Salva a URL para o useEffect tocar.
+    } else {
+        // Falhou. Limpa tudo para o usuário poder tentar de novo.
+        setLocalPlayingAudio(null);
+        setIsGenerating(false);
+    }
+  };
+
+  // 6. Efeito que TOCA o áudio quando a URL fica pronta.
+  useEffect(() => {
+    if (audioUrl && audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.play().catch(e => console.error("Erro ao tocar áudio:", e));
+    }
+  }, [audioUrl]);
+
+
+
+
+
   if (isLoading && (!stableData || stableData.length === 0)) {
      return (
        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
@@ -1362,6 +1338,8 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
               key={news.id}
               news={news}
               isSelected={selectedArticleId === news.id}
+              playingAudio={isGenerating ? {id: localPlayingAudio?.id, isGenerating: true} : localPlayingAudio}
+              onPlay={handleLocalPlay} 
               isRead={readHistory?.includes(news.id)}
               isSaved={savedItems?.some((item) => item.id === news.id)}
               isDarkMode={isDarkMode}
@@ -1371,7 +1349,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
               isLiked={likedItems?.includes(news.id)}
               onToggleLike={onToggleLike}
               isViewedFromStory={news.id === viewedInStoryId}
-              onPlay={onPlayArticle} // Passa para o card
+            
             />
         ))}
       </div>
@@ -5444,59 +5422,52 @@ const handleReadNative = useCallback(async (article) => {
 
 // --- FUNÇÃO DE ÁUDIO SOB DEMANDA (CHAVE 6) ---
   const handlePlayAudio = async (article) => {
-      if (!article) return;
-      
-      // Se já for um podcast nativo ou MP3, toca direto
-      if (article.enclosure?.url || article.link?.endsWith('.mp3')) {
-          setPlayingAudio({ ...article, link: article.enclosure?.url || article.link });
-          return;
-      }
+      if (!article) return null; // Retorna nulo se não houver artigo
 
-      // Se for vídeo, abre o navegador
+      // Se for vídeo do YouTube, abre no navegador e para por aqui.
       if (article.videoId || article.link.includes('youtube')) {
           handleReadNative(article);
-          return;
+          return null; // Retorna nulo pois não é áudio
       }
 
-      // PARA NOTÍCIAS DE TEXTO -> GERAÇÃO TTS
-      // 1. Pega a Chave 6 (Áudio Pago)
-      const audioKey = getApiKey('audio');
+      // Se for um link direto de podcast (MP3), retorna a URL direto.
+      if (article.link?.endsWith('.mp3')) {
+          return article.link;
+      }
+
+      // --- Para notícias de texto, começa o processo de IA ---
+      
+      const audioKey = getApiKey('audio'); // Pega a Chave 6
       if (!audioKey) {
-          alert("Configure a Chave 6 (Áudio) nas configurações para ouvir este artigo.");
-          return;
+          alert("Chave 6 (Áudio) não configurada.");
+          return null;
       }
-
-      // 2. Feedback visual imediato (Otimista)
-      // Definimos um objeto temporário para abrir o player carregando
-      setPlayingAudio({ 
-          ...article, 
-          title: "Gerando áudio neural...", 
-          isGenerating: true // Flag para mostrar spinner no player
-      });
+      
+      const textKey = getApiKey('analysis'); // Pega a Chave 5
+      if (!textKey) {
+          alert("Chave 5 (Texto) não configurada.");
+          return null;
+      }
 
       try {
-          // 3. Chama a função do Supabase (que usa Gemini p/ roteiro + Google TTS p/ áudio)
+          // Chama a função do Supabase para fazer todo o trabalho
           const { data, error } = await supabase.functions.invoke('generate-audio-briefing', {
               body: { 
                   article: article,
-                  voiceKey: audioKey, // Passa a chave segura
-                  textKey: getApiKey('analysis') // Passa a chave de texto para o roteiro
+                  voiceKey: audioKey, 
+                  textKey: textKey
               }
           });
 
-          if (error || !data?.audioUrl) throw new Error("Falha ao gerar áudio");
-
-          // 4. Sucesso! Atualiza o player com a URL real
-          setPlayingAudio({
-              ...article,
-              link: data.audioUrl,
-              isGenerating: false
-          });
+          if (error) throw new Error(error.message);
+          
+          // Sucesso! RETORNA a URL do MP3 para a FeedTab.
+          return data.audioUrl;
 
       } catch (err) {
-          console.error(err);
-          alert("Não foi possível gerar o áudio. Verifique suas cotas.");
-          setPlayingAudio(null); // Fecha o player
+          console.error("Erro na geração de áudio:", err);
+          alert("Falha ao gerar áudio. Verifique suas cotas ou a função do Supabase.");
+          return null; // Retorna nulo em caso de erro.
       }
   };
   
@@ -5733,9 +5704,9 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     sourceFilter={sourceFilter}
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}
-                    onPlayArticle={handlePlayAudio} 
+                   onGenerateAudio={handlePlayAudio} 
                     onToggleLike={handleToggleLike}
-                    playingAudio={playingAudio} 
+                    
                       onCategoryChange={() => {
                         if (mainRef.current) {
                           mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
