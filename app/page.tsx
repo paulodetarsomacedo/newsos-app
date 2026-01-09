@@ -562,15 +562,15 @@ const triggerSearch = () => {
 
         <div className="relative px-6 pt-6 pb-4 flex flex-col gap-4">
            {/* --- NOVO LOGO NEWSOS --- */}
-                    <div className="absolute top-4 left-6 flex items-center gap-2 opacity-50">
-                        <div className="w-6 h-6 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
+                    <div className="absolute top-4 left-6 flex items-center gap-3 opacity-80">
+                        <div className="w-8 h-8 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
                             <span className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
                         </div>
                         <span className="text-xs font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
                     </div>
 
                     <div className="absolute top-0 right-0 z-50 ...">
-                      
+
                     </div>
            <div 
              className="absolute top-0 right-0 z-50 cursor-ew-resize select-none touch-none group"
@@ -2999,7 +2999,7 @@ const generateFullAnalysis = async (text, apiKey) => {
 "contextualTerms": [
     {
         "term": "Nó A (Nome exato do nó do mindmap)",
-        "context": "Definição + Por que é crucial NESTA notícia. Mínimo 25 palavras.",
+        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
         "sentiment": "neutral", 
         "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
     },
@@ -6488,6 +6488,11 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
                         <div className="animate-in slide-in-from-right">
                             <button onClick={() => setViewMode('analysis')} className="mb-6 text-xs font-bold text-zinc-500 hover:text-black dark:hover:text-white flex items-center gap-2"><ChevronLeft size={16}/> VOLTAR AO MAPA</button>
                             <div className={`p-8 rounded-[2.5rem] border-2 shadow-2xl ${isDarkMode ? 'bg-zinc-900 border-indigo-500/50' : 'bg-white border-indigo-100'}`}>
+                            {/* --- FONTE DA NOTÍCIA (NOVO) --- */}
+                              <div className="flex items-center gap-2 mb-4 opacity-70">
+                                  <img src={article.logo} className="w-5 h-5 rounded-full" />
+                                  <span className="text-xs font-bold uppercase tracking-wider">{article.source}</span>
+                              </div>
                                 <h2 className="text-3xl font-black text-indigo-500 mb-4">{focusedNode.name || focusedNode.term}</h2>
                                 <p className={`text-lg leading-relaxed mb-6 font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>{focusedNode.context}</p>
                                 <div className="space-y-4">
