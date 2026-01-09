@@ -4788,12 +4788,12 @@ export default function NewsOS_V12() {
     requestAnimationFrame(() => {
         const deltaX = e.clientX - resizeStartX.current;
         // Invertido (delta negativo aumenta) pois o painel está à direita
-        const newWidth = Math.max(400, Math.min(initialWidth.current - deltaX, window.innerWidth - 50));
+        const newWidth = Math.max(400, Math.min(initialWidth.current - deltaX, window.innerWidth));
         panelDivRef.current.style.width = `${newWidth}px`;
     });
   };
 
-  // 3. Função UP (Finaliza o arraste)
+// 3. Função UP (Finaliza o arraste e devolve a animação suave)
   const handleResizePointerUp = () => {
     isResizing.current = false;
     document.body.style.userSelect = '';
@@ -4801,16 +4801,18 @@ export default function NewsOS_V12() {
     document.body.style.touchAction = '';
     
     if (panelDivRef.current) {
+        // REATIVA a animação suave do CSS para quando você clicar em fechar/abrir
+        panelDivRef.current.style.transition = ''; 
+        
         const finalWidth = parseInt(panelDivRef.current.style.width, 10);
         setPanelWidth(finalWidth);
     }
 
-    // Remove os ouvintes para limpar a memória
     window.removeEventListener('pointermove', handleResizePointerMove);
     window.removeEventListener('pointerup', handleResizePointerUp);
   };
 
-  // 4. Função DOWN (Inicia o arraste)
+  // 4. Função DOWN (Inicia o arraste e MATAA animação para ficar rápido)
   const handleResizePointerDown = (e) => {
     e.preventDefault(); 
     e.stopPropagation();
@@ -4819,12 +4821,16 @@ export default function NewsOS_V12() {
     resizeStartX.current = e.clientX;
     initialWidth.current = panelWidth;
     
+    // OTIMIZAÇÃO CRÍTICA: Desliga a transição CSS enquanto arrasta
+    // Isso faz o painel responder instantaneamente ao mouse (sem delay/"elástico")
+    if (panelDivRef.current) {
+        panelDivRef.current.style.transition = 'none';
+    }
+    
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'ew-resize';
     document.body.style.touchAction = 'none';
     
-    // AQUI estava o erro: ele tentava chamar 'handleResizePointerMove', mas ela não existia.
-    // Agora que definimos ela acima (passo 2), isso vai funcionar.
     window.addEventListener('pointermove', handleResizePointerMove, { passive: false });
     window.addEventListener('pointerup', handleResizePointerUp);
   };
@@ -5921,30 +5927,28 @@ return (
       {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (AGORA AO LADO) --- */}
       <div 
             ref={panelDivRef}
-            // ADICIONADO: z-[2000] para ficar acima da Navbar e bg-color para evitar transparência
+            // ADICIONADO: backdrop-blur-3xl e cores com opacidade (/90 e /80)
+            // ADICIONADO: border-l para dar destaque no vidro
             className={`
                 relative shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-                z-[2000] 
-                ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} 
+                z-[2000] border-l
+                ${isDarkMode 
+                    ? 'bg-zinc-950/90 border-white/10' 
+                    : 'bg-white/80 border-white/40'}
+                backdrop-blur-3xl
             `}
             style={{ 
                 width: selectedArticle ? `${panelWidth}px` : '0px',
                 transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
                 maxWidth: '100vw',
-                // ADICIONADO: Flex shrink 0 para garantir que ele não seja esmagado
                 flexShrink: 0 
             }}
         >
-            {/* 
-                --- CORREÇÃO DO INDICADOR DE RESIZE --- 
-                Agora ele fica 'flutuando' sobre a borda esquerda, impossível de ser cortado.
-            */}
+            {/* INDICADOR DE RESIZE (Mantém o mesmo código visual de antes) */}
             {selectedArticle && (
                 <div 
                     onPointerDown={handleResizePointerDown}
-                    // ADICIONADO: touch-none para o navegador saber que aqui não é scroll
                     className="absolute top-0 bottom-0 left-0 w-8 z-[2001] cursor-ew-resize flex items-center justify-start pl-2 group touch-none select-none"
-                    // ADICIONADO: Impede que cliques aqui fechem modais ou disparem outros eventos
                     onClick={(e) => e.stopPropagation()} 
                 >
                     <div className={`
@@ -5953,14 +5957,15 @@ return (
                         backdrop-blur-xl border shadow-[0_0_15px_rgba(0,0,0,0.2)]
                         transition-all duration-300
                         ${isDarkMode 
-                            ? 'bg-black/80 border-white/20 text-white/50 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-400' 
-                            : 'bg-white/80 border-white/40 text-black/40 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-400'}
+                            ? 'bg-black/60 border-white/20 text-white/50 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-400' 
+                            : 'bg-white/60 border-white/40 text-black/40 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-400'}
                     `}>
                         <GripVertical size={14} />
                     </div>
                 </div>
             )}
-            {/* O CONTEÚDO DO PAINEL */}
+
+            {/* CONTEÚDO */}
             {selectedArticle && (
                 <ArticlePanel 
                     article={selectedArticle} 
