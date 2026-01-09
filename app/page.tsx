@@ -1112,9 +1112,10 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
          <div className="flex flex-col items-center gap-3 pl-3 border-l border-dashed border-zinc-200 dark:border-zinc-800/50 min-w-[40px] justify-center">
          {/* 1. INDICADOR DE LIDO (NOVO) */}
              {isRead && (
-                 <div className="flex flex-col items-center gap-1 mb-1 animate-in fade-in" title="Você já leu esta notícia">
-                     <div className={`w-1.5 h-1.5 rounded-full bg-orange-600 shadow-[0_0_5px_rgba(234,88,12,0.8)]`}></div>
-                     <span className="text-[8px] font-bold text-orange-600 dark:text-orange-500 uppercase">Lido</span>
+                 <div className="mb-2" title="Você já leu esta notícia">
+                     <div className="px-2 py-0.5 bg-orange-600 rounded-full text-center">
+                         <span className="text-[8px] font-black text-white uppercase tracking-wider">Lido</span>
+                     </div>
                  </div>
              )}
              <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
@@ -1162,19 +1163,13 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
   const prevCategory = useRef(category); // <<<<<< ADICIONE ESTE REF
 
   useEffect(() => {
-      // SÓ ROLA PARA O TOPO SE A CATEGORIA MUDOU
-      if (prevCategory.current !== category) {
-          if (feedContainerRef.current) {
-              feedContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-      }
-      prevCategory.current = category; // Atualiza a "memória"
-      
-      // A função do pai continua sendo chamada
-      if (onCategoryChange) {
-          onCategoryChange();
-      }
-  }, [category, onCategoryChange]); 
+    // Só rola para o topo SE a categoria mudou
+    if (feedContainerRef.current && prevCategory.current !== category) {
+      feedContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    // Sempre atualiza a "memória" da categoria para a próxima renderização
+    prevCategory.current = category;
+  }, [category]); // Depende APENAS de 'category'
 
   useEffect(() => {
       setSourceFilter('all');
@@ -4047,16 +4042,7 @@ function SavedTab({ isDarkMode, openArticle, items, onRemoveItem, onPlayVideo })
 function TabButton({ icon, label, active, onClick, isDarkMode }) { 
   return (
     <button 
-     onClick={(e) => {
-          // AQUI ESTÁ A LÓGICA CORRETA
-          // Só rola para o topo se o usuário clicar em uma aba JÁ ATIVA.
-          if (active) {
-              const mainContent = document.querySelector('main');
-              if (mainContent) mainContent.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-          // A mudança de aba acontece normalmente
-          onClick(e);
-            }} 
+      onClick={onClick}
       className={`
         group relative flex flex-col items-center justify-center 
         w-14 h-9 /* Um pouco maior para a aura ter espaço */
