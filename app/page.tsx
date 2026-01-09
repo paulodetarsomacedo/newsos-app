@@ -4776,9 +4776,48 @@ export default function NewsOS_V12() {
   const initialWidth = useRef(0);
   
 
-  // --- NOVAS FUNÇÕES DE RESIZE ---
-const handleResizePointerDown = (e) => {
-    // 1. Pára tudo para o navegador não tentar scrollar ou selecionar texto
+  
+  // --- INICIO DO BLOCO DE RESIZE ---
+
+  // 1. Estados e Referências (Necessários para o funcionamento)
+  const [panelWidth, setPanelWidth] = useState(600);
+  const panelDivRef = useRef(null);
+  const isResizing = useRef(false);
+  const resizeStartX = useRef(0);
+  const initialWidth = useRef(0);
+
+  // 2. Função MOVE (O erro diz que esta função estava faltando)
+  // Ela precisa estar definida para que o 'handleResizePointerDown' consiga chamá-la.
+  const handleResizePointerMove = (e) => {
+    if (!isResizing.current || !panelDivRef.current) return;
+    
+    requestAnimationFrame(() => {
+        const deltaX = e.clientX - resizeStartX.current;
+        // Invertido (delta negativo aumenta) pois o painel está à direita
+        const newWidth = Math.max(400, Math.min(initialWidth.current - deltaX, window.innerWidth - 50));
+        panelDivRef.current.style.width = `${newWidth}px`;
+    });
+  };
+
+  // 3. Função UP (Finaliza o arraste)
+  const handleResizePointerUp = () => {
+    isResizing.current = false;
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    document.body.style.touchAction = '';
+    
+    if (panelDivRef.current) {
+        const finalWidth = parseInt(panelDivRef.current.style.width, 10);
+        setPanelWidth(finalWidth);
+    }
+
+    // Remove os ouvintes para limpar a memória
+    window.removeEventListener('pointermove', handleResizePointerMove);
+    window.removeEventListener('pointerup', handleResizePointerUp);
+  };
+
+  // 4. Função DOWN (Inicia o arraste)
+  const handleResizePointerDown = (e) => {
     e.preventDefault(); 
     e.stopPropagation();
 
@@ -4788,32 +4827,15 @@ const handleResizePointerDown = (e) => {
     
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'ew-resize';
-    
-    // 2. Adiciona touch-action none no body temporariamente para garantir
     document.body.style.touchAction = 'none';
     
-    // 3. Usa { passive: false } explicitamente, embora pointer events geralmente sejam seguros
+    // AQUI estava o erro: ele tentava chamar 'handleResizePointerMove', mas ela não existia.
+    // Agora que definimos ela acima (passo 2), isso vai funcionar.
     window.addEventListener('pointermove', handleResizePointerMove, { passive: false });
     window.addEventListener('pointerup', handleResizePointerUp);
   };
 
-  const handleResizePointerUp = () => {
-    isResizing.current = false;
-    document.body.style.userSelect = '';
-    document.body.style.cursor = '';
-    document.body.style.touchAction = ''; // Restaura o scroll
-    
-    if (panelDivRef.current) {
-        const finalWidth = parseInt(panelDivRef.current.style.width, 10);
-        setPanelWidth(finalWidth);
-    }
-
-    window.removeEventListener('pointermove', handleResizePointerMove);
-    window.removeEventListener('pointerup', handleResizePointerUp);
-  };
-
-
-  
+  // --- FIM DO BLOCO DE RESIZE ---
 
 
 
