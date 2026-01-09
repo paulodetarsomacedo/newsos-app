@@ -27,8 +27,7 @@ serve(async (req) => {
 
     // 2. GERA ROTEIRO COM GEMINI (Custo Zero - Tokens Grátis)
     console.log("Gerando roteiro...");
-    const prompt = `Escreva um roteiro de rádio curto (máx 200 palavras) para esta notícia. Seja direto, jornalístico e envolvente. Comece com 'No News OS de hoje...'. TEXTO: ${article.summary} ${article.title}`;
-    
+const prompt = `Aja como um âncora de jornal. Resuma esta notícia para áudio em pt-BR. NÃO use saudações, NÃO use introduções como "Nesta notícia". Vá direto aos fatos mais importantes. Máximo 150 palavras. TEXTO: ${article.summary} ${article.title}`;    
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${textKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

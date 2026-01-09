@@ -1011,95 +1011,107 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
 const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onAnalyze, onToggleSave, onToggleLike, onPlay, isViewedFromStory, playingAudio }) => {
-  // Lógica de Play: Sempre true para notícias
-  const isPlayable = !!news.title;
-const isCurrentPlaying = playingAudio?.id === news.id;
-  const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
   const displayTime = news.rawDate 
     ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
     : '...';
 
+  const isPlayable = !!news.title;
+  
+  // Verifica se este card está tocando
+  const isCurrentPlaying = playingAudio?.id === news.id;
+  const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
+
+  // Player Interno (Inline)
+  const InlinePlayer = () => (
+    <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
+        <div className="p-4 flex items-center gap-4">
+            <button 
+                onClick={(e) => { e.stopPropagation(); onPlay(news); }}
+                className="w-12 h-12 flex-shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+            >
+                {isGenerating ? <Loader2 size={20} className="animate-spin"/> : (
+                    <div className="flex gap-1 items-end h-4">
+                        <div className="w-1 bg-white animate-[music-bar_0.6s_ease-in-out_infinite]"></div>
+                        <div className="w-1 bg-white animate-[music-bar_0.8s_ease-in-out_infinite]"></div>
+                        <div className="w-1 bg-white animate-[music-bar_0.5s_ease-in-out_infinite]"></div>
+                    </div>
+                )}
+            </button>
+            <div className="flex-1 min-w-0">
+                <h4 className={`text-xs font-bold uppercase tracking-wider mb-1 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
+                    {isGenerating ? 'Gerando Áudio Neural...' : 'Ouvindo Agora'}
+                </h4>
+                <div className="h-1 w-full bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500 w-1/3 animate-pulse"></div>
+                </div>
+            </div>
+            <button onClick={(e) => { e.stopPropagation(); onPlay(null); }} className="p-2 text-zinc-400 hover:text-red-500 transition-colors">
+                <X size={20} />
+            </button>
+        </div>
+    </div>
+  );
+
   return (
     <div 
       className={`
-        group relative flex flex-col overflow-visible rounded-[2rem] mb-10
+        group relative flex flex-col overflow-visible rounded-[2.5rem] mb-12
         transition-all duration-300 ease-out will-change-transform
         ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-xl'}
         ${isSelected ? 'ring-2 ring-purple-500 scale-[1.01]' : ''}
       `}
     >
       
-      {/* 1. FAIXA DE CABEÇALHO (Solicitação #2) */}
-      <div className={`px-5 py-3 flex items-center justify-between rounded-t-[2rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
-          <div className="flex items-center gap-3">
-              {/* Logo Quadrado Arredondado */}
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center p-0.5 border shadow-sm ${isDarkMode ? 'bg-zinc-800 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>
-                  <img src={news.logo} className="w-full h-full object-cover rounded-lg" onError={(e) => e.target.style.display = 'none'} />
-              </div>
-              
-              {/* Pílula do Nome da Fonte */}
-              <div className={`px-3 py-1 rounded-full border ${isDarkMode ? 'bg-zinc-800 border-white/10 text-zinc-300' : 'bg-zinc-100 border-zinc-200 text-zinc-700'}`}>
-                  <span className="text-[10px] font-black uppercase tracking-widest">{news.source}</span>
-              </div>
-
-              {/* Pílula do Horário */}
-              <div className={`px-2 py-1 rounded-full border ${isDarkMode ? 'bg-zinc-800 border-white/10 text-zinc-400' : 'bg-white border-zinc-100 text-zinc-400'}`}>
-                  <span className="text-[9px] font-bold">{displayTime}</span>
-              </div>
-          </div>
-
-          {/* Badge Visto */}
-          {isRead && <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>}
-      </div>
-
-      {/* 2. ÁREA DE IMAGEM GIGANTE (Solicitação #3) */}
+      {/* 1. ÁREA DE IMAGEM (h-80 = 320px) */}
       <div 
         onClick={() => onClick(news)}
-        className="relative h-80 w-full cursor-pointer overflow-hidden bg-gray-200 dark:bg-zinc-800"
+        className="relative h-80 w-full cursor-pointer overflow-hidden rounded-t-[2.5rem] bg-gray-200 dark:bg-zinc-800"
       >
         <SmartImage 
-            src={news.img} 
-            title={news.title} 
-            logo={news.logo} 
-            sourceName={news.source} 
-            isDarkMode={isDarkMode} 
+            src={news.img} title={news.title} logo={news.logo} sourceName={news.source} isDarkMode={isDarkMode} 
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 opacity-90" />
+
+        <div className="absolute top-5 left-5 right-5 flex justify-between items-center z-10">
+            <div className="flex items-center gap-3 bg-black/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 shadow-2xl">
+                <img src={news.logo} className="w-6 h-6 rounded-full bg-white border border-white/20" onError={(e) => e.target.style.display = 'none'} />
+                <span className="text-xs font-black text-white uppercase tracking-widest shadow-black">{news.source}</span>
+            </div>
+            <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/5">
+                <span className="text-[10px] font-bold text-white/90">{displayTime}</span>
+            </div>
+        </div>
       </div>
 
-      {/* 3. PÍLULA INTELIGENTE 3D (Solicitação #4) */}
-      {/* Posicionada na junção exata, com efeito 3D de sombra e borda */}
-      <div className="absolute top-[352px] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex gap-2">
-          <div className="flex rounded-full p-1 bg-zinc-800 border border-zinc-600 shadow-[0_8px_0_rgb(24,24,27),0_15px_20px_rgba(0,0,0,0.4)] transform active:translate-y-[4px] active:shadow-none transition-all duration-150">
-              <button 
-                onClick={(e) => { e.stopPropagation(); onClick(news); }}
-                className="px-6 py-2.5 rounded-l-full rounded-r-md text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors flex items-center gap-2"
-              >
-                 Ler
-              </button>
-              <div className="w-[1px] bg-white/20 my-1 mx-1"></div>
-              <button 
-                onClick={(e) => { e.stopPropagation(); onAnalyze(news); }}
-                className="px-6 py-2.5 rounded-r-full rounded-l-md text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all flex items-center gap-2"
-              >
-                 <Sparkles size={14} className="text-yellow-300 animate-pulse" /> Analisar
-              </button>
-          </div>
+      {/* 2. PÍLULA CENTRALIZADA (SEM 3D GORDO) */}
+      {/* top-[320px] é exatamente a altura da imagem (h-80). -translate-y-1/2 centraliza verticalmente na linha. */}
+      <div className="absolute top-[320px] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-2xl rounded-full p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
+          <button 
+            onClick={(e) => { e.stopPropagation(); onClick(news); }}
+            className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors flex items-center gap-2"
+          >
+             Ler
+          </button>
+          <div className="w-[1px] bg-white/10 my-1 mx-1"></div>
+          <button 
+            onClick={(e) => { e.stopPropagation(); onAnalyze(news); }}
+            className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg flex items-center gap-2"
+          >
+             <Sparkles size={14} className="text-yellow-300 animate-pulse" /> Analisar
+          </button>
       </div>
 
-      {/* 4. ÁREA DE TEXTO COMPACTA (Solicitação #3) */}
+      {/* 3. ÁREA DE TEXTO */}
       <div 
         onClick={() => onClick(news)}
-        className="relative px-5 pt-10 pb-5 cursor-pointer flex gap-4"
+        className="relative px-5 pt-12 pb-5 cursor-pointer flex gap-4"
       >
          <div className="flex-1 min-w-0">
-             {/* Título mais compacto */}
-             <h3 className={`text-lg font-black leading-tight mb-2 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+             <h3 className={`text-lg font-black leading-tight mb-3 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                  {news.title}
              </h3>
              
-             {/* Resumo reduzido e mais elegante */}
              <div className="relative">
                  <p className={`text-sm font-serif leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'} line-clamp-3`}>
                      {news.summary}
@@ -1110,7 +1122,7 @@ const isCurrentPlaying = playingAudio?.id === news.id;
              </div>
          </div>
 
-         {/* Barra Lateral Compacta */}
+         {/* Barra Lateral */}
          <div className="flex flex-col items-center gap-3 pl-3 border-l border-dashed border-zinc-200 dark:border-zinc-800/50 min-w-[40px] justify-center">
              <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
                  <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
@@ -1118,51 +1130,21 @@ const isCurrentPlaying = playingAudio?.id === news.id;
              <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`transition-all active:scale-90 ${isLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
                  <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
              </button>
-           {/* PARTE DO BOTÃO PLAY/PAUSE INTELIGENTE */}
              {isPlayable && (
                  <button 
-                    onClick={(e) => { 
-                        e.stopPropagation(); 
-                        if (onPlay) onPlay(news); // A função onPlay já trata o toggle (tocar/pausar)
-                    }} 
-                    className={`
-                        mt-auto mb-2 w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-xl group
-                        ${isCurrentPlaying 
-                            ? 'bg-purple-600 shadow-purple-500/40 scale-110' // Estilo quando está tocando
-                            : 'bg-green-500 shadow-green-500/30 hover:scale-110 text-white'} 
-                    `}
+                    onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} 
+                    className="w-10 h-10 rounded-full bg-green-500 text-white shadow-lg flex items-center justify-center hover:scale-110 transition active:scale-95 mt-1"
                  >
-                     {/* Lógica do Ícone */}
-                     {isGenerating ? (
-                         <Loader2 size={24} className="text-white animate-spin" />
-                     ) : isCurrentPlaying ? (
-                         // Se está tocando, mostra PAUSE ou EQUALIZADOR
-                         <div className="flex gap-1 items-end h-4">
-                             <div className="w-1 bg-white animate-[music-bar_0.6s_ease-in-out_infinite]"></div>
-                             <div className="w-1 bg-white animate-[music-bar_0.8s_ease-in-out_infinite]"></div>
-                             <div className="w-1 bg-white animate-[music-bar_0.5s_ease-in-out_infinite]"></div>
-                         </div>
-                     ) : (
-                         // Se não, mostra PLAY normal
-                         <Play size={24} fill="white" className="ml-1 group-active:scale-90 transition-transform" />
-                     )}
+                     <Play size={16} fill="white" className="ml-0.5" />
                  </button>
              )}
-             
-             {/* Adicione este CSS no seu arquivo global ou style tag para a animação das barras */}
-             <style jsx="true">{`
-                @keyframes music-bar {
-                    0%, 100% { height: 40%; }
-                    50% { height: 100%; }
-                }
-             `}</style>
          </div>
       </div>
+
+      {isCurrentPlaying && <InlinePlayer />}
     </div>
   );
 });
-
-
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onPlayArticle, playingAudio }) {
@@ -6198,81 +6180,7 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
 
 
 // ==============================================================================
-// COMPONENTE ARTICLE PANEL (V22 - FINAL - COM SUPORTE NATIVO A VÍDEO E TEXTO)
-// ==============================================================================
-
-// 1. FUNÇÕES AUXILIARES DE ESTILO
-const getBrandIdentity = (sourceName) => {
-    const name = sourceName?.toLowerCase() || "";
-    if (name.match(/times|post|folha|estadao|journal|herald|politico/)) {
-        return { type: 'newspaper', fontHeader: "'Chomsky', 'UnifrakturMaguntia', serif", fontBody: "'Merriweather', serif", align: 'center' };
-    }
-    if (name.match(/verge|wired|tech|code|mac|tecmundo|canaltech|ign|g1|globo|uol|noticias|minuto/)) {
-        return { type: 'tech', fontHeader: "'Inter', sans-serif", fontBody: "'Inter', sans-serif", align: 'left' };
-    }
-    if (name.match(/vogue|elle|vanity|gq|bazaar|veja|exame|marie/)) {
-        return { type: 'magazine', fontHeader: "'Bodoni Moda', serif", fontBody: "'Lato', sans-serif", align: 'center' };
-    }
-    if (name.match(/cnn|bbc|nbc|espn|r7|band|jovem/)) {
-        return { type: 'broadcast', fontHeader: "'Oswald', sans-serif", fontBody: "'Roboto', sans-serif", align: 'left' };
-    }
-    return { type: 'default', fontHeader: "'Playfair Display', serif", fontBody: "'Source Serif Pro', serif", align: 'center' };
-};
-
-const resolveBrandColor = (sourceName, isDarkMode) => {
-    if (!sourceName) return isDarkMode ? '#ffffff' : '#000000';
-    const name = sourceName.toLowerCase().replace(/\s+/g, '');
-
-    const BRANDS = {
-        'g1': '#C4170C', 'globo': '#006497', 'folha': '#004990', 'estadao': '#003B5C',
-        'uol': '#F99D1C', 'cnn': '#CC0000', 'bbc': '#BB1919', 'verge': '#E219E6',
-        'wired': '#000000', 'nytimes': '#000000', 'bloomberg': '#000000', 'vogue': '#000000',
-        'espn': '#CD122D', 'noticiasaominuto': '#ff6600'
-    };
-    for (const [key, color] of Object.entries(BRANDS)) if (name.includes(key)) return color;
-    
-    const SAFE_PALETTE = ['#1E3A8A', '#B91C1C', '#0F766E', '#7C3AED', '#BE123C', '#C2410C', '#374151', '#000000'];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return SAFE_PALETTE[Math.abs(hash) % SAFE_PALETTE.length];
-};
-
-
-
-const AppleReaderView = React.memo(({ article, readerContent, isDarkMode, fontSize }) => {
-    const data = readerContent || article;
-    if (!data) return null;
-    return (
-        <div className={`animate-in fade-in duration-500 min-h-full transform-gpu ${isDarkMode ? 'bg-black text-[#d1d5db]' : 'bg-[#f9f9f9] text-[#333]'}`}>
-            <div className="max-w-[680px] mx-auto px-6 py-12 pb-32 font-sans leading-relaxed">
-                <h1 className={`text-3xl md:text-4xl font-bold mb-6 ${isDarkMode ? 'text-white' : 'text-black'}`}>{data.title}</h1>
-                <div className={`text-sm font-medium mb-8 pb-8 border-b ${isDarkMode ? 'border-zinc-800 text-zinc-500' : 'border-zinc-200 text-zinc-400'}`}>{article.source} • {article.time}</div>
-                <div style={{ fontSize: `${fontSize}px`, lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: readerContent?.content || `<p>${article.summary}</p>` }} />
-            </div>
-        </div>
-    );
-});
-
-const AIAnalysisView = React.memo(({ article, isDarkMode }) => (
-      <div className="max-w-2xl mx-auto p-8 pt-12 animate-in fade-in slide-in-from-bottom-4 transform-gpu">
-          <div className={`p-6 rounded-3xl border mb-8 ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200 shadow-xl'}`}>
-              <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center"><BrainCircuit size={20} className="text-white" /></div><div><h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>NewsOS Intelligence</h3><p className="text-xs opacity-60">Análise IA</p></div></div>
-              <div className={`text-lg leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}><p className="mb-4">Este artigo discute <strong>{article.title}</strong>.</p><ul className="list-disc pl-5 space-y-2 mb-4 opacity-80"><li>Impacto no setor de {article.category}.</li><li>Reações do mercado.</li></ul></div>
-          </div>
-      </div>
-));
-
-
-
-
-
-
-// ==============================================================================
-// COMPONENTE ARTICLE PANEL - OTIMIZADO PARA NAVEGAÇÃO RÁPIDA (FEED NAVIGATOR)
-// ==============================================================================
-
-// ==============================================================================
-// 1. WIDGETS AUXILIARES DA TELA DE IA (Timeline, Future, Constellation)
+// 1. WIDGETS AUXILIARES DA TELA DE IA (Timeline, Future, Constellation, Modal)
 // ==============================================================================
 
 const TimelineWidget = ({ items, isDarkMode }) => {
@@ -6283,9 +6191,7 @@ const TimelineWidget = ({ items, isDarkMode }) => {
             <div className="space-y-0">
                 {items.map((item, i) => (
                     <div key={i} className="flex gap-4 relative pb-8 last:pb-0">
-                        {/* Linha Vertical */}
                         {i !== items.length - 1 && <div className="absolute left-[19px] top-8 bottom-0 w-0.5 bg-zinc-200 dark:bg-zinc-800"></div>}
-                        
                         <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold z-10 ${i === items.length-1 ? 'bg-green-500 text-white shadow-lg shadow-green-500/30' : (isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500')}`}>
                             {i === items.length-1 ? 'HOJE' : i+1}
                         </div>
@@ -6323,147 +6229,80 @@ const FutureWidget = ({ data, isDarkMode }) => {
     );
 };
 
-const ConstellationWidget = ({ mindmap, onNodeClick, isDarkMode }) => {
+const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
+    <div className="fixed inset-0 z-[6000] flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <div className={`relative w-full max-w-sm p-6 rounded-3xl shadow-2xl border flex flex-col gap-4 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mx-auto">
+                <BrainCircuit size={32} className="text-white" />
+            </div>
+            <h3 className="text-center text-xl font-black uppercase tracking-wide">{data.mindmap.center}</h3>
+            <p className={`text-center text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                {data.summaries.executive}
+            </p>
+            <button onClick={onClose} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-xs uppercase tracking-widest mt-2 hover:brightness-90 transition">Fechar</button>
+        </div>
+    </div>
+);
+
+const ConstellationWidget = ({ mindmap, onNodeClick, onCenterClick, isDarkMode }) => {
     if (!mindmap || !mindmap.nodes) return null;
 
-    // Layout Estrela (Centro + 4 Pontas)
     const center = { x: 50, y: 50 };
-    const nodesPos = [
-        { x: 50, y: 15 }, // Norte
-        { x: 85, y: 50 }, // Leste
-        { x: 50, y: 85 }, // Sul
-        { x: 15, y: 50 }  // Oeste
-    ];
+    const nodesPos = [{ x: 50, y: 15 }, { x: 85, y: 50 }, { x: 50, y: 85 }, { x: 15, y: 50 }];
 
     return (
-        <div className="relative h-[360px] w-full mb-8 select-none perspective-1000">
-            {/* Título Estilizado */}
-            <div className="absolute top-0 left-0 right-0 flex justify-center">
-                <div className="bg-black/20 backdrop-blur-md px-4 py-1 rounded-full border border-white/5">
-                    <h3 className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400">Rede Neural Semântica</h3>
-                </div>
-            </div>
-            
+        <div className="relative h-[360px] w-full mb-8 select-none">
+            <h3 className="text-center text-[10px] font-black uppercase tracking-[0.3em] opacity-40 mb-6">Rede Neural Semântica</h3>
             <div className="absolute inset-0 top-6">
-                {/* CAMADA 1: LINHAS DE ENERGIA ANIMADAS (SVG) */}
-                <svg className="w-full h-full pointer-events-none filter drop-shadow-[0_0_3px_rgba(139,92,246,0.5)]">
-                    <defs>
-                        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor={isDarkMode ? "#4c1d95" : "#ddd"} stopOpacity="0.2" />
-                            <stop offset="100%" stopColor={isDarkMode ? "#a78bfa" : "#666"} stopOpacity="1" />
-                        </linearGradient>
-                    </defs>
+                <svg className="w-full h-full pointer-events-none absolute inset-0 z-0">
                     {mindmap.nodes.slice(0, 4).map((_, i) => (
-                        <g key={`line-${i}`}>
-                            {/* Linha Base */}
-                            <line 
-                                x1={`${center.x}%`} y1={`${center.y}%`} 
-                                x2={`${nodesPos[i].x}%`} y2={`${nodesPos[i].y}%`} 
-                                stroke={isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"} 
-                                strokeWidth="1" 
-                            />
-                            {/* Pulso de Energia (Animação Infinita) */}
-                            <circle r="2" fill={isDarkMode ? "#a78bfa" : "#4f46e5"}>
-                                <animateMotion 
-                                    dur={`${2 + i * 0.5}s`} 
-                                    repeatCount="indefinite"
-                                    path={`M${center.x * 3.5},${center.y * 3.2} L${nodesPos[i].x * 3.5},${nodesPos[i].y * 3.2}`} 
-                                    // Nota: Valores SVG precisam de ajuste de escala dependendo do viewBox, 
-                                    // mas para div absoluta, usamos CSS puro abaixo para garantir.
-                                />
-                            </circle>
-                            <line 
-                                x1={`${center.x}%`} y1={`${center.y}%`} 
-                                x2={`${nodesPos[i].x}%`} y2={`${nodesPos[i].y}%`} 
-                                stroke={isDarkMode ? "#8b5cf6" : "#4f46e5"} 
-                                strokeWidth="2" 
-                                strokeDasharray="6 6"
-                                className="animate-dash-flow" // CSS Animation
-                            />
-                        </g>
+                        <line 
+                            key={i}
+                            x1={`${center.x}%`} y1={`${center.y}%`} 
+                            x2={`${nodesPos[i].x}%`} y2={`${nodesPos[i].y}%`} 
+                            stroke={isDarkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)"} 
+                            strokeWidth="2" strokeDasharray="4 2"
+                        />
                     ))}
                 </svg>
-
-                {/* CAMADA 2: CENTRO PULSANTE (SOL) */}
-                <div 
-                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                    onClick={() => alert("Tema Central: " + mindmap.center)} // Ação simples para o centro
-                >
-                    <div className="relative">
-                        <div className="absolute inset-0 bg-indigo-500 rounded-full blur-2xl opacity-40 animate-pulse-slow"></div>
-                        <div className="w-32 h-32 rounded-full bg-gradient-to-br from-zinc-900 to-indigo-950 flex items-center justify-center text-center p-4 shadow-[0_0_50px_rgba(79,70,229,0.4)] border border-indigo-500/30 group-hover:scale-105 transition-transform duration-500">
-                            <span className="text-xs font-black text-white uppercase leading-tight tracking-wide drop-shadow-lg">{mindmap.center}</span>
-                        </div>
-                        {/* Anéis orbitais decorativos */}
-                        <div className="absolute inset-[-10px] border border-white/5 rounded-full animate-spin-slow pointer-events-none"></div>
-                        <div className="absolute inset-[-20px] border border-white/5 rounded-full animate-spin-reverse-slow pointer-events-none"></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group" onClick={onCenterClick}>
+                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-indigo-600 to-purple-900 flex items-center justify-center text-center p-2 shadow-2xl border-4 border-white/20 transition-transform group-hover:scale-105">
+                        <span className="text-[11px] font-black text-white uppercase leading-tight">{mindmap.center}</span>
                     </div>
                 </div>
-
-                {/* CAMADA 3: NÓS SATÉLITES (PLANETAS INTERATIVOS) */}
                 {mindmap.nodes.slice(0, 4).map((node, i) => (
                     <button 
                         key={i}
                         onClick={() => onNodeClick(node)}
-                        className={`
-                            absolute z-30 px-5 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:border-purple-500 hover:z-40 max-w-[160px] group
-                            ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-800'}
-                        `}
+                        className={`absolute z-30 px-4 py-2 rounded-xl border shadow-lg backdrop-blur-md transition-all hover:scale-110 active:scale-95 max-w-[120px] ${isDarkMode ? 'bg-zinc-900 border-white/20 text-white' : 'bg-white border-zinc-300 text-zinc-900'}`}
                         style={{ top: `${nodesPos[i].y}%`, left: `${nodesPos[i].x}%`, transform: 'translate(-50%, -50%)' }}
                     >
-                        <div className="flex flex-col items-center">
-                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mb-2 shadow-[0_0_10px_#a855f7]"></span>
-                            <span className="text-[10px] font-bold leading-tight block text-center group-hover:text-purple-400 transition-colors">{node}</span>
-                        </div>
+                        <span className="text-[10px] font-bold leading-tight block">{node}</span>
                     </button>
                 ))}
             </div>
-            
-            {/* CSS INJETADO PARA ANIMAÇÃO DE FLUXO */}
-            <style jsx="true">{`
-                @keyframes dash-flow {
-                    from { stroke-dashoffset: 24; }
-                    to { stroke-dashoffset: 0; }
-                }
-                .animate-dash-flow {
-                    animation: dash-flow 1s linear infinite;
-                }
-                @keyframes spin-slow { to { transform: rotate(360deg); } }
-                .animate-spin-slow { animation: spin-slow 20s linear infinite; }
-                .animate-spin-reverse-slow { animation: spin-slow 25s linear infinite reverse; }
-            `}</style>
         </div>
     );
 };
 
-
-// ==============================================================================
-// 2. MAGIC PREMIUM VIEW (O LEITOR DE TEXTO COM AUTO-SCROLL)
-// ==============================================================================
-
 const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontSize, highlightText }) => {
+    useEffect(() => {
+        if (highlightText) {
+            setTimeout(() => {
+                if (window.find && window.getSelection) {
+                    const found = window.find(highlightText);
+                    if (!found) window.find(highlightText.substring(0, highlightText.length / 2));
+                }
+            }, 600);
+        }
+    }, [highlightText]);
+
     const data = readerContent || article;
     if (!data) return null;
 
     const identity = getBrandIdentity(article.source);
     const brandColor = resolveBrandColor(article.source, isDarkMode);
-    const formattedDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(article.rawDate || Date.now()));
-
-    // Lógica de Scroll e Highlight (window.find é o método nativo mais simples para isso)
-    useEffect(() => {
-        if (highlightText) {
-            setTimeout(() => {
-                if (window.find && window.getSelection) {
-                    // Tenta encontrar o texto exato
-                    const found = window.find(highlightText);
-                    if (!found) {
-                        // Se não achar exato, tenta encontrar a primeira metade (fallback)
-                        window.find(highlightText.substring(0, highlightText.length / 2));
-                    }
-                }
-            }, 600); // Delay para garantir renderização
-        }
-    }, [highlightText]);
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-8 duration-500 bg-transparent w-full transform-gpu pb-32">
@@ -6476,14 +6315,10 @@ const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontS
                 ::selection { background: #a855f7; color: white; }
             `}</style>
             
-            {/* ... (Cabeçalho do artigo removido para não duplicar com o da IA) ... */}
-
             <div className="max-w-3xl mx-auto px-6 py-4">
-                {/* Título interno do texto */}
                 <h2 className={`text-2xl font-black mb-8 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`} style={{fontFamily: identity.fontHeader}}>
                     {data.title}
                 </h2>
-                
                 <div className="magic-body" style={{ fontSize: `${fontSize}px` }} dangerouslySetInnerHTML={{ __html: readerContent?.content || `<p>${article.summary}</p>` }} />
             </div>
         </div>
@@ -6491,25 +6326,20 @@ const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontS
 });
 
 // ==============================================================================
-// 3. O ARTICLE PANEL (PAINEL DE IA COMPLETO E DEFINITIVO)
+// 3. O ARTICLE PANEL PRINCIPAL
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey }) => {
-  // --- ESTADOS ---
   const [aiData, setAiData] = useState(null);
   const [loadingState, setLoadingState] = useState('idle'); 
-  const [viewMode, setViewMode] = useState('analysis'); // 'analysis', 'drilldown', 'magic'
+  const [viewMode, setViewMode] = useState('analysis');
   const [summaryMode, setSummaryMode] = useState('executive');
-  
-  // Estado para o tamanho da fonte (Magic View)
   const [fontSize, setFontSize] = useState(19);
-
-  // Navegação Interna
   const [focusedNode, setFocusedNode] = useState(null); 
   const [highlightRequest, setHighlightRequest] = useState(null); 
   const [readerContent, setReaderContent] = useState(null); 
+  const [showCenterModal, setShowCenterModal] = useState(false);
 
-  // Reset ao abrir
   useEffect(() => {
       if (isOpen && article) {
           setAiData(null);
@@ -6518,16 +6348,14 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setViewMode('analysis');
           setFocusedNode(null);
           setHighlightRequest(null);
+          setShowCenterModal(false);
           runSuperPrompt();
       }
   }, [article?.id, isOpen]);
 
-  // --- SUPER PROMPT (ÚNICA CHAMADA) ---
   const runSuperPrompt = async () => {
       if (!apiKey || !article.link) return;
-
       try {
-          // Fase 1: Proxy View (Texto)
           setLoadingState('extracting');
           const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
           if (proxyError || !proxyData?.reader?.content) throw new Error("Falha na extração");
@@ -6535,16 +6363,15 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           const fullText = proxyData.reader.textContent;
           setReaderContent(proxyData.reader); 
 
-          // Fase 2: Gemini (Análise)
           setLoadingState('analyzing');
           const prompt = `
-            Aja como um Analista de Inteligência Sênior. Analise o texto abaixo.
-            GERE UM ÚNICO JSON ESTRITO com esta estrutura:
+            Aja como um Analista de Inteligência Sênior. Analise o texto:
+            GERE UM JSON ESTRITO:
             {
                 "summaries": {
-                    "executive": "Resumo formal (3 parágrafos).",
-                    "tldr": "Resumo em 1 frase.",
-                    "eli5": "Explicação para criança.",
+                    "executive": "Resumo formal, denso e direto (3 parágrafos).",
+                    "tldr": "Em uma frase.",
+                    "eli5": "Para criança.",
                     "bullets": ["Ponto 1", "Ponto 2", "Ponto 3"]
                 },
                 "mindmap": {
@@ -6554,285 +6381,117 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
                 "contextualTerms": [
                     {
                         "term": "Termo exato (ex: Conceito A)",
-                        "context": "Explicação contextual curta.",
+                        "context": "Definição enciclopédica + Por que é importante NESTA notícia. (Mínimo 20 palavras).",
                         "sentiment": "neutral", 
-                        "evidence_quotes": ["Frase exata do texto onde isso aparece."]
+                        "evidence_quotes": ["Citação exata do texto."]
                     }
                 ],
-                "timeline": [
-                    { "time": "Data/Período", "event": "O que aconteceu" }
-                ],
-                "future": {
-                    "optimistic": "Melhor caso",
-                    "pessimistic": "Pior caso",
-                    "probable": "Realista"
-                }
+                "timeline": [{ "time": "Data", "event": "Fato" }],
+                "future": { "optimistic": "...", "pessimistic": "...", "probable": "..." }
             }
             TEXTO: ${fullText.slice(0, 25000)}
           `;
 
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
+              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
           });
 
           const jsonRes = await response.json();
           const textRes = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!textRes) throw new Error("IA não respondeu");
-
           const finalData = JSON.parse(textRes.replace(/```json/g, '').replace(/```/g, '').trim());
           setAiData(finalData);
           setLoadingState('complete');
-
-      } catch (err) {
-          console.error(err);
-          setLoadingState('error');
-      }
+      } catch (err) { setLoadingState('error'); }
   };
 
-  // --- INTERAÇÕES ---
   const handleNodeClick = (nodeName) => {
-      if (!aiData?.contextualTerms) return;
-
-      // Busca inteligente (case insensitive e parcial)
-      const nodeData = aiData.contextualTerms.find(t => 
-          t.term.toLowerCase().includes(nodeName.toLowerCase()) || 
-          nodeName.toLowerCase().includes(t.term.toLowerCase())
-      );
-      
-      if (nodeData) {
-          setFocusedNode({ name: nodeName, ...nodeData });
-      } else {
-          // Fallback para não travar se a IA alucinar um nome
-          setFocusedNode({ 
-              name: nodeName, 
-              context: "Contexto identificado na análise geral.", 
-              sentiment: "neutral", 
-              evidence_quotes: [] 
-          });
-      }
+      const nodeData = aiData?.contextualTerms?.find(t => t.term.toLowerCase().includes(nodeName.toLowerCase()) || nodeName.toLowerCase().includes(t.term.toLowerCase()));
+      setFocusedNode(nodeData || { name: nodeName, context: "Análise geral.", sentiment: "neutral", evidence_quotes: [] });
       setViewMode('drilldown');
   };
-
-  const handleQuoteClick = (quote) => {
-      setHighlightRequest(quote);
-      setViewMode('magic');
-  };
+  
+  const handleQuoteClick = (quote) => { setHighlightRequest(quote); setViewMode('magic'); };
 
   if (!isOpen) return null;
 
   return (
     <div className={`fixed inset-0 z-[5000] flex flex-col ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} animate-in slide-in-from-bottom-10 duration-300`}>
-        
-        {/* 1. TELA DE LOADING NEURAL */}
-        {loadingState !== 'complete' && loadingState !== 'error' && (
+        {loadingState !== 'complete' && (
             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black">
                 <div className="relative w-32 h-32 mb-8">
                     <div className="absolute inset-0 border-t-4 border-purple-500 rounded-full animate-spin" />
                     <div className="absolute inset-4 border-r-4 border-blue-500 rounded-full animate-spin-reverse" />
                     <div className="absolute inset-0 flex items-center justify-center"><BrainCircuit size={48} className="text-white animate-pulse"/></div>
                 </div>
-                <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 animate-pulse tracking-tighter">
-                    NEWS OS <span className="text-white">INTELLIGENCE</span>
-                </h3>
-                <p className="text-zinc-500 text-xs mt-4 font-mono uppercase tracking-[0.3em] animate-bounce">
-                    {loadingState === 'extracting' ? 'Lendo Fonte Original...' : 'Sintetizando Dados...'}
-                </p>
+                <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 animate-pulse tracking-tighter">NEWS OS <span className="text-white">INTELLIGENCE</span></h3>
+                <p className="text-zinc-500 text-xs mt-4 font-mono uppercase tracking-[0.3em] animate-bounce">{loadingState === 'extracting' ? 'Lendo Fonte Original...' : 'Sintetizando Dados...'}</p>
                 <button onClick={onClose} className="mt-8 text-zinc-600 text-xs hover:text-white">Cancelar</button>
             </div>
         )}
 
-        {/* 2. CONTEÚDO PRINCIPAL */}
         {loadingState === 'complete' && aiData && (
             <div className="flex-1 overflow-y-auto relative scrollbar-hide">
-                
-                {/* HEADER IMERSIVO (FIXO NO TOPO DO SCROLL) */}
                 <div className="relative h-72 w-full flex-shrink-0">
                     <img src={article.img} className="w-full h-full object-cover opacity-60" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-zinc-900/40" />
-                    
-                    {/* Toolbar */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
                     <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">
                         <div className="flex gap-2">
-                            {viewMode === 'magic' && (
-                                <button onClick={() => setViewMode('drilldown')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2">
-                                    <BrainCircuit size={14}/> Voltar à Análise
-                                </button>
-                            )}
+                            {viewMode === 'magic' && (<button onClick={() => setViewMode('drilldown')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2"><BrainCircuit size={14}/> Voltar</button>)}
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full backdrop-blur-md border ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}>
-                                <Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/>
-                            </button>
+                            <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full backdrop-blur-md border ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}><Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/></button>
                             <button onClick={onClose} className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20"><X size={20}/></button>
                         </div>
                     </div>
-
                     <div className="absolute bottom-8 left-6 right-6">
-                        <div className="flex items-center gap-3 mb-3">
-                            <img src={article.logo} className="w-8 h-8 rounded-full border-2 border-white/20 bg-white"/>
-                            <span className="text-sm font-bold text-indigo-400 uppercase tracking-widest">{article.source}</span>
-                        </div>
+                        <div className="flex items-center gap-3 mb-3"><img src={article.logo} className="w-8 h-8 rounded-full border-2 border-white/20 bg-white"/><span className="text-sm font-bold text-indigo-400 uppercase tracking-widest">{article.source}</span></div>
                         <h1 className="text-3xl md:text-4xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
                     </div>
                 </div>
 
-                {/* CORPO DINÂMICO */}
                 <div className="px-4 py-2 space-y-10 pb-40">
-                    
-                    {/* VISÃO GERAL (PADRÃO) */}
                     {viewMode === 'analysis' && (
                         <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            
-                            {/* Widget Resumo */}
                             <div className="mb-10">
                                 <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
                                     {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
-                                        <button
-                                            key={mode}
-                                            onClick={() => setSummaryMode(mode)}
-                                            className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all
-                                                ${summaryMode === mode 
-                                                    ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md transform scale-105' 
-                                                    : 'text-zinc-400 hover:text-zinc-600'}
-                                            `}
-                                        >
-                                            {mode === 'executive' ? 'Executivo' : mode === 'tldr' ? 'Resumo' : mode === 'eli5' ? 'Simples' : 'Tópicos'}
-                                        </button>
+                                        <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md transform scale-105' : 'text-zinc-400 hover:text-zinc-600'}`}>{mode === 'executive' ? 'Executivo' : mode === 'tldr' ? 'Resumo' : mode === 'eli5' ? 'Simples' : 'Tópicos'}</button>
                                     ))}
                                 </div>
                                 <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
-                                    <div className={`text-base leading-loose font-serif ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                                        {summaryMode === 'bullets' ? (
-                                            <ul className="list-disc pl-5 space-y-3 marker:text-indigo-500">
-                                                {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
-                                            </ul>
-                                        ) : (
-                                            <p>{aiData.summaries[summaryMode]}</p>
-                                        )}
-                                    </div>
+                                    {summaryMode === 'bullets' ? (<ul className="list-disc pl-5 space-y-3 marker:text-indigo-500 text-sm leading-loose">{aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>) : (<p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries[summaryMode]}</p>)}
                                 </div>
                             </div>
-
-                            {/* Constelação */}
-                            <ConstellationWidget 
-                                mindmap={aiData.mindmap} 
-                                onNodeClick={handleNodeClick} 
-                                isDarkMode={isDarkMode} 
-                            />
-
-                            {/* Timeline & Futuro */}
+                            <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
                             <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
                             <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
-                            
-                            <div className="text-center opacity-30 py-4">
-                                <p className="text-[10px] font-mono">Generated by NewsOS AI • Gemini 1.5 Flash</p>
-                            </div>
                         </div>
                     )}
 
-                    {/* DRILL-DOWN (FOCO NO NÓ) */}
                     {viewMode === 'drilldown' && focusedNode && (
-    <div className="animate-in slide-in-from-right duration-500 min-h-[70vh] flex flex-col">
-        {/* Barra de Navegação Interna */}
-        <button onClick={() => setViewMode('analysis')} className="self-start mb-6 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white flex items-center gap-2 bg-white/5 px-4 py-2 rounded-full transition-colors border border-white/5 hover:border-white/20">
-            <ChevronLeft size={14}/> Retornar à Constelação
-        </button>
-        
-        {/* CARD PRINCIPAL (GLASS) */}
-        <div className={`flex-1 p-8 rounded-[3rem] border shadow-2xl relative overflow-hidden flex flex-col justify-center ${isDarkMode ? 'bg-zinc-900/80 border-white/10' : 'bg-white border-zinc-200'}`}>
-            
-            {/* Efeitos de Fundo (Auras) */}
-            <div className={`absolute top-0 right-0 w-64 h-64 blur-[100px] rounded-full opacity-30 pointer-events-none ${focusedNode.sentiment === 'positive' ? 'bg-emerald-500' : (focusedNode.sentiment === 'negative' ? 'bg-rose-500' : 'bg-indigo-500')}`}></div>
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500 blur-[80px] rounded-full opacity-20 pointer-events-none"></div>
-
-            <div className="relative z-10">
-                {/* Cabeçalho do Conceito */}
-                <div className="flex items-start justify-between mb-6">
-                    <div>
-                        <span className="text-[10px] font-black uppercase text-white/40 mb-2 block tracking-[0.3em]">Conceito Analisado</span>
-                        <h2 className="text-4xl md:text-5xl font-black text-white leading-tight drop-shadow-xl">{focusedNode.name}</h2>
-                    </div>
-                    {/* Badge de Sentimento */}
-                    {focusedNode.sentiment && (
-                        <div className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl border backdrop-blur-xl shadow-lg ${focusedNode.sentiment === 'positive' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' : (focusedNode.sentiment === 'negative' ? 'bg-rose-500/20 border-rose-500/30 text-rose-400' : 'bg-blue-500/20 border-blue-500/30 text-blue-400')}`}>
-                            {focusedNode.sentiment === 'positive' ? <TrendingUp size={24}/> : <TrendingDown size={24}/>}
-                        </div>
-                    )}
-                </div>
-
-                {/* Explicação (O Raio-X) */}
-                <div className="mb-10 p-6 rounded-2xl bg-black/20 border border-white/5 backdrop-blur-md">
-                    <p className={`text-lg md:text-xl leading-relaxed font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
-                        {focusedNode.context}
-                    </p>
-                </div>
-
-                {/* Seção de Evidências (Interactive Quotes) */}
-                <div className="space-y-4">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 flex items-center gap-2 pl-2">
-                        <Search size={12}/> Evidências encontradas no texto original
-                    </h4>
-                    
-                    {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
-                        focusedNode.evidence_quotes.map((quote, i) => (
-                            <button 
-                                key={i} 
-                                onClick={() => handleQuoteClick(quote)}
-                                className={`w-full text-left p-5 rounded-2xl border transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:border-purple-500 group relative overflow-hidden ${isDarkMode ? 'bg-black/40 border-white/10' : 'bg-white border-zinc-200'}`}
-                            >
-                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                <p className={`text-sm italic font-serif leading-relaxed opacity-80 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                                    "{quote}"
-                                </p>
-                                <div className="mt-3 flex items-center gap-2 text-[9px] font-black text-purple-400 opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0 uppercase tracking-wider">
-                                    Localizar no texto <ArrowRight size={10}/>
+                        <div className="animate-in slide-in-from-right duration-500 min-h-[60vh]">
+                            <button onClick={() => setViewMode('analysis')} className="mb-6 text-xs font-bold text-zinc-500 hover:text-black dark:hover:text-white flex items-center gap-2"><ChevronLeft size={16}/> VOLTAR AO MAPA</button>
+                            <div className={`p-8 rounded-[2.5rem] border-2 shadow-2xl ${isDarkMode ? 'bg-zinc-900 border-indigo-500/50' : 'bg-white border-indigo-100'}`}>
+                                <h2 className="text-3xl font-black text-indigo-500 mb-4">{focusedNode.name}</h2>
+                                <p className={`text-lg leading-relaxed mb-6 font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>{focusedNode.context}</p>
+                                <div className="space-y-4">
+                                    <h4 className={`text-xs font-black uppercase tracking-widest opacity-50 ${isDarkMode ? 'text-white' : 'text-black'}`}>Evidências</h4>
+                                    {focusedNode.evidence_quotes?.map((quote, i) => (<div key={i} onClick={() => handleQuoteClick(quote)} className={`p-4 rounded-xl border cursor-pointer hover:border-purple-500 ${isDarkMode ? 'bg-black/20 border-white/10 text-zinc-300' : 'bg-zinc-50 border-zinc-200 text-zinc-700'}`}>"{quote}"</div>))}
                                 </div>
-                            </button>
-                        ))
-                    ) : (
-                        <div className="p-6 rounded-xl border border-white/5 bg-white/5 text-center">
-                            <p className="text-xs opacity-40 italic">A IA não vinculou citações diretas para este conceito.</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    </div>
-)}
-
-                    {/* MODO MAGIC (LEITURA COM SCROLL) */}
-                    {viewMode === 'magic' && (
-                        <div className="animate-in fade-in slide-in-from-bottom-10 duration-500">
-                            <div className="bg-indigo-600 text-white text-center text-xs font-bold py-2 rounded-t-xl mx-4 mb-[-10px] relative z-10 shadow-lg">
-                                Modo Leitura Mágica • Rolagem Automática
                             </div>
-                            <MagicPremiumView 
-                                article={article} 
-                                readerContent={readerContent} 
-                                highlightText={highlightRequest} 
-                                isDarkMode={isDarkMode} 
-                                fontSize={fontSize} 
-                            />
                         </div>
                     )}
 
+                    {viewMode === 'magic' && (<MagicPremiumView article={article} readerContent={readerContent} highlightText={highlightRequest} isDarkMode={isDarkMode} fontSize={fontSize} />)}
                 </div>
             </div>
         )}
-        
-        {/* CONTROLADOR DE FONTE FLUTUANTE (SÓ NO MODO MAGIC) */}
-        {viewMode === 'magic' && (
-            <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 rounded-2xl backdrop-blur-xl border shadow-2xl animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-black/80 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
-                <button onClick={() => setFontSize(s => Math.max(14, s - 2))} className="p-3 hover:bg-white/10 rounded-xl"><Minus size={16}/></button>
-                <span className="text-xs font-black w-8 text-center">{fontSize}</span>
-                <button onClick={() => setFontSize(s => Math.min(32, s + 2))} className="p-3 hover:bg-white/10 rounded-xl"><Plus size={16}/></button>
-            </div>
-        )}
+        {showCenterModal && aiData && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
+        {viewMode === 'magic' && (<div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 rounded-2xl backdrop-blur-xl border shadow-2xl ${isDarkMode ? 'bg-black/80 border-white/10' : 'bg-white/90 border-zinc-200'}`}><button onClick={() => setFontSize(s => Math.max(14, s - 2))} className="p-3 hover:bg-white/10 rounded-xl"><Minus size={16}/></button><span className="text-xs font-black w-8 text-center">{fontSize}</span><button onClick={() => setFontSize(s => Math.min(32, s + 2))} className="p-3 hover:bg-white/10 rounded-xl"><Plus size={16}/></button></div>)}
     </div>
   );
 });
-
 
 function PodNewsModal({ onClose, isDarkMode }) {
   const [status, setStatus] = useState('generating'); // 'generating' | 'playing'
