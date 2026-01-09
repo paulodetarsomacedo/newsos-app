@@ -4389,7 +4389,6 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   );
 };
 
-
 // --- COMPONENTE: SPLASH SCREEN (AJUSTADO) ---
 const SplashScreen = ({ onFinish }) => {
   const [step, setStep] = useState(0);
