@@ -562,9 +562,9 @@ const triggerSearch = () => {
 
         <div className="relative px-6 pt-6 pb-4 flex flex-col gap-4">
            {/* --- NOVO LOGO NEWSOS --- */}
-                    <div className="absolute top-4 left-6 flex items-center gap-3 opacity-95">
+                    <div className="absolute top-2 left-2 flex items-center gap-3 opacity-95">
                         <div className="w-10 h-10 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
-                            <span className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
+                            <span className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
                         </div>
                         <span className="text-xs font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
                     </div>
@@ -1110,6 +1110,13 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
              </p>
          </div>
          <div className="flex flex-col items-center gap-3 pl-3 border-l border-dashed border-zinc-200 dark:border-zinc-800/50 min-w-[40px] justify-center">
+         {/* 1. INDICADOR DE LIDO (NOVO) */}
+             {isRead && (
+                 <div className="flex flex-col items-center gap-1 mb-1 animate-in fade-in" title="Você já leu esta notícia">
+                     <div className={`w-1.5 h-1.5 rounded-full bg-orange-600 shadow-[0_0_5px_rgba(234,88,12,0.8)]`}></div>
+                     <span className="text-[8px] font-bold text-orange-600 dark:text-orange-500 uppercase">Lido</span>
+                 </div>
+             )}
              <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
                  <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
              </button>
@@ -1912,9 +1919,21 @@ const generateFullAnalysis = async (text, apiKey) => {
       "nodes": ["A", "B", "C", "D"]
     },
     "timeline": [
-  { "time": "Passado (Causa)", "event": "O que causou o contexto geral desta notícia?" },
-  { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
-  { "time": "Hoje (Fato)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
+    { 
+        "label": "Passado (Causa)", 
+        "date": "A data, dia, ou referência temporal EXATA (ex: 'Ontem', '8 de julho') encontrada no texto para este evento.",
+        "event": "O que causou o contexto geral desta notícia?" 
+    },
+    { 
+        "label": "Recente (Gatilho)", 
+        "date": "A data ou referência temporal EXATA do evento que serviu de gatilho.",
+        "event": "Qual foi o evento específico que levou diretamente a esta matéria?" 
+    },
+    { 
+        "label": "Hoje (Fato Principal)", 
+        "date": "A data ou referência temporal EXATA do fato principal de hoje.",
+        "event": "Qual é o fato central e mais importante reportado neste artigo?" 
+    }
 ],
     "future": {
       "optimistic": "Melhor caso",
@@ -6301,19 +6320,42 @@ const ConstellationWidget = ({ mindmap, onNodeClick, onCenterClick, isDarkMode }
 
 const TimelineWidget = ({ items, isDarkMode }) => {
     if (!items || items.length === 0) return null;
+
     return (
         <div className={`p-6 rounded-3xl border mb-6 ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-            <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-6 flex items-center gap-2"><Clock size={12}/> Contexto Temporal</h4>
+            <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-8 flex items-center gap-2">
+                <Clock size={12}/> Linha do Tempo do Evento
+            </h4>
             <div className="space-y-0">
                 {items.map((item, i) => (
-                    <div key={i} className="flex gap-4 relative pb-8 last:pb-0">
-                        {i !== items.length - 1 && <div className="absolute left-[19px] top-8 bottom-0 w-0.5 bg-zinc-200 dark:bg-zinc-800"></div>}
-                        <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold z-10 ${i === items.length-1 ? 'bg-green-500 text-white shadow-lg shadow-green-500/30' : (isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500')}`}>
-                            {i === items.length-1 ? 'HOJE' : i+1}
+                    <div key={i} className="flex gap-4 relative pb-10 last:pb-0">
+                        {/* Linha Vertical Conectora */}
+                        {i !== items.length - 1 && <div className="absolute left-[19px] top-10 bottom-0 w-0.5 bg-zinc-200 dark:bg-zinc-800"></div>}
+                        
+                        {/* Círculo da Etapa */}
+                        <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-lg font-black z-10 
+                            ${i === items.length - 1 
+                                ? 'bg-green-500 text-white shadow-lg' 
+                                : (isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500')}
+                        `}>
+                            {i + 1}
                         </div>
+                        
+                        {/* Conteúdo do Evento */}
                         <div>
-                            <span className="text-[10px] font-bold text-indigo-500 uppercase block mb-1">{item.time}</span>
-                            <p className={`text-sm leading-tight ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{item.event}</p>
+                            <div className="flex items-center gap-2 mb-1">
+                                {/* Pílula da Data */}
+                                <div className={`px-2 py-0.5 rounded-md text-[9px] font-bold border ${isDarkMode ? 'bg-zinc-800 border-zinc-700 text-zinc-400' : 'bg-zinc-100 border-zinc-200 text-zinc-500'}`}>
+                                    {item.date}
+                                </div>
+                                {/* Rótulo Narrativo */}
+                                <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
+                                    {item.label}
+                                </span>
+                            </div>
+                            <p className={`text-sm leading-tight ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                                {item.event}
+                            </p>
                         </div>
                     </div>
                 ))}
@@ -6321,6 +6363,7 @@ const TimelineWidget = ({ items, isDarkMode }) => {
         </div>
     );
 };
+
 
 const FutureWidget = ({ data, isDarkMode }) => {
     if (!data) return null;
