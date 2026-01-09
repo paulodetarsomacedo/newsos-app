@@ -1015,10 +1015,9 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
     : '...';
 
-  // Lógica de detecção de mídia ROBUSTA
-  const isYoutube = news.link?.includes('youtube') || news.link?.includes('youtu.be') || !!news.videoId;
-  const isAudio = news.category === 'Podcast' || news.type === 'audio' || news.link?.endsWith('.mp3');
-  const isPlayable = isYoutube || isAudio;
+  // CORREÇÃO: Habilitamos o Play para TUDO (pois agora temos TTS de IA)
+  // Se tem ID e Título, podemos gerar áudio.
+  const isPlayable = !!news.id && !!news.title; 
 
   return (
     <div 
@@ -1030,7 +1029,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       `}
     >
       
-      {/* 1. ÁREA DE IMAGEM (CLIQUE PARA LER) */}
+      {/* 1. ÁREA DE IMAGEM */}
       <div 
         onClick={() => onClick(news)}
         className="relative h-56 w-full cursor-pointer overflow-hidden rounded-t-[2rem] bg-gray-200 dark:bg-zinc-800"
@@ -1046,7 +1045,6 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
         
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-90" />
 
-        {/* Badge Topo */}
         <div className="absolute top-4 left-4 flex items-center gap-2">
             <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
                 <img src={news.logo} className="w-4 h-4 rounded-full bg-white" onError={(e) => e.target.style.display = 'none'} />
@@ -1056,7 +1054,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
         </div>
       </div>
 
-      {/* 2. A PÍLULA INTELIGENTE (Centralizada Absoluta) */}
+      {/* 2. PÍLULA INTELIGENTE (POSIÇÃO CORRIGIDA NO CSS) */}
       <div className="absolute top-[224px] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-2xl shadow-black/50 rounded-full p-1 bg-zinc-900 border border-white/20 backdrop-blur-xl">
           <button 
             onClick={(e) => { e.stopPropagation(); onClick(news); }}
@@ -1073,7 +1071,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
           </button>
       </div>
 
-      {/* 3. ÁREA DE TEXTO */}
+      {/* 3. CONTEÚDO E BARRA LATERAL */}
       <div 
         onClick={() => onClick(news)}
         className="relative p-6 pt-10 cursor-pointer flex gap-4"
@@ -1091,7 +1089,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
              </div>
          </div>
 
-         {/* 4. BARRA LATERAL COM PLAY */}
+         {/* 4. BARRA LATERAL (Agora com o Play garantido) */}
          <div className="flex flex-col items-center gap-4 pt-2 pl-3 border-l border-dashed border-zinc-200 dark:border-zinc-800/50 min-w-[44px]">
              
              <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2.5 rounded-full transition-all active:scale-90 hover:bg-black/5 dark:hover:bg-white/10 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
@@ -1102,9 +1100,13 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
                  <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
              </button>
 
+             {/* PLAY VISÍVEL AGORA */}
              {isPlayable && (
                  <button 
-                    onClick={(e) => { e.stopPropagation(); alert("Tocando áudio..."); }} 
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        alert("Iniciando geração de áudio neural..."); // Placeholder para a função TTS
+                    }} 
                     className="mt-auto mb-1 w-11 h-11 rounded-full bg-green-500 text-white shadow-xl shadow-green-500/30 flex items-center justify-center hover:scale-110 transition active:scale-95 animate-in zoom-in duration-300"
                  >
                      <Play size={20} fill="white" className="ml-1" />
@@ -1115,6 +1117,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     </div>
   );
 });
+
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId }) {
@@ -4563,21 +4566,15 @@ const StoryOverlay = ({ story, onClose, onRead, onMarkAsSeen, allStories, onNavi
   if (!story || !story.items || story.items.length === 0) return null;
   const currentItem = story.items[0];
 
-  // Detecta se é Short
   const isShort = currentItem.link?.includes('/shorts/') || currentItem.title?.toLowerCase().includes('#shorts');
   
-  // Extrai ID
   const match = currentItem.link?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
   const videoId = currentItem.videoId || (match ? match[1] : null);
 
-  // --- CORREÇÃO DO ERRO DE CONFIGURAÇÃO ---
-  // Precisamos passar a origem exata para o YouTube autorizar o embed
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-
- // AQUI ESTÁ A CORREÇÃO:
+  // FUNÇÃO INTERNA CORRETA
   const handleReadFull = () => {
-      onClose(); // Fecha o story
-      if (onRead) onRead(currentItem); // Chama o InAppBrowser
+      onClose(); 
+      if (onRead) onRead(currentItem); 
   };
 
   return (
@@ -4586,14 +4583,13 @@ const StoryOverlay = ({ story, onClose, onRead, onMarkAsSeen, allStories, onNavi
         
         <div className="absolute inset-0 bg-black">
             {isShort && videoId ? (
-                // IFRAME BLINDADO COM ORIGIN
                 <iframe
-                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&modestbranding=1&playsinline=1&rel=0&fs=0&loop=1&playlist=${videoId}&enablejsapi=1&origin=${origin}&widgetid=1`}
+                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
                     className="w-full h-full object-cover pointer-events-auto"
                     title="Shorts Player"
                     frameBorder="0"
                     allow="autoplay; encrypted-media"
-                    referrerPolicy="strict-origin-when-cross-origin" // Importante para segurança
+                    referrerPolicy="strict-origin-when-cross-origin"
                 />
             ) : (
                 <>
@@ -4603,7 +4599,7 @@ const StoryOverlay = ({ story, onClose, onRead, onMarkAsSeen, allStories, onNavi
             )}
         </div>
 
-        {/* CONTROLES DE NAVEGAÇÃO */}
+        {/* NAVEGAÇÃO */}
         <div className="absolute inset-0 z-20 flex pointer-events-none">
             <div className="w-[20%] h-full pointer-events-auto" onClick={() => onNavigate('prev')} />
             <div className="flex-1 h-full" />
@@ -4631,11 +4627,17 @@ const StoryOverlay = ({ story, onClose, onRead, onMarkAsSeen, allStories, onNavi
           </div>
         </div>
 
+        {/* BOTÃO LER CORRIGIDO */}
         {!isShort && (
             <div className="absolute bottom-0 left-0 right-0 p-8 z-30 pb-12 md:pb-10 pointer-events-none">
                 <div className="pointer-events-auto flex flex-col items-center">
                     <h2 className="text-white text-2xl md:text-3xl font-black leading-tight mb-8 drop-shadow-2xl font-serif text-center line-clamp-5">{currentItem.title}</h2>
-                    <button onClick={(e) => { e.stopPropagation(); handleOpenFullArticle(); }} className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100"><span className="text-sm uppercase tracking-widest">Ler Notícia Completa</span><ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></button>
+                    
+                    {/* AQUI ESTAVA O ERRO DE VARIÁVEL - AGORA CHAMA handleReadFull */}
+                    <button onClick={(e) => { e.stopPropagation(); handleReadFull(); }} className="group w-full bg-white text-black font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:bg-zinc-100">
+                        <span className="text-sm uppercase tracking-widest">Ler Notícia Completa</span>
+                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                    </button>
                 </div>
             </div>
         )}
