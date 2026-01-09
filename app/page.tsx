@@ -1121,30 +1121,41 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onReadArticle, onGenerateAudio }) {
-  const [category, setCategory] = useState('Tudo');
-
-  const feedContainerRef = useRef(null);
-  useEffect(() => {
-      // Se a função foi passada, chama ela
-      if (onCategoryChange) {
-          onCategoryChange();
-      }
-  }, [category, onCategoryChange]); // Dispara sempre que a categoria mudar
   
-  // Estado de Dados Estáveis
+  // ==========================================================
+  // 1. ESTADOS (STATES)
+  // ==========================================================
+  const [category, setCategory] = useState('Tudo');
   const [stableData, setStableData] = useState([]);
   const [hasLoaded, setHasLoaded] = useState(false);
-
-  // Estados Pull-to-Refresh
   const [startY, setStartY] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Estados do Player de Áudio Local
+  const [localPlayingAudio, setLocalPlayingAudio] = useState(null); 
+  const [audioUrl, setAudioUrl] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  
+  // ==========================================================
+  // 2. REFERÊNCIAS (REFs)
+  // ==========================================================
+  const feedContainerRef = useRef(null);
+  const audioRef = useRef(null);
+
+  // ==========================================================
+  // 3. EFEITOS COLATERAIS (useEffect)
+  // ==========================================================
+  useEffect(() => {
+      if (onCategoryChange) {
+          onCategoryChange();
+      }
+  }, [category, onCategoryChange]);
 
   useEffect(() => {
       setSourceFilter('all');
   }, [category, setSourceFilter]);
 
-  // Inicialização
   useEffect(() => {
     if (newsData && newsData.length > 0 && !hasLoaded) {
         setStableData(newsData);
@@ -1152,30 +1163,41 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
     }
   }, [newsData, hasLoaded]);
 
-  // Atualização Forçada
   useEffect(() => {
       if (stableData.length === 0 && newsData && newsData.length > 0) {
           setStableData(newsData);
       }
   }, [newsData, stableData.length]);
 
-  const safeNews = (stableData && stableData.length > 0) ? stableData : []; // Removi FEED_NEWS mockado para evitar mistura
+  // Efeito que TOCA o áudio
+  useEffect(() => {
+    if (audioUrl && audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.play().catch(e => console.error("Erro ao tocar áudio:", e));
+    } else if (audioRef.current) {
+        // Pausa e limpa se a URL for removida
+        audioRef.current.pause();
+        audioRef.current.src = '';
+    }
+  }, [audioUrl]);
 
-// 1. Filtra categorias e fonte selecionada
-  const filteredByCategory = category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category);
-  const filteredBySource = sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter);
+  // ==========================================================
+  // 4. CÁLCULOS MEMORIZADOS (useMemo)
+  // ==========================================================
+  const safeNews = useMemo(() => (stableData && stableData.length > 0) ? stableData : [], [stableData]);
 
-  // 2. CORREÇÃO DA ORDEM NO FEED:
-  // Cria uma nova lista e força o sort por timestamp seguro
+  const filteredByCategory = useMemo(() => category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category), [safeNews, category]);
+  
+  const filteredBySource = useMemo(() => sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter), [filteredByCategory, sourceFilter]);
+
   const sortedFeed = useMemo(() => {
       return [...filteredBySource].sort((a, b) => {
           const tA = new Date(a.rawDate).getTime() || 0;
           const tB = new Date(b.rawDate).getTime() || 0;
-          return tB - tA; // Mais recente no topo
+          return tB - tA;
       });
   }, [filteredBySource]);
 
-  // 3. Remove duplicatas (mantendo a ordem do sort acima)
   const uniqueNews = useMemo(() => {
       const seen = new Set();
       const filtered = sortedFeed.filter(item => {
@@ -1183,11 +1205,12 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
           seen.add(item.id);
           return true;
       });
-      // SEGURANÇA PWA: Renderiza no máximo 50 notícias por vez na aba Feed.
-      // Isso impede que a memória estoure ao renderizar listas infinitas.
       return filtered.slice(0, 50); 
   }, [sortedFeed]);
-  // Funções de Toque
+
+  // ==========================================================
+  // 5. FUNÇÕES DE AÇÃO (HANDLERS)
+  // ==========================================================
   const handleTouchStart = (e) => {
     if (window.scrollY <= 5 && !isRefreshing) {
         setStartY(e.touches[0].clientY);
@@ -1214,78 +1237,49 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
         setStartY(0);
         return;
     }
-    
     if (pullDistance > 70) {
         setIsRefreshing(true);
         setPullDistance(70); 
-        
         if (onRefresh) await onRefresh();
-        
         await new Promise(resolve => setTimeout(resolve, 500)); 
-        
         if (newsData && newsData.length > 0) {
             setStableData(newsData);
         }
-
         setIsRefreshing(false);
     }
     setPullDistance(0);
     setStartY(0);
   };
 
-// 1. O "Cérebro Local": Qual notícia do feed está tocando?
-  const [localPlayingAudio, setLocalPlayingAudio] = useState(null); 
-  
-  // 2. Guarda a URL do MP3 quando ele fica pronto.
-  const [audioUrl, setAudioUrl] = useState('');
-  
-  // 3. Controla a animação de "Gerando..." no botão.
-  const [isGenerating, setIsGenerating] = useState(false);
-  
-  // 4. Referência ao player de áudio invisível.
-  const audioRef = useRef(null);
-
-  // 5. A Nova Função de Play, que controla o cérebro LOCAL.
-  const handleLocalPlay = async (article) => {
-    // Se o usuário clicar no mesmo card que já está tocando, ele para o áudio.
+  const handleLocalPlay = useCallback(async (article) => {
     if (localPlayingAudio?.id === article.id) {
         setLocalPlayingAudio(null);
-        if (audioRef.current) audioRef.current.pause();
+        setAudioUrl(''); // Limpa a URL para o useEffect pausar
         return;
     }
     
-    // Se clicar em um novo, define ele como o "ativo" e mostra "Gerando..."
     setLocalPlayingAudio(article);
     setIsGenerating(true);
-    setAudioUrl(''); // Limpa a URL antiga
+    setAudioUrl('');
     
-    // Chama a função do PAI (NewsOS_V12) para fazer o trabalho pesado (gerar o MP3).
-    // A prop que passaremos se chama onGenerateAudio.
     const url = await onGenerateAudio(article); 
 
     if (url) {
-        // Sucesso! A URL do MP3 chegou.
         setIsGenerating(false);
-        setAudioUrl(url); // Salva a URL para o useEffect tocar.
+        setAudioUrl(url);
     } else {
-        // Falhou. Limpa tudo para o usuário poder tentar de novo.
         setLocalPlayingAudio(null);
         setIsGenerating(false);
     }
-  };
+  }, [localPlayingAudio, onGenerateAudio]);
 
-  // 6. Efeito que TOCA o áudio quando a URL fica pronta.
-  useEffect(() => {
-    if (audioUrl && audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.play().catch(e => console.error("Erro ao tocar áudio:", e));
-    }
-  }, [audioUrl]);
+  const handleAnalyze = useCallback((article) => {
+      openArticle(article); 
+  }, [openArticle]);
 
-
-
-
-
+  // ==========================================================
+  // 6. LÓGICA DE RENDERIZAÇÃO
+  // ==========================================================
   if (isLoading && (!stableData || stableData.length === 0)) {
      return (
        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
@@ -1295,73 +1289,45 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
      );
   }
 
-  // FUNÇÃO 1: LEITURA RÁPIDA (InAppBrowser)
-  const handleRead = useCallback((article) => {
-      if (!article.link) return;
-      const options = `location=no,toolbar=yes,toolbarcolor=${isDarkMode ? '#000000' : '#ffffff'},navigationbuttoncolor=${isDarkMode ? '#ffffff' : '#000000'},closebuttoncolor=${isDarkMode ? '#ffffff' : '#000000'}`;
-      // Tenta abrir no navegador nativo, fallback para window.open
-      try { InAppBrowser.create(article.link, '_blank', options); } 
-      catch (e) { window.open(article.link, '_blank'); }
-  }, [isDarkMode]);
-
-  // FUNÇÃO 2: ANÁLISE IA (Abre o Painel)
-  const handleAnalyze = useCallback((article) => {
-      // Usa a função openArticle original do pai, que agora vai acionar o ArticlePanel
-      openArticle(article); 
-  }, [openArticle]);
-
-
   return (
     <div 
-    ref={feedContainerRef} 
+      ref={feedContainerRef} 
       className="space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 pt-2 min-h-screen overscroll-y-none touch-pan-y"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
+      {/* Player de áudio invisível, controlado pelo estado local */}
+      <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
       
       {/* CABEÇALHO */}
       <div className="sticky top-0 z-[1000] w-full flex justify-center py-2 pointer-events-none">
           <div className="pointer-events-auto">
-<SourceSelector 
-    news={filteredByCategory} 
-    selectedSource={sourceFilter} 
-    onSelect={setSourceFilter} 
-    isDarkMode={isDarkMode} 
-/>          
-</div>
+            <SourceSelector 
+                news={filteredByCategory} 
+                selectedSource={sourceFilter} 
+                onSelect={setSourceFilter} 
+                isDarkMode={isDarkMode} 
+            />          
+          </div>
          <SlidingPillFilter 
-  categories={FEED_CATEGORIES} 
-  active={category} 
-  onChange={setCategory} 
-  isDarkMode={isDarkMode} 
-/>
+            categories={FEED_CATEGORIES} 
+            active={category} 
+            onChange={setCategory} 
+            isDarkMode={isDarkMode} 
+         />
       </div>
 
-      {/* LOADING */}
+      {/* LOADING PULL TO REFRESH */}
       <div 
-        style={{ 
-            height: `${pullDistance}px`, 
-            opacity: Math.min(pullDistance / 40, 1), 
-            transition: isRefreshing ? 'height 0.3s ease' : 'height 0s' 
-        }} 
+        style={{ height: `${pullDistance}px`, opacity: Math.min(pullDistance / 40, 1), transition: isRefreshing ? 'height 0.3s ease' : 'height 0s' }} 
         className="flex items-end justify-center overflow-hidden w-full will-change-transform"
       >
          <div className={`mb-4 flex items-center gap-3 px-5 py-2 rounded-full shadow-lg border transition-all transform duration-200 ${isDarkMode ? 'bg-zinc-800 border-purple-500/30 text-white' : 'bg-white border-purple-200 text-zinc-800'} ${pullDistance > 70 ? 'scale-110' : 'scale-100'}`}>
             {isRefreshing ? (
-                <>
-                    <Loader2 size={20} className="animate-spin text-purple-500" />
-                    <span className="text-xs font-bold text-purple-500 animate-pulse">Atualizando...</span>
-                </>
+                <><Loader2 size={20} className="animate-spin text-purple-500" /><span className="text-xs font-bold text-purple-500 animate-pulse">Atualizando...</span></>
             ) : (
-                <>
-                    <div style={{ transform: `rotate(${pullDistance * 3}deg)` }} className="bg-purple-100 dark:bg-purple-900/30 p-1.5 rounded-full text-purple-600 dark:text-purple-400">
-                        <RefreshCw size={16} />
-                    </div>
-                    <span className={`text-xs font-bold transition-colors ${pullDistance > 70 ? 'text-purple-600 dark:text-purple-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                        {pullDistance > 70 ? 'Solte para atualizar' : 'Puxe para atualizar'}
-                    </span>
-                </>
+                <><div style={{ transform: `rotate(${pullDistance * 3}deg)` }} className="..."><RefreshCw size={16} /></div><span className={`...`}>{pullDistance > 70 ? 'Solte para atualizar' : 'Puxe para atualizar'}</span></>
             )}
          </div>
       </div>
@@ -1383,7 +1349,6 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
            </div>
         )}
         
-        {/* Usamos uniqueNews em vez de displayedNewsRaw */}
         {uniqueNews.map((news) => (
             <NewsCard 
               key={news.id}
@@ -1394,13 +1359,12 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
               isRead={readHistory?.includes(news.id)}
               isSaved={savedItems?.some((item) => item.id === news.id)}
               isDarkMode={isDarkMode}
-              onClick={handleRead}      // Clicar no card/imagem -> Lê
-    onAnalyze={handleAnalyze} // Clicar na pílula IA -> Analisa
+              onClick={onReadArticle}
+              onAnalyze={handleAnalyze}
               onToggleSave={onToggleSave}
               isLiked={likedItems?.includes(news.id)}
               onToggleLike={onToggleLike}
-              isViewedFromStory={news.id === viewedInStoryId}
-            
+              isViewedFromStory={viewedInStoryId}
             />
         ))}
       </div>
@@ -5576,10 +5540,13 @@ const handleReadNative = useCallback(async (article) => {
   }, [isNavVisible]);
 
   const mainRef = useRef(null);
+  const prevTab = useRef(activeTab);
   useEffect(() => {
-    if (mainRef.current) {
+    // Só rola para o topo SE A ABA MUDOU DE VERDADE
+    if (mainRef.current && prevTab.current !== activeTab) {
       mainRef.current.scrollTo({ top: 0, behavior: 'smooth' }); 
     }
+    prevTab.current = activeTab; // Atualiza a "memória" da aba
   }, [activeTab]);
 
 
@@ -6307,6 +6274,40 @@ const ConstellationWidget = ({ mindmap, onNodeClick, onCenterClick, isDarkMode }
         </div>
     );
 };
+
+const getBrandIdentity = (sourceName) => {
+    const name = sourceName?.toLowerCase() || "";
+    if (name.match(/times|post|folha|estadao|journal|herald|politico/)) {
+        return { type: 'newspaper', fontHeader: "'Chomsky', 'UnifrakturMaguntia', serif", fontBody: "'Merriweather', serif", align: 'center' };
+    }
+    if (name.match(/verge|wired|tech|code|mac|tecmundo|canaltech|ign|g1|globo|uol|noticias|minuto/)) {
+        return { type: 'tech', fontHeader: "'Inter', sans-serif", fontBody: "'Inter', sans-serif", align: 'left' };
+    }
+    if (name.match(/vogue|elle|vanity|gq|bazaar|veja|exame|marie/)) {
+        return { type: 'magazine', fontHeader: "'Bodoni Moda', serif", fontBody: "'Lato', sans-serif", align: 'center' };
+    }
+    if (name.match(/cnn|bbc|nbc|espn|r7|band|jovem/)) {
+        return { type: 'broadcast', fontHeader: "'Oswald', sans-serif", fontBody: "'Roboto', sans-serif", align: 'left' };
+    }
+    return { type: 'default', fontHeader: "'Playfair Display', serif", fontBody: "'Source Serif Pro', serif", align: 'center' };
+};
+
+const resolveBrandColor = (sourceName, isDarkMode) => {
+    if (!sourceName) return isDarkMode ? '#ffffff' : '#000000';
+    const name = sourceName.toLowerCase().replace(/\s+/g, '');
+    const BRANDS = {
+        'g1': '#C4170C', 'globo': '#006497', 'folha': '#004990', 'estadao': '#003B5C',
+        'uol': '#F99D1C', 'cnn': '#CC0000', 'bbc': '#BB1919', 'verge': '#E219E6',
+        'wired': '#000000', 'nytimes': '#000000', 'bloomberg': '#000000', 'vogue': '#000000',
+        'espn': '#CD122D', 'noticiasaominuto': '#ff6600'
+    };
+    for (const [key, color] of Object.entries(BRANDS)) if (name.includes(key)) return color;
+    const SAFE_PALETTE = ['#1E3A8A', '#B91C1C', '#0F766E', '#7C3AED', '#BE123C', '#C2410C', '#374151', '#000000'];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return SAFE_PALETTE[Math.abs(hash) % SAFE_PALETTE.length];
+};
+
 
 const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontSize, highlightText }) => {
     useEffect(() => {
