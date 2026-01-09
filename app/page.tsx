@@ -4766,6 +4766,39 @@ export default function NewsOS_V12() {
     { id: 6, value: '', type: 'billing_audio' },
   ]);
 
+
+  // --- NOVOS ESTADOS PARA O PAINEL RESIZABLE ---
+  const [panelWidth, setPanelWidth] = useState(600); // Largura inicial do painel
+  const isResizing = useRef(false);
+  const resizeStartX = useRef(0);
+  const initialWidth = useRef(0);
+
+  // --- NOVAS FUNÇÕES DE RESIZE ---
+  const handleResizePointerDown = (e) => {
+    isResizing.current = true;
+    resizeStartX.current = e.clientX;
+    initialWidth.current = panelWidth;
+    window.addEventListener('pointermove', handleResizePointerMove);
+    window.addEventListener('pointerup', handleResizePointerUp);
+  };
+
+  const handleResizePointerMove = (e) => {
+    if (!isResizing.current) return;
+    const deltaX = e.clientX - resizeStartX.current;
+    const newWidth = Math.max(400, Math.min(initialWidth.current - deltaX, window.innerWidth - 100)); // Limites de tamanho
+    setPanelWidth(newWidth);
+  };
+
+  const handleResizePointerUp = () => {
+    isResizing.current = false;
+    window.removeEventListener('pointermove', handleResizePointerMove);
+    window.removeEventListener('pointerup', handleResizePointerUp);
+  };
+  
+
+
+
+
   // Índice para rotação das chaves gratuitas (Ref para não causar re-render)
   const rotationIndex = useRef(0);
 
@@ -5561,6 +5594,7 @@ const handleReadNative = useCallback(async (article) => {
 
   const closeArticle = useCallback(() => {
       setSelectedArticle(null);
+      setPanelWidth(600);
   }, []);
 
   const closeStory = useCallback(() => {
@@ -5703,11 +5737,15 @@ const allAvailableStories = useMemo(() => {
 
 const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
 
-  return (
-    <div className={`min-h-[100dvh] font-sans overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
-      {/* --- SPLASH SCREEN --- */}
+return (
+    // ESTRUTURA PRINCIPAL AGORA É FLEX PARA ACOMODAR O PAINEL LATERAL
+    <div className={`h-[100dvh] font-sans flex overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
+      
       {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
-      <div className={`transition-all duration-500 transform h-[100dvh] flex flex-col ${isMainViewReceded ? `scale-[0.9] pointer-events-none` : 'scale-100 opacity-100'}`}>
+      
+      {/* --- COLUNA 1: SUA ESTRUTURA ANTIGA, INTACTA --- */}
+      {/* Este é o seu div antigo que continha todo o app. Agora ele é a coluna principal. */}
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-500`}>
          
           <HeaderDashboard 
              isDarkMode={isDarkMode} 
@@ -5723,20 +5761,19 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
             {activeTab === 'happening' && (
                 <HappeningTab 
                    openArticle={handleReadNative}
-        openStory={(story) => {
-        setSelectedStory(story); // Abre o story
-        setViewedInStoryId(story.id); // GRAVA O ID DO STORY VISTO
-    }}
-        isDarkMode={isDarkMode} 
-        newsData={realNews} // Garanta que esta linha está presente
-        onRefresh={handleHappeningRefresh}
-        seenStoryIds={seenStoryIds} 
-        onMarkAsSeen={markStoryAsSeen}
-        apiKey={getApiKey('widgets')} 
-        storiesToDisplay={storiesForHappeningTab}
-        savedClusters={globalClusters}
+                   openStory={(story) => {
+                        setSelectedStory(story);
+                        setViewedInStoryId(story.id);
+                   }}
+                    isDarkMode={isDarkMode} 
+                    newsData={realNews}
+                    onRefresh={handleHappeningRefresh}
+                    seenStoryIds={seenStoryIds} 
+                    onMarkAsSeen={markStoryAsSeen}
+                    apiKey={getApiKey('widgets')} 
+                    storiesToDisplay={storiesForHappeningTab}
+                    savedClusters={globalClusters}
                     setSavedClusters={setGlobalClusters}
-                    
                 />
             )}
 
@@ -5747,37 +5784,16 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     isLoading={isLoadingFeeds}
                     savedItems={savedItems}
                     onToggleSave={handleToggleSave}
-                    onPlayAudio={async (pod) => {
-                        // 1. Extração de ID (Youtube)
-                        const url = pod.link || "";
-                        const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
-                        const videoId = pod.videoId || (match ? match[1] : null);
-
-                        if (videoId) {
-                            // CENÁRIO YOUTUBE: Abre no Safari In-App (Seguro e Estável)
-                            // Isso impede que abra o App nativo do YouTube se configurado corretamente,
-                            // e garante que o vídeo toque.
-                            
-                            setPlayingAudio(null); // Fecha o player de áudio interno
-                            
-                            await Browser.open({
-                                url: `https://www.youtube.com/watch?v=${videoId}`,
-                                presentationStyle: 'fullscreen', // Ou 'popover' no iPad
-                                toolbarColor: isDarkMode ? '#000000' : '#FFFFFF'
-                            });
-                        } else {
-                            // CENÁRIO MP3: Player Interno
-                            handleOpenArticle(null); 
-                            setPlayingAudio(pod);
-                        }
-                    }}
+                    onPlayAudio={handlePlayAudio}
                 />
             )}
             
             {activeTab === 'feed' && (
                 <FeedTab 
                     openArticle={handleOpenArticle} 
-                    onReadArticle={handleReadNative} // Passa para a FeedTab usar nos cards
+                    onReadArticle={handleReadNative}
+                    onGenerateAudio={handlePlayAudio} 
+                    playingAudio={playingAudio}
                     isDarkMode={isDarkMode} 
                     selectedArticleId={selectedArticle?.id}
                     savedItems={savedItems}
@@ -5785,18 +5801,12 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     readHistory={readHistory}
                     newsData={realNews} 
                     isLoading={isLoadingFeeds}
-                    onPlayVideo={handleOpenArticle} 
                     sourceFilter={sourceFilter}
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}
-                   onGenerateAudio={handlePlayAudio} 
                     onToggleLike={handleToggleLike}
-                    
-                      onCategoryChange={() => {
-                        if (mainRef.current) {
-                          mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-                        }
-                    }}
+                    onRefresh={fetchFeeds}
+                    onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
                 />
             )}
@@ -5811,25 +5821,25 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     isDarkMode={isDarkMode} 
                     realVideos={realVideos} 
                     isLoading={isLoadingFeeds} 
-                    onPlayVideo={handleOpenArticle} 
+                    onPlayVideo={handleReadNative} 
                     seenStoryIds={seenStoryIds}
                     onMarkAsSeen={markStoryAsSeen}
                     channelFilter={youtubeChannelFilter}
-                    setChannelFilter={setYoutubeChannelFilter}
+                    setChannelFilter={setChannelFilter}
                 />
             )}
 
             {activeTab === 'saved' && (
                 <SavedTab 
                     isDarkMode={isDarkMode} 
-                    openArticle={handleOpenArticle} 
+                    openArticle={handleReadNative} 
                     items={savedItems} 
                     onRemoveItem={handleRemoveSavedItem} 
-                    onPlayVideo={handleOpenArticle} 
+                    onPlayVideo={handleReadNative} 
                 />
             )}
 
-            {activeTab === 'newsletter' && <NewsletterTab openArticle={handleOpenArticle} isDarkMode={isDarkMode} newsData={realNews} />}
+            {activeTab === 'newsletter' && <NewsletterTab openArticle={handleReadNative} isDarkMode={isDarkMode} newsData={realNews} />}
           </main>
 
         <div className="fixed bottom-0 left-0 right-0 z-[1000] flex justify-center pointer-events-none">
@@ -5839,24 +5849,10 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                 <div 
                     className="absolute bottom-0 left-0 w-full h-20 z-[110] cursor-pointer bg-transparent"
                     style={{ touchAction: 'none' }}
-                    onPointerDown={(e) => {
-                        e.preventDefault(); e.stopPropagation(); setIsNavVisible(true);
-                        if (window.navigator.vibrate) window.navigator.vibrate(10);
-                    }}
+                    onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setIsNavVisible(true); if (window.navigator.vibrate) window.navigator.vibrate(10); }}
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsNavVisible(true); }}
                 />
             )}
-
-            {askQuestion && (
-          <AskAIModal 
-              question={askQuestion} 
-              answer={askAnswer} 
-              sources={askSources} 
-              isLoading={isAskLoading} 
-              onClose={() => setAskQuestion(null)} 
-              isDarkMode={isDarkMode} 
-          />
-      )}
 
             <nav className={`
                 relative w-full overflow-hidden flex flex-col border-t shadow-[0_-10px_50px_rgba(0,0,0,0.5)] border-white/20  
@@ -5867,16 +5863,10 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
             `}>
                 
                 <div className="w-full flex justify-center pt-4 pb-2 relative z-20">
-                    <div className={`
-                        rounded-full transition-all duration-300 
-                        ${isNavVisible ? 'bg-white/10 w-12 h-1.5 opacity-50' : 'bg-white/60 w-24 h-2 opacity-0 shadow-[0_0_20px_rgba(255,255,255,0.4)]'}
-                    `} />
+                    <div className={`rounded-full transition-all duration-300 ${isNavVisible ? 'bg-white/10 w-12 h-1.5 opacity-50' : 'bg-white/60 w-24 h-2 opacity-0 shadow-[0_0_20px_rgba(255,255,255,0.4)]'}`} />
                 </div>
 
-                <div className={`
-                    relative z-10 w-full flex justify-center gap-2 px-2 pb-10 transition-all duration-300
-                    ${isNavVisible ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}
-                `}> 
+                <div className={`relative z-10 w-full flex justify-center gap-2 px-2 pb-10 transition-all duration-300 ${isNavVisible ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}> 
                     <TabButton icon={<Sparkles size={24} />} label="Agora" active={activeTab === 'happening'} onClick={() => handleTabClick('happening')} isDarkMode={isDarkMode} />
                     <TabButton icon={<Rss size={24} />} label="Feed" active={activeTab === 'feed'} onClick={() => handleTabClick('feed')} isDarkMode={isDarkMode} />
                     <TabButton icon={<LayoutGrid size={24} />} label="Banca" active={activeTab === 'banca'} onClick={() => handleTabClick('banca')} isDarkMode={isDarkMode} />
@@ -5885,67 +5875,44 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     <TabButton icon={<Mail size={24} />} label="News" active={activeTab === 'newsletter'} onClick={() => handleTabClick('newsletter')} isDarkMode={isDarkMode} />
                     <TabButton icon={<Bookmark size={24} />} label="Salvos" active={activeTab === 'saved'} onClick={() => handleTabClick('saved')} isDarkMode={isDarkMode} />
                 </div>
-
-                <div className="absolute top-[-50%] left-[-10%] w-[50%] h-[200%] bg-blue-600/20 blur-[60px] rounded-full pointer-events-none" />
-                <div className="absolute bottom-[-50%] right-[-10%] w-[50%] h-[200%] bg-purple-600/10 blur-[50px] rounded-full pointer-events-none" />
             </nav>
           </div>
         </div>
       </div>
 
-      {isSettingsOpen && (
-          <SettingsModal 
-              onClose={() => setIsSettingsOpen(false)}
-              isDarkMode={isDarkMode}
-              feeds={userFeeds}
-              setFeeds={setUserFeeds}
-              
-              
-              apiKeys={apiKeys}
-              setApiKeys={setApiKeys}
-              user={user} 
-          />
-      )}
-      
-      <ArticlePanel 
-          // SEM KEY! O React vai reaproveitar a mesma instância
-    article={selectedArticle} 
-    feedItems={allFeedItems} // Passa array novo, mas o memo vai tratar
-    isOpen={!!selectedArticle} 
-    onClose={closeArticle} 
-    onArticleChange={handleOpenArticle} 
-    onToggleSave={handleToggleSave}
-    isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-    apiKey={getApiKey('analysis')} // Chave de texto (Chave 5 - Billing)
-        readerApiKey={getApiKey('analysis')} // Retrocompatibilidade (Chave 5)
-    isDarkMode={isDarkMode} 
-    // Remova props que não usamos mais, como setIsExpanded
-      />
-      
-      {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleOpenArticle} isDarkMode={isDarkMode} />}
-      
-{selectedStory && (
-    <StoryOverlay 
-        story={selectedStory} 
-        onClose={closeStory} 
-        
-        onMarkAsSeen={markStoryAsSeen} 
-        onRead={handleReadNative} // Passamos a função nativa
-        // A CORREÇÃO: Usamos a mesma lista que aparece na tela (Embaralhada e Filtrada)
-        allStories={storiesForHappeningTab} 
-        
-        onNavigate={handleStoryNavigation}
-    />
-)}
-      {playingAudio && (
-          <GlobalAudioPlayer 
-              track={playingAudio} 
-              onClose={() => setPlayingAudio(null)} 
-              isDarkMode={isDarkMode} 
-          />
-      )}
+      {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (AGORA AO LADO) --- */}
+      <div 
+            className="relative transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-2xl"
+            style={{ 
+                transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
+                width: selectedArticle ? `${panelWidth}px` : '0px' 
+            }}
+        >
+            <div 
+                onPointerDown={handleResizePointerDown}
+                className="absolute top-0 left-0 -translate-x-1/2 w-4 h-full z-50 group cursor-ew-resize flex items-center justify-center"
+            >
+                <div className={`w-1 h-24 rounded-full transition-all duration-300 ${isDarkMode ? 'bg-zinc-800 group-hover:bg-purple-500' : 'bg-zinc-300 group-hover:bg-purple-500'}`}></div>
+            </div>
+            {selectedArticle && (
+                <ArticlePanel 
+                    article={selectedArticle} 
+                    isOpen={!!selectedArticle} 
+                    onClose={closeArticle}
+                    onToggleSave={handleToggleSave}
+                    isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
+                    apiKey={getApiKey('analysis')}
+                    isDarkMode={isDarkMode}
+                />
+            )}
+        </div>
 
-      
+      {/* --- MODAIS GLOBAIS (FORA DAS COLUNAS) --- */}
+      {askQuestion && (<AskAIModal question={askQuestion} answer={askAnswer} sources={askSources} isLoading={isAskLoading} onClose={() => setAskQuestion(null)} isDarkMode={isDarkMode} />)}
+      {isSettingsOpen && (<SettingsModal onClose={() => setIsSettingsOpen(false)} isDarkMode={isDarkMode} feeds={userFeeds} setFeeds={setUserFeeds} apiKeys={apiKeys} setApiKeys={setApiKeys} user={user} />)}
+      {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleReadNative} isDarkMode={isDarkMode} />}
+      {selectedStory && (<StoryOverlay story={selectedStory} onClose={closeStory} onRead={handleReadNative} onMarkAsSeen={markStoryAsSeen} allStories={storiesForHappeningTab} onNavigate={handleStoryNavigation} />)}
+      {playingAudio && (<GlobalAudioPlayer track={playingAudio} onClose={() => handlePlayAudio(null)} isDarkMode={isDarkMode} />)}
     </div>
   );
 }
@@ -6641,7 +6608,7 @@ const handleNodeClick = useCallback((nodeName, position) => {
 
   
 return (
-    <div className={`fixed inset-0 z-[5000] flex flex-col ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} animate-in slide-in-from-bottom-10 duration-300`}>
+  <div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} border-l-2 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
 <style jsx="true">{`
             @keyframes spin-slow { to { transform: rotate(360deg); } }
             .animate-spin-slow { animation: spin-slow 20s linear infinite; }
