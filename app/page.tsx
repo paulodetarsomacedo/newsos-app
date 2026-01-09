@@ -564,7 +564,7 @@ const triggerSearch = () => {
            {/* --- NOVO LOGO NEWSOS --- */}
                     <div className="absolute top-2 left-2 flex items-center gap-3 opacity-95">
                         <div className="w-10 h-10 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
-                            <span className="text-20px font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
+                            <span className="text-[20px] font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
                         </div>
                         <span className="text-xs font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
                     </div>
@@ -4832,14 +4832,24 @@ export default function NewsOS_V12() {
   
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
-// --- NOVO ESTADO DE CHAVES (SUBSTITUI OS ANTIGOS) ---
+// --- ESTADO DE CHAVES (ARQUITETURA DE POOLS) ---
   const [apiKeys, setApiKeys] = useState([
-    { id: 1, value: '', type: 'free' },
-    { id: 2, value: '', type: 'free' },
-    { id: 3, value: '', type: 'free' },
-    { id: 4, value: '', type: 'free' },
-    { id: 5, value: '', type: 'billing_text' }, // Antiga 'reader' turbinada
-    { id: 6, value: '', type: 'billing_audio' },
+    // Pool de Widgets (Leve - Rotação Rápida)
+    { id: 1, value: '', type: 'free_widget' },
+    { id: 2, value: '', type: 'free_widget' },
+    { id: 3, value: '', type: 'free_widget' },
+    { id: 4, value: '', type: 'free_widget' },
+    
+    // Legado / Backup (Antigas Pagas)
+    { id: 5, value: '', type: 'legacy_text' },
+    { id: 6, value: '', type: 'legacy_audio' },
+
+    // NOVO POOL: USINA DE TEXTO & ÁUDIO (Pesado - Rotação Estratégica)
+    { id: 7, value: '', type: 'heavy_rotation' },
+    { id: 8, value: '', type: 'heavy_rotation' },
+    { id: 9, value: '', type: 'heavy_rotation' },
+    { id: 10, value: '', type: 'heavy_rotation' },
+    { id: 11, value: '', type: 'heavy_rotation' },
   ]);
 
 
@@ -4915,40 +4925,46 @@ export default function NewsOS_V12() {
 
 
 
-  // Índice para rotação das chaves gratuitas (Ref para não causar re-render)
-  const rotationIndex = useRef(0);
+  // Índices para rotação (Refs não causam re-render)
+  const widgetRotationIndex = useRef(0);
+  const heavyRotationIndex = useRef(0);
 
-  // --- A FUNÇÃO MESTRA: DISTRIBUIDOR DE CHAVES ---
-  // Use esta função sempre que precisar de uma chave para IA
+  // --- O DISTRIBUIDOR DE CHAVES INTELIGENTE ---
   const getApiKey = useCallback((purpose) => {
-    // 1. Chaves para Widgets e Chat (Gratuitas em Rotação)
+    
+    // 1. POOL LEVE (Widgets, Chat, Trend Radar) - Chaves 1 a 4
     if (purpose === 'widgets' || purpose === 'chat') {
-        const freeKeys = apiKeys.filter(k => k.type === 'free' && k.value.trim() !== '');
-        if (freeKeys.length === 0) return null;
+        const freeKeys = apiKeys.filter(k => k.id >= 1 && k.id <= 4 && k.value.trim() !== '');
         
-        // Rotação simples: pega a atual e incrementa o índice
-        const key = freeKeys[rotationIndex.current % freeKeys.length];
-        rotationIndex.current += 1; 
-        console.log(`Usando Chave Gratuita #${key.id} para ${purpose}`);
+        if (freeKeys.length === 0) return null; // Sem chaves configuradas
+        
+        const key = freeKeys[widgetRotationIndex.current % freeKeys.length];
+        widgetRotationIndex.current += 1; 
+        // console.log(`[Load Balancer] Usando Chave Widget #${key.id}`);
         return key.value;
     }
 
-    // 2. Chave para Análise Pesada e Roteiro (Texto com Billing)
-    if (purpose === 'analysis' || purpose === 'script') {
-        const key = apiKeys.find(k => k.id === 5);
-        return key?.value || null;
-    }
-
-    // 3. Chave para Áudio (Audio com Billing)
-    if (purpose === 'audio') {
-        const key = apiKeys.find(k => k.id === 6);
-        // Fallback: se não tiver a 6, tenta usar a 5
-        return key?.value || apiKeys.find(k => k.id === 5)?.value || null;
+    // 2. POOL PESADO (Análise, Texto, Áudio) - Chaves 7 a 11
+    // Substitui o uso das antigas 5 e 6
+    if (purpose === 'analysis' || purpose === 'script' || purpose === 'audio') {
+        const heavyKeys = apiKeys.filter(k => k.id >= 7 && k.id <= 11 && k.value.trim() !== '');
+        
+        // Se não tiver chaves no Pool Novo, tenta fallback para as antigas 5 ou 6
+        if (heavyKeys.length === 0) {
+             if (purpose === 'audio') return apiKeys.find(k => k.id === 6)?.value || null;
+             return apiKeys.find(k => k.id === 5)?.value || null;
+        }
+        
+        // Rotação Round-Robin
+        const key = heavyKeys[heavyRotationIndex.current % heavyKeys.length];
+        heavyRotationIndex.current += 1;
+        
+        console.log(`[Load Balancer] Usando Chave Pesada #${key.id} para ${purpose}`);
+        return key.value;
     }
 
     return null;
-  }, [apiKeys]);
-  
+  }, [apiKeys]);  
   
 const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
@@ -7496,73 +7512,68 @@ const handleKeyChange = (targetId, newValue) => {
                 </div>
             )}
             
-       {/* --- NOVA ABA DE API (6 CHAVES) --- */}
+       {/* ABA API (GERENCIADOR DE CHAVES) */}
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                      
-                     {/* GRUPO 1: GRATUITAS */}
+                     {/* POOL 1: WIDGETS (1-4) */}
                      <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
                         <div className="flex items-center gap-2 mb-2">
                             <Activity size={14} className="text-blue-500"/>
-                            <h3 className="text-sm font-bold">Rotação Gratuita (Widgets & Chat)</h3>
+                            <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
                         </div>
-                        <p className="text-[10px] opacity-60 mb-4 leading-relaxed">
-                            Estas chaves alimentam a Home e o Chat. Use projetos <strong>sem cartão</strong> (Free Tier) para garantir custo zero. O app alterna entre elas para evitar limites.
-                        </p>
-                        
                         <div className="space-y-2">
-                            {apiKeys.filter(k => k.type === 'free').map((key) => (
+                            {apiKeys.filter(k => k.id >= 1 && k.id <= 4).map((key) => (
                                 <input 
                                     key={key.id}
                                     type="text" 
                                     value={key.value} 
                                     onChange={(e) => handleKeyChange(key.id, e.target.value)} 
-                                    placeholder={`Chave Gratuita ${key.id}...`} 
+                                    placeholder={`Chave Gratuita #${key.id}`} 
                                     className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-blue-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
                                 />
                             ))}
                         </div>
                      </div>
 
-                     {/* GRUPO 2: PAGA (TEXTO) */}
-                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+                     {/* POOL 2: USINA DE TEXTO (7-11) */}
+                     <div className={`p-4 rounded-xl border border-purple-500/30 ${isDarkMode ? 'bg-purple-900/10' : 'bg-purple-50'}`}>
                         <div className="flex items-center gap-2 mb-2">
-                            <FileText size={14} className="text-green-500"/>
-                            <h3 className="text-sm font-bold">Chave 5: Usina de Texto</h3>
+                            <BrainCircuit size={14} className="text-purple-500"/>
+                            <h3 className="text-sm font-bold">Pool 2: Usina de IA (Pesado)</h3>
                         </div>
-                        <p className="text-[10px] opacity-60 mb-2 leading-relaxed">
-                            Use um projeto <strong>com billing</strong>. Gera análises completas e roteiros. Custo zero devido à cota de 1M tokens/dia.
+                        <p className="text-[10px] opacity-60 mb-3 leading-relaxed">
+                            Crie 5 projetos <strong>sem cartão</strong> no AI Studio. O app fará o rodízio automático para análises pesadas e geração de áudio sem custo.
                         </p>
-                        <input 
-                            type="text" 
-                            value={apiKeys.find(k => k.id === 5)?.value || ''} 
-                            onChange={(e) => handleKeyChange(5, e.target.value)} 
-                            placeholder="Chave do Projeto com Billing (Texto)..." 
-                            className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-green-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
-                        />
+                        
+                        <div className="space-y-2">
+                            {apiKeys.filter(k => k.id >= 7 && k.id <= 11).map((key) => (
+                                <div key={key.id} className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-bold opacity-50">#{key.id}</span>
+                                    <input 
+                                        type="text" 
+                                        value={key.value} 
+                                        onChange={(e) => handleKeyChange(key.id, e.target.value)} 
+                                        placeholder={`Cole a Chave do Projeto ${key.id - 6} aqui...`} 
+                                        className={`w-full pl-8 pr-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-purple-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+                                    />
+                                </div>
+                            ))}
+                        </div>
                      </div>
 
-                     {/* GRUPO 3: PAGA (ÁUDIO) */}
-                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Headphones size={14} className="text-purple-500"/>
-                            <h3 className="text-sm font-bold">Chave 6: Voz Neural</h3>
+                     {/* LEGADO (5-6) - Opcional, esconde num accordion ou deixa no fim */}
+                     <div className="opacity-50 hover:opacity-100 transition-opacity">
+                        <h4 className="text-[10px] uppercase font-bold mb-2">Backup / Legado</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                            <input type="text" value={apiKeys.find(k=>k.id===5)?.value} onChange={(e)=>handleKeyChange(5, e.target.value)} placeholder="Chave 5 (Antiga)" className="px-2 py-1 rounded border bg-transparent text-[9px]" />
+                            <input type="text" value={apiKeys.find(k=>k.id===6)?.value} onChange={(e)=>handleKeyChange(6, e.target.value)} placeholder="Chave 6 (Antiga)" className="px-2 py-1 rounded border bg-transparent text-[9px]" />
                         </div>
-                        <p className="text-[10px] opacity-60 mb-2 leading-relaxed">
-                            Use um projeto <strong>com billing</strong> (pode ser o mesmo da Chave 5). Gera o áudio MP3 sob demanda.
-                        </p>
-                        <input 
-                            type="text" 
-                            value={apiKeys.find(k => k.id === 6)?.value || ''} 
-                            onChange={(e) => handleKeyChange(6, e.target.value)} 
-                            placeholder="Chave do Projeto com Billing (Áudio)..." 
-                            className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-purple-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
-                        />
                      </div>
 
                      <div className="text-center pt-2">
                         <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] font-bold text-blue-500 hover:underline">
-                            Gerar chaves no Google AI Studio
+                            + Gerar Novas Chaves
                         </a>
                      </div>
                 </div>
