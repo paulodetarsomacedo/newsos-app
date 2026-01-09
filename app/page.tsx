@@ -4768,13 +4768,7 @@ export default function NewsOS_V12() {
   ]);
 
 
-  // --- NOVOS ESTADOS PARA O PAINEL RESIZABLE ---
- const [panelWidth, setPanelWidth] = useState(600);
-  const panelDivRef = useRef(null); 
-  const isResizing = useRef(false);
-  const resizeStartX = useRef(0);
-  const initialWidth = useRef(0);
-  
+
 
   
   // --- INICIO DO BLOCO DE RESIZE ---
