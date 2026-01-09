@@ -562,8 +562,8 @@ const triggerSearch = () => {
 
         <div className="relative px-6 pt-6 pb-4 flex flex-col gap-4">
            {/* --- NOVO LOGO NEWSOS --- */}
-                    <div className="absolute top-4 left-6 flex items-center gap-3 opacity-80">
-                        <div className="w-8 h-8 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
+                    <div className="absolute top-4 left-6 flex items-center gap-3 opacity-95">
+                        <div className="w-10 h-10 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
                             <span className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
                         </div>
                         <span className="text-xs font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
@@ -2999,7 +2999,7 @@ const generateFullAnalysis = async (text, apiKey) => {
 "contextualTerms": [
     {
         "term": "Nó A (Nome exato do nó do mindmap)",
-        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
+        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. SEJA DENSO E DETALHADO. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
         "sentiment": "neutral", 
         "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
     },
@@ -3008,10 +3008,10 @@ const generateFullAnalysis = async (text, apiKey) => {
     { "term": "Nó D", "context": "...", "sentiment": "neutral", "evidence_quotes": ["..."] }
 ],
     "timeline": [
-      { "time": "Passado", "event": "O que causou isso?" },
-      { "time": "Ontem/Recente", "event": "O gatilho recente" },
-      { "time": "Hoje", "event": "O fato da notícia" }
-    ],
+                      { "time": "Passado (Causa Raiz)", "event": "O que causou o contexto geral desta notícia?" },
+                      { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
+                      { "time": "Hoje (Fato Principal)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
+                  ],
     "future": {
       "optimistic": "Melhor cenário possível a longo prazo.",
       "pessimistic": "Pior cenário/Riscos envolvidos.",
@@ -6379,6 +6379,26 @@ const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontS
     return <div ref={contentRef} className="max-w-3xl mx-auto px-6 py-4" dangerouslySetInnerHTML={{ __html: readerContent?.content || `<p>${article.summary}</p>` }} />;
 });
 
+
+const DeepDiveWidget = ({ topic, isDarkMode }) => (
+    <div className="mt-10">
+        <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4 px-2 flex items-center gap-2">
+            <Layers size={12}/> Aprofunde-se no Assunto
+        </h4>
+        <div className="grid grid-cols-2 gap-3">
+            <a href={`https://pt.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(topic)}`} target="_blank" className={`p-4 rounded-xl flex items-center gap-3 transition-colors ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
+                <img src="https://upload.wikimedia.org/wikipedia/commons/7/77/Wikipedia_svg_logo.svg" className="w-6 h-6"/>
+                <span className="text-xs font-bold">Ver na Wikipedia</span>
+            </a>
+            <a href={`https://www.google.com/search?q=${encodeURIComponent(topic)}`} target="_blank" className={`p-4 rounded-xl flex items-center gap-3 transition-colors ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
+                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" className="w-6 h-6"/>
+                <span className="text-xs font-bold">Buscar no Google</span>
+            </a>
+        </div>
+    </div>
+);
+
+
 // ==============================================================================
 // 2. O PAINEL DE IA PRINCIPAL
 // ==============================================================================
@@ -6421,7 +6441,44 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setReaderContent(proxyData.reader); 
 
           setLoadingState('analyzing');
-          const prompt = `Aja como um time de Analistas de Inteligência. Analise o texto. GERE UM ÚNICO JSON ESTRITO: { "summaries": { "executive": "Resumo formal...", "tldr": "...", "eli5": "...", "bullets": ["...", "...", "..."] }, "mindmap": { "center": "...", "nodes": ["...", "...", "...", "..."] }, "contextualTerms": [ { "term": "Termo exato", "context": "Explicação contextual...", "sentiment": "neutral", "related_nodes": ["Outro Nó"], "evidence_quotes": ["Citação exata do texto."] } ], "timeline": [{ "time": "Data", "event": "Fato" }], "future": { "optimistic": "...", "pessimistic": "...", "probable": "..." } } TEXTO: ${fullText.slice(0, 25000)}`;
+const prompt = `
+  Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
+  
+  GERE UM JSON ESTRITO COM ESTA ESTRUTURA EXATA (Tudo em PT-BR):
+  {
+    "summaries": {
+      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos e bem explicados).",
+      "tldr": "Resumo em 1 única frase de impacto (Too Long Didn't Read).",
+      "eli5": "Explicação didática como se fosse para uma criança de 5 anos (analogias).",
+      "bullets": ["Ponto chave 1", "Ponto chave 2", "Ponto chave 3", "Ponto chave 4"]
+    },
+    "mindmap": {
+    "center": "Tema Central (Max 3 palavras)",
+    "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"]
+},
+"contextualTerms": [
+    {
+        "term": "Nó A (Nome exato do nó do mindmap)",
+        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. SEJA DENSO E DETALHADO. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
+        "sentiment": "neutral", 
+        "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
+    },
+    { "term": "Nó B", "context": "...", "sentiment": "positive", "evidence_quotes": ["..."] },
+    { "term": "Nó C", "context": "...", "sentiment": "negative", "evidence_quotes": ["..."] },
+    { "term": "Nó D", "context": "...", "sentiment": "neutral", "evidence_quotes": ["..."] }
+],
+    "timeline": [
+                      { "time": "Passado (Causa Raiz)", "event": "O que causou o contexto geral desta notícia?" },
+                      { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
+                      { "time": "Hoje (Fato Principal)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
+                  ],
+    "future": {
+      "optimistic": "Melhor cenário possível a longo prazo.",
+      "pessimistic": "Pior cenário/Riscos envolvidos.",
+      "probable": "O que realmente deve acontecer (análise realista)."
+    }
+  }
+ "future": { "optimistic": "...", "pessimistic": "...", "probable": "..." } } TEXTO: ${fullText.slice(0, 25000)}`;
           
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
               method: "POST", headers: { "Content-Type": "application/json" },
@@ -6488,13 +6545,32 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
                         <div className="animate-in slide-in-from-right">
                             <button onClick={() => setViewMode('analysis')} className="mb-6 text-xs font-bold text-zinc-500 hover:text-black dark:hover:text-white flex items-center gap-2"><ChevronLeft size={16}/> VOLTAR AO MAPA</button>
                             <div className={`p-8 rounded-[2.5rem] border-2 shadow-2xl ${isDarkMode ? 'bg-zinc-900 border-indigo-500/50' : 'bg-white border-indigo-100'}`}>
-                            {/* --- FONTE DA NOTÍCIA (NOVO) --- */}
-                              <div className="flex items-center gap-2 mb-4 opacity-70">
-                                  <img src={article.logo} className="w-5 h-5 rounded-full" />
-                                  <span className="text-xs font-bold uppercase tracking-wider">{article.source}</span>
-                              </div>
+                            {/* FONTE DA NOTÍCIA (GARANTIDA) */}
+                                <div className="flex items-center gap-2 mb-4 opacity-70">
+                                    <img src={article.logo} className="w-5 h-5 rounded-full" />
+                                    <span className="text-xs font-bold uppercase tracking-wider">{article.source}</span>
+                                </div>
                                 <h2 className="text-3xl font-black text-indigo-500 mb-4">{focusedNode.name || focusedNode.term}</h2>
+                                   {/* FALLBACK INTELIGENTE */}
+                                {(!focusedNode.context || focusedNode.context.toLowerCase().includes('contexto geral')) ? (
+                                    <div>
+                                        <p className="text-sm italic opacity-60 mb-4">A IA não forneceu um contexto detalhado. Veja os pontos principais relacionados:</p>
+                                        <ul className="list-disc pl-5 ...">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                                    </div>
+                                ) : (
                                 <p className={`text-lg leading-relaxed mb-6 font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>{focusedNode.context}</p>
+                                  )}
+                                  {/* TERMOS RELACIONADOS (NOVO) */}
+                                {focusedNode.related_keywords && (
+                                    <div className="mt-8">
+                                        <h4 className="text-xs font-bold opacity-50 mb-2">Termos Relacionados</h4>
+                                        <div className="flex flex-wrap gap-2">
+                                            {focusedNode.related_keywords.map(kw => (
+                                                <div key={kw} className={`px-3 py-1 text-xs font-medium rounded-full ${isDarkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-600'}`}>{kw}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="space-y-4">
                                     <h4 className={`text-xs font-black uppercase tracking-widest opacity-50 ${isDarkMode ? 'text-white' : 'text-black'}`}>Evidências</h4>
                                     {focusedNode.evidence_quotes?.map((quote, i) => (<div key={i} onClick={() => handleQuoteClick(quote)} className={`p-4 rounded-xl border cursor-pointer hover:border-purple-500 ${isDarkMode ? 'bg-black/20 border-white/10 text-zinc-300' : 'bg-zinc-50 border-zinc-200 text-zinc-700'}`}>"{quote}"</div>))}
