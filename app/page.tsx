@@ -4777,30 +4777,40 @@ export default function NewsOS_V12() {
   
 
   // --- NOVAS FUNÇÕES DE RESIZE ---
-  const handleResizePointerDown = (e) => {
+const handleResizePointerDown = (e) => {
+    // 1. Pára tudo para o navegador não tentar scrollar ou selecionar texto
+    e.preventDefault(); 
+    e.stopPropagation();
+
     isResizing.current = true;
     resizeStartX.current = e.clientX;
     initialWidth.current = panelWidth;
-    // Otimização: Adiciona classe para parar pointer-events nos iframes/texto durante arraste
-    document.body.style.userSelect = 'none'; 
+    
+    document.body.style.userSelect = 'none';
     document.body.style.cursor = 'ew-resize';
-    window.addEventListener('pointermove', handleResizePointerMove);
+    
+    // 2. Adiciona touch-action none no body temporariamente para garantir
+    document.body.style.touchAction = 'none';
+    
+    // 3. Usa { passive: false } explicitamente, embora pointer events geralmente sejam seguros
+    window.addEventListener('pointermove', handleResizePointerMove, { passive: false });
     window.addEventListener('pointerup', handleResizePointerUp);
   };
 
-  const handleResizePointerMove = (e) => {
-    if (!isResizing.current || !panelDivRef.current) return;
+  const handleResizePointerUp = () => {
+    isResizing.current = false;
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    document.body.style.touchAction = ''; // Restaura o scroll
     
-    // Request Animation Frame para sincronizar com a taxa de atualização da tela
-    requestAnimationFrame(() => {
-        const deltaX = e.clientX - resizeStartX.current;
-        // Invertido porque o painel está na direita: mover para esquerda AUMENTA a largura
-        const newWidth = Math.max(400, Math.min(initialWidth.current - deltaX, window.innerWidth - 50));
-        
-        // MANIPULAÇÃO DIRETA DO DOM (Zero React Renders aqui)
-        panelDivRef.current.style.width = `${newWidth}px`;
-    });
-};
+    if (panelDivRef.current) {
+        const finalWidth = parseInt(panelDivRef.current.style.width, 10);
+        setPanelWidth(finalWidth);
+    }
+
+    window.removeEventListener('pointermove', handleResizePointerMove);
+    window.removeEventListener('pointerup', handleResizePointerUp);
+  };
 
 const handleResizePointerUp = () => {
     isResizing.current = false;
@@ -5908,11 +5918,18 @@ return (
       {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (AGORA AO LADO) --- */}
       <div 
             ref={panelDivRef}
-            className="relative shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+            // ADICIONADO: z-[2000] para ficar acima da Navbar e bg-color para evitar transparência
+            className={`
+                relative shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]
+                z-[2000] 
+                ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} 
+            `}
             style={{ 
                 width: selectedArticle ? `${panelWidth}px` : '0px',
                 transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
-                maxWidth: '100vw' 
+                maxWidth: '100vw',
+                // ADICIONADO: Flex shrink 0 para garantir que ele não seja esmagado
+                flexShrink: 0 
             }}
         >
             {/* 
@@ -5922,25 +5939,24 @@ return (
             {selectedArticle && (
                 <div 
                     onPointerDown={handleResizePointerDown}
-                    // Aumentei a área de clique (w-10) e coloquei z-index máximo
-                    className="absolute top-0 bottom-0 left-0 w-10 z-[9999] cursor-ew-resize flex items-center justify-start pl-2 group touch-none"
+                    // ADICIONADO: touch-none para o navegador saber que aqui não é scroll
+                    className="absolute top-0 bottom-0 left-0 w-8 z-[2001] cursor-ew-resize flex items-center justify-start pl-2 group touch-none select-none"
+                    // ADICIONADO: Impede que cliques aqui fechem modais ou disparem outros eventos
+                    onClick={(e) => e.stopPropagation()} 
                 >
-                    {/* O Visual da "Pílula" (Handle) */}
                     <div className={`
                         flex items-center justify-center
                         h-24 w-5 rounded-full 
                         backdrop-blur-xl border shadow-[0_0_15px_rgba(0,0,0,0.2)]
                         transition-all duration-300
                         ${isDarkMode 
-                            ? 'bg-black/60 border-white/20 text-white/50 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-400' 
-                            : 'bg-white/60 border-white/40 text-black/40 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-400'}
+                            ? 'bg-black/80 border-white/20 text-white/50 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-400' 
+                            : 'bg-white/80 border-white/40 text-black/40 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-400'}
                     `}>
-                        {/* Ícone de "agarrar" para ficar óbvio */}
                         <GripVertical size={14} />
                     </div>
                 </div>
             )}
-
             {/* O CONTEÚDO DO PAINEL */}
             {selectedArticle && (
                 <ArticlePanel 
