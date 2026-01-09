@@ -5087,21 +5087,33 @@ const handleStoryNavigation = (direction) => {
        if (data.api_key) {
               try {
                   const parsed = JSON.parse(data.api_key);
-                  // Verifica se é o formato novo de array
-                  if (Array.isArray(parsed) && parsed.length === 6) {
-                      setApiKeys(parsed);
+                  
+                  if (Array.isArray(parsed)) {
+                      // SE O BANCO TROUXER MENOS CHAVES QUE O NECESSÁRIO (6 em vez de 11)
+                      if (parsed.length < 11) {
+                          console.log("Migrando banco de dados para 11 chaves...");
+                          // Mantém as que já existem (1-6) e adiciona as novas (7-11)
+                          const missingKeys = [
+                              { id: 7, value: '', type: 'heavy_rotation' },
+                              { id: 8, value: '', type: 'heavy_rotation' },
+                              { id: 9, value: '', type: 'heavy_rotation' },
+                              { id: 10, value: '', type: 'heavy_rotation' },
+                              { id: 11, value: '', type: 'heavy_rotation' }
+                          ];
+                          setApiKeys([...parsed, ...missingKeys]);
+                      } else {
+                          // Se já tem 11, usa o do banco
+                          setApiKeys(parsed);
+                      }
                   } 
-                  // Migração: Se for formato antigo (objeto ou string), tenta adaptar
-                  else if (typeof parsed === 'object' && !Array.isArray(parsed)) {
-                      setApiKeys(prev => prev.map(k => {
-                          if (k.id === 5) return { ...k, value: parsed.reader || parsed.feed || '' };
-                          if (k.id === 1) return { ...k, value: parsed.feed || '' };
-                          return k;
-                      }));
+                  // Migração de formatos muito antigos (Objeto ou String)
+                  else if (typeof parsed === 'object') {
+                       // Reseta para o padrão novo se o formato for incompatível
+                       // (Mantendo valores se possível seria complexo, melhor resetar para o padrão de 11 limpo ou manter o state inicial)
+                       console.log("Formato de chaves antigo detectado. Mantendo estado inicial atualizado.");
                   }
               } catch (e) {
-                  // Se for string pura (muito antigo), bota na chave 1
-                  setApiKeys(prev => prev.map(k => k.id === 1 ? { ...k, value: data.api_key } : k));
+                  console.error("Erro ao migrar chaves", e);
               }
           }
           if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
