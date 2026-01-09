@@ -1116,6 +1116,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
                 )}
             </div>
         </div>
+        </div>
       
       {/* --- PÍLULA NA TRANSIÇÃO (CORRIGIDA) --- */}
       {/* Agora ela está fora do div da imagem, mas posicionada sobre ele */}
