@@ -1112,11 +1112,12 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
          <div className="flex flex-col items-center gap-3 pl-3 border-l border-dashed border-zinc-200 dark:border-zinc-800/50 min-w-[40px] justify-center">
          {/* 1. INDICADOR DE LIDO (NOVO) */}
              {isRead && (
-                 <div className="mb-2" title="Você já leu esta notícia">
-                     <div className="px-2 py-0.5 bg-orange-600 rounded-full text-center">
-                         <span className="text-[8px] font-black text-white uppercase tracking-wider">Lido</span>
-                     </div>
-                 </div>
+                 <div className="mb-2 opacity-60 group-hover:opacity-100 transition-opacity" title="Você já leu esta notícia"> 
+        <div className="px-2 py-0.5 bg-orange-600 rounded-full text-center">
+            <span className="text-[8px] font-black text-white uppercase tracking-wider">Lido</span>
+        </div>
+    
+    </div>
              )}
              <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
                  <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
