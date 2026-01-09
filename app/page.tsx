@@ -4385,27 +4385,25 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 };
 
 
-// --- COMPONENTE: SPLASH SCREEN (LOGO + NOME COM AURA) ---
+
+// --- COMPONENTE: SPLASH SCREEN (AJUSTADO) ---
 const SplashScreen = ({ onFinish }) => {
-  const [step, setStep] = useState(0); // 0: Init, 1: Converge, 2: Explode N + Texto, 3: FadeOut
+  const [step, setStep] = useState(0);
 
   useEffect(() => {
-    // Sequência de Animação
-    const t1 = setTimeout(() => setStep(1), 100);  // Entrar ícones
-    const t2 = setTimeout(() => setStep(2), 1200); // Convergir, Revelar N e Texto
-    const t3 = setTimeout(() => setStep(3), 2500); // Fade Out da tela
-    const t4 = setTimeout(onFinish, 3000);         // Desmontar
-
-    return () => {
-      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4);
-    };
+    const t1 = setTimeout(() => setStep(1), 100);
+    const t2 = setTimeout(() => setStep(2), 1200);
+    const t3 = setTimeout(() => setStep(3), 2500);
+    const t4 = setTimeout(onFinish, 3000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, [onFinish]);
 
+  // Ajustei a posição dos ícones para ficarem um pouco mais afastados já que o logo vai crescer
   const icons = [
-    { Icon: Rss, color: 'text-blue-500', pos: '-translate-x-12 -translate-y-12' },
-    { Icon: Youtube, color: 'text-red-500', pos: 'translate-x-12 -translate-y-12' },
-    { Icon: Mic, color: 'text-orange-500', pos: '-translate-x-12 translate-y-12' },
-    { Icon: Mail, color: 'text-purple-500', pos: 'translate-x-12 translate-y-12' },
+    { Icon: Rss, color: 'text-blue-500', pos: '-translate-x-16 -translate-y-16' },
+    { Icon: Youtube, color: 'text-red-500', pos: 'translate-x-16 -translate-y-16' },
+    { Icon: Mic, color: 'text-orange-500', pos: '-translate-x-16 translate-y-16' },
+    { Icon: Mail, color: 'text-purple-500', pos: 'translate-x-16 translate-y-16' },
   ];
 
   return (
@@ -4420,11 +4418,13 @@ const SplashScreen = ({ onFinish }) => {
          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-600/20 rounded-full blur-[80px] animate-pulse delay-75" />
       </div>
 
-      {/* CONTAINER CENTRAL (LOGO + TEXTO) */}
+      {/* CONTAINER CENTRAL */}
       <div className="flex flex-col items-center justify-center z-20">
         
-        {/* ÁREA DO LOGO */}
-        <div className="relative w-120 h-120 flex items-center justify-center mb-2">
+        {/* 1. ÁREA DO LOGO */}
+        {/* Removi o w-120 h-120 que era muito grande e criava espaço vazio */}
+        <div className="relative flex items-center justify-center mb-0"> 
+            
             {/* Ícones Orbitando */}
             {icons.map((item, i) => (
             <div
@@ -4442,7 +4442,7 @@ const SplashScreen = ({ onFinish }) => {
             </div>
             ))}
 
-            {/* O LOGO "N" */}
+            {/* O LOGO "N" - AUMENTADO AQUI */}
             <div 
             className={`
                 relative z-20 flex items-center justify-center
@@ -4452,20 +4452,23 @@ const SplashScreen = ({ onFinish }) => {
             >
             <div className={`absolute inset-0 bg-white/30 blur-2xl rounded-full ${step >= 2 ? 'animate-ping' : ''}`} />
             
-            <div className="w-24 h-24 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-3xl flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.3)] border border-white/20">
-                <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800 tracking-tighter" style={{ fontFamily: 'Inter, sans-serif' }}>
+            {/* MUDANÇA: w-24->w-40, h-24->h-40 (Aumentou o quadrado) */}
+            <div className="w-40 h-40 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-[2rem] flex items-center justify-center shadow-[0_0_60px_rgba(255,255,255,0.4)] border border-white/20">
+                {/* MUDANÇA: text-5xl -> text-8xl (Aumentou a letra N) */}
+                <span className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800 tracking-tighter" style={{ fontFamily: 'Inter, sans-serif' }}>
                     N
                 </span>
             </div>
             </div>
         </div>
 
-        {/* --- O NOME "NewsOS" (NOVO CÓDIGO) --- */}
+        {/* 2. O NOME "NewsOS" - PUXADO PARA CIMA */}
         <div className={`
             transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
             ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
+            mt-8 /* Ajuste aqui: Margem positiva pequena ou negativa se quiser colar mais */
         `}>
-            <h1 className="text-10xl md:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
                 NewsOS
             </h1>
         </div>
@@ -4474,7 +4477,6 @@ const SplashScreen = ({ onFinish }) => {
     </div>
   );
 };
-
 
 
 
