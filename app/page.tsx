@@ -5882,7 +5882,7 @@ return (
 
       {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (AGORA AO LADO) --- */}
       <div 
-            className="relative transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-2xl"
+            className="flex transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-2xl"
             style={{ 
                 transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
                 width: selectedArticle ? `${panelWidth}px` : '0px' 
@@ -5890,7 +5890,7 @@ return (
         >
             <div 
                 onPointerDown={handleResizePointerDown}
-                className="absolute top-0 left-0 -translate-x-1/2 w-4 h-full z-50 group cursor-ew-resize flex items-center justify-center"
+                className="relative w-4 h-full z-50 group cursor-ew-resize flex items-center justify-center"
             >
                 <div className={`w-1 h-24 rounded-full transition-all duration-300 ${isDarkMode ? 'bg-zinc-800 group-hover:bg-purple-500' : 'bg-zinc-300 group-hover:bg-purple-500'}`}></div>
             </div>
