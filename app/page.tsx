@@ -561,7 +561,17 @@ const triggerSearch = () => {
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 mix-blend-soft-light pointer-events-none"></div>
 
         <div className="relative px-6 pt-6 pb-4 flex flex-col gap-4">
-           
+           {/* --- NOVO LOGO NEWSOS --- */}
+                    <div className="absolute top-4 left-6 flex items-center gap-2 opacity-50">
+                        <div className="w-6 h-6 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
+                            <span className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
+                        </div>
+                        <span className="text-xs font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
+                    </div>
+
+                    <div className="absolute top-0 right-0 z-50 ...">
+                      
+                    </div>
            <div 
              className="absolute top-0 right-0 z-50 cursor-ew-resize select-none touch-none group"
              onMouseDown={(e) => handleDragStart(e.clientX)}
@@ -1142,15 +1152,22 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
   // ==========================================================
   const feedContainerRef = useRef(null);
   const audioRef = useRef(null);
+  const prevCategory = useRef(category); // <<<<<< ADICIONE ESTE REF
 
-  // ==========================================================
-  // 3. EFEITOS COLATERAIS (useEffect)
-  // ==========================================================
   useEffect(() => {
+      // SÓ ROLA PARA O TOPO SE A CATEGORIA MUDOU
+      if (prevCategory.current !== category) {
+          if (feedContainerRef.current) {
+              feedContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+      }
+      prevCategory.current = category; // Atualiza a "memória"
+      
+      // A função do pai continua sendo chamada
       if (onCategoryChange) {
           onCategoryChange();
       }
-  }, [category, onCategoryChange]);
+  }, [category, onCategoryChange]); 
 
   useEffect(() => {
       setSourceFilter('all');
@@ -1895,9 +1912,10 @@ const generateFullAnalysis = async (text, apiKey) => {
       "nodes": ["A", "B", "C", "D"]
     },
     "timeline": [
-      { "time": "Passado", "event": "Causa" },
-      { "time": "Hoje", "event": "Fato" }
-    ],
+  { "time": "Passado (Causa)", "event": "O que causou o contexto geral desta notícia?" },
+  { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
+  { "time": "Hoje (Fato)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
+],
     "future": {
       "optimistic": "Melhor caso",
       "pessimistic": "Pior caso",
@@ -2975,9 +2993,20 @@ const generateFullAnalysis = async (text, apiKey) => {
       "bullets": ["Ponto chave 1", "Ponto chave 2", "Ponto chave 3", "Ponto chave 4"]
     },
     "mindmap": {
-      "center": "O tema central (2 palavras)",
-      "nodes": ["Conceito A", "Pessoa B", "Consequência C", "Causa D"] (Máximo 4 nós conectados)
+    "center": "Tema Central (Max 3 palavras)",
+    "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"]
+},
+"contextualTerms": [
+    {
+        "term": "Nó A (Nome exato do nó do mindmap)",
+        "context": "Definição + Por que é crucial NESTA notícia. Mínimo 25 palavras.",
+        "sentiment": "neutral", 
+        "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
     },
+    { "term": "Nó B", "context": "...", "sentiment": "positive", "evidence_quotes": ["..."] },
+    { "term": "Nó C", "context": "...", "sentiment": "negative", "evidence_quotes": ["..."] },
+    { "term": "Nó D", "context": "...", "sentiment": "neutral", "evidence_quotes": ["..."] }
+],
     "timeline": [
       { "time": "Passado", "event": "O que causou isso?" },
       { "time": "Ontem/Recente", "event": "O gatilho recente" },
@@ -6192,14 +6221,40 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
 const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
     <div className="fixed inset-0 z-[6000] flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-        <div className={`relative w-full max-w-sm p-6 rounded-3xl shadow-2xl border flex flex-col gap-4 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mx-auto">
-                <BrainCircuit size={32} className="text-white" />
+        <div className={`relative w-full max-w-md p-6 rounded-3xl shadow-2xl border flex flex-col gap-6 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+            
+            {/* Cabeçalho */}
+            <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mb-4">
+                    <BrainCircuit size={32} className="text-white" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Tema Central da Análise</span>
+                <h3 className="text-2xl font-black">{data.mindmap.center}</h3>
             </div>
-            <h3 className="text-center text-xl font-black uppercase tracking-wide">{data.mindmap.center}</h3>
-            <p className={`text-center text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                {data.summaries.executive}
-            </p>
+            
+            {/* Resumo */}
+            <div className={`p-4 rounded-xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
+                <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                    {data.summaries.executive}
+                </p>
+            </div>
+
+            {/* Pontos Chave e Conexões */}
+            <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                    <h4 className="font-bold mb-2 opacity-60">Pontos Principais:</h4>
+                    <ul className="list-disc pl-4 space-y-1 marker:text-purple-400">
+                        {data.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}
+                    </ul>
+                </div>
+                <div>
+                    <h4 className="font-bold mb-2 opacity-60">Conexões no Mapa:</h4>
+                    <ul className="list-none space-y-1">
+                        {data.mindmap.nodes.map((node, i) => <li key={i} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>{node}</li>)}
+                    </ul>
+                </div>
+            </div>
+
             <button onClick={onClose} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-xs uppercase tracking-widest mt-2 hover:brightness-90 transition">Fechar</button>
         </div>
     </div>
