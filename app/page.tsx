@@ -4769,7 +4769,7 @@ export default function NewsOS_V12() {
 
 
   // --- NOVOS ESTADOS PARA O PAINEL RESIZABLE ---
-  const [panelWidth, setPanelWidth] = useState(600); // Largura inicial do painel
+ const panelDivRef = useRef(null); 
   const isResizing = useRef(false);
   const resizeStartX = useRef(0);
   const initialWidth = useRef(0);
@@ -4779,22 +4779,41 @@ export default function NewsOS_V12() {
     isResizing.current = true;
     resizeStartX.current = e.clientX;
     initialWidth.current = panelWidth;
+    // Otimização: Adiciona classe para parar pointer-events nos iframes/texto durante arraste
+    document.body.style.userSelect = 'none'; 
+    document.body.style.cursor = 'ew-resize';
     window.addEventListener('pointermove', handleResizePointerMove);
     window.addEventListener('pointerup', handleResizePointerUp);
   };
 
   const handleResizePointerMove = (e) => {
-    if (!isResizing.current) return;
-    const deltaX = e.clientX - resizeStartX.current;
-    const newWidth = Math.max(400, Math.min(initialWidth.current - deltaX, window.innerWidth - 100)); // Limites de tamanho
-    setPanelWidth(newWidth);
-  };
+    if (!isResizing.current || !panelDivRef.current) return;
+    
+    // Request Animation Frame para sincronizar com a taxa de atualização da tela
+    requestAnimationFrame(() => {
+        const deltaX = e.clientX - resizeStartX.current;
+        // Invertido porque o painel está na direita: mover para esquerda AUMENTA a largura
+        const newWidth = Math.max(400, Math.min(initialWidth.current - deltaX, window.innerWidth - 50));
+        
+        // MANIPULAÇÃO DIRETA DO DOM (Zero React Renders aqui)
+        panelDivRef.current.style.width = `${newWidth}px`;
+    });
+};
 
-  const handleResizePointerUp = () => {
+const handleResizePointerUp = () => {
     isResizing.current = false;
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    
+    // Só agora, no final, atualizamos o React State para persistir
+    if (panelDivRef.current) {
+        const finalWidth = parseInt(panelDivRef.current.style.width, 10);
+        setPanelWidth(finalWidth);
+    }
+
     window.removeEventListener('pointermove', handleResizePointerMove);
     window.removeEventListener('pointerup', handleResizePointerUp);
-  };
+};
   
 
 
@@ -5883,18 +5902,29 @@ return (
 
       {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (AGORA AO LADO) --- */}
       <div 
-            className="relative transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-2xl"
+            ref={panelDivRef} // <--- AQUI
+            className="relative transition-none shadow-2xl" // REMOVA duration-500 durante o arraste se possível, ou use CSS condicional
             style={{ 
                 transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
-                width: selectedArticle ? `${panelWidth}px` : '0px' 
+        width: `${panelWidth}px` // Valor inicial/final
             }}
         >
             <div 
-                onPointerDown={handleResizePointerDown}
-                className="absolute top-0 left-0 -translate-x-1/2 w-4 h-full z-50 group cursor-ew-resize flex items-center justify-center"
-            >
-                <div className={`w-1 h-24 rounded-full transition-all duration-300 ${isDarkMode ? 'bg-zinc-800 group-hover:bg-purple-500' : 'bg-zinc-300 group-hover:bg-purple-500'}`}></div>
-            </div>
+    onPointerDown={handleResizePointerDown}
+    // Aumentei a área de clique (w-6) e garanti z-index alto
+    className="absolute top-1/2 -translate-y-1/2 left-0 -translate-x-1/2 w-8 h-32 z-[100] group cursor-ew-resize flex items-center justify-center outline-none touch-none"
+>
+    {/* O Visual do Handle (Pílula + Ícone) */}
+    <div className={`
+        relative w-6 h-16 rounded-full flex items-center justify-center border shadow-xl transition-all duration-200
+        ${isDarkMode 
+            ? 'bg-zinc-900 border-zinc-700 text-zinc-500 group-hover:text-white group-hover:border-purple-500' 
+            : 'bg-white border-zinc-300 text-zinc-400 group-hover:text-purple-600 group-hover:border-purple-400'}
+    `}>
+        {/* Aqui está a setinha que faltava, na verdade um ícone de "agarre" fica melhor */}
+        <GripVertical size={14} /> 
+    </div>
+</div>
             {selectedArticle && (
                 <ArticlePanel 
                     article={selectedArticle} 
