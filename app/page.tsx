@@ -564,7 +564,7 @@ const triggerSearch = () => {
            {/* --- NOVO LOGO NEWSOS --- */}
                     <div className="absolute top-2 left-2 flex items-center gap-3 opacity-95">
                         <div className="w-10 h-10 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
-                            <span className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
+                            <span className="text-20px font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
                         </div>
                         <span className="text-xs font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
                     </div>
@@ -4204,8 +4204,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
   }
 };
 
-// --- COMPONENTE: PLAYER GLOBAL (YOUTUBE EMBED SEGURO) ---
-// --- COMPONENTE: PLAYER GLOBAL (YOUTUBE + ÁUDIO TTS) ---
+// --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL (CORRIGIDO) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const audioRef = useRef(null);
   
@@ -4218,9 +4217,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   // 1. Extração de ID Segura
   const ytId = useMemo(() => {
       if (!track) return null;
-      // Tenta pegar do objeto ou extrair do link
       if (track.videoId) return track.videoId;
-      
       const match = track.link?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
       return match ? match[1] : null;
   }, [track]);
@@ -4239,8 +4236,11 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
     } else {
         setIsYoutube(false);
         if (audioRef.current) {
-            audioRef.current.src = track.audio || track.link; // Prioriza o link direto de áudio
+            // Garante que o áudio pare antes de carregar o novo
+            audioRef.current.pause();
+            audioRef.current.src = track.audio || track.link;
             audioRef.current.load();
+            
             const playPromise = audioRef.current.play();
             if (playPromise !== undefined) {
                 playPromise
@@ -4257,23 +4257,27 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       if (isYoutube && isPlaying) {
           interval = setInterval(() => {
               setCurrentTime(prev => prev + 1);
-              // Avança visualmente (fake progress para vídeo externo)
               if (duration > 0) setProgress((currentTime / duration) * 100);
           }, 1000);
       }
       return () => clearInterval(interval);
   }, [isYoutube, isPlaying, currentTime, duration]);
 
-  // 4. Handler de Fechar Seguro
+  // --- HANDLER DE FECHAR BLINDADO ---
   const handleClose = (e) => {
-      e.stopPropagation(); // Impede que o clique passe para trás
-      
-      // Pausa o áudio nativo imediatamente
-      if (audioRef.current) {
-          audioRef.current.pause();
+      // 1. Impede que o clique passe para o player ou container
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
       }
       
-      // Chama o fechamento do pai
+      // 2. Pausa o áudio nativo imediatamente
+      if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = ""; // Limpa a fonte para parar o download
+      }
+      
+      // 3. Chama o fechamento do pai (Isso desmonta o componente)
       if (onClose) onClose();
   };
 
@@ -4288,6 +4292,8 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                 <h4 className="text-sm font-bold animate-pulse">Sintetizando Voz Neural...</h4>
                 <p className="text-[10px] opacity-60">Usando Google Cloud TTS</p>
             </div>
+            {/* Permite cancelar o loading */}
+            <button onClick={handleClose} className="ml-auto p-2"><X size={20}/></button>
         </div>
       );
   }
@@ -4338,10 +4344,9 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
              </div>
         </div>
 
-        <div className="flex items-center gap-4 mt-2 relative z-30"> {/* Z-30 garante que botões funcionem */}
+        <div className="flex items-center gap-4 mt-2 relative z-30"> 
             <div className="w-24 h-16 rounded-lg bg-black flex-shrink-0 overflow-hidden relative shadow-md border border-white/10">
                 {isYoutube ? (
-                    // Iframe Corrigido
                     <iframe
                         width="100%"
                         height="100%"
@@ -4349,7 +4354,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                         title="YouTube"
                         frameBorder="0"
                         allow="autoplay; encrypted-media; picture-in-picture"
-                        style={{ pointerEvents: 'none' }} // Bloqueia clique no iframe para não roubar foco
+                        style={{ pointerEvents: 'none' }} // Bloqueia clique no iframe
                     />
                 ) : (
                     <img src={track.cover || track.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
@@ -4366,24 +4371,23 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 
             <div className="flex items-center gap-3">
                 {!isYoutube && (
-                    <button onClick={togglePlay} className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg bg-orange-500 hover:scale-105 active:scale-95 transition">
+                    <button onClick={togglePlay} className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg bg-orange-500 hover:scale-105 active:scale-95 transition cursor-pointer">
                         {isPlaying ? <Pause size={18} fill="white"/> : <Play size={18} fill="white" className="ml-1"/>}
                     </button>
                 )}
                 
-                {/* BOTÃO DE FECHAR CORRIGIDO */}
+                {/* BOTÃO DE FECHAR (Agora com a função correta) */}
                 <button 
                     onClick={handleClose} 
-                    className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-zinc-500 cursor-pointer"
+                    className="p-3 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-zinc-500 cursor-pointer z-50 pointer-events-auto active:scale-90 transition-transform"
                 >
-                    <X size={20} />
+                    <X size={22} />
                 </button>
             </div>
         </div>
     </div>
   );
 };
-
 
 
 // --- COMPONENTE: SPLASH SCREEN (AJUSTADO) ---
