@@ -5532,6 +5532,9 @@ const handleStoryNavigation = (direction) => {
     // 2. TODO O RESTO (UOL, Investing, G1, etc) -> ABRE NO PAINEL INTERNO (ArticlePanel)
     // Isso é essencial para que a IA consiga ler o texto amanhã.
     setSelectedArticle(article);
+    if (typeof window !== 'undefined') {
+        setPanelWidth(window.innerWidth);
+    }
 
     if (article.id && !readHistory.includes(article.id)) {
         setReadHistory(prev => [...prev, article.id]);
@@ -5616,7 +5619,7 @@ const handleReadNative = useCallback(async (article) => {
 
   const closeArticle = useCallback(() => {
       setSelectedArticle(null);
-      setPanelWidth(600);
+      setPanelWidth(0);
   }, []);
 
   const closeStory = useCallback(() => {
@@ -5904,29 +5907,38 @@ return (
 
       {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (AGORA AO LADO) --- */}
       <div 
-            ref={panelDivRef} // <--- AQUI
-            className="relative transition-none shadow-2xl" // REMOVA duration-500 durante o arraste se possível, ou use CSS condicional
+            ref={panelDivRef} // Ref para o resize performático
+            className="relative shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
             style={{ 
+                // Se não tem artigo, a largura é 0 (conserta o bug da tela inicial)
+                width: selectedArticle ? `${panelWidth}px` : '0px',
+                // Mantemos o translate para animação bonita, mas a largura 0 é o que esconde o espaço
                 transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
-        width: `${panelWidth}px` // Valor inicial/final
+                // Evita que o painel "estoure" a tela se for maior que a janela
+                maxWidth: '100vw' 
             }}
         >
-            <div 
-    onPointerDown={handleResizePointerDown}
-    // Aumentei a área de clique (w-6) e garanti z-index alto
-    className="absolute top-1/2 -translate-y-1/2 left-0 -translate-x-1/2 w-8 h-32 z-[100] group cursor-ew-resize flex items-center justify-center outline-none touch-none"
->
-    {/* O Visual do Handle (Pílula + Ícone) */}
-    <div className={`
-        relative w-6 h-16 rounded-full flex items-center justify-center border shadow-xl transition-all duration-200
-        ${isDarkMode 
-            ? 'bg-zinc-900 border-zinc-700 text-zinc-500 group-hover:text-white group-hover:border-purple-500' 
-            : 'bg-white border-zinc-300 text-zinc-400 group-hover:text-purple-600 group-hover:border-purple-400'}
-    `}>
-        {/* Aqui está a setinha que faltava, na verdade um ícone de "agarre" fica melhor */}
-        <GripVertical size={14} /> 
-    </div>
-</div>
+            {/* 
+                ALÇA DE RESIZE 
+                Só renderiza se tiver artigo selecionado (selectedArticle &&)
+            */}
+            {selectedArticle && (
+                <div 
+                    onPointerDown={handleResizePointerDown}
+                    // Posicionada na borda esquerda do painel
+                    className="absolute top-0 bottom-0 -left-3 w-6 z-[100] group cursor-ew-resize flex items-center justify-center outline-none touch-none hover:w-8 transition-all"
+                >
+                    {/* Visual da Alça (Pílula Flutuante) */}
+                    <div className={`
+                        relative w-1.5 h-16 rounded-full transition-all duration-300
+                        ${isDarkMode 
+                            ? 'bg-zinc-700 group-hover:bg-purple-500 group-hover:w-2 group-hover:shadow-[0_0_15px_rgba(168,85,247,0.5)]' 
+                            : 'bg-zinc-300 group-hover:bg-purple-500 group-hover:w-2'}
+                    `}></div>
+                </div>
+            )}
+
+            {/* O CONTEÚDO DO PAINEL */}
             {selectedArticle && (
                 <ArticlePanel 
                     article={selectedArticle} 
