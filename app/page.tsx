@@ -1137,17 +1137,17 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
                     onError={(e) => e.target.style.display = 'none'} 
                 />
                 {/* PÍLULA APENAS NO NOME */}
-                <div className="-ml-3 pl-5 pr-2 py-2  bg-black/30 px-1 rounded-r-md border border-white/10 shadow-lg flex items-center justify-center h-fit">
+                <div className="-ml-3 pl-2 pr-2 py-2  bg-black/20 backdrop-blur-md px-1 rounded-r-md border border-white/10 shadow-lg flex items-center justify-center h-fit">
                     <span className="text-[10px] font-black text-white uppercase tracking-wider">{news.source}</span>
                 </div>
-                <div className="ml-2 bg-black/30 backdrop-blur-md px-1 rounded-md border border-white/5">
+                <div className="ml-2 bg-black/20 backdrop-blur-md px-2 rounded-md border border-white/5">
                     <span className="text-[10px] font-bold text-white">{displayTime}</span>
                 </div>
             </div>
 
             {/* Botões no Canto Superior Direito */}
             <div className="absolute top-4 right-4 z-20">
-                <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/30 backdrop-blur-md border border-white/10">
+                <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/20 backdrop-blur-md border border-white/10">
                     <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/80 hover:text-white'}`}>
                         <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
                     </button>
