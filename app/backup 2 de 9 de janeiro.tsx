@@ -4207,6 +4207,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
 // --- COMPONENTE: PLAYER GLOBAL (YOUTUBE EMBED SEGURO) ---
 // --- COMPONENTE: PLAYER GLOBAL (YOUTUBE + ÁUDIO TTS) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
+  // 1. TODOS OS HOOKS PRIMEIRO (Sem exceção)
   const audioRef = useRef(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
@@ -4215,19 +4216,17 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const [duration, setDuration] = useState(0);
   const [isYoutube, setIsYoutube] = useState(false);
 
-  // 1. Extração de ID Segura
+  // Extração de ID à prova de falhas
   const ytId = useMemo(() => {
       if (!track) return null;
-      // Tenta pegar do objeto ou extrair do link
-      if (track.videoId) return track.videoId;
-      
       const match = track.link?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
-      return match ? match[1] : null;
+      const idFromVideoId = track.videoId;
+      return idFromVideoId || (match ? match[1] : null);
   }, [track]);
 
-  // 2. Setup Inicial
+  // Efeito de Reset e Autoplay
   useEffect(() => {
-    if (!track || track.isGenerating) return;
+    if (!track || track.isGenerating) return; // Se estiver gerando, não tenta tocar ainda
 
     setIsPlaying(false);
     setProgress(0);
@@ -4239,47 +4238,36 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
     } else {
         setIsYoutube(false);
         if (audioRef.current) {
-            audioRef.current.src = track.audio || track.link; // Prioriza o link direto de áudio
+            audioRef.current.src = track.link;
             audioRef.current.load();
+            // Tenta dar play
             const playPromise = audioRef.current.play();
             if (playPromise !== undefined) {
                 playPromise
                     .then(() => setIsPlaying(true))
-                    .catch(e => console.log("Autoplay bloqueado:", e));
+                    .catch(e => console.log("Autoplay bloqueado ou aguardando interação", e));
             }
         }
     }
   }, [track, ytId]);
 
-  // 3. Simulação de Progresso (YouTube)
+  // Simulação de progresso para YouTube
   useEffect(() => {
       let interval = null;
       if (isYoutube && isPlaying) {
           interval = setInterval(() => {
               setCurrentTime(prev => prev + 1);
-              // Avança visualmente (fake progress para vídeo externo)
               if (duration > 0) setProgress((currentTime / duration) * 100);
           }, 1000);
       }
       return () => clearInterval(interval);
   }, [isYoutube, isPlaying, currentTime, duration]);
 
-  // 4. Handler de Fechar Seguro
-  const handleClose = (e) => {
-      e.stopPropagation(); // Impede que o clique passe para trás
-      
-      // Pausa o áudio nativo imediatamente
-      if (audioRef.current) {
-          audioRef.current.pause();
-      }
-      
-      // Chama o fechamento do pai
-      if (onClose) onClose();
-  };
-
-  // --- RENDERIZAÇÃO ---
+  // 2. CHECAGENS DE RENDERIZAÇÃO (Só agora podemos dar return)
+  
   if (!track) return null;
 
+  // TELA DE LOADING (O que aparece quando você clica e a IA está criando o áudio)
   if (track.isGenerating) {
       return (
         <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-6 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 flex items-center gap-4 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
@@ -4292,7 +4280,9 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       );
   }
 
-  // Handlers de Áudio Nativo
+  // 3. RENDERIZAÇÃO DO PLAYER (Se já tem áudio pronto)
+
+  // Handlers (Definidos aqui para não poluir o topo)
   const handleNativeTimeUpdate = () => {
       if (audioRef.current) {
           setCurrentTime(audioRef.current.currentTime);
@@ -4303,8 +4293,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       }
   };
 
-  const togglePlay = (e) => {
-      e.stopPropagation();
+  const togglePlay = () => {
       if (!isYoutube && audioRef.current) {
           if (isPlaying) audioRef.current.pause();
           else audioRef.current.play();
@@ -4338,18 +4327,17 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
              </div>
         </div>
 
-        <div className="flex items-center gap-4 mt-2 relative z-30"> {/* Z-30 garante que botões funcionem */}
+        <div className="flex items-center gap-4 mt-2">
             <div className="w-24 h-16 rounded-lg bg-black flex-shrink-0 overflow-hidden relative shadow-md border border-white/10">
                 {isYoutube ? (
-                    // Iframe Corrigido
                     <iframe
                         width="100%"
                         height="100%"
-                        src={`https://www.youtube.com/embed/${ytId}?autoplay=1&controls=0&modestbranding=1&playsinline=1`}
+                        src={`https://www.youtube.com/embed/${ytId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
                         title="YouTube"
                         frameBorder="0"
                         allow="autoplay; encrypted-media; picture-in-picture"
-                        style={{ pointerEvents: 'none' }} // Bloqueia clique no iframe para não roubar foco
+                        style={{ pointerEvents: 'auto' }} 
                     />
                 ) : (
                     <img src={track.cover || track.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
@@ -4360,7 +4348,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                 <h4 className="text-sm font-bold leading-tight truncate">{track.title}</h4>
                 <p className="text-[10px] opacity-60 truncate flex items-center gap-1 mt-1">
                     {isYoutube ? <span className="text-red-500 font-bold flex items-center gap-1"><Youtube size={10}/> YouTube</span> : <span className="text-blue-500 font-bold flex items-center gap-1"><Mic size={10}/> Podcast</span>}
-                    <span>• {isYoutube ? "Reproduzindo" : `${formatTime(currentTime)} / ${formatTime(duration)}`}</span>
+                    <span>• {isYoutube ? "Toque no vídeo" : `${formatTime(currentTime)} / ${formatTime(duration)}`}</span>
                 </p>
             </div>
 
@@ -4371,19 +4359,12 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                     </button>
                 )}
                 
-                {/* BOTÃO DE FECHAR CORRIGIDO */}
-                <button 
-                    onClick={handleClose} 
-                    className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-zinc-500 cursor-pointer"
-                >
-                    <X size={20} />
-                </button>
+                <button onClick={() => { setIsPlaying(false); onClose(); }} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-zinc-500"><X size={20} /></button>
             </div>
         </div>
     </div>
   );
 };
-
 
 // --- COMPONENTE: SPLASH SCREEN (LOGO + NOME COM AURA) ---
 const SplashScreen = ({ onFinish }) => {
@@ -5536,63 +5517,58 @@ const handleStoryNavigation = (direction) => {
 
 
 
+
+
+
+
+
 const handleOpenArticle = async (article) => {
     if (!article || !article.link) return;
 
     const url = article.link;
 
-    // 1. TENTA EXTRAIR ID DO YOUTUBE (Lógica exata do seu código antigo)
-    const videoId =
-        article.videoId ||
-        url.match(
-            /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
-        )?.[2];
-
-    // 2. VERIFICA SE É VÍDEO
+    // --- DETECÇÃO DE YOUTUBE (Fiel ao seu código antigo) ---
+    // Tenta pegar o ID ou usa a URL se for youtube
+    const videoId = article.videoId || url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2];
+    
+    // Verifica se é YouTube ou vídeo de Podcast
     const isYoutube = !!videoId || url.includes('youtube.com') || url.includes('youtu.be');
     const isPodcastVideo = article.category === 'Podcast' && article.type === 'video';
 
-    // 3. SE FOR VÍDEO -> USA INAPPBROWSER (CORDOVA)
-    // Essa é a parte crítica que restaura o comportamento de "janela sobre o app"
+    // ============================================================
+    // 1. A LÓGICA ANTIGA DO YOUTUBE (InAppBrowser)
+    // ============================================================
     if (isYoutube || isPodcastVideo) {
-        
-        // Monta a URL. Se tiver ID, força o link 'watch' para garantir o player correto.
-        const youtubeUrl = videoId 
-            ? `https://www.youtube.com/watch?v=${videoId}` 
-            : url;
+        // Se tiver ID, monta a URL completa, senão usa o link original
+        const youtubeUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : url;
 
-        // AS OPÇÕES MÁGICAS DO SEU CÓDIGO ANTIGO:
-        // 'location=no' -> Esconde a barra de endereço (parece app, não site)
-        // 'toolbar=yes' -> Mostra a barra nativa embaixo (onde fica o botão "Done" azul no iOS)
-        const options = 'location=no,toolbar=yes,toolbarcolor=#000000,hidenavigationbuttons=yes,hideurlbar=yes,fullscreen=yes';
+        // Opções exatas do seu código antigo:
+        // location=no -> Esconde a barra de URL
+        // toolbar=yes -> Mostra a barra nativa (onde fica o botão de fechar/Done)
+        // fullscreen=yes -> Força tela cheia
+        const options = 'location=no,toolbar=yes,toolbarcolor=#000000,navigationbuttoncolor=#ffffff,closebuttoncolor=#ffffff,hidenavigationbuttons=yes,hideurlbar=yes,fullscreen=yes';
 
-        // Chama o plugin diretamente. Sem try/catch/fallback para window.open.
-        // Se o plugin estiver instalado, ele VAI abrir a janela nativa.
-        InAppBrowser.create(youtubeUrl, '_blank', options);
-        return; 
+        // Abre o plugin nativo (Cordova/Capacitor)
+        try {
+            InAppBrowser.create(youtubeUrl, '_blank', options);
+        } catch (e) {
+            // Fallback caso esteja testando no PC (abre nova aba)
+            window.open(youtubeUrl, '_blank');
+        }
+        return; // Pára aqui, não abre o painel lateral
     }
 
-    // 4. SITES DE TEXTO (UOL, ETC) -> CAPACITOR BROWSER
-    // Mantém a leitura de sites pesados no modo leitura nativo
-    const blockedDomains = ['uol.com.br', 'investing.com', 'nytimes.com'];
-    if (blockedDomains.some(d => url.includes(d))) {
-        await Browser.open({
-            url,
-            presentationStyle: 'fullscreen',
-            toolbarColor: isDarkMode ? '#000000' : '#FFFFFF'
-        });
-        return;
-    }
+  
 
-    // 5. ARTIGO NORMAL -> PAINEL LATERAL DE IA
+    // ============================================================
+    // 3. ARTIGO NORMAL -> PAINEL LATERAL (IA)
+    // ============================================================
     setSelectedArticle(article);
 
     if (article.id && !readHistory.includes(article.id)) {
         setReadHistory(prev => [...prev, article.id]);
     }
-  };
-  
-
+};
 
 const handleReadNative = useCallback(async (article) => {
       if (!article || !article.link) return;
@@ -5861,23 +5837,8 @@ return (
                     isLoading={isLoadingFeeds}
                     savedItems={savedItems}
                     onToggleSave={handleToggleSave}
-                    onPlayAudio={async (pod) => {
-                        // 1. Tenta identificar se é YouTube (Vídeo)
-                        const url = pod.link || "";
-                        const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
-                        const ytId = pod.videoId || (match ? match[1] : null);
-
-                        if (ytId) {
-                            // SE FOR YOUTUBE: Manda para a função Mestra de abrir artigo (que já tem a lógica do InAppBrowser)
-                            setPlayingAudio(null); // Fecha o player de áudio se tiver
-                            handleOpenArticle(pod); 
-                        } else {
-                            // SE FOR PODCAST MP3: Toca no Player Global
-                            setPlayingAudio(pod);
-                        }
-                    }}
+                    onPlayAudio={handlePlayAudio}
                 />
-            
             )}
             
             {activeTab === 'feed' && (
@@ -5907,14 +5868,13 @@ return (
             
             {activeTab === 'youtube' && (
                 <YouTubeTab 
-                     openStory={setSelectedStory} 
+                    openStory={setSelectedStory} 
                     savedItems={savedItems} 
                     onToggleSave={handleToggleSave} 
                     isDarkMode={isDarkMode} 
                     realVideos={realVideos} 
                     isLoading={isLoadingFeeds} 
-                    // MUDANÇA AQUI:
-                    onPlayVideo={handleOpenArticle} // <--- CORRIGIDO (Era handleReadNative)
+                    onPlayVideo={handleReadNative} 
                     seenStoryIds={seenStoryIds}
                     onMarkAsSeen={markStoryAsSeen}
                     channelFilter={youtubeChannelFilter}
@@ -5924,11 +5884,11 @@ return (
 
             {activeTab === 'saved' && (
                 <SavedTab 
-                   isDarkMode={isDarkMode} 
-                    openArticle={handleOpenArticle} // <--- CORRIGIDO (Era handleReadNative)
+                    isDarkMode={isDarkMode} 
+                    openArticle={handleReadNative} 
                     items={savedItems} 
                     onRemoveItem={handleRemoveSavedItem} 
-                    onPlayVideo={handleOpenArticle} // <--- CORRIGIDO (Era handleReadNative)
+                    onPlayVideo={handleReadNative} 
                 />
             )}
 
