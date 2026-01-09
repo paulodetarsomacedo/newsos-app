@@ -6225,11 +6225,13 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
 // ==============================================================================
 
 const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
-    <div className="fixed inset-0 z-[6000] flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 animate-in zoom-in-95 duration-200">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-        {/* --- MUDANÇA AQUI: de max-w-sm para max-w-md --- */}
-        <div className={`relative w-full max-w-md p-8 rounded-3xl shadow-2xl border flex flex-col gap-6 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+        
+        {/* LARGURA AUMENTADA E ALTURA AUTOMÁTICA */}
+        <div className={`relative w-full max-w-md p-6 rounded-3xl shadow-2xl border flex flex-col ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
             
+            {/* Cabeçalho */}
             <div className="flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mb-4">
                     <BrainCircuit size={32} className="text-white" />
@@ -6238,28 +6240,30 @@ const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
                 <h3 className="text-2xl font-black">{data.mindmap.center}</h3>
             </div>
             
-            <div className={`p-5 rounded-xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
-                <p className={`text-base leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+            {/* Resumo */}
+            <div className={`p-4 rounded-xl border border-dashed mt-4 ${isDarkMode ? 'border-zinc-700 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
+                <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
                     {data.summaries.executive}
                 </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 text-sm">
+            {/* Pontos Chave e Conexões */}
+            <div className="grid grid-cols-2 gap-4 text-xs mt-4">
                 <div>
                     <h4 className="font-bold mb-2 opacity-60">Pontos Principais:</h4>
-                    <ul className="list-disc pl-5 space-y-2 marker:text-purple-400">
-                        {data.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}
+                    <ul className="list-disc pl-4 space-y-1 marker:text-purple-400">
+                        {aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}
                     </ul>
                 </div>
                 <div>
                     <h4 className="font-bold mb-2 opacity-60">Conexões no Mapa:</h4>
-                    <ul className="list-none space-y-2">
-                        {data.mindmap.nodes.map((node, i) => <li key={i} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>{node}</li>)}
+                    <ul className="list-none space-y-1">
+                        {aiData.mindmap.nodes.map((node, i) => <li key={i} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>{node}</li>)}
                     </ul>
                 </div>
             </div>
 
-            <button onClick={onClose} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-xs uppercase tracking-widest mt-2 hover:brightness-90 transition">Fechar</button>
+            <button onClick={onClose} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-xs uppercase tracking-widest mt-6 hover:brightness-90 transition">Fechar</button>
         </div>
     </div>
 );
@@ -6541,46 +6545,42 @@ const handleNodeClick = useCallback((nodeName, position) => {
 
   if (!isOpen) return null;
 
-  return (
+return (
     <div className={`fixed inset-0 z-[5000] flex flex-col ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} animate-in slide-in-from-bottom-10 duration-300`}>
         {(loadingState === 'extracting' || loadingState === 'analyzing') && (
             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black">
-                <div className="relative w-32 h-32 mb-8"><div className="absolute inset-0 border-t-4 border-purple-500 rounded-full animate-spin" /><div className="absolute inset-4 border-r-4 border-blue-500 rounded-full animate-spin-reverse" /><div className="absolute inset-0 flex items-center justify-center"><BrainCircuit size={48} className="text-white animate-pulse"/></div></div>
+                <div className="relative w-32 h-32 mb-8">
+                    <div className="absolute inset-0 border-t-4 border-purple-500 rounded-full animate-spin" />
+                    <div className="absolute inset-4 border-r-4 border-blue-500 rounded-full animate-spin-reverse" />
+                    <div className="absolute inset-0 flex items-center justify-center"><BrainCircuit size={48} className="text-white animate-pulse"/></div>
+                </div>
                 <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 animate-pulse tracking-tighter">NEWS OS <span className="text-white">INTELLIGENCE</span></h3>
                 <p className="text-zinc-500 text-xs mt-4 font-mono uppercase tracking-[0.3em] animate-bounce">{loadingState === 'extracting' ? 'Lendo Fonte Original...' : 'Sintetizando Dados...'}</p>
                 <button onClick={onClose} className="mt-8 text-zinc-600 text-xs hover:text-white">Cancelar</button>
             </div>
         )}
         {loadingState === 'error' && (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8"><div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div><h3 className="font-bold text-lg mb-2">Falha na Análise</h3><p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia.</p><button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button></div>
+            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
+                <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
+                <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia.</p>
+                <button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button>
+            </div>
         )}
         {loadingState === 'complete' && aiData && (
             <div className="flex-1 overflow-y-auto relative scrollbar-hide">
-               {/* --- HEADER IMERSIVO ÚNICO E FUNCIONAL --- */}
                 <div className="relative h-72 w-full flex-shrink-0 sticky top-0 z-20">
                     <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" />
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
-                    
-                    {/* Toolbar com TODOS os botões */}
                     <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">
                         <div className="flex gap-2">
-                            {viewMode === 'magic' && (
-                                <button onClick={() => setViewMode('drilldown')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2">
-                                    <BrainCircuit size={14}/> Voltar à Análise
-                                </button>
-                            )}
+                            {viewMode === 'magic' && (<button onClick={() => setViewMode('drilldown')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2"><BrainCircuit size={14}/> Voltar</button>)}
                         </div>
                         <div className="flex gap-2">
-                           <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full backdrop-blur-md border ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}>
-                                <Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/>
-                            </button>
-                           <button onClick={onClose} className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20">
-                                <X size={20}/>
-                           </button>
+                           <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full backdrop-blur-md border ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}><Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/></button>
+                           <button onClick={onClose} className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20"><X size={20}/></button>
                         </div>
                     </div>
-
-                    {/* Conteúdo do Header */}
                     <div className="absolute bottom-8 left-6 right-6 z-10">
                         <div className="flex items-center gap-4 mb-4">
                             <div className="w-12 h-12 rounded-2xl border-2 border-white/20 bg-white p-1 shadow-lg">
@@ -6591,84 +6591,61 @@ const handleNodeClick = useCallback((nodeName, position) => {
                         <h1 className="text-3xl md:text-4xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
                     </div>
                 </div>
-                               <div className="relative z-10 px-4 py-2 space-y-10 pb-40">
-                  
-                    {viewMode === 'analysis' && (
-                        <div className="animate-in fade-in">
-                            <div className="mb-10">
-                                <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
-                                    {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
-                                        <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>{mode === 'executive' ? 'Executivo' : (mode === 'tldr' ? 'Curto' : (mode === 'eli5' ? 'Simples' : 'Tópicos'))}</button>
-                                    ))}
+                <div className="relative z-10 px-4 py-2 space-y-10 pb-40">
+                    <div className={`transition-opacity duration-500 ${viewMode === 'drilldown' ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+                        {viewMode === 'analysis' && (
+                            <div className="animate-in fade-in">
+                                <div className="mb-10">
+                                    <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
+                                        {['executive', 'bullets'].map(mode => (<button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>{mode === 'executive' ? 'Resumo' : 'Tópicos'}</button>))}
+                                    </div>
+                                    <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
+                                        {summaryMode === 'bullets' ? (<ul className="list-disc pl-5 space-y-3 marker:text-indigo-500 text-sm leading-loose">{aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>) : (<p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.executive}</p>)}
+                                    </div>
                                 </div>
-                                <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
-                                    {summaryMode === 'bullets' ? (<ul className="list-disc pl-5 space-y-3 marker:text-indigo-500 text-sm leading-loose">{aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>) : (<p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries[summaryMode]}</p>)}
+                                <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
+                                <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
+                                <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
+                                <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
+                            </div>
+                        )}
+                    </div>
+                    {viewMode === 'drilldown' && focusedNode && (
+                        <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center z-40" onClick={() => setViewMode('analysis')}>
+                            <div onClick={(e) => e.stopPropagation()} className={`w-96 p-6 rounded-3xl shadow-2xl border backdrop-blur-xl animate-in zoom-in-90 ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="flex items-center gap-2 mb-2 opacity-70">
+                                        <img src={article.logo} className="w-4 h-4 rounded-full" />
+                                        <span className="text-[9px] font-bold uppercase tracking-wider">{article.source}</span>
+                                    </div>
+                                    <button onClick={() => setViewMode('analysis')} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
+                                </div>
+                                <h2 className="text-xl font-black text-indigo-400 leading-tight">{focusedNode.name || focusedNode.term}</h2>
+                                {(!focusedNode.context || focusedNode.context.toLowerCase().includes('contexto geral')) ? (
+                                    <div className="mt-4">
+                                        <p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p>
+                                        <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                                    </div>
+                                ) : (
+                                    <p className={`text-sm leading-relaxed mt-4 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{focusedNode.context}</p>
+                                )}
+                                <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
+                                    <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Evidências</h4>
+                                    {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
+                                        focusedNode.evidence_quotes.map((quote, i) => (<div key={i} onClick={() => handleQuoteClick(quote)} className={`p-3 rounded-xl border cursor-pointer text-xs italic ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>"{quote}"</div>))
+                                    ) : <p className="text-xs opacity-50 italic">Nenhuma citação direta encontrada.</p>}
                                 </div>
                             </div>
-                            <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
-                            <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
-                            <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
-                            <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
                         </div>
                     )}
-                    {viewMode === 'drilldown' && focusedNode && (
-    // Container absoluto que preenche a tela para capturar o clique de fechar
-    <div className="absolute inset-0 z-30" onClick={() => setViewMode('analysis')}>
-        
-        {/* O Painel de Foco (posicionado dinamicamente) */}
-        {/* Clicar dentro dele não fecha (e.stopPropagation) */}
-        <div 
-            onClick={(e) => e.stopPropagation()}
-            className={`
-                absolute w-96 p-6 rounded-3xl shadow-2xl border backdrop-blur-xl animate-in zoom-in-90
-                ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}
-            `}
-            // Lógica de posicionamento (exemplo para 4 nós)
-            style={{ 
-                top: `${focusedNode.position?.y}%` || '50%', 
-                left: `${focusedNode.position?.x}%` || '50%',
-                transform: `translate(-50%, -50%)` // Centraliza no ponto
-            }}
-        >
-            <div className="flex items-start justify-between mb-4">
-                <div>
-                    <div className="flex items-center gap-2 mb-2 opacity-70">
-                        <img src={article.logo} className="w-4 h-4 rounded-full" />
-                        <span className="text-[9px] font-bold uppercase tracking-wider">{article.source}</span>
-                    </div>
-                    <h2 className="text-xl font-black text-indigo-400 leading-tight">{focusedNode.name || focusedNode.term}</h2>
-                </div>
-                <button onClick={() => setViewMode('analysis')} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
-            </div>
-            
-            {/* Contexto ou Fallback */}
-            {(!focusedNode.context || focusedNode.context.toLowerCase().includes('contexto geral')) ? (
-                <div>
-                    <p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p>
-                    <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                </div>
-            ) : (
-                <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{focusedNode.context}</p>
-            )}
-            
-            {/* Evidências */}
-            <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
-                <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Evidências</h4>
-                {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
-                    focusedNode.evidence_quotes.map((quote, i) => (
-                        <div key={i} onClick={() => handleQuoteClick(quote)} className={`p-3 rounded-xl border cursor-pointer text-xs italic ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>"{quote}"</div>
-                    ))
-                ) : <p className="text-xs opacity-50 italic">Nenhuma citação direta encontrada.</p>}
-            </div>
-        </div>
-    </div>
-)}
-                    {viewMode === 'magic' && (<MagicPremiumView article={article} readerContent={readerContent} highlightText={highlightRequest} isDarkMode={isDarkMode} fontSize={fontSize} />)}
+                    {viewMode === 'magic' && (
+                        <MagicPremiumView article={article} readerContent={readerContent} highlightText={highlightRequest} isDarkMode={isDarkMode} fontSize={fontSize} />
+                    )}
                 </div>
             </div>
         )}
         {showCenterModal && aiData && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
-        {viewMode === 'magic' && (<div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 rounded-2xl backdrop-blur-xl border shadow-2xl ${isDarkMode ? 'bg-black/80 border-white/10' : 'bg-white/90 border-zinc-200'}`}><button onClick={() => setFontSize(s => Math.max(14, s - 2))} className="p-3 hover:bg-white/10 rounded-xl"><Minus size={16}/></button><span className="text-xs font-black w-8 text-center">{fontSize}</span><button onClick={() => setFontSize(s => Math.min(32, s + 2))} className="p-3 hover:bg-white/10 rounded-xl"><Plus size={16}/></button></div>)}
+        {viewMode === 'magic' && (<div className={`absolute bottom-8 left-1/2 -translate-x-1-2 z-[100] flex items-center gap-2 p-2 rounded-2xl backdrop-blur-xl border shadow-2xl ${isDarkMode ? 'bg-black/80 border-white/10' : 'bg-white/90 border-zinc-200'}`}><button onClick={() => setFontSize(s => Math.max(14, s - 2))} className="p-3 hover:bg-white/10 rounded-xl"><Minus size={16}/></button><span className="text-xs font-black w-8 text-center">{fontSize}</span><button onClick={() => setFontSize(s => Math.min(32, s + 2))} className="p-3 hover:bg-white/10 rounded-xl"><Plus size={16}/></button></div>)}
     </div>
   );
 });
