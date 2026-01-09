@@ -1089,9 +1089,15 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 rounded-[2.5rem]" />
 
         {/* Cabeçalho Sobre a Imagem */}
-        <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
-            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-                <img src={news.logo} className="w-9 h-9 rounded-md bg-white" onError={(e) => e.target.style.display = 'none'} />
+     <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
+            {/* LOGO SOLTO (maior e com sombra para destacar) */}
+            <img 
+                src={news.logo} 
+                className="w-8 h-8 rounded-lg bg-white p-0.5 shadow-lg border border-white/20" 
+                onError={(e) => e.target.style.display = 'none'} 
+            />
+            {/* PÍLULA APENAS NO NOME */}
+            <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg">
                 <span className="text-[10px] font-black text-white uppercase tracking-wider">{news.source}</span>
             </div>
             <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/5">
@@ -1121,7 +1127,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       {/* --- PÍLULA NA TRANSIÇÃO (CORRIGIDA) --- */}
       {/* Agora ela está fora do div da imagem, mas posicionada sobre ele */}
       <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-        <div className="flex shadow-2xl rounded-full p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
+        <div className="flex shadow-2xl rounded-full p-1.5 bg-white-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
           <button onClick={(e) => { e.stopPropagation(); onClick(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors">Ler</button>
           <div className="w-[1px] bg-white/10 my-1"></div>
           <button onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg"><Sparkles size={14} className="mr-2 inline text-yellow-300 animate-pulse" /> Analisar</button>
