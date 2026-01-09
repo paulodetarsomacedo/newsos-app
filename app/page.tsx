@@ -1010,21 +1010,20 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
-const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onAnalyze, onToggleSave, onToggleLike, isViewedFromStory }) => {
+const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onAnalyze, onToggleSave, onToggleLike, onPlay, isViewedFromStory }) => {
   const displayTime = news.rawDate 
     ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
     : '...';
 
-  // CORREÇÃO: Habilitamos o Play para TUDO (pois agora temos TTS de IA)
-  // Se tem ID e Título, podemos gerar áudio.
-  const isPlayable = !!news.id && !!news.title; 
+  // Lógica de Play: Sempre true para notícias (pois temos TTS)
+  const isPlayable = !!news.title;
 
   return (
     <div 
       className={`
-        group relative flex flex-col overflow-visible rounded-[2rem] mb-8
+        group relative flex flex-col overflow-visible rounded-[2.5rem] mb-8
         transition-all duration-300 ease-out will-change-transform
-        ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-lg'}
+        ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-xl'}
         ${isSelected ? 'ring-2 ring-purple-500 shadow-2xl scale-[1.01]' : ''}
       `}
     >
@@ -1032,7 +1031,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       {/* 1. ÁREA DE IMAGEM */}
       <div 
         onClick={() => onClick(news)}
-        className="relative h-56 w-full cursor-pointer overflow-hidden rounded-t-[2rem] bg-gray-200 dark:bg-zinc-800"
+        className="relative h-64 w-full cursor-pointer overflow-hidden rounded-t-[2.5rem] bg-gray-200 dark:bg-zinc-800"
       >
         <SmartImage 
             src={news.img} 
@@ -1043,73 +1042,83 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
         
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-90" />
+        {/* Gradiente mais forte para legibilidade do topo */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 opacity-90" />
 
-        <div className="absolute top-4 left-4 flex items-center gap-2">
-            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-                <img src={news.logo} className="w-4 h-4 rounded-full bg-white" onError={(e) => e.target.style.display = 'none'} />
-                <span className="text-[10px] font-black text-white uppercase tracking-wider">{news.source}</span>
+        {/* --- CORREÇÃO 2: BADGE DE FONTE MAIOR E MAIS VISÍVEL --- */}
+        <div className="absolute top-5 left-5 right-5 flex justify-between items-center z-10">
+            <div className="flex items-center gap-3 bg-black/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 shadow-2xl">
+                <img src={news.logo} className="w-6 h-6 rounded-full bg-white border border-white/20" onError={(e) => e.target.style.display = 'none'} />
+                <span className="text-xs font-black text-white uppercase tracking-widest shadow-black">{news.source}</span>
             </div>
-            <span className="text-[10px] font-bold text-white/90 drop-shadow-md bg-black/40 px-2 py-1 rounded-full">{displayTime}</span>
+            
+            <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/5">
+                <span className="text-[10px] font-bold text-white/90">{displayTime}</span>
+            </div>
         </div>
       </div>
 
-      {/* 2. PÍLULA INTELIGENTE (POSIÇÃO CORRIGIDA NO CSS) */}
-      <div className="absolute top-[224px] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-2xl shadow-black/50 rounded-full p-1 bg-zinc-900 border border-white/20 backdrop-blur-xl">
+      {/* 2. PÍLULA INTELIGENTE (Posição Ajustada) */}
+      <div className="absolute top-[256px] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] rounded-full p-1.5 bg-zinc-900 border border-white/15 backdrop-blur-xl">
           <button 
             onClick={(e) => { e.stopPropagation(); onClick(news); }}
-            className="px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors flex items-center gap-2"
+            className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors flex items-center gap-2"
           >
              Ler
           </button>
-          <div className="w-[1px] bg-white/20 my-1"></div>
+          <div className="w-[1px] bg-white/10 my-1 mx-1"></div>
           <button 
             onClick={(e) => { e.stopPropagation(); onAnalyze(news); }}
-            className="px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg flex items-center gap-2"
+            className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg flex items-center gap-2"
           >
-             <Sparkles size={12} className="text-yellow-300 animate-pulse" /> Analisar
+             <Sparkles size={14} className="text-yellow-300 animate-pulse" /> Analisar
           </button>
       </div>
 
-      {/* 3. CONTEÚDO E BARRA LATERAL */}
+      {/* 3. ÁREA DE TEXTO */}
       <div 
         onClick={() => onClick(news)}
-        className="relative p-6 pt-10 cursor-pointer flex gap-4"
+        className="relative p-6 pt-12 cursor-pointer flex gap-5"
       >
          <div className="flex-1 min-w-0">
-             <h3 className={`text-xl font-black leading-tight mb-3 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+             <h3 className={`text-xl md:text-2xl font-black leading-tight mb-4 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                  {news.title}
              </h3>
              
+             {/* --- CORREÇÃO 1: RESUMO OTIMIZADO --- */}
              <div className="relative">
-                 <p className={`text-sm font-serif leading-relaxed line-clamp-4 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                 <p className={`text-base font-serif leading-relaxed opacity-90 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'} line-clamp-5`}>
                      {news.summary}
                  </p>
-                 <div className={`absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t ${isDarkMode ? 'from-zinc-900' : 'from-white'} to-transparent`} />
+                 {/* Gradiente ajustado para não esconder texto curto */}
+                 {news.summary && news.summary.length > 100 && (
+                    <div className={`absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t ${isDarkMode ? 'from-zinc-900' : 'from-white'} to-transparent`} />
+                 )}
              </div>
          </div>
 
-         {/* 4. BARRA LATERAL (Agora com o Play garantido) */}
-         <div className="flex flex-col items-center gap-4 pt-2 pl-3 border-l border-dashed border-zinc-200 dark:border-zinc-800/50 min-w-[44px]">
+         {/* 4. BARRA LATERAL */}
+         <div className="flex flex-col items-center gap-5 pt-2 pl-4 border-l border-dashed border-zinc-200 dark:border-zinc-800/50 min-w-[50px]">
              
-             <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2.5 rounded-full transition-all active:scale-90 hover:bg-black/5 dark:hover:bg-white/10 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
-                 <Bookmark size={22} fill={isSaved ? "currentColor" : "none"} />
+             <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-3 rounded-full transition-all active:scale-90 hover:bg-black/5 dark:hover:bg-white/10 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
+                 <Bookmark size={24} fill={isSaved ? "currentColor" : "none"} />
              </button>
 
-             <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-2.5 rounded-full transition-all active:scale-90 hover:bg-black/5 dark:hover:bg-white/10 ${isLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
-                 <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
+             <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-3 rounded-full transition-all active:scale-90 hover:bg-black/5 dark:hover:bg-white/10 ${isLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
+                 <Heart size={24} fill={isLiked ? "currentColor" : "none"} />
              </button>
 
-             {/* PLAY VISÍVEL AGORA */}
+             {/* --- CORREÇÃO 3: BOTÃO PLAY REAL --- */}
+             {/* Ele chama a prop onPlay que vamos conectar agora */}
              {isPlayable && (
                  <button 
                     onClick={(e) => { 
                         e.stopPropagation(); 
-                        alert("Iniciando geração de áudio neural..."); // Placeholder para a função TTS
+                        if (onPlay) onPlay(news); // Chama a função real
                     }} 
-                    className="mt-auto mb-1 w-11 h-11 rounded-full bg-green-500 text-white shadow-xl shadow-green-500/30 flex items-center justify-center hover:scale-110 transition active:scale-95 animate-in zoom-in duration-300"
+                    className="mt-auto mb-2 w-14 h-14 rounded-full bg-green-500 text-white shadow-xl shadow-green-500/30 flex items-center justify-center hover:scale-110 transition active:scale-95 animate-in zoom-in duration-300 group"
                  >
-                     <Play size={20} fill="white" className="ml-1" />
+                     <Play size={24} fill="white" className="ml-1 group-active:scale-90 transition-transform" />
                  </button>
              )}
          </div>
@@ -1118,9 +1127,8 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
   );
 });
 
-
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
-function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId }) {
+function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, onPlayVideo, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onPlayArticle }) {
   const [category, setCategory] = useState('Tudo');
   const feedContainerRef = useRef(null);
   useEffect(() => {
@@ -1344,6 +1352,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
               isLiked={likedItems?.includes(news.id)}
               onToggleLike={onToggleLike}
               isViewedFromStory={news.id === viewedInStoryId}
+              onPlay={onPlayArticle} // Passa para o card
             />
         ))}
       </div>
@@ -4123,6 +4132,18 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const [duration, setDuration] = useState(0);
   const [isYoutube, setIsYoutube] = useState(false);
 
+if (track.isGenerating) {
+      return (
+        <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-6 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 flex items-center gap-4 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
+            <Loader2 size={24} className="animate-spin text-purple-500" />
+            <div>
+                <h4 className="text-sm font-bold animate-pulse">Sintetizando Voz Neural...</h4>
+                <p className="text-[10px] opacity-60">Usando Google Cloud TTS</p>
+            </div>
+        </div>
+      );
+  }
+
   // Extração de ID à prova de falhas
   const ytId = useMemo(() => {
       if (!track) return null;
@@ -5409,7 +5430,63 @@ const handleReadNative = useCallback(async (article) => {
   }, [isDarkMode, readHistory]);
 
 
+// --- FUNÇÃO DE ÁUDIO SOB DEMANDA (CHAVE 6) ---
+  const handlePlayAudio = async (article) => {
+      if (!article) return;
+      
+      // Se já for um podcast nativo ou MP3, toca direto
+      if (article.enclosure?.url || article.link?.endsWith('.mp3')) {
+          setPlayingAudio({ ...article, link: article.enclosure?.url || article.link });
+          return;
+      }
 
+      // Se for vídeo, abre o navegador
+      if (article.videoId || article.link.includes('youtube')) {
+          handleReadNative(article);
+          return;
+      }
+
+      // PARA NOTÍCIAS DE TEXTO -> GERAÇÃO TTS
+      // 1. Pega a Chave 6 (Áudio Pago)
+      const audioKey = getApiKey('audio');
+      if (!audioKey) {
+          alert("Configure a Chave 6 (Áudio) nas configurações para ouvir este artigo.");
+          return;
+      }
+
+      // 2. Feedback visual imediato (Otimista)
+      // Definimos um objeto temporário para abrir o player carregando
+      setPlayingAudio({ 
+          ...article, 
+          title: "Gerando áudio neural...", 
+          isGenerating: true // Flag para mostrar spinner no player
+      });
+
+      try {
+          // 3. Chama a função do Supabase (que usa Gemini p/ roteiro + Google TTS p/ áudio)
+          const { data, error } = await supabase.functions.invoke('generate-audio-briefing', {
+              body: { 
+                  article: article,
+                  voiceKey: audioKey, // Passa a chave segura
+                  textKey: getApiKey('analysis') // Passa a chave de texto para o roteiro
+              }
+          });
+
+          if (error || !data?.audioUrl) throw new Error("Falha ao gerar áudio");
+
+          // 4. Sucesso! Atualiza o player com a URL real
+          setPlayingAudio({
+              ...article,
+              link: data.audioUrl,
+              isGenerating: false
+          });
+
+      } catch (err) {
+          console.error(err);
+          alert("Não foi possível gerar o áudio. Verifique suas cotas.");
+          setPlayingAudio(null); // Fecha o player
+      }
+  };
   
 
 
@@ -5644,6 +5721,7 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
                     sourceFilter={sourceFilter}
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}
+                    onPlayArticle={handlePlayAudio} 
                     onToggleLike={handleToggleLike}
                       onCategoryChange={() => {
                         if (mainRef.current) {
