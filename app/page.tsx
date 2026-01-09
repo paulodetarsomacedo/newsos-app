@@ -6539,6 +6539,7 @@ const prompt = `
                             <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
                             <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
                             <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
+                            <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
                         </div>
                     )}
                     {viewMode === 'drilldown' && focusedNode && (
