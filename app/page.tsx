@@ -1133,14 +1133,14 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
                 {/* LOGO SOLTO */}
                 <img 
                     src={news.logo} 
-                    className="relative z-10 -mt-0.5 w-12 h-12 rounded-lg bg-white p-0.5 shadow-lg border border-white/40" 
+                    className="relative z-10 -mt-0.5 w-11 h-11 rounded-lg bg-white p-0.5 shadow-lg border border-white/40" 
                     onError={(e) => e.target.style.display = 'none'} 
                 />
                 {/* PÍLULA APENAS NO NOME */}
-                <div className="-ml-3 pl-5   bg-black/20 backdrop-blur-md px-1 rounded-r-md border border-white/10 shadow-lg flex items-center justify-center h-fit">
+                <div className="-ml-3 pl-5 pr-2 py-2  bg-black/20 backdrop-blur-md px-1 rounded-r-md border border-white/10 shadow-lg flex items-center justify-center h-fit">
                     <span className="text-[10px] font-black text-white uppercase tracking-wider">{news.source}</span>
                 </div>
-                <div className="ml-2 bg-black/20 backdrop-blur-md px-1 rounded-md border border-white/5">
+                <div className="ml-2 pr-2 py-2 pl-5 bg-black/20 backdrop-blur-md px-1 rounded-md border border-white/5">
                     <span className="text-[10px] font-bold text-white">{displayTime}</span>
                 </div>
             </div>
