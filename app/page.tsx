@@ -1066,6 +1066,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
                 <X size={20} />
             </button>
         </div>
+        <style jsx="true">{`@keyframes music-bar { 0%, 100% { height: 20%; } 50% { height: 100%; } }`}</style>
     </div>
   );
 
@@ -1077,79 +1078,65 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       `}
     >
       
-      {/* CABEÇALHO (Logo, Nome, Hora) */}
-      <div className={`px-5 py-3 flex items-center justify-between rounded-t-[2.5rem] border-b ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-100'}`}>
-          <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl p-1 border shadow-sm ${isDarkMode ? 'bg-zinc-800 border-white/10' : 'bg-zinc-100 border-zinc-200'}`}>
-                  <img src={news.logo} className="w-full h-full object-contain rounded-lg" onError={(e) => e.target.style.display = 'none'} />
-              </div>
-              <div className={`h-8 flex items-center px-4 rounded-full border ${isDarkMode ? 'bg-zinc-800 border-white/10 text-zinc-300' : 'bg-zinc-100 border-zinc-200 text-zinc-700'}`}>
-                  <span className="text-[10px] font-black uppercase tracking-widest">{news.source}</span>
-              </div>
-          </div>
-          <div className={`px-3 py-1 rounded-full border ${isDarkMode ? 'bg-zinc-800 border-white/10 text-zinc-400' : 'bg-white border-zinc-100 text-zinc-400'}`}>
-              <span className="text-[10px] font-bold">{displayTime}</span>
-          </div>
-      </div>
-
-      {/* ÁREA DE IMAGEM */}
-      <div onClick={() => onClick(news)} className="relative h-80 w-full cursor-pointer overflow-hidden bg-gray-200 dark:bg-zinc-800">
+      {/* 1. ÁREA DE IMAGEM */}
+      <div onClick={() => onClick(news)} className="relative h-80 w-full cursor-pointer overflow-hidden rounded-[2.5rem] bg-gray-200 dark:bg-zinc-800">
         <SmartImage 
             src={news.img} title={news.title} logo={news.logo} sourceName={news.source} isDarkMode={isDarkMode} 
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
-      </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
 
-      {/* PÍLULA CENTRAL */}
-      <div className="absolute top-[352px] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-2xl rounded-full p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
-          <button onClick={(e) => { e.stopPropagation(); onClick(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors flex items-center gap-2">
-             Ler
-          </button>
-          <div className="w-[1px] bg-white/10 my-1 mx-1"></div>
-          <button onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg flex items-center gap-2">
-             <Sparkles size={14} className="text-yellow-300 animate-pulse" /> Analisar
-          </button>
-      </div>
+        {/* Cabeçalho com Hora ao lado da Fonte */}
+        <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
+            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                <img src={news.logo} className="w-5 h-5 rounded-full bg-white" onError={(e) => e.target.style.display = 'none'} />
+                <span className="text-[10px] font-black text-white uppercase tracking-wider">{news.source}</span>
+            </div>
+            <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/5">
+                <span className="text-[9px] font-bold text-white">{displayTime}</span>
+            </div>
+        </div>
 
-      {/* ÁREA DE TEXTO E AÇÕES (RESTAURADA) */}
-      <div className="relative px-5 pt-12 pb-5 flex gap-4">
-         <div onClick={() => onClick(news)} className="flex-1 min-w-0 cursor-pointer">
-             <h3 className={`text-lg font-black leading-tight mb-3 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+        {/* Pílula Central */}
+        <div className="absolute top-[320px] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-2xl rounded-full p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
+          <button onClick={(e) => { e.stopPropagation(); onClick(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors">Ler</button>
+          <div className="w-[1px] bg-white/10 my-1"></div>
+          <button onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg"><Sparkles size={14} className="mr-2 inline text-yellow-300 animate-pulse" /> Analisar</button>
+      </div>
+      </div>
+      
+      {/* 2. ÁREA DE TEXTO COMPACTA */}
+      <div className="relative px-5 pt-10 pb-3 flex flex-col">
+        {/* Botões de Ação no Canto Superior Direito */}
+        <div className="absolute top-4 right-4 flex flex-col items-center gap-3 z-20">
+            <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`transition-all active:scale-90 ${isLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
+                <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
+                <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
+            </button>
+            {isPlayable && (
+                <button onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-md group ${isCurrentPlaying ? 'bg-purple-600' : 'bg-green-500'}`}>
+                    {isGenerating ? (<Loader2 size={14} className="text-white animate-spin" />) : isCurrentPlaying ? (<Pause size={14} fill="white"/>) : (<Play size={14} fill="white" className="ml-0.5" />)}
+                </button>
+            )}
+        </div>
+
+        <div onClick={() => onClick(news)} className="pr-12 cursor-pointer">
+             <h3 className={`text-lg font-black leading-tight mb-2 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                  {news.title}
              </h3>
-             <p className={`text-sm font-serif leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'} line-clamp-3`}>
+             <p className={`text-sm font-serif leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'} line-clamp-2`}>
                  {news.summary}
              </p>
-         </div>
-         <div className="flex flex-col items-center gap-3 pl-3 border-l border-dashed border-zinc-200 dark:border-zinc-800/50 min-w-[40px] justify-center">
-         {/* 1. INDICADOR DE LIDO (NOVO) */}
-             {isRead && (
-                 <div className="mb-2 opacity-60 group-hover:opacity-100 transition-opacity" title="Você já leu esta notícia"> 
-        <div className="px-2 py-0.5 bg-orange-600 rounded-full text-center">
-            <span className="text-[8px] font-black text-white uppercase tracking-wider">Lido</span>
         </div>
-    
-    </div>
-             )}
-             <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
-                 <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
-             </button>
-             <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`transition-all active:scale-90 ${isLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
-                 <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
-             </button>
-             {isPlayable && (
-                 <button onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} className="w-10 h-10 rounded-full bg-green-500 text-white shadow-lg flex items-center justify-center hover:scale-110 transition active:scale-95 mt-1">
-                     <Play size={16} fill="white" className="ml-0.5" />
-                 </button>
-             )}
-         </div>
       </div>
 
       {isCurrentPlaying && <InlinePlayer />}
     </div>
   );
 });
+
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onReadArticle, onGenerateAudio }) {
