@@ -1039,6 +1039,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
 
+  // --- FUNÇÃO InlinePlayer COMPLETA E RESTAURADA ---
   const InlinePlayer = () => (
     <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
         <div className="p-4 flex items-center gap-4">
@@ -1047,6 +1048,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
                 className="w-12 h-12 flex-shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform"
             >
                 {isGenerating ? <Loader2 size={20} className="animate-spin"/> : (
+                    // Se estiver tocando, mostra o equalizador
                     <div className="flex gap-1 items-end h-4">
                         <div className="w-1 bg-white animate-[music-bar_0.6s_ease-in-out_infinite]"></div>
                         <div className="w-1 bg-white animate-[music-bar_0.8s_ease-in-out_infinite]"></div>
@@ -1097,22 +1099,12 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
             </div>
         </div>
 
-        {/* Pílula Central */}
-        <div className="absolute top-[320px] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-2xl rounded-full p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
-          <button onClick={(e) => { e.stopPropagation(); onClick(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors">Ler</button>
-          <div className="w-[1px] bg-white/10 my-1"></div>
-          <button onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg"><Sparkles size={14} className="mr-2 inline text-yellow-300 animate-pulse" /> Analisar</button>
-      </div>
-      </div>
-      
-      {/* 2. ÁREA DE TEXTO COMPACTA */}
-      <div className="relative px-5 pt-10 pb-3 flex flex-col">
-        {/* Botões de Ação no Canto Superior Direito */}
+        {/* Botões no Canto Superior Direito */}
         <div className="absolute top-4 right-4 flex flex-col items-center gap-3 z-20">
-            <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`transition-all active:scale-90 ${isLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
+            <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-2 rounded-full bg-black/40 backdrop-blur-md transition-all active:scale-90 ${isLiked ? 'text-rose-500' : 'text-white/80 hover:text-white'}`}>
                 <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
             </button>
-            <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-zinc-400'}`}>
+            <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2 rounded-full bg-black/40 backdrop-blur-md transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-white/80 hover:text-white'}`}>
                 <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
             </button>
             {isPlayable && (
@@ -1122,7 +1114,17 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
             )}
         </div>
 
-        <div onClick={() => onClick(news)} className="pr-12 cursor-pointer">
+        {/* Pílula Central */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-2xl rounded-full p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
+          <button onClick={(e) => { e.stopPropagation(); onClick(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors">Ler</button>
+          <div className="w-[1px] bg-white/10 my-1"></div>
+          <button onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg"><Sparkles size={14} className="mr-2 inline text-yellow-300 animate-pulse" /> Analisar</button>
+      </div>
+      </div>
+      
+      {/* 2. ÁREA DE TEXTO COMPACTA */}
+      <div className="relative px-5 pt-4 pb-3 flex flex-col">
+        <div onClick={() => onClick(news)} className="cursor-pointer pr-12">
              <h3 className={`text-lg font-black leading-tight mb-2 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                  {news.title}
              </h3>
@@ -1136,7 +1138,6 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     </div>
   );
 });
-
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onReadArticle, onGenerateAudio }) {
