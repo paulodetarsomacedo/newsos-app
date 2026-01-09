@@ -6522,32 +6522,42 @@ const prompt = `
         )}
         {loadingState === 'complete' && aiData && (
             <div className="flex-1 overflow-y-auto relative scrollbar-hide">
-               {/* --- HEADER IMERSIVO (CORRIGIDO COM Z-INDEX) --- */}
-                {/* Adicionamos 'sticky top-0 z-20' para mantê-lo no topo e acima de tudo */}
+               {/* --- HEADER IMERSIVO ÚNICO E FUNCIONAL --- */}
                 <div className="relative h-72 w-full flex-shrink-0 sticky top-0 z-20">
                     <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" />
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
                     
-                    {/* Toolbar */}
+                    {/* Toolbar com TODOS os botões */}
                     <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">
-                        {/* ... (Botão "Voltar à Análise" mantido) ... */}
-                        <div className="flex-1"></div> {/* Espaçador */}
                         <div className="flex gap-2">
-                           {/* ... (Botões Salvar e Fechar mantidos) ... */}
+                            {viewMode === 'magic' && (
+                                <button onClick={() => setViewMode('drilldown')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2">
+                                    <BrainCircuit size={14}/> Voltar à Análise
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex gap-2">
+                           <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full backdrop-blur-md border ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}>
+                                <Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/>
+                            </button>
+                           <button onClick={onClose} className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20">
+                                <X size={20}/>
+                           </button>
                         </div>
                     </div>
 
-                    {/* Conteúdo do Header (Logo, Fonte, Título) */}
+                    {/* Conteúdo do Header */}
                     <div className="absolute bottom-8 left-6 right-6 z-10">
-                        <div className="flex items-center gap-3 mb-3">
-                            <img src={article.logo} className="w-8 h-8 rounded-full border-2 border-white/20 bg-white"/>
-                            <span className="text-sm font-bold text-indigo-400 uppercase tracking-widest">{article.source}</span>
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="w-12 h-12 rounded-2xl border-2 border-white/20 bg-white p-1 shadow-lg">
+                                <img src={article.logo} className="w-full h-full object-contain rounded-lg"/>
+                            </div>
+                            <span className="text-lg font-black text-indigo-400 uppercase tracking-widest drop-shadow-lg">{article.source}</span>
                         </div>
                         <h1 className="text-3xl md:text-4xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
                     </div>
                 </div>
-                <div className="relative h-72 w-full flex-shrink-0"><img src={article.img} className="w-full h-full object-cover opacity-60" /><div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" /><div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">{viewMode === 'magic' && (<button onClick={() => setViewMode('drilldown')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2"><BrainCircuit size={14}/> Voltar</button>)}<div className="flex-1"></div><button onClick={onClose} className="p-3 bg-white/10 rounded-full text-white"><X size={20}/></button></div><div className="absolute bottom-6 left-6 text-white"><h1 className="text-2xl font-black">{article.title}</h1></div></div>
-                <div className="relative z-10 px-4 py-2 space-y-10 pb-40">
+                               <div className="relative z-10 px-4 py-2 space-y-10 pb-40">
                   
                     {viewMode === 'analysis' && (
                         <div className="animate-in fade-in">
