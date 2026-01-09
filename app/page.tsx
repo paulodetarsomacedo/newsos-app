@@ -6490,47 +6490,54 @@ const DeepDiveWidget = ({ topic, isDarkMode }) => (
 // 1. NOVO COMPONENTE AUXILIAR: LoadingStep (A Barra de Progresso)
 // ==============================================================================
 
-const LoadingStep = ({ title, isActive, isComplete, duration }) => {
-    // Hooks para o efeito de texto "digitando"
+const LoadingStep = ({ title, isActive, isComplete }) => {
+    // Texto digitando (mantemos o efeito visual)
     const [displayText, setDisplayText] = useState('');
 
     useEffect(() => {
-        // Se a etapa não estiver ativa, reseta o texto para o título completo se já foi completada
-        if (!isActive) {
-            if(isComplete) setDisplayText(title);
+        if (!isActive && !isComplete) {
+            setDisplayText('');
             return;
         }
-
-        // Se a etapa se tornou ativa, começa o efeito de digitação
-        setDisplayText(''); // Reseta o texto
-        let i = 0;
-        const interval = setInterval(() => {
-            setDisplayText(prev => title.substring(0, i + 1));
-            i++;
-            if (i > title.length) {
-                clearInterval(interval);
-            }
-        }, 50); // Velocidade da "digitação"
-
-        return () => clearInterval(interval);
+        if (isComplete && !displayText) {
+            setDisplayText(title);
+            return;
+        }
+        if (isActive && !isComplete) {
+            let i = 0;
+            const interval = setInterval(() => {
+                setDisplayText(title.substring(0, i + 1));
+                i++;
+                if (i > title.length) clearInterval(interval);
+            }, 30); // Digitação mais rápida para acompanhar processos reais
+            return () => clearInterval(interval);
+        }
     }, [isActive, isComplete, title]);
 
     return (
         <div className="flex items-center gap-4 w-full">
-            <div className={`flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${isComplete ? 'border-green-500 bg-green-500/20' : (isActive ? 'border-purple-500' : 'border-zinc-700')}`}>
-                {isComplete ? <Check size={16} className="text-green-500"/> : <Loader2 size={16} className={`transition-opacity ${isActive ? 'animate-spin text-purple-500' : 'opacity-20 text-zinc-500'}`} />}
+            <div className={`
+                flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-300
+                ${isComplete 
+                    ? 'border-green-500 bg-green-500/20 scale-110' 
+                    : (isActive ? 'border-purple-500 scale-100' : 'border-zinc-700 scale-90 opacity-50')}
+            `}>
+                {isComplete ? <Check size={16} className="text-green-500"/> : <Loader2 size={16} className={`transition-opacity ${isActive ? 'animate-spin text-purple-500' : 'opacity-0'}`} />}
             </div>
             <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium transition-colors h-5 ${isActive || isComplete ? 'text-white' : 'text-zinc-600'}`}>
-                    {displayText}
+                    {isComplete ? title : displayText}
                     {isActive && !isComplete && <span className="animate-ping">_</span>}
                 </p>
+                
+                {/* BARRA DE PROGRESSO INTELIGENTE */}
                 <div className="mt-2 h-1 w-full bg-white/10 rounded-full overflow-hidden">
                     <div 
-                        className={`h-full rounded-full transition-transform ease-linear ${isComplete ? 'bg-green-500' : 'bg-gradient-to-r from-indigo-500 to-purple-500'}`}
+                        className={`h-full rounded-full ${isComplete ? 'bg-green-500' : 'bg-gradient-to-r from-indigo-500 to-purple-500'}`}
                         style={{ 
-                            transform: `translateX(${isActive || isComplete ? '0%' : '-100%'})`,
-                            transitionDuration: isActive ? `${duration}ms` : '500ms'
+                            width: isComplete ? '100%' : (isActive ? '85%' : '0%'),
+                            // Se estiver ativo, cresce devagar até 85% (simula espera). Se completar, voa para 100% em 200ms.
+                            transition: isComplete ? 'width 0.3s ease-out' : (isActive ? 'width 15s cubic-bezier(0.1, 0.7, 1.0, 0.1)' : 'none')
                         }}
                     ></div>
                 </div>
@@ -6555,7 +6562,10 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [showCenterModal, setShowCenterModal] = useState(false);
 
 
-  
+// 1. Estado de Etapas (Começa em -1 para 'nenhum')
+  const [loadingStep, setLoadingStep] = useState(0);
+
+  // EFEITO DE LIMPEZA (Reseta tudo ao abrir)
   useEffect(() => {
       if (isOpen && article) {
           setAiData(null);
@@ -6565,24 +6575,44 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setFocusedNode(null);
           setHighlightRequest(null);
           setShowCenterModal(false);
+          
+          // Zera os passos visuais
+          setLoadingStep(0);
+          
           runSuperPrompt();
       }
   }, [article?.id, isOpen]);
 
+  // A NOVA FUNÇÃO SINCRONIZADA COM A REALIDADE
   const runSuperPrompt = useCallback(async () => {
       if (!apiKey || !article.link) {
           setLoadingState('error');
           return;
       }
+      
       try {
-          setLoadingState('extracting');
+          // --- ETAPA 0: CONEXÃO ---
+          // Começa imediatamente
+          setLoadingStep(0); 
+          
+          // Pequeno delay artificial (500ms) só para o usuário ler "Conectando..." 
+          // senão é rápido demais e parece glitch
+          await new Promise(r => setTimeout(r, 600));
+
+          // --- ETAPA 1: EXTRAÇÃO (SUPABASE/PROXY) ---
+          setLoadingStep(1); // Atualiza a barra visual para "Extraindo..."
+          
           const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+          
           if (proxyError || !proxyData?.reader?.content) throw new Error("Falha na extração de texto");
           
           const fullText = proxyData.reader.textContent;
           setReaderContent(proxyData.reader); 
 
-          setLoadingState('analyzing');
+          // --- ETAPA 2: ANÁLISE (GEMINI) ---
+          setLoadingStep(2); // Atualiza a barra visual para "Processando parâmetros..."
+          setLoadingState('analyzing'); // Mantém estado interno
+
 const prompt = `
   Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
   
@@ -6623,16 +6653,35 @@ const prompt = `
  "future": { "optimistic": "...", "pessimistic": "...", "probable": "..." } } TEXTO: ${fullText.slice(0, 25000)}`;
           
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
+              method: "POST", 
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
           });
+          
           const jsonRes = await response.json();
           if (!response.ok) throw new Error(jsonRes.error?.message);
+
+          // --- ETAPA 3: SÍNTESE (JSON PARSE) ---
+          setLoadingStep(3); // Atualiza a barra visual para "Sintetizando..."
+          
+          // Parsing é muito rápido, damos um delay minúsculo para a animação da barra anterior terminar
+          await new Promise(r => setTimeout(r, 400));
+
           const textRes = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text;
           const finalData = JSON.parse(textRes.replace(/```json/g, '').replace(/```/g, '').trim());
+          
           setAiData(finalData);
+          
+          // --- FINALIZAÇÃO ---
+          // Marca tudo como completo
+          setLoadingStep(4); 
+          await new Promise(r => setTimeout(r, 800)); // Deixa o usuário ver todas as barras verdes por um instante
           setLoadingState('complete');
-      } catch (err) { setLoadingState('error'); }
+
+      } catch (err) { 
+          console.error(err);
+          setLoadingState('error'); 
+      }
   }, [apiKey, article]);
 
 
@@ -6655,27 +6704,7 @@ const handleNodeClick = useCallback((nodeName, position) => {
       setViewMode('magic'); 
   }, []);
 
-    // --- NOVO ESTADO PARA CONTROLAR AS ETAPAS DO LOADING ---
-    const [loadingStep, setLoadingStep] = useState(0);
-
-    // Efeito para avançar as etapas do loading
-    useEffect(() => {
-        if (loadingState === 'extracting' || loadingState === 'analyzing') {
-            const stepDuration = 7500; // 7.5 segundos por barra
-            setLoadingStep(0); // Garante que começa do zero
-
-            const timers = [
-                setTimeout(() => setLoadingStep(1), stepDuration * 1),
-                setTimeout(() => setLoadingStep(2), stepDuration * 2),
-                setTimeout(() => setLoadingStep(3), stepDuration * 3),
-            ];
-
-            // Limpa os timers se o componente for desmontado ou o loading terminar
-            return () => timers.forEach(clearTimeout);
-        }
-    }, [loadingState]); // Roda apenas quando o loading começa
-
-  if (!isOpen) return null;
+    
 
 
   
@@ -6713,31 +6742,28 @@ return (
                 </div>
 
                 {/* As 4 Barras Sequenciais */}
-                <div className="w-full max-w-sm space-y-6">
+            <div className="w-full max-w-sm space-y-6">
                     <LoadingStep 
                         title="Estabelecendo conexão neural segura..." 
-                        isActive={loadingStep >= 0} 
-                        isComplete={loadingStep > 0}
-                        duration={7500} 
+                        isActive={loadingStep === 0} 
+                        isComplete={loadingStep > 0} 
                     />
                     <LoadingStep 
                         title="Extraindo e sanitizando dados-fonte..." 
-                        isActive={loadingStep >= 1} 
-                        isComplete={loadingStep > 1}
-                        duration={7500} 
+                        isActive={loadingStep === 1} 
+                        isComplete={loadingStep > 1} 
                     />
                     <LoadingStep 
-                        title="Processando com 1.7M de parâmetros..." 
-                        isActive={loadingStep >= 2} 
-                        isComplete={loadingStep > 2}
-                        duration={7500} 
+                        title="Processando dados e informações com 1.7M de parâmetros..." 
+                        isActive={loadingStep === 2} 
+                        isComplete={loadingStep > 2} 
                     />
                     <LoadingStep 
                         title="Sintetizando briefing de inteligência..." 
-                        isActive={loadingStep >= 3} 
-                        isComplete={loadingState === 'complete'}
-                        duration={7500} 
+                        isActive={loadingStep === 3} 
+                        isComplete={loadingStep > 3} 
                     />
+                  
                 </div>
                 
                 <button onClick={onClose} className="absolute bottom-8 text-zinc-600 text-xs hover:text-white transition-colors">Cancelar Análise</button>
