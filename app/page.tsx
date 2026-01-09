@@ -5907,34 +5907,37 @@ return (
 
       {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (AGORA AO LADO) --- */}
       <div 
-            ref={panelDivRef} // Ref para o resize performático
+            ref={panelDivRef}
             className="relative shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
             style={{ 
-                // Se não tem artigo, a largura é 0 (conserta o bug da tela inicial)
                 width: selectedArticle ? `${panelWidth}px` : '0px',
-                // Mantemos o translate para animação bonita, mas a largura 0 é o que esconde o espaço
                 transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
-                // Evita que o painel "estoure" a tela se for maior que a janela
                 maxWidth: '100vw' 
             }}
         >
             {/* 
-                ALÇA DE RESIZE 
-                Só renderiza se tiver artigo selecionado (selectedArticle &&)
+                --- CORREÇÃO DO INDICADOR DE RESIZE --- 
+                Agora ele fica 'flutuando' sobre a borda esquerda, impossível de ser cortado.
             */}
             {selectedArticle && (
                 <div 
                     onPointerDown={handleResizePointerDown}
-                    // Posicionada na borda esquerda do painel
-                    className="absolute top-0 bottom-0 -left-3 w-6 z-[100] group cursor-ew-resize flex items-center justify-center outline-none touch-none hover:w-8 transition-all"
+                    // Aumentei a área de clique (w-10) e coloquei z-index máximo
+                    className="absolute top-0 bottom-0 left-0 w-10 z-[9999] cursor-ew-resize flex items-center justify-start pl-2 group touch-none"
                 >
-                    {/* Visual da Alça (Pílula Flutuante) */}
+                    {/* O Visual da "Pílula" (Handle) */}
                     <div className={`
-                        relative w-1.5 h-16 rounded-full transition-all duration-300
+                        flex items-center justify-center
+                        h-24 w-5 rounded-full 
+                        backdrop-blur-xl border shadow-[0_0_15px_rgba(0,0,0,0.2)]
+                        transition-all duration-300
                         ${isDarkMode 
-                            ? 'bg-zinc-700 group-hover:bg-purple-500 group-hover:w-2 group-hover:shadow-[0_0_15px_rgba(168,85,247,0.5)]' 
-                            : 'bg-zinc-300 group-hover:bg-purple-500 group-hover:w-2'}
-                    `}></div>
+                            ? 'bg-black/60 border-white/20 text-white/50 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-400' 
+                            : 'bg-white/60 border-white/40 text-black/40 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-400'}
+                    `}>
+                        {/* Ícone de "agarrar" para ficar óbvio */}
+                        <GripVertical size={14} />
+                    </div>
                 </div>
             )}
 
