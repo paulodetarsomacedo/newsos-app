@@ -5482,7 +5482,6 @@ const handleStoryNavigation = (direction) => {
 
   const handleOpenArticle = async (article) => {
     if (!article || !article.link) return;
-    setPanelWidth(window.innerWidth); 
 
     const url = article.link;
 
@@ -5740,7 +5739,7 @@ const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedSto
 
 return (
     // ESTRUTURA PRINCIPAL AGORA É FLEX PARA ACOMODAR O PAINEL LATERAL
-    <div className={`h-[100dvh] font-sans relative overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
+    <div className={`h-[100dvh] font-sans flex overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       
       {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
       
@@ -5881,28 +5880,20 @@ return (
         </div>
       </div>
 
-    {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (CORRIGIDO PARA RESIZE) --- */}
+      {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (AGORA AO LADO) --- */}
       <div 
-           // A largura é controlada pelo estado 'panelWidth'
-            style={{ width: `${panelWidth}px` }}
-            // O painel se esconde/mostra usando 'transform'
-            className={`
-                absolute top-0 bottom-0 right-0 h-full
-                transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-2xl
-                ${selectedArticle ? 'translate-x-0' : 'translate-x-full'}
-            `}
+            className="relative transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] shadow-2xl"
+            style={{ 
+                transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
+                width: selectedArticle ? `${panelWidth}px` : '0px' 
+            }}
         >
-            {/* O INDICADOR DE RESIZE (Sempre visível quando aberto) */}
-            {selectedArticle && (
-                <div 
-                    onPointerDown={handleResizePointerDown}
-                    className="absolute top-0 left-0 -translate-x-1/2 w-4 h-full z-50 group cursor-ew-resize flex items-center justify-center"
-                >
-                    <div className={`w-1 h-24 rounded-full transition-all duration-300 ${isDarkMode ? 'bg-zinc-800 group-hover:bg-purple-500' : 'bg-zinc-300 group-hover:bg-purple-500'}`}></div>
-                </div>
-            )}
-
-            {/* O PAINEL EM SI */}
+            <div 
+                onPointerDown={handleResizePointerDown}
+                className="absolute top-0 left-0 -translate-x-1/2 w-4 h-full z-50 group cursor-ew-resize flex items-center justify-center"
+            >
+                <div className={`w-1 h-24 rounded-full transition-all duration-300 ${isDarkMode ? 'bg-zinc-800 group-hover:bg-purple-500' : 'bg-zinc-300 group-hover:bg-purple-500'}`}></div>
+            </div>
             {selectedArticle && (
                 <ArticlePanel 
                     article={selectedArticle} 
@@ -6617,12 +6608,7 @@ const handleNodeClick = useCallback((nodeName, position) => {
 
   
 return (
-<div className={`
-    h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden
-    ${isDarkMode 
-        ? 'bg-zinc-900/80 backdrop-blur-2xl border-l border-white/10' 
-        : 'bg-white/80 backdrop-blur-2xl border-l border-zinc-200'}
-`}>
+  <div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} border-l-2 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
 <style jsx="true">{`
             @keyframes spin-slow { to { transform: rotate(360deg); } }
             .animate-spin-slow { animation: spin-slow 20s linear infinite; }
