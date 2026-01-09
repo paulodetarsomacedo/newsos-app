@@ -6228,7 +6228,7 @@ const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
     <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 animate-in zoom-in-95 duration-200">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
         
-        <div className={`relative w-full max-w-lg p-6 rounded-3xl shadow-2xl border flex flex-col ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+        <div className={`relative w-full max-w-[90vw] p-6 rounded-3xl shadow-2xl border flex flex-col ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
             
             <div className="flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mb-4">
@@ -6444,6 +6444,8 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [readerContent, setReaderContent] = useState(null); 
   const [showCenterModal, setShowCenterModal] = useState(false);
 
+
+  
   useEffect(() => {
       if (isOpen && article) {
           setAiData(null);
@@ -6523,6 +6525,8 @@ const prompt = `
       } catch (err) { setLoadingState('error'); }
   }, [apiKey, article]);
 
+
+  
 const handleNodeClick = useCallback((nodeName, position) => {
       if (!aiData?.contextualTerms) return;
       
@@ -6541,25 +6545,94 @@ const handleNodeClick = useCallback((nodeName, position) => {
       setViewMode('magic'); 
   }, []);
 
+    // --- NOVO ESTADO PARA CONTROLAR AS ETAPAS DO LOADING ---
+    const [loadingStep, setLoadingStep] = useState(0);
+
+    // Efeito para avançar as etapas do loading
+    useEffect(() => {
+        if (loadingState === 'extracting' || loadingState === 'analyzing') {
+            const stepDuration = 7500; // 7.5 segundos por barra
+            setLoadingStep(0); // Garante que começa do zero
+
+            const timers = [
+                setTimeout(() => setLoadingStep(1), stepDuration * 1),
+                setTimeout(() => setLoadingStep(2), stepDuration * 2),
+                setTimeout(() => setLoadingStep(3), stepDuration * 3),
+            ];
+
+            // Limpa os timers se o componente for desmontado ou o loading terminar
+            return () => timers.forEach(clearTimeout);
+        }
+    }, [loadingState]); // Roda apenas quando o loading começa
+
   if (!isOpen) return null;
 
+
+  
 return (
     <div className={`fixed inset-0 z-[5000] flex flex-col ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} animate-in slide-in-from-bottom-10 duration-300`}>
-        {/* --- TELA DE LOADING --- */}
-        {(loadingState === 'extracting' || loadingState === 'analyzing') && (
-            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black">
-                <div className="relative w-32 h-32 mb-8">
-                    <div className="absolute inset-0 border-t-4 border-purple-500 rounded-full animate-spin" />
-                    <div className="absolute inset-4 border-r-4 border-blue-500 rounded-full animate-spin-reverse" />
-                    <div className="absolute inset-0 flex items-center justify-center"><BrainCircuit size={48} className="text-white animate-pulse"/></div>
+<style jsx="true">{`
+            @keyframes spin-slow { to { transform: rotate(360deg); } }
+            .animate-spin-slow { animation: spin-slow 20s linear infinite; }
+            @keyframes spin-reverse-slow { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+            .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
+        `}</style>
+      
+        {/* --- A NOVA TELA DE LOADING SUBSTITUI A ANTIGA --- */}
+          {(loadingState === 'extracting' || loadingState === 'analyzing') && (
+         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black p-8">
+                
+                {/* --- BLOCO CORRIGIDO: LOGO E TÍTULO COM ANIMAÇÃO --- */}
+                <div className="flex flex-col items-center mb-12 text-center">
+                    <div className="relative w-24 h-24 mb-6">
+                        {/* A Aura Pulsante */}
+                        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full blur-2xl opacity-50 animate-pulse"></div>
+                        
+                        {/* As Órbitas Girando */}
+                        <div className="absolute inset-[-10px] border-t-2 border-white/20 rounded-full animate-spin-slow"></div>
+                        <div className="absolute inset-[-20px] border-b-2 border-blue-400/20 rounded-full animate-spin-reverse-slow"></div>
+
+                        {/* O Cérebro no Centro */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <BrainCircuit size={40} className="text-white animate-pulse" style={{ animationDuration: '2s' }}/>
+                        </div>
+                    </div>
+                    <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
+                        NEWS OS <span className="text-white">INTELLIGENCE</span>
+                    </h3>
                 </div>
-                <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 animate-pulse tracking-tighter">NEWS OS <span className="text-white">INTELLIGENCE</span></h3>
-                <p className="text-zinc-500 text-xs mt-4 font-mono uppercase tracking-[0.3em] animate-bounce">
-                    {loadingState === 'extracting' ? 'Lendo Fonte Original...' : 'Sintetizando Dados...'}
-                </p>
-                <button onClick={onClose} className="mt-8 text-zinc-600 text-xs hover:text-white">Cancelar</button>
+
+                {/* As 4 Barras Sequenciais */}
+                <div className="w-full max-w-sm space-y-6">
+                    <LoadingStep 
+                        title="Estabelecendo conexão neural segura..." 
+                        isActive={loadingStep >= 0} 
+                        isComplete={loadingStep > 0}
+                        duration={7500} 
+                    />
+                    <LoadingStep 
+                        title="Extraindo e sanitizando dados-fonte..." 
+                        isActive={loadingStep >= 1} 
+                        isComplete={loadingStep > 1}
+                        duration={7500} 
+                    />
+                    <LoadingStep 
+                        title="Processando com 1.7M de parâmetros..." 
+                        isActive={loadingStep >= 2} 
+                        isComplete={loadingStep > 2}
+                        duration={7500} 
+                    />
+                    <LoadingStep 
+                        title="Sintetizando briefing de inteligência..." 
+                        isActive={loadingStep >= 3} 
+                        isComplete={loadingState === 'complete'}
+                        duration={7500} 
+                    />
+                </div>
+                
+                <button onClick={onClose} className="absolute bottom-8 text-zinc-600 text-xs hover:text-white transition-colors">Cancelar Análise</button>
             </div>
-        )}
+          )}
         
         {/* --- TELA DE ERRO --- */}
         {loadingState === 'error' && (
@@ -6671,6 +6744,8 @@ return (
             </div>
         )}
         {showCenterModal && aiData && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
+    
+    
     </div>
   );
 });
