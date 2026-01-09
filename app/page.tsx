@@ -1251,13 +1251,22 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
     setStartY(0);
   };
 
-  const handleLocalPlay = useCallback(async (article) => {
+const handleLocalPlay = useCallback(async (article) => {
+    // 1. CORREÇÃO ANTI-CRASH: Se receber null, simplesmente para tudo.
+    if (!article) {
+        setLocalPlayingAudio(null);
+        setAudioUrl('');
+        return;
+    }
+    
+    // 2. CORREÇÃO DE PAUSA: Se clicar no mesmo que já toca, para
     if (localPlayingAudio?.id === article.id) {
         setLocalPlayingAudio(null);
         setAudioUrl(''); // Limpa a URL para o useEffect pausar
         return;
     }
     
+    // Lógica normal de play
     setLocalPlayingAudio(article);
     setIsGenerating(true);
     setAudioUrl('');
@@ -1272,6 +1281,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
         setIsGenerating(false);
     }
   }, [localPlayingAudio, onGenerateAudio]);
+
 
   const handleAnalyze = useCallback((article) => {
       openArticle(article); 
@@ -3989,7 +3999,16 @@ function SavedTab({ isDarkMode, openArticle, items, onRemoveItem, onPlayVideo })
 function TabButton({ icon, label, active, onClick, isDarkMode }) { 
   return (
     <button 
-      onClick={onClick} 
+     onClick={(e) => {
+          // AQUI ESTÁ A LÓGICA CORRETA
+          // Só rola para o topo se o usuário clicar em uma aba JÁ ATIVA.
+          if (active) {
+              const mainContent = document.querySelector('main');
+              if (mainContent) mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+          // A mudança de aba acontece normalmente
+          onClick(e);
+            }} 
       className={`
         group relative flex flex-col items-center justify-center 
         w-14 h-9 /* Um pouco maior para a aura ter espaço */
@@ -5541,13 +5560,7 @@ const handleReadNative = useCallback(async (article) => {
 
   const mainRef = useRef(null);
   const prevTab = useRef(activeTab);
-  useEffect(() => {
-    // Só rola para o topo SE A ABA MUDOU DE VERDADE
-    if (mainRef.current && prevTab.current !== activeTab) {
-      mainRef.current.scrollTo({ top: 0, behavior: 'smooth' }); 
-    }
-    prevTab.current = activeTab; // Atualiza a "memória" da aba
-  }, [activeTab]);
+ 
 
 
 
@@ -6168,9 +6181,102 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
 });
 
 
+
+
+const getBrandIdentity = (sourceName) => {
+    const name = sourceName?.toLowerCase() || "";
+    if (name.match(/times|post|folha|estadao|journal|herald|politico/)) {
+        return { type: 'newspaper', fontHeader: "'Chomsky', 'UnifrakturMaguntia', serif", fontBody: "'Merriweather', serif", align: 'center' };
+    }
+    if (name.match(/verge|wired|tech|code|mac|tecmundo|canaltech|ign|g1|globo|uol|noticias|minuto/)) {
+        return { type: 'tech', fontHeader: "'Inter', sans-serif", fontBody: "'Inter', sans-serif", align: 'left' };
+    }
+    if (name.match(/vogue|elle|vanity|gq|bazaar|veja|exame|marie/)) {
+        return { type: 'magazine', fontHeader: "'Bodoni Moda', serif", fontBody: "'Lato', sans-serif", align: 'center' };
+    }
+    if (name.match(/cnn|bbc|nbc|espn|r7|band|jovem/)) {
+        return { type: 'broadcast', fontHeader: "'Oswald', sans-serif", fontBody: "'Roboto', sans-serif", align: 'left' };
+    }
+    return { type: 'default', fontHeader: "'Playfair Display', serif", fontBody: "'Source Serif Pro', serif", align: 'center' };
+};
+
+const resolveBrandColor = (sourceName, isDarkMode) => {
+    if (!sourceName) return isDarkMode ? '#ffffff' : '#000000';
+    const name = sourceName.toLowerCase().replace(/\s+/g, '');
+    const BRANDS = {
+        'g1': '#C4170C', 'globo': '#006497', 'folha': '#004990', 'estadao': '#003B5C',
+        'uol': '#F99D1C', 'cnn': '#CC0000', 'bbc': '#BB1919', 'verge': '#E219E6',
+        'wired': '#000000', 'nytimes': '#000000', 'bloomberg': '#000000', 'vogue': '#000000',
+        'espn': '#CD122D', 'noticiasaominuto': '#ff6600'
+    };
+    for (const [key, color] of Object.entries(BRANDS)) if (name.includes(key)) return color;
+    const SAFE_PALETTE = ['#1E3A8A', '#B91C1C', '#0F766E', '#7C3AED', '#BE123C', '#C2410C', '#374151', '#000000'];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return SAFE_PALETTE[Math.abs(hash) % SAFE_PALETTE.length];
+};
+
+
+
 // ==============================================================================
-// 1. WIDGETS AUXILIARES DA TELA DE IA (Timeline, Future, Constellation, Modal)
+// 1. SUB-COMPONENTES AUXILIARES DO PAINEL DE IA
 // ==============================================================================
+
+const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
+    <div className="fixed inset-0 z-[6000] flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <div className={`relative w-full max-w-sm p-6 rounded-3xl shadow-2xl border flex flex-col gap-4 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mx-auto">
+                <BrainCircuit size={32} className="text-white" />
+            </div>
+            <h3 className="text-center text-xl font-black uppercase tracking-wide">{data.mindmap.center}</h3>
+            <p className={`text-center text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                {data.summaries.executive}
+            </p>
+            <button onClick={onClose} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-xs uppercase tracking-widest mt-2 hover:brightness-90 transition">Fechar</button>
+        </div>
+    </div>
+);
+
+const ConstellationWidget = ({ mindmap, onNodeClick, onCenterClick, isDarkMode }) => {
+    if (!mindmap || !mindmap.nodes) return null;
+    const center = { x: 50, y: 50 };
+    const nodesPos = [{ x: 50, y: 15 }, { x: 85, y: 50 }, { x: 50, y: 85 }, { x: 15, y: 50 }];
+
+    return (
+        <div className="relative h-[360px] w-full mb-8 select-none">
+            <h3 className="text-center text-[10px] font-black uppercase tracking-[0.3em] opacity-40 mb-6">Rede Neural Semântica</h3>
+            <div className="absolute inset-0 top-6">
+                <svg className="w-full h-full pointer-events-none absolute inset-0 z-0">
+                    {mindmap.nodes.slice(0, 4).map((_, i) => (
+                        <line 
+                            key={i}
+                            x1={`${center.x}%`} y1={`${center.y}%`} 
+                            x2={`${nodesPos[i].x}%`} y2={`${nodesPos[i].y}%`} 
+                            stroke={isDarkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)"} 
+                            strokeWidth="2" strokeDasharray="4 2"
+                        />
+                    ))}
+                </svg>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group" onClick={onCenterClick}>
+                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-indigo-600 to-purple-900 flex items-center justify-center text-center p-2 shadow-2xl border-4 border-white/20 transition-transform group-hover:scale-105">
+                        <span className="text-[11px] font-black text-white uppercase leading-tight">{mindmap.center}</span>
+                    </div>
+                </div>
+                {mindmap.nodes.slice(0, 4).map((node, i) => (
+                    <button 
+                        key={i}
+                        onClick={() => onNodeClick(node)}
+                        className={`absolute z-30 px-4 py-2 rounded-xl border shadow-lg backdrop-blur-md transition-all hover:scale-110 active:scale-95 max-w-[120px] ${isDarkMode ? 'bg-zinc-900 border-white/20 text-white' : 'bg-white border-zinc-300 text-zinc-900'}`}
+                        style={{ top: `${nodesPos[i].y}%`, left: `${nodesPos[i].x}%`, transform: 'translate(-50%, -50%)' }}
+                    >
+                        <span className="text-[10px] font-bold leading-tight block">{node}</span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 const TimelineWidget = ({ items, isDarkMode }) => {
     if (!items || items.length === 0) return null;
@@ -6218,106 +6324,12 @@ const FutureWidget = ({ data, isDarkMode }) => {
     );
 };
 
-const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
-    <div className="fixed inset-0 z-[6000] flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-        <div className={`relative w-full max-w-sm p-6 rounded-3xl shadow-2xl border flex flex-col gap-4 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mx-auto">
-                <BrainCircuit size={32} className="text-white" />
-            </div>
-            <h3 className="text-center text-xl font-black uppercase tracking-wide">{data.mindmap.center}</h3>
-            <p className={`text-center text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                {data.summaries.executive}
-            </p>
-            <button onClick={onClose} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-xs uppercase tracking-widest mt-2 hover:brightness-90 transition">Fechar</button>
-        </div>
-    </div>
-);
-
-const ConstellationWidget = ({ mindmap, onNodeClick, onCenterClick, isDarkMode }) => {
-    if (!mindmap || !mindmap.nodes) return null;
-
-    const center = { x: 50, y: 50 };
-    const nodesPos = [{ x: 50, y: 15 }, { x: 85, y: 50 }, { x: 50, y: 85 }, { x: 15, y: 50 }];
-
-    return (
-        <div className="relative h-[360px] w-full mb-8 select-none">
-            <h3 className="text-center text-[10px] font-black uppercase tracking-[0.3em] opacity-40 mb-6">Rede Neural Semântica</h3>
-            <div className="absolute inset-0 top-6">
-                <svg className="w-full h-full pointer-events-none absolute inset-0 z-0">
-                    {mindmap.nodes.slice(0, 4).map((_, i) => (
-                        <line 
-                            key={i}
-                            x1={`${center.x}%`} y1={`${center.y}%`} 
-                            x2={`${nodesPos[i].x}%`} y2={`${nodesPos[i].y}%`} 
-                            stroke={isDarkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)"} 
-                            strokeWidth="2" strokeDasharray="4 2"
-                        />
-                    ))}
-                </svg>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group" onClick={onCenterClick}>
-                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-indigo-600 to-purple-900 flex items-center justify-center text-center p-2 shadow-2xl border-4 border-white/20 transition-transform group-hover:scale-105">
-                        <span className="text-[11px] font-black text-white uppercase leading-tight">{mindmap.center}</span>
-                    </div>
-                </div>
-                {mindmap.nodes.slice(0, 4).map((node, i) => (
-                    <button 
-                        key={i}
-                        onClick={() => onNodeClick(node)}
-                        className={`absolute z-30 px-4 py-2 rounded-xl border shadow-lg backdrop-blur-md transition-all hover:scale-110 active:scale-95 max-w-[120px] ${isDarkMode ? 'bg-zinc-900 border-white/20 text-white' : 'bg-white border-zinc-300 text-zinc-900'}`}
-                        style={{ top: `${nodesPos[i].y}%`, left: `${nodesPos[i].x}%`, transform: 'translate(-50%, -50%)' }}
-                    >
-                        <span className="text-[10px] font-bold leading-tight block">{node}</span>
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-};
-
-const getBrandIdentity = (sourceName) => {
-    const name = sourceName?.toLowerCase() || "";
-    if (name.match(/times|post|folha|estadao|journal|herald|politico/)) {
-        return { type: 'newspaper', fontHeader: "'Chomsky', 'UnifrakturMaguntia', serif", fontBody: "'Merriweather', serif", align: 'center' };
-    }
-    if (name.match(/verge|wired|tech|code|mac|tecmundo|canaltech|ign|g1|globo|uol|noticias|minuto/)) {
-        return { type: 'tech', fontHeader: "'Inter', sans-serif", fontBody: "'Inter', sans-serif", align: 'left' };
-    }
-    if (name.match(/vogue|elle|vanity|gq|bazaar|veja|exame|marie/)) {
-        return { type: 'magazine', fontHeader: "'Bodoni Moda', serif", fontBody: "'Lato', sans-serif", align: 'center' };
-    }
-    if (name.match(/cnn|bbc|nbc|espn|r7|band|jovem/)) {
-        return { type: 'broadcast', fontHeader: "'Oswald', sans-serif", fontBody: "'Roboto', sans-serif", align: 'left' };
-    }
-    return { type: 'default', fontHeader: "'Playfair Display', serif", fontBody: "'Source Serif Pro', serif", align: 'center' };
-};
-
-const resolveBrandColor = (sourceName, isDarkMode) => {
-    if (!sourceName) return isDarkMode ? '#ffffff' : '#000000';
-    const name = sourceName.toLowerCase().replace(/\s+/g, '');
-    const BRANDS = {
-        'g1': '#C4170C', 'globo': '#006497', 'folha': '#004990', 'estadao': '#003B5C',
-        'uol': '#F99D1C', 'cnn': '#CC0000', 'bbc': '#BB1919', 'verge': '#E219E6',
-        'wired': '#000000', 'nytimes': '#000000', 'bloomberg': '#000000', 'vogue': '#000000',
-        'espn': '#CD122D', 'noticiasaominuto': '#ff6600'
-    };
-    for (const [key, color] of Object.entries(BRANDS)) if (name.includes(key)) return color;
-    const SAFE_PALETTE = ['#1E3A8A', '#B91C1C', '#0F766E', '#7C3AED', '#BE123C', '#C2410C', '#374151', '#000000'];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return SAFE_PALETTE[Math.abs(hash) % SAFE_PALETTE.length];
-};
-
-
 const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontSize, highlightText }) => {
     useEffect(() => {
         if (highlightText) {
             setTimeout(() => {
-                if (window.find && window.getSelection) {
-                    const found = window.find(highlightText);
-                    if (!found) window.find(highlightText.substring(0, highlightText.length / 2));
-                }
-            }, 600);
+                if (window.find) window.find(highlightText);
+            }, 500);
         }
     }, [highlightText]);
 
@@ -6330,18 +6342,15 @@ const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontS
     return (
         <div className="animate-in fade-in slide-in-from-bottom-8 duration-500 bg-transparent w-full transform-gpu pb-32">
              <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,900;1,6..96,400&family=Inter:wght@300;400;800;900&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,400&family=Oswald:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Roboto:wght@300;400;700&family=UnifrakturMaguntia&family=Source+Serif+Pro:wght@400;600&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,400;0,700&family=Inter:wght@400;900&display=swap');
                 :root { --brand-color: ${brandColor}; }
-                .magic-body { font-family: ${identity.fontBody}; line-height: 1.8; color: ${isDarkMode ? '#e4e4e7' : '#111'}; }
-                .magic-body p { margin-bottom: 1.5em; font-size: 1.1em; letter-spacing: -0.01em; }
-                .magic-body h1, .magic-body h2, .magic-body h3 { font-family: ${identity.type === 'tech' ? identity.fontHeader : identity.fontBody}; font-weight: 800; margin-top: 2em; margin-bottom: 0.5em; line-height: 1.1; color: ${isDarkMode ? '#fff' : '#000'}; }
+                .magic-body { font-family: 'Merriweather', serif; line-height: 1.8; color: ${isDarkMode ? '#e4e4e7' : '#111'}; }
+                .magic-body p { margin-bottom: 1.5em; font-size: 1.1em; }
                 ::selection { background: #a855f7; color: white; }
             `}</style>
             
             <div className="max-w-3xl mx-auto px-6 py-4">
-                <h2 className={`text-2xl font-black mb-8 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`} style={{fontFamily: identity.fontHeader}}>
-                    {data.title}
-                </h2>
+                <h2 className={`text-2xl font-black mb-8 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{data.title}</h2>
                 <div className="magic-body" style={{ fontSize: `${fontSize}px` }} dangerouslySetInnerHTML={{ __html: readerContent?.content || `<p>${article.summary}</p>` }} />
             </div>
         </div>
@@ -6349,7 +6358,7 @@ const MagicPremiumView = React.memo(({ article, readerContent, isDarkMode, fontS
 });
 
 // ==============================================================================
-// 3. O ARTICLE PANEL PRINCIPAL
+// 2. O PAINEL DE IA PRINCIPAL (ARTICLE PANEL)
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey }) => {
@@ -6376,12 +6385,15 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       }
   }, [article?.id, isOpen]);
 
-  const runSuperPrompt = async () => {
-      if (!apiKey || !article.link) return;
+  const runSuperPrompt = useCallback(async () => {
+      if (!apiKey || !article.link) {
+          setLoadingState('error');
+          return;
+      }
       try {
           setLoadingState('extracting');
           const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-          if (proxyError || !proxyData?.reader?.content) throw new Error("Falha na extração");
+          if (proxyError || !proxyData?.reader?.content) throw new Error("Falha na extração de texto");
           
           const fullText = proxyData.reader.textContent;
           setReaderContent(proxyData.reader); 
@@ -6391,56 +6403,51 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
             Aja como um Analista de Inteligência Sênior. Analise o texto:
             GERE UM JSON ESTRITO:
             {
-                "summaries": {
-                    "executive": "Resumo formal, denso e direto (3 parágrafos).",
-                    "tldr": "Em uma frase.",
-                    "eli5": "Para criança.",
-                    "bullets": ["Ponto 1", "Ponto 2", "Ponto 3"]
-                },
-                "mindmap": {
-                    "center": "Tema Central (Max 3 palavras)",
-                    "nodes": ["Conceito A", "Pessoa B", "Consequência C", "Causa D"]
-                },
+                "summaries": { "executive": "Resumo formal, denso e direto (3 parágrafos).", "bullets": ["Ponto 1", "Ponto 2", "Ponto 3"] },
+                "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Conceito A", "Pessoa B", "Consequência C", "Causa D"] },
                 "contextualTerms": [
-                    {
-                        "term": "Termo exato (ex: Conceito A)",
-                        "context": "Definição enciclopédica + Por que é importante NESTA notícia. (Mínimo 20 palavras).",
-                        "sentiment": "neutral", 
-                        "evidence_quotes": ["Citação exata do texto."]
-                    }
+                    { "term": "Termo exato (ex: Conceito A)", "context": "Definição enciclopédica + Por que é importante NESTA notícia. Denso. Mínimo 25 palavras.", "sentiment": "neutral", "evidence_quotes": ["Citação exata do texto onde o termo aparece."] }
                 ],
                 "timeline": [{ "time": "Data", "event": "Fato" }],
-                "future": { "optimistic": "...", "pessimistic": "...", "probable": "..." }
+                "future": { "optimistic": "Melhor cenário", "pessimistic": "Pior cenário", "probable": "Cenário realista" }
             }
             TEXTO: ${fullText.slice(0, 25000)}
           `;
 
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
           });
-
           const jsonRes = await response.json();
+          if (!response.ok) throw new Error(jsonRes.error?.message || "Erro de API");
+
           const textRes = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text;
           const finalData = JSON.parse(textRes.replace(/```json/g, '').replace(/```/g, '').trim());
           setAiData(finalData);
           setLoadingState('complete');
-      } catch (err) { setLoadingState('error'); }
-  };
+      } catch (err) { 
+          console.error("Erro no SuperPrompt:", err);
+          setLoadingState('error'); 
+      }
+  }, [apiKey, article]);
 
-  const handleNodeClick = (nodeName) => {
-      const nodeData = aiData?.contextualTerms?.find(t => t.term.toLowerCase().includes(nodeName.toLowerCase()) || nodeName.toLowerCase().includes(t.term.toLowerCase()));
-      setFocusedNode(nodeData || { name: nodeName, context: "Análise geral.", sentiment: "neutral", evidence_quotes: [] });
+  const handleNodeClick = useCallback((nodeName) => {
+      if (!aiData?.contextualTerms) return;
+      const nodeData = aiData.contextualTerms.find(t => t.term.toLowerCase().includes(nodeName.toLowerCase()) || nodeName.toLowerCase().includes(t.term.toLowerCase()));
+      setFocusedNode(nodeData || { name: nodeName, context: "Contexto geral identificado na análise.", sentiment: "neutral", evidence_quotes: [] });
       setViewMode('drilldown');
-  };
+  }, [aiData]);
   
-  const handleQuoteClick = (quote) => { setHighlightRequest(quote); setViewMode('magic'); };
+  const handleQuoteClick = useCallback((quote) => { 
+      setHighlightRequest(quote); 
+      setViewMode('magic'); 
+  }, []);
 
   if (!isOpen) return null;
 
   return (
     <div className={`fixed inset-0 z-[5000] flex flex-col ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} animate-in slide-in-from-bottom-10 duration-300`}>
-        {loadingState !== 'complete' && (
+        {(loadingState === 'extracting' || loadingState === 'analyzing') && (
             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black">
                 <div className="relative w-32 h-32 mb-8">
                     <div className="absolute inset-0 border-t-4 border-purple-500 rounded-full animate-spin" />
@@ -6450,6 +6457,15 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
                 <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 animate-pulse tracking-tighter">NEWS OS <span className="text-white">INTELLIGENCE</span></h3>
                 <p className="text-zinc-500 text-xs mt-4 font-mono uppercase tracking-[0.3em] animate-bounce">{loadingState === 'extracting' ? 'Lendo Fonte Original...' : 'Sintetizando Dados...'}</p>
                 <button onClick={onClose} className="mt-8 text-zinc-600 text-xs hover:text-white">Cancelar</button>
+            </div>
+        )}
+
+        {loadingState === 'error' && (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
+                <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
+                <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia. O site pode estar bloqueando a extração ou a API de IA está offline.</p>
+                <button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button>
             </div>
         )}
 
@@ -6478,12 +6494,12 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
                         <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
                             <div className="mb-10">
                                 <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
-                                    {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
-                                        <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md transform scale-105' : 'text-zinc-400 hover:text-zinc-600'}`}>{mode === 'executive' ? 'Executivo' : mode === 'tldr' ? 'Resumo' : mode === 'eli5' ? 'Simples' : 'Tópicos'}</button>
+                                    {['executive', 'bullets'].map(mode => (
+                                        <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>{mode === 'executive' ? 'Resumo' : 'Tópicos'}</button>
                                     ))}
                                 </div>
                                 <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
-                                    {summaryMode === 'bullets' ? (<ul className="list-disc pl-5 space-y-3 marker:text-indigo-500 text-sm leading-loose">{aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>) : (<p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries[summaryMode]}</p>)}
+                                    {summaryMode === 'bullets' ? (<ul className="list-disc pl-5 space-y-3 marker:text-indigo-500 text-sm leading-loose">{aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>) : (<p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.executive}</p>)}
                                 </div>
                             </div>
                             <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
@@ -6496,7 +6512,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
                         <div className="animate-in slide-in-from-right duration-500 min-h-[60vh]">
                             <button onClick={() => setViewMode('analysis')} className="mb-6 text-xs font-bold text-zinc-500 hover:text-black dark:hover:text-white flex items-center gap-2"><ChevronLeft size={16}/> VOLTAR AO MAPA</button>
                             <div className={`p-8 rounded-[2.5rem] border-2 shadow-2xl ${isDarkMode ? 'bg-zinc-900 border-indigo-500/50' : 'bg-white border-indigo-100'}`}>
-                                <h2 className="text-3xl font-black text-indigo-500 mb-4">{focusedNode.name}</h2>
+                                <h2 className="text-3xl font-black text-indigo-500 mb-4">{focusedNode.name || focusedNode.term}</h2>
                                 <p className={`text-lg leading-relaxed mb-6 font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>{focusedNode.context}</p>
                                 <div className="space-y-4">
                                     <h4 className={`text-xs font-black uppercase tracking-widest opacity-50 ${isDarkMode ? 'text-white' : 'text-black'}`}>Evidências</h4>
@@ -6515,6 +6531,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
     </div>
   );
 });
+
 
 function PodNewsModal({ onClose, isDarkMode }) {
   const [status, setStatus] = useState('generating'); // 'generating' | 'playing'
