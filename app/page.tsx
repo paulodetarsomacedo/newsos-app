@@ -704,6 +704,19 @@ const triggerSearch = () => {
 const SlidingPillFilter = ({ categories, active, onChange, isDarkMode }) => {
   const tabsRef = useRef([]);
 
+const handleFilterClick = (category) => {
+    // 1. Chama a função original para mudar a categoria
+    onChange(category);
+// 2. Encontra o container do feed e rola para o topo
+    // Como estamos na FeedTab, podemos usar a ref que já existe lá (passando como prop)
+    // ou o seletor 'main' novamente. Vamos usar o seletor por simplicidade.
+    const mainContent = document.querySelector('main');
+    if (mainContent) {
+      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+
   return (
     <div className="w-full flex justify-start pl-14 pr-4 sticky top-0 z-30 py-2 pointer-events-none">
       
@@ -743,7 +756,7 @@ const SlidingPillFilter = ({ categories, active, onChange, isDarkMode }) => {
           return (
             <button 
               key={cat} 
-              onClick={() => onChange(cat)}
+              onClick={() => handleFilterClick(cat)}
               ref={(el) => (tabsRef.current[cat] = el)}
               className={`
                 relative z-10 px-5 py-1.5 rounded-full /* <-- MUDANÇA AQUI */
@@ -4041,12 +4054,23 @@ function SavedTab({ isDarkMode, openArticle, items, onRemoveItem, onPlayVideo })
 }
 
 function TabButton({ icon, label, active, onClick, isDarkMode }) { 
+  const handleTabClick = (e) => {
+    // Primeiro, executa a função original que muda a aba (passada pelo pai)
+    onClick(e);
+
+    // Depois, encontra o container principal de conteúdo e rola para o topo.
+    // Usamos 'main' como seletor, que é a tag do nosso container principal de scroll.
+    const mainContent = document.querySelector('main');
+    if (mainContent) {
+      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
   return (
     <button 
       onClick={onClick}
       className={`
         group relative flex flex-col items-center justify-center 
-        w-14 h-9 /* Um pouco maior para a aura ter espaço */
+        w-15 h-9 /* Um pouco maior para a aura ter espaço */
         transition-transform duration-200 ease-out 
         active:scale-90 touch-manipulation
         ${active ? 'scale-110 -translate-y-2' : 'hover:-translate-y-1'}
