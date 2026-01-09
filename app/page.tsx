@@ -4812,20 +4812,7 @@ const handleResizePointerDown = (e) => {
     window.removeEventListener('pointerup', handleResizePointerUp);
   };
 
-const handleResizePointerUp = () => {
-    isResizing.current = false;
-    document.body.style.userSelect = '';
-    document.body.style.cursor = '';
-    
-    // Só agora, no final, atualizamos o React State para persistir
-    if (panelDivRef.current) {
-        const finalWidth = parseInt(panelDivRef.current.style.width, 10);
-        setPanelWidth(finalWidth);
-    }
 
-    window.removeEventListener('pointermove', handleResizePointerMove);
-    window.removeEventListener('pointerup', handleResizePointerUp);
-};
   
 
 
