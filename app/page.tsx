@@ -6295,61 +6295,116 @@ const FutureWidget = ({ data, isDarkMode }) => {
 const ConstellationWidget = ({ mindmap, onNodeClick, isDarkMode }) => {
     if (!mindmap || !mindmap.nodes) return null;
 
-    // Coordenadas fixas para criar uma "teia" simétrica (Centro é 50,50)
-    const positions = [
-        { top: 15, left: 50 },  // Norte
-        { top: 85, left: 50 },  // Sul
-        { top: 50, left: 15 },  // Oeste
-        { top: 50, left: 85 },  // Leste
+    // Layout Estrela (Centro + 4 Pontas)
+    const center = { x: 50, y: 50 };
+    const nodesPos = [
+        { x: 50, y: 15 }, // Norte
+        { x: 85, y: 50 }, // Leste
+        { x: 50, y: 85 }, // Sul
+        { x: 15, y: 50 }  // Oeste
     ];
 
     return (
-        <div className="relative h-[320px] w-full mb-8 select-none">
-            <h3 className="text-center text-[10px] font-black uppercase tracking-[0.3em] opacity-40 mb-6">Constelação Semântica</h3>
+        <div className="relative h-[360px] w-full mb-8 select-none perspective-1000">
+            {/* Título Estilizado */}
+            <div className="absolute top-0 left-0 right-0 flex justify-center">
+                <div className="bg-black/20 backdrop-blur-md px-4 py-1 rounded-full border border-white/5">
+                    <h3 className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400">Rede Neural Semântica</h3>
+                </div>
+            </div>
             
-            <div className="absolute inset-0">
-                {/* CAMADA 1: LINHAS SVG (CONECTORES) */}
-                <svg className="w-full h-full pointer-events-none opacity-30">
+            <div className="absolute inset-0 top-6">
+                {/* CAMADA 1: LINHAS DE ENERGIA ANIMADAS (SVG) */}
+                <svg className="w-full h-full pointer-events-none filter drop-shadow-[0_0_3px_rgba(139,92,246,0.5)]">
+                    <defs>
+                        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor={isDarkMode ? "#4c1d95" : "#ddd"} stopOpacity="0.2" />
+                            <stop offset="100%" stopColor={isDarkMode ? "#a78bfa" : "#666"} stopOpacity="1" />
+                        </linearGradient>
+                    </defs>
                     {mindmap.nodes.slice(0, 4).map((_, i) => (
-                        <line 
-                            key={i}
-                            x1="50%" y1="50%" 
-                            x2={`${positions[i].left}%`} y2={`${positions[i].top}%`} 
-                            stroke={isDarkMode ? "white" : "black"} 
-                            strokeWidth="2" 
-                            strokeDasharray="4 4"
-                        />
+                        <g key={`line-${i}`}>
+                            {/* Linha Base */}
+                            <line 
+                                x1={`${center.x}%`} y1={`${center.y}%`} 
+                                x2={`${nodesPos[i].x}%`} y2={`${nodesPos[i].y}%`} 
+                                stroke={isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"} 
+                                strokeWidth="1" 
+                            />
+                            {/* Pulso de Energia (Animação Infinita) */}
+                            <circle r="2" fill={isDarkMode ? "#a78bfa" : "#4f46e5"}>
+                                <animateMotion 
+                                    dur={`${2 + i * 0.5}s`} 
+                                    repeatCount="indefinite"
+                                    path={`M${center.x * 3.5},${center.y * 3.2} L${nodesPos[i].x * 3.5},${nodesPos[i].y * 3.2}`} 
+                                    // Nota: Valores SVG precisam de ajuste de escala dependendo do viewBox, 
+                                    // mas para div absoluta, usamos CSS puro abaixo para garantir.
+                                />
+                            </circle>
+                            <line 
+                                x1={`${center.x}%`} y1={`${center.y}%`} 
+                                x2={`${nodesPos[i].x}%`} y2={`${nodesPos[i].y}%`} 
+                                stroke={isDarkMode ? "#8b5cf6" : "#4f46e5"} 
+                                strokeWidth="2" 
+                                strokeDasharray="6 6"
+                                className="animate-dash-flow" // CSS Animation
+                            />
+                        </g>
                     ))}
                 </svg>
 
-                {/* CAMADA 2: NÓ CENTRAL (SOL) */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                {/* CAMADA 2: CENTRO PULSANTE (SOL) */}
+                <div 
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                    onClick={() => alert("Tema Central: " + mindmap.center)} // Ação simples para o centro
+                >
                     <div className="relative">
-                        <div className="absolute inset-0 bg-purple-500 blur-xl opacity-50 animate-pulse"></div>
-                        <div className="w-28 h-28 rounded-full bg-gradient-to-br from-indigo-600 to-purple-900 flex items-center justify-center text-center p-3 shadow-2xl border-4 border-white/10 z-10">
-                            <span className="text-[11px] font-black text-white uppercase leading-tight">{mindmap.center}</span>
+                        <div className="absolute inset-0 bg-indigo-500 rounded-full blur-2xl opacity-40 animate-pulse-slow"></div>
+                        <div className="w-32 h-32 rounded-full bg-gradient-to-br from-zinc-900 to-indigo-950 flex items-center justify-center text-center p-4 shadow-[0_0_50px_rgba(79,70,229,0.4)] border border-indigo-500/30 group-hover:scale-105 transition-transform duration-500">
+                            <span className="text-xs font-black text-white uppercase leading-tight tracking-wide drop-shadow-lg">{mindmap.center}</span>
                         </div>
+                        {/* Anéis orbitais decorativos */}
+                        <div className="absolute inset-[-10px] border border-white/5 rounded-full animate-spin-slow pointer-events-none"></div>
+                        <div className="absolute inset-[-20px] border border-white/5 rounded-full animate-spin-reverse-slow pointer-events-none"></div>
                     </div>
                 </div>
 
-                {/* CAMADA 3: NÓS SATÉLITES (PLANETAS) */}
+                {/* CAMADA 3: NÓS SATÉLITES (PLANETAS INTERATIVOS) */}
                 {mindmap.nodes.slice(0, 4).map((node, i) => (
                     <button 
                         key={i}
                         onClick={() => onNodeClick(node)}
                         className={`
-                            absolute z-30 px-4 py-3 rounded-2xl border shadow-xl backdrop-blur-md transition-all duration-500 hover:scale-110 active:scale-95 max-w-[140px]
-                            ${isDarkMode ? 'bg-zinc-900/90 border-white/20 text-white' : 'bg-white/90 border-zinc-200 text-zinc-900'}
+                            absolute z-30 px-5 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:border-purple-500 hover:z-40 max-w-[160px] group
+                            ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-800'}
                         `}
-                        style={{ top: `${positions[i].top}%`, left: `${positions[i].left}%`, transform: 'translate(-50%, -50%)' }}
+                        style={{ top: `${nodesPos[i].y}%`, left: `${nodesPos[i].x}%`, transform: 'translate(-50%, -50%)' }}
                     >
-                        <span className="text-[10px] font-bold leading-tight block">{node}</span>
+                        <div className="flex flex-col items-center">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mb-2 shadow-[0_0_10px_#a855f7]"></span>
+                            <span className="text-[10px] font-bold leading-tight block text-center group-hover:text-purple-400 transition-colors">{node}</span>
+                        </div>
                     </button>
                 ))}
             </div>
+            
+            {/* CSS INJETADO PARA ANIMAÇÃO DE FLUXO */}
+            <style jsx="true">{`
+                @keyframes dash-flow {
+                    from { stroke-dashoffset: 24; }
+                    to { stroke-dashoffset: 0; }
+                }
+                .animate-dash-flow {
+                    animation: dash-flow 1s linear infinite;
+                }
+                @keyframes spin-slow { to { transform: rotate(360deg); } }
+                .animate-spin-slow { animation: spin-slow 20s linear infinite; }
+                .animate-spin-reverse-slow { animation: spin-slow 25s linear infinite reverse; }
+            `}</style>
         </div>
     );
 };
+
 
 // ==============================================================================
 // 2. MAGIC PREMIUM VIEW (O LEITOR DE TEXTO COM AUTO-SCROLL)
@@ -6647,49 +6702,73 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
 
                     {/* DRILL-DOWN (FOCO NO NÓ) */}
                     {viewMode === 'drilldown' && focusedNode && (
-                        <div className="animate-in slide-in-from-right duration-500 min-h-[60vh]">
-                            <button onClick={() => setViewMode('analysis')} className="mb-6 text-xs font-bold text-zinc-500 hover:text-white flex items-center gap-2 uppercase tracking-wider">
-                                <ChevronLeft size={16}/> Voltar para o Mapa
-                            </button>
-                            
-                            <div className={`p-8 rounded-[2.5rem] border-2 shadow-2xl relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border-indigo-500/50' : 'bg-white border-indigo-100'}`}>
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 blur-[60px] rounded-full pointer-events-none"></div>
-                                
-                                <span className="text-[10px] font-black uppercase text-indigo-500 mb-2 block tracking-[0.2em]">Conceito Chave</span>
-                                <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 mb-6 leading-none">{focusedNode.name}</h2>
-                                <p className={`text-lg leading-relaxed mb-8 font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>{focusedNode.context}</p>
-                                
-                                {focusedNode.sentiment && (
-                                    <div className="flex gap-2 mb-8">
-                                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide border ${focusedNode.sentiment === 'positive' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : (focusedNode.sentiment === 'negative' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20')}`}>
-                                            {focusedNode.sentiment === 'positive' ? <TrendingUp size={16}/> : <TrendingDown size={16}/>} 
-                                            Sentimento: {focusedNode.sentiment === 'positive' ? 'Positivo' : (focusedNode.sentiment === 'negative' ? 'Negativo' : 'Neutro')}
-                                        </div>
-                                    </div>
-                                )}
+    <div className="animate-in slide-in-from-right duration-500 min-h-[70vh] flex flex-col">
+        {/* Barra de Navegação Interna */}
+        <button onClick={() => setViewMode('analysis')} className="self-start mb-6 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white flex items-center gap-2 bg-white/5 px-4 py-2 rounded-full transition-colors border border-white/5 hover:border-white/20">
+            <ChevronLeft size={14}/> Retornar à Constelação
+        </button>
+        
+        {/* CARD PRINCIPAL (GLASS) */}
+        <div className={`flex-1 p-8 rounded-[3rem] border shadow-2xl relative overflow-hidden flex flex-col justify-center ${isDarkMode ? 'bg-zinc-900/80 border-white/10' : 'bg-white border-zinc-200'}`}>
+            
+            {/* Efeitos de Fundo (Auras) */}
+            <div className={`absolute top-0 right-0 w-64 h-64 blur-[100px] rounded-full opacity-30 pointer-events-none ${focusedNode.sentiment === 'positive' ? 'bg-emerald-500' : (focusedNode.sentiment === 'negative' ? 'bg-rose-500' : 'bg-indigo-500')}`}></div>
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500 blur-[80px] rounded-full opacity-20 pointer-events-none"></div>
 
-                                <div className="space-y-4">
-                                    <h4 className="text-xs font-black uppercase tracking-widest opacity-50 flex items-center gap-2"><Search size={12}/> Evidências no Texto</h4>
-                                    {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
-                                        focusedNode.evidence_quotes.map((quote, i) => (
-                                            <div 
-                                                key={i} 
-                                                onClick={() => handleQuoteClick(quote)}
-                                                className={`p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg group ${isDarkMode ? 'bg-black/40 border-white/10 hover:border-indigo-500' : 'bg-zinc-50 border-zinc-200 hover:border-indigo-500'}`}
-                                            >
-                                                <p className={`text-base italic font-serif leading-relaxed ${isDarkMode ? 'text-zinc-300 group-hover:text-white' : 'text-zinc-600 group-hover:text-black'}`}>"{quote}"</p>
-                                                <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-indigo-500 opacity-60 group-hover:opacity-100 transition-opacity uppercase tracking-wide">
-                                                    Ver no contexto <ArrowRight size={10}/>
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div className="p-4 text-center opacity-50 text-xs italic">Nenhuma citação direta encontrada.</div>
-                                    )}
-                                </div>
-                            </div>
+            <div className="relative z-10">
+                {/* Cabeçalho do Conceito */}
+                <div className="flex items-start justify-between mb-6">
+                    <div>
+                        <span className="text-[10px] font-black uppercase text-white/40 mb-2 block tracking-[0.3em]">Conceito Analisado</span>
+                        <h2 className="text-4xl md:text-5xl font-black text-white leading-tight drop-shadow-xl">{focusedNode.name}</h2>
+                    </div>
+                    {/* Badge de Sentimento */}
+                    {focusedNode.sentiment && (
+                        <div className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl border backdrop-blur-xl shadow-lg ${focusedNode.sentiment === 'positive' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' : (focusedNode.sentiment === 'negative' ? 'bg-rose-500/20 border-rose-500/30 text-rose-400' : 'bg-blue-500/20 border-blue-500/30 text-blue-400')}`}>
+                            {focusedNode.sentiment === 'positive' ? <TrendingUp size={24}/> : <TrendingDown size={24}/>}
                         </div>
                     )}
+                </div>
+
+                {/* Explicação (O Raio-X) */}
+                <div className="mb-10 p-6 rounded-2xl bg-black/20 border border-white/5 backdrop-blur-md">
+                    <p className={`text-lg md:text-xl leading-relaxed font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
+                        {focusedNode.context}
+                    </p>
+                </div>
+
+                {/* Seção de Evidências (Interactive Quotes) */}
+                <div className="space-y-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 flex items-center gap-2 pl-2">
+                        <Search size={12}/> Evidências encontradas no texto original
+                    </h4>
+                    
+                    {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
+                        focusedNode.evidence_quotes.map((quote, i) => (
+                            <button 
+                                key={i} 
+                                onClick={() => handleQuoteClick(quote)}
+                                className={`w-full text-left p-5 rounded-2xl border transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:border-purple-500 group relative overflow-hidden ${isDarkMode ? 'bg-black/40 border-white/10' : 'bg-white border-zinc-200'}`}
+                            >
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                <p className={`text-sm italic font-serif leading-relaxed opacity-80 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                                    "{quote}"
+                                </p>
+                                <div className="mt-3 flex items-center gap-2 text-[9px] font-black text-purple-400 opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0 uppercase tracking-wider">
+                                    Localizar no texto <ArrowRight size={10}/>
+                                </div>
+                            </button>
+                        ))
+                    ) : (
+                        <div className="p-6 rounded-xl border border-white/5 bg-white/5 text-center">
+                            <p className="text-xs opacity-40 italic">A IA não vinculou citações diretas para este conceito.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    </div>
+)}
 
                     {/* MODO MAGIC (LEITURA COM SCROLL) */}
                     {viewMode === 'magic' && (
