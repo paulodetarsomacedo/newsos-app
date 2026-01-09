@@ -4054,17 +4054,8 @@ function SavedTab({ isDarkMode, openArticle, items, onRemoveItem, onPlayVideo })
 }
 
 function TabButton({ icon, label, active, onClick, isDarkMode }) { 
-  const handleTabClick = (e) => {
-    // Primeiro, executa a função original que muda a aba (passada pelo pai)
-    onClick(e);
-
-    // Depois, encontra o container principal de conteúdo e rola para o topo.
-    // Usamos 'main' como seletor, que é a tag do nosso container principal de scroll.
-    const mainContent = document.querySelector('main');
-    if (mainContent) {
-      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
+  
+  
   return (
     <button 
       onClick={onClick}
@@ -5590,6 +5581,10 @@ const handleReadNative = useCallback(async (article) => {
   // --- FUNÇÃO DE NAVEGAÇÃO ENTRE ABAS (RESTAURADA) ---
   const handleTabClick = useCallback((tab) => {
     setActiveTab(tab);
+
+    if (mainRef.current) {
+      mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     
     // Reseta o timer de inatividade da barra de navegação
     if (navTimerRef.current) clearTimeout(navTimerRef.current);
