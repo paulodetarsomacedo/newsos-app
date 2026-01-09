@@ -6228,7 +6228,7 @@ const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
     <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 animate-in zoom-in-95 duration-200">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
         
-        <div className={`relative w-full max-w-md p-6 rounded-3xl shadow-2xl border flex flex-col ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+        <div className={`relative w-full max-w-lg p-6 rounded-3xl shadow-2xl border flex flex-col ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
             
             <div className="flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mb-4">
@@ -6599,38 +6599,74 @@ return (
                 </div>
                 
                 <div className="relative z-10 px-4 py-2 space-y-10 pb-40">
+                    {/* VISÃO GERAL (COMPLETA) */}
                     {viewMode === 'analysis' && (
                         <div className="animate-in fade-in">
+                            {/* Resumo com Abas */}
                             <div className="mb-10">
                                 <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
-                                    {['executive', 'bullets'].map(mode => (
-                                        <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>{mode === 'executive' ? 'Resumo' : 'Tópicos'}</button>
+                                    {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
+                                        <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>
+                                            {mode === 'executive' ? 'Executivo' : (mode === 'tldr' ? 'Curto' : (mode === 'eli5' ? 'Simples' : 'Tópicos'))}
+                                        </button>
                                     ))}
                                 </div>
+                                <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
+                                    {summaryMode === 'bullets' ? (
+                                        <ul className="list-disc pl-5 space-y-3 marker:text-indigo-500 text-sm leading-loose">
+                                            {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
+                                        </ul>
+                                    ) : (
+                                        <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                                            {aiData.summaries[summaryMode]}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
+                            
                             <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
                             <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
                             <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
                             <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
                         </div>
                     )}
+
+                    {/* DRILL-DOWN (PAINEL DE FOCO) */}
                     {viewMode === 'drilldown' && focusedNode && (
                         <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
                             <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-lg p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
                                 <div className="flex items-start justify-between mb-4">
-                                    <div className="flex items-center gap-2 opacity-70"><img src={article.logo} className="w-5 h-5 rounded-full" /><span className="text-xs font-bold uppercase tracking-wider">{article.source}</span></div>
+                                    <div className="flex items-center gap-2 opacity-70">
+                                        <img src={article.logo} className="w-5 h-5 rounded-full" />
+                                        <span className="text-xs font-bold uppercase tracking-wider">{article.source}</span>
+                                    </div>
                                     <button onClick={() => setViewMode('analysis')} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
                                 </div>
                                 <h2 className="text-2xl font-black text-indigo-400 leading-tight mb-4">{focusedNode.name || focusedNode.term}</h2>
-                                {(!focusedNode.context || focusedNode.context.toLowerCase().includes('contexto geral')) ? (<div><p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p><ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul></div>) : (<p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{focusedNode.context}</p>)}
+                                {(!focusedNode.context || focusedNode.context.toLowerCase().includes('contexto geral')) ? (
+                                    <div>
+                                        <p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p>
+                                        <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                                    </div>
+                                ) : (
+                                    <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{focusedNode.context}</p>
+                                )}
                                 <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
                                     <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Evidências</h4>
-                                    {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (focusedNode.evidence_quotes.map((quote, i) => (<div key={i} onClick={() => handleQuoteClick(quote)} className={`p-3 rounded-xl border cursor-pointer text-xs italic ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>"{quote}"</div>))) : <p className="text-xs opacity-50 italic">Nenhuma citação direta encontrada.</p>}
+                                    {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
+                                        focusedNode.evidence_quotes.map((quote, i) => (
+                                            <div key={i} onClick={() => handleQuoteClick(quote)} className={`p-3 rounded-xl border cursor-pointer text-xs italic ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>"{quote}"</div>
+                                        ))
+                                    ) : <p className="text-xs opacity-50 italic">Nenhuma citação direta encontrada.</p>}
                                 </div>
                             </div>
                         </div>
                     )}
-                    {viewMode === 'magic' && (<MagicPremiumView article={article} readerContent={readerContent} highlightText={highlightRequest} isDarkMode={isDarkMode} fontSize={fontSize} />)}
+
+                    {/* MODO MÁGICO (LEITURA) */}
+                    {viewMode === 'magic' && (
+                        <MagicPremiumView article={article} readerContent={readerContent} highlightText={highlightRequest} isDarkMode={isDarkMode} fontSize={fontSize} />
+                    )}
                 </div>
             </div>
         )}
