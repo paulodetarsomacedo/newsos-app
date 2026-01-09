@@ -6428,6 +6428,58 @@ const DeepDiveWidget = ({ topic, isDarkMode }) => (
     </div>
 );
 
+// ==============================================================================
+// 1. NOVO COMPONENTE AUXILIAR: LoadingStep (A Barra de Progresso)
+// ==============================================================================
+
+const LoadingStep = ({ title, isActive, isComplete, duration }) => {
+    // Hooks para o efeito de texto "digitando"
+    const [displayText, setDisplayText] = useState('');
+
+    useEffect(() => {
+        // Se a etapa não estiver ativa, reseta o texto para o título completo se já foi completada
+        if (!isActive) {
+            if(isComplete) setDisplayText(title);
+            return;
+        }
+
+        // Se a etapa se tornou ativa, começa o efeito de digitação
+        setDisplayText(''); // Reseta o texto
+        let i = 0;
+        const interval = setInterval(() => {
+            setDisplayText(prev => title.substring(0, i + 1));
+            i++;
+            if (i > title.length) {
+                clearInterval(interval);
+            }
+        }, 50); // Velocidade da "digitação"
+
+        return () => clearInterval(interval);
+    }, [isActive, isComplete, title]);
+
+    return (
+        <div className="flex items-center gap-4 w-full">
+            <div className={`flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${isComplete ? 'border-green-500 bg-green-500/20' : (isActive ? 'border-purple-500' : 'border-zinc-700')}`}>
+                {isComplete ? <Check size={16} className="text-green-500"/> : <Loader2 size={16} className={`transition-opacity ${isActive ? 'animate-spin text-purple-500' : 'opacity-20 text-zinc-500'}`} />}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium transition-colors h-5 ${isActive || isComplete ? 'text-white' : 'text-zinc-600'}`}>
+                    {displayText}
+                    {isActive && !isComplete && <span className="animate-ping">_</span>}
+                </p>
+                <div className="mt-2 h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div 
+                        className={`h-full rounded-full transition-transform ease-linear ${isComplete ? 'bg-green-500' : 'bg-gradient-to-r from-indigo-500 to-purple-500'}`}
+                        style={{ 
+                            transform: `translateX(${isActive || isComplete ? '0%' : '-100%'})`,
+                            transitionDuration: isActive ? `${duration}ms` : '500ms'
+                        }}
+                    ></div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // ==============================================================================
 // 2. O PAINEL DE IA PRINCIPAL
