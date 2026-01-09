@@ -1091,7 +1091,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
         {/* Cabeçalho Sobre a Imagem */}
         <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
             <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-                <img src={news.logo} className="w-5 h-5 rounded-full bg-white" onError={(e) => e.target.style.display = 'none'} />
+                <img src={news.logo} className="w-9 h-9 rounded-md bg-white" onError={(e) => e.target.style.display = 'none'} />
                 <span className="text-[10px] font-black text-white uppercase tracking-wider">{news.source}</span>
             </div>
             <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/5">
@@ -1100,20 +1100,22 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
         </div>
 
         {/* Botões no Canto Superior Direito */}
-        <div className="absolute top-4 right-4 flex flex-col items-center gap-3 z-20">
-            <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-2.5 rounded-full bg-black/40 backdrop-blur-md transition-all active:scale-90 ${isLiked ? 'text-rose-500' : 'text-white/80 hover:text-white'}`}>
-                <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2.5 rounded-full bg-black/40 backdrop-blur-md transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-white/80 hover:text-white'}`}>
-                <Bookmark size={22} fill={isSaved ? "currentColor" : "none"} />
-            </button>
-            {isPlayable && (
-                <button onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-md group ${isCurrentPlaying ? 'bg-purple-600' : 'bg-green-500'}`}>
-                    {isGenerating ? (<Loader2 size={16} className="text-white animate-spin" />) : isCurrentPlaying ? (<Pause size={16} fill="white"/>) : (<Play size={16} fill="white" className="ml-0.5" />)}
+        <div className="absolute top-4 right-4 z-20">
+            {/* O NOVO CONTAINER PAI */}
+            <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/40 backdrop-blur-md border border-white/10">
+                <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/80 hover:text-white'}`}>
+                    <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
                 </button>
-            )}
+                <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-1.5 transition-colors ${isSaved ? 'text-purple-500' : 'text-white/80 hover:text-white'}`}>
+                    <Bookmark size={22} fill={isSaved ? "currentColor" : "none"} />
+                </button>
+                {isPlayable && (
+                    <button onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-md group ${isCurrentPlaying ? 'bg-purple-600' : 'bg-green-500'}`}>
+                        {isGenerating ? (<Loader2 size={14} className="text-white animate-spin" />) : isCurrentPlaying ? (<Pause size={14} fill="white"/>) : (<Play size={14} fill="white" className="ml-0.5" />)}
+                    </button>
+                )}
+            </div>
         </div>
-      </div>
       
       {/* --- PÍLULA NA TRANSIÇÃO (CORRIGIDA) --- */}
       {/* Agora ela está fora do div da imagem, mas posicionada sobre ele */}
