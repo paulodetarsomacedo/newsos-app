@@ -1075,20 +1075,20 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
   return (
     <div 
       className={`
-        group relative flex flex-col overflow-visible rounded-[2.5rem] mb-12
+        group relative flex flex-col rounded-[2.5rem] mb-12
         ${isDarkMode ? 'bg-zinc-900 border border-white/5' : 'bg-white border border-zinc-100 shadow-xl'}
       `}
     >
       
       {/* 1. ÁREA DE IMAGEM */}
-      <div onClick={() => onClick(news)} className="relative h-80 w-full cursor-pointer overflow-hidden rounded-[2.5rem] bg-gray-200 dark:bg-zinc-800">
+      <div onClick={() => onClick(news)} className="relative h-80 w-full cursor-pointer rounded-[2.5rem] bg-gray-200 dark:bg-zinc-800">
         <SmartImage 
             src={news.img} title={news.title} logo={news.logo} sourceName={news.source} isDarkMode={isDarkMode} 
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            className="w-full h-full object-cover rounded-[2.5rem] transition-transform duration-700 group-hover:scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 rounded-[2.5rem]" />
 
-        {/* Cabeçalho com Hora ao lado da Fonte */}
+        {/* Cabeçalho Sobre a Imagem */}
         <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
             <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
                 <img src={news.logo} className="w-5 h-5 rounded-full bg-white" onError={(e) => e.target.style.display = 'none'} />
@@ -1101,30 +1101,33 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
 
         {/* Botões no Canto Superior Direito */}
         <div className="absolute top-4 right-4 flex flex-col items-center gap-3 z-20">
-            <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-2 rounded-full bg-black/40 backdrop-blur-md transition-all active:scale-90 ${isLiked ? 'text-rose-500' : 'text-white/80 hover:text-white'}`}>
-                <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
+            <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-2.5 rounded-full bg-black/40 backdrop-blur-md transition-all active:scale-90 ${isLiked ? 'text-rose-500' : 'text-white/80 hover:text-white'}`}>
+                <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
             </button>
-            <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2 rounded-full bg-black/40 backdrop-blur-md transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-white/80 hover:text-white'}`}>
-                <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
+            <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-2.5 rounded-full bg-black/40 backdrop-blur-md transition-all active:scale-90 ${isSaved ? 'text-purple-500' : 'text-white/80 hover:text-white'}`}>
+                <Bookmark size={22} fill={isSaved ? "currentColor" : "none"} />
             </button>
             {isPlayable && (
-                <button onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-md group ${isCurrentPlaying ? 'bg-purple-600' : 'bg-green-500'}`}>
-                    {isGenerating ? (<Loader2 size={14} className="text-white animate-spin" />) : isCurrentPlaying ? (<Pause size={14} fill="white"/>) : (<Play size={14} fill="white" className="ml-0.5" />)}
+                <button onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-md group ${isCurrentPlaying ? 'bg-purple-600' : 'bg-green-500'}`}>
+                    {isGenerating ? (<Loader2 size={16} className="text-white animate-spin" />) : isCurrentPlaying ? (<Pause size={16} fill="white"/>) : (<Play size={16} fill="white" className="ml-0.5" />)}
                 </button>
             )}
         </div>
-
-        {/* Pílula Central */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex shadow-2xl rounded-full p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
+      </div>
+      
+      {/* --- PÍLULA NA TRANSIÇÃO (CORRIGIDA) --- */}
+      {/* Agora ela está fora do div da imagem, mas posicionada sobre ele */}
+      <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
+        <div className="flex shadow-2xl rounded-full p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
           <button onClick={(e) => { e.stopPropagation(); onClick(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors">Ler</button>
           <div className="w-[1px] bg-white/10 my-1"></div>
           <button onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg"><Sparkles size={14} className="mr-2 inline text-yellow-300 animate-pulse" /> Analisar</button>
-      </div>
+        </div>
       </div>
       
-      {/* 2. ÁREA DE TEXTO COMPACTA */}
-      <div className="relative px-5 pt-4 pb-3 flex flex-col">
-        <div onClick={() => onClick(news)} className="cursor-pointer pr-12">
+      {/* ÁREA DE TEXTO */}
+      <div className="relative px-5 pt-10 pb-3">
+        <div onClick={() => onClick(news)} className="cursor-pointer">
              <h3 className={`text-lg font-black leading-tight mb-2 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                  {news.title}
              </h3>
