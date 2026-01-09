@@ -564,7 +564,7 @@ const triggerSearch = () => {
            {/* --- NOVO LOGO NEWSOS --- */}
                     <div className="absolute top-2 left-2 flex items-center gap-3 opacity-95">
                         <div className="w-10 h-10 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
-                            <span className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
+                            <span className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
                         </div>
                         <span className="text-xs font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
                     </div>
@@ -1129,25 +1129,25 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
 
 
             {/* Cabeçalho Sobre a Imagem */}
-            <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
+            <div className="absolute top-4 left-4 flex items-center z-10">
                 {/* LOGO SOLTO */}
                 <img 
                     src={news.logo} 
-                    className="w-8 h-8 rounded-lg bg-white p-0.5 shadow-lg border border-white/20" 
+                    className="relative z-10 w-9 h-9 rounded-lg bg-white p-0.5 shadow-lg border border-white/20" 
                     onError={(e) => e.target.style.display = 'none'} 
                 />
                 {/* PÍLULA APENAS NO NOME */}
-                <div className="bg-black/20 backdrop-blur-md px-1 rounded-md border border-white/10 shadow-lg">
+                <div className="-ml-3 pl-5 pr-2 py-1.5  bg-black/20 backdrop-blur-md px-1 rounded-r-md border border-white/10 shadow-lg flex items-center justify-center h-fit">
                     <span className="text-[10px] font-black text-white uppercase tracking-wider">{news.source}</span>
                 </div>
-                <div className="bg-black/20 backdrop-blur-md px-1 rounded-md border border-white/5">
+                <div className="ml-2 bg-black/20 backdrop-blur-md px-1 rounded-md border border-white/5">
                     <span className="text-[10px] font-bold text-white">{displayTime}</span>
                 </div>
             </div>
 
             {/* Botões no Canto Superior Direito */}
             <div className="absolute top-4 right-4 z-20">
-                <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/40 backdrop-blur-md border border-white/10">
+                <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/80 backdrop-blur-md border border-white/10">
                     <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/80 hover:text-white'}`}>
                         <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
                     </button>
