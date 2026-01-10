@@ -2990,7 +2990,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
             `}>
 
               {/* === BLOCO 1: IMAGEM E TEXTO SOBREPOSTO (ALTURA DOMINANTE) === */}
-              <div className="relative w-full flex-grow h-[410px] bg-zinc-800"> {/* h-80 para uma altura bem maior */}
+              <div className="relative w-full flex-grow h-[535px] bg-zinc-800"> {/* h-80 para uma altura bem maior */}
                 <img
                   src={cluster.representative_image}
                   className="w-full h-full object-cover"
