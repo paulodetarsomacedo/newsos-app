@@ -604,7 +604,7 @@ const triggerSearch = () => {
               </div>
            </div>
 
-           <div className="flex justify-between items-center mt-12 ml-4">
+           <div className="flex justify-between items-center mt-12 transform: translateX(-8px)">
               <div className="flex items-center gap-3">
                  <div onClick={onOpenSettings} className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] cursor-pointer hover:scale-105 transition-transform shadow-lg">
                     <img src="https://ui-avatars.com/api/?name=User&background=000&color=fff" className="rounded-full w-full h-full border-2 border-black" alt="User" />
