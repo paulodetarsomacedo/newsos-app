@@ -3681,7 +3681,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
          inset -3px 0 8px rgba(0,0,0,0.22)`,
   }}
 >
-  {/* LINHA SUPERIOR GROSSA COM MOVIMENTO */}
+{/* LINHA SUPERIOR GROSSA COM MOVIMENTO */}
 <div
   className="absolute top-0 left-0 right-0 h-[4px]"
   style={{
@@ -3692,18 +3692,20 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
       ${style.color}
     )`,
     backgroundSize: '200% 100%',
-    animation: 'bar-shimmer 2.2s linear infinite',
-    opacity: isActive ? 1 : 0.7,
+    animation: isActive
+      ? 'bar-shimmer 2.8s ease-in-out infinite'
+      : 'bar-shimmer 4.5s linear infinite',
+    opacity: isActive ? 1 : 0.6,
   }}
 />
 </div>
                       
                       {/* TÍTULO LEGÍVEL ABAIXO DA BARRA */}
  <p
-  className="text-[11px] font-bold text-center absolute -bottom-5 w-full transition-all duration-300"
+  className="text-[15px] font-bold text-center absolute -bottom-1 w-full transition-all duration-300"
   style={{
     color: '#ffffff',
-    opacity: isActive ? 1 : 0.6,
+    opacity: isActive ? 1 : 1,
     textShadow: '0 1px 2px rgba(0,0,0,0.45)',
   }}
 >
@@ -3815,7 +3817,16 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     { id: 3, title: 'Bitcoin atinge nova máxima histórica com aprovação de ETF', source: 'Bloomberg', time: '2h', img: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=600&q=80' }
   ];
 
-
+<style jsx="true">{`
+  @keyframes bar-shimmer {
+    0% {
+      background-position: 0% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+`}</style>
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
