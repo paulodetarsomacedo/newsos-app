@@ -2998,7 +2998,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                 {/* === FIM DA CORREÇÃO: FECHAMENTO DO .MAP() === */}
             </div>
             
-            {displayClusters.length > 1 && (
+          {displayClusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-2 pb-4">
                   {displayClusters.map((_, idx) => (
                       <div key={idx} className={`h-1 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-8' : 'bg-zinc-700 w-2'}`} />
@@ -3008,6 +3008,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
         </div>
     </div>
   );
+}; // <--- LINHA CORRIGIDA com };
 
 
 
