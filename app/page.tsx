@@ -7300,7 +7300,7 @@ return (
         {/* CONTAINER DE CONTEÚDO DINÂMICO */}
         <div className="flex-1 min-h-0">
           {viewMode === 'analysis' && (
-            <div className="overflow-y-auto custom-scrollbar px-4 pt-6 pb-20 animate-in fade-in">
+            <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20 animate-in fade-in">
               <div className="mb-10">
                 <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
                   {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
