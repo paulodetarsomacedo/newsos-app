@@ -6324,7 +6324,7 @@ return (
                     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
                     apiKey={getApiKey('analysis')}
                     getChatApiKey={getChatApiKey}
-                    readerContent={readerContent}
+                    
                     isDarkMode={isDarkMode}
 
                 />
