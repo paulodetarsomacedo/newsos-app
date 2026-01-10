@@ -3483,181 +3483,161 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
 
 
 
-// --- COMPONENTE TREND RADAR (PERSISTENTE + MANUAL) ---
+// --- COMPONENTE TREND RADAR (V2 - EQUALIZADOR DE RELEVÂNCIA) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  // Chave para salvar no celular
-  const STORAGE_KEY = 'newsos_trend_radar_data_v1';
+  const STORAGE_KEY = 'newsos_trend_radar_data_v2'; // v2 para evitar conflito de cache
 
-  // 1. CARREGAR DADOS SALVOS AO INICIAR
   useEffect(() => {
-      const savedData = localStorage.getItem(STORAGE_KEY);
-      if (savedData) {
-          try {
-              const parsed = JSON.parse(savedData);
-              // Verifica se tem dados válidos
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                  setTrends(parsed);
-                  setHasGenerated(true);
-              }
-          } catch (e) {
-              console.error("Erro ao ler Trend Radar salvo", e);
-          }
-      }
-  }, []); // Roda apenas uma vez na montagem
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTrends(parsed.sort((a, b) => b.score - a.score)); // Ordena por score
+          setHasGenerated(true);
+        }
+      } catch (e) { console.error("Erro ao ler Trend Radar salvo", e); }
+    }
+  }, []);
 
-  // --- LÓGICA DE ESTILO FÍSICO ---
   const getTrendStyle = (score) => {
-      if (score >= 9) return { color: '#ef4444', bottomHeight: '4px', shadow: '0 0 15px rgba(239, 68, 68, 0.4), inset 0 2px 0 rgba(255,255,255,0.2)', scale: 'scale(1.05)' };
-      if (score >= 7) return { color: '#f97316', bottomHeight: '3px', shadow: '0 0 10px rgba(249, 115, 22, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)', scale: 'scale(1.02)' };
-      if (score >= 5) return { color: '#10b981', bottomHeight: '2px', shadow: 'inset 0 1px 0 rgba(255,255,255,0.2)', scale: 'scale(1)' };
-      return { color: '#3b82f6', bottomHeight: '2px', shadow: 'none', scale: 'scale(0.98)' };
+    if (score >= 9) return { color: '#ef4444', height: '100%' };   // Vermelho
+    if (score >= 7) return { color: '#f97316', height: '80%' };    // Laranja
+    if (score >= 5) return { color: '#eab308', height: '60%' };    // Amarelo
+    if (score >= 3) return { color: '#22c55e', height: '40%' };    // Verde
+    return { color: '#3b82f6', height: '25%' };                     // Azul
   };
 
   const runTrendAnalysis = async () => {
-    if (!apiKey) {
-        alert("Configure sua API Key primeiro.");
-        return;
+    if (!apiKey || !newsData || newsData.length === 0) {
+      alert("Aguarde o carregamento das notícias ou configure a API Key.");
+      return;
     }
-    if (!newsData || newsData.length === 0) {
-        alert("Aguarde as notícias carregarem.");
-        return;
-    }
-
     setLoading(true);
     setActiveIndex(null);
-    
-    // Pequeno delay para UX
-    await new Promise(r => setTimeout(r, 600)); 
-    
-    // Chama a função otimizada (Custo Zero)
+    await new Promise(r => setTimeout(r, 600));
     const data = await generateTrendRadar(newsData, apiKey);
-    
     if (data && Array.isArray(data) && data.length > 0) {
-        setTrends(data);
-        setHasGenerated(true);
-        // 2. SALVAR NO LOCALSTORAGE ASSIM QUE A IA RESPONDER
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const sortedData = data.sort((a, b) => b.score - a.score); // Ordena por score
+      setTrends(sortedData);
+      setHasGenerated(true);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedData));
     } else {
-        alert("A IA não identificou tendências claras agora. Tente mais tarde.");
+      alert("A IA não identificou tendências claras agora.");
     }
     setLoading(false);
   };
 
   const handleToggle = (idx) => {
-      setActiveIndex(activeIndex === idx ? null : idx);
+    setActiveIndex(activeIndex === idx ? null : idx);
   };
 
   const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
 
-  // RENDERIZAÇÃO
   return (
-    <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 slide-in-from-right-8 px-2">
+    <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 px-4">
       
-      {/* Cabeçalho / Botão de Ativação */}
-      <div className="flex items-center justify-between mb-4 px-2">
-         <div className={`flex items-center gap-2 transition-all duration-500 ${loading ? 'opacity-100' : 'opacity-70'}`}>
+      <div className="flex items-center justify-between mb-4">
+         <div className="flex items-center gap-2 opacity-70">
              <Activity size={14} className="text-orange-500" />
-             <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                 Trend Radar AI
-             </span>
+             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Trend Radar AI</span>
          </div>
-
-         {/* BOTÃO PARA GERAR (SÓ GASTA SE CLICAR) */}
          <button 
             onClick={runTrendAnalysis}
             disabled={loading}
-            className={`
-                flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95
-                ${hasGenerated 
-                    ? (isDarkMode ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-200 text-zinc-600 hover:text-black') 
-                    : 'bg-orange-500 text-white shadow-lg shadow-orange-500/30 animate-pulse'}
-            `}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${hasGenerated ? (isDarkMode ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-200 text-zinc-600 hover:text-black') : 'bg-orange-500 text-white shadow-lg shadow-orange-500/30 animate-pulse'}`}
          >
             {loading ? <Loader2 size={12} className="animate-spin"/> : <RefreshCw size={12}/>}
-            {loading ? 'Analisando...' : (hasGenerated ? 'Atualizar Radar' : 'Ativar Radar')}
+            {loading ? 'Analisando...' : (hasGenerated ? 'Atualizar' : 'Ativar Radar')}
          </button>
       </div>
 
       {loading ? (
-         <div className="flex justify-center gap-4 overflow-hidden px-2 opacity-50 pb-8">
-            {[1,2,3,4].map(i => (
-                <div key={i} className={`h-9 w-24 rounded-full animate-pulse ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-            ))}
-         </div>
+        <div className="h-48 flex items-center justify-center">
+            <Loader2 size={32} className="animate-spin text-orange-500" />
+        </div>
       ) : (
-         <div className="flex flex-col w-full">
-             
-             {/* SÓ MOSTRA SE TIVER DADOS GERADOS */}
-             {trends && (
-                 <>
-                     {/* 1. LISTA DE PÍLULAS */}
-                     <div className="flex justify-start md:justify-center items-center gap-4 overflow-x-auto scrollbar-hide px-4 pt-2 pb-8 snap-x relative z-20">
-                        {trends.map((item, idx) => {
-                            const style = getTrendStyle(item.score);
-                            const isActive = activeIndex === idx;
-                            
-                            return (
-                                <div key={idx} className="relative flex-shrink-0 snap-center flex flex-col items-center">
-                                    <button 
-                                        onClick={() => handleToggle(idx)}
-                                        className={`
-                                            relative group cursor-pointer transition-all duration-200 flex items-center gap-2 rounded-full
-                                            ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-800'}
-                                        `}
-                                        style={{ 
-                                            borderColor: style.color,
-                                            borderStyle: 'solid',
-                                            borderWidth: '1px', 
-                                            borderBottomWidth: isActive ? '1px' : style.bottomHeight,
-                                            boxShadow: style.shadow,
-                                            padding: '8px 20px',
-                                            transform: isActive ? `translateY(${parseInt(style.bottomHeight) - 1}px)` : 'translateY(0)',
-                                        }}
-                                    >
-                                        {item.score >= 9 && <span className="text-[10px] animate-bounce">🔥</span>}
-                                        <span className="text-xs font-bold whitespace-nowrap tracking-tight">{item.topic}</span>
-                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: style.color }} />
-                                    </button>
-                                    {isActive && (
-                                        <div 
-                                            className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] animate-in fade-in zoom-in duration-300 z-30"
-                                            style={{ borderBottomColor: style.color }}
-                                        />
-                                    )}
-                                </div>
-                            )
-                        })}
-                     </div>
-
-                     {/* 2. ÁREA DE DETALHES */}
-                     <div className={`relative w-full px-4 transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden ${activeItem ? 'max-h-[200px] opacity-100 mt-0' : 'max-h-0 opacity-0 mt-0'}`}>
-                        {activeItem && (
-                            <div 
-                                className={`w-full md:max-w-md mx-auto p-5 rounded-3xl border-2 shadow-2xl backdrop-blur-xl flex flex-col gap-2 animate-in slide-in-from-top-4 duration-300 ${isDarkMode ? 'bg-zinc-950/95 text-zinc-200' : 'bg-white/95 text-zinc-800'}`}
-                                style={{ borderColor: getTrendStyle(activeItem.score).color, boxShadow: `0 10px 40px -10px ${getTrendStyle(activeItem.score).color}20` }}
-                            >
-                                <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
-                                    <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: getTrendStyle(activeItem.score).color }}>Impacto: {activeItem.score}/10</span>
-                                    <div className="h-1.5 w-20 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${activeItem.score * 10}%`, backgroundColor: getTrendStyle(activeItem.score).color }} /></div>
-                                </div>
-                                <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>{activeItem.summary}</p>
-                            </div>
+        <div className="w-full">
+          {trends && (
+            <div className="relative">
+              {/* 1. EQUALIZADOR DE BARRAS */}
+              <div className="relative h-40 w-full flex items-end justify-around gap-2 px-2 pt-8">
+                {trends.map((item, idx) => {
+                  const style = getTrendStyle(item.score);
+                  const isActive = activeIndex === idx;
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => handleToggle(idx)}
+                      className="relative h-full flex-1 flex flex-col items-center justify-end cursor-pointer group"
+                    >
+                      {/* BARRA PRINCIPAL */}
+                      <div
+                        className="w-full rounded-t-lg transition-all duration-300 ease-out"
+                        style={{
+                          height: style.height,
+                          backgroundColor: style.color,
+                          opacity: isActive ? 1 : (activeIndex !== null ? 0.3 : 0.7),
+                          boxShadow: isActive ? `0 0 15px ${style.color}` : 'none'
+                        }}
+                      >
+                        {/* Indicador de "em chamas" */}
+                        {item.score >= 9 && isActive && (
+                          <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-lg animate-bounce">🔥</span>
                         )}
-                     </div>
-                 </>
-             )}
-         </div>
+                      </div>
+                      
+                      {/* NOME DO TÓPICO (Aparece ao interagir) */}
+                      <div className={`absolute bottom-full mb-2 w-max max-w-xs text-center transition-all duration-300 ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
+                        <span className="text-xs font-bold p-2 rounded-md bg-zinc-800 text-white shadow-lg">{item.topic}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 2. ÁREA DE DETALHES (BALÃO) */}
+              <div className="relative mt-4 h-40">
+                <AnimatePresence>
+                  {activeItem && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                      className="absolute inset-0"
+                    >
+                      <div
+                        className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'}`}
+                        style={{ 
+                          border: `2px solid ${getTrendStyle(activeItem.score).color}`,
+                          boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`
+                        }}
+                      >
+                        <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: getTrendStyle(activeItem.score).color }}>Impacto: {activeItem.score}/10</span>
+                          <div className="h-1.5 w-20 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${activeItem.score * 10}%`, backgroundColor: getTrendStyle(activeItem.score).color }} />
+                          </div>
+                        </div>
+                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>{activeItem.summary}</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
 };
-
-
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
