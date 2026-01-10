@@ -2809,10 +2809,11 @@ const topicImages = digest.topics.slice(0, 4).map(t => {
             article={glassArticle} 
             onClose={() => setGlassArticle(null)}
             isDarkMode={isDarkMode}
-        />
+       />
     )}
-  </>
-);
+    </>
+  );
+}; // <-- ADICIONE O PONTO E VÍRGULA AQUI
              
 
 
