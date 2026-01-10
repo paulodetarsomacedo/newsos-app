@@ -3695,15 +3695,13 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                       
                       {/* TÍTULO LEGÍVEL ABAIXO DA BARRA */}
                       <p
-  className="text-[16px] font-bold text-center absolute -bottom-5 w-full transition-opacity duration-300"
+  className="text-[16px] font-bold text-center absolute w-full transition-opacity duration-300"
   style={{
-    color: isActive
-      ? style.color
-      : (isDarkMode ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)'),
-      textShadow: isDarkMode
-    ? '0 1px 2px rgba(0,0,0,0.6)'
-    : '0 1px 2px rgba(255,255,255,0.6)',
-  }}
+  color: style.color,            // mesma cor EXATA da barra
+  opacity: isActive ? 1 : 0.55,   // destaque visual sem mudar cor
+  textShadow: '0 1px 2px rgba(0,0,0,0.35)', // legibilidade sutil
+}}
+
 >
                         {item.topic}
                       </p>
