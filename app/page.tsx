@@ -2887,7 +2887,7 @@ const generateHeuristicClusters = (news) => {
 
 
 
-// --- WIDGET: CONTEXTO GLOBAL (V4 - LAYOUT FINAL CORRIGIDO CONFORME PRINT) ---
+// --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters, onContextReady }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -2903,7 +2903,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       ai_summary: cluster.ai_summary || 'Clique em "Analisar" para obter um resumo detalhado gerado por IA sobre este tópico.'
     }));
   }, [news, clusters]);
-
 
   const runAI = async () => {
     if (!apiKey) {
@@ -2943,7 +2942,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
   
   const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
 
-  // Renderização de Loading
   if (loading) {
     return (
       <div className="relative w-full h-[380px] flex items-center justify-center">
@@ -2955,7 +2953,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     );
   }
 
-  // Renderização de Fallback (sem notícias)
   if (!displayClusters || displayClusters.length === 0) {
     return (
       <div className="relative w-full animate-pulse h-[380px] p-2">
@@ -2967,7 +2964,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
   return (
     <div className="relative">
       
-      {/* BOTÃO ATUALIZAR/ANALISAR */}
       <div className="absolute top-[-4.5rem] right-4 z-20">
         <button
           onClick={runAI}
@@ -2979,7 +2975,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
         </button>
       </div>
 
-      {/* CARROSSEL */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -2994,15 +2989,16 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                 : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
             `}>
 
-              {/* === BLOCO 1: IMAGEM (ALTURA FIXA) === */}
-              <div className="relative w-full h-52 bg-zinc-800">
+              {/* === BLOCO 1: IMAGEM E TEXTO SOBREPOSTO (ALTURA DOMINANTE) === */}
+              <div className="relative w-full flex-grow h-80 bg-zinc-800"> {/* h-80 para uma altura bem maior */}
                 <img
                   src={cluster.representative_image}
                   className="w-full h-full object-cover"
                   alt={cluster.ai_title}
                   onError={(e) => e.target.style.display = 'none'}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                
                 <div className="absolute top-4 left-4 z-10">
                   <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
                     <Globe size={12} />
@@ -3011,26 +3007,24 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                     </span>
                   </div>
                 </div>
+
+                {/* Container do texto sobreposto, posicionado na parte inferior */}
+                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                  <h2 className="text-3xl lg:text-4xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-3">
+                    {cluster.ai_title}
+                  </h2>
+                  <div className="flex items-start gap-3">
+                    <div className="w-1 h-auto self-stretch bg-purple-400 rounded-full flex-shrink-0" />
+                    <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">
+                      {cluster.ai_summary}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* === BLOCO 2: CONTEÚDO (TEXTO E LOGOS) === */}
-              <div className="p-6 flex-1 flex flex-col">
-                <h2 className={`text-2xl font-black leading-tight mb-3 font-serif
-                  ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}
-                `}>
-                  {cluster.ai_title}
-                </h2>
-                
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-1 h-auto self-stretch bg-purple-400 rounded-full flex-shrink-0" />
-                  <p className={`text-sm leading-relaxed 
-                    ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}
-                  `}>
-                    {cluster.ai_summary}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 mt-auto pt-4">
+              {/* === BLOCO 2: LOGOS DAS FONTES (ÁREA BRANCA/CLARA) === */}
+              <div className="px-6 py-4">
+                <div className="flex flex-wrap items-center gap-3">
                   {cluster.related_articles.map(article => (
                     <button
                       key={article.id}
