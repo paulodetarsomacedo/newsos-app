@@ -7210,6 +7210,7 @@ const handleNodeClick = useCallback((nodeName, position) => {
 
 
   
+// --- return do ArticlePanel ---
 return (
   <div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} border-l-2 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
     <style jsx="true">{`
@@ -7219,78 +7220,104 @@ return (
         .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
     `}</style>
   
-    {/* --- Telas de Loading e Erro (sem alterações) --- */}
+    {/* --- Telas de Loading e Erro --- */}
     {(loadingState === 'extracting' || loadingState === 'analyzing') && (
       <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black p-8">
-        {/* ... código da tela de loading ... */}
+        {/* ... (código do loading, que não precisa ser alterado) ... */}
+        <div className="flex flex-col items-center mb-12 text-center">
+          <div className="relative w-24 h-24 mb-6">
+            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full blur-2xl opacity-50 animate-pulse"></div>
+            <div className="absolute inset-[-10px] border-t-2 border-white/20 rounded-full animate-spin-slow"></div>
+            <div className="absolute inset-[-20px] border-b-2 border-blue-400/20 rounded-full animate-spin-reverse-slow"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <BrainCircuit size={40} className="text-white animate-pulse" style={{ animationDuration: '2s' }}/>
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
+            NEWS OS <span className="text-white">INTELLIGENCE</span>
+          </h3>
+        </div>
+        <div className="w-full max-w-sm space-y-6">
+          <LoadingStep title="Estabelecendo conexão neural segura..." isActive={loadingStep === 0} isComplete={loadingStep > 0} />
+          <LoadingStep title="Extraindo e sanitizando dados-fonte..." isActive={loadingStep === 1} isComplete={loadingStep > 1} />
+          <LoadingStep title="Processando dados com IA..." isActive={loadingStep === 2} isComplete={loadingStep > 2} />
+          <LoadingStep title="Sintetizando briefing de inteligência..." isActive={loadingStep === 3} isComplete={loadingStep > 3} />
+        </div>
+        <button onClick={onClose} className="absolute bottom-8 text-zinc-600 text-xs hover:text-white transition-colors">Cancelar Análise</button>
       </div>
     )}
+    
     {loadingState === 'error' && (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
-        {/* ... código da tela de erro ... */}
+        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
+        <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
+        <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia. O site pode estar bloqueando a extração ou a API de IA está offline.</p>
+        <button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button>
       </div>
     )}
 
     {/* --- TELA DE CONTEÚDO (APÓS SUCESSO) --- */}
     {loadingState === 'complete' && aiData && (
-      <>
-        {/* CABEÇALHO (com o botão de chat) */}
+      <> {/* FRAGMENTO ABERTO AQUI */}
+        
+        {/* CABEÇALHO DO PAINEL */}
         <div className="relative h-72 w-full flex-shrink-0 sticky top-0 z-20">
-            <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" />
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
-            <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">
-              {viewMode === 'chat' ? (
-                  <button onClick={() => setViewMode('analysis')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2">
-                      <BrainCircuit size={14}/> Voltar à Análise
-                  </button>
-              ) : <div />}
-              <div className="flex gap-2">
-                 <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full backdrop-blur-md border ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}><Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/></button>
-                 <button onClick={onClose} className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20"><X size={20}/></button>
-              </div>
+          <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" />
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
+          <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">
+            {viewMode === 'chat' ? (
+              <button onClick={() => setViewMode('analysis')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2">
+                <BrainCircuit size={14}/> Voltar à Análise
+              </button>
+            ) : <div />}
+            <div className="flex gap-2">
+              <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full backdrop-blur-md border ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}><Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/></button>
+              <button onClick={onClose} className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20"><X size={20}/></button>
             </div>
-            <div className="absolute bottom-6 left-6 right-6 z-10 flex justify-between items-end gap-4">
-              <div className="min-w-0">
-                  <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-xl border-2 border-white/20 bg-white p-0.5 shadow-lg">
-                          <img src={article.logo} className="w-full h-full object-contain rounded-md"/>
-                      </div>
-                      <span className="text-base font-bold text-white/80 uppercase tracking-widest drop-shadow-lg">{article.source}</span>
-                  </div>
-                  <h1 className="text-2xl md:text-3xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
+          </div>
+          <div className="absolute bottom-8 left-6 right-6 z-10 flex justify-between items-end gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl border-2 border-white/20 bg-white p-0.5 shadow-lg">
+                  <img src={article.logo} className="w-full h-full object-contain rounded-md"/>
+                </div>
+                <span className="text-base font-bold text-white/80 uppercase tracking-widest drop-shadow-lg">{article.source}</span>
               </div>
-              {viewMode !== 'chat' && (
-                <button 
-                    onClick={() => setViewMode('chat')}
-                    className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
-                >
-                    <MessageCircle size={20} />
-                    <span className="text-sm font-bold">Chat</span>
-                </button>
-              )}
+              <h1 className="text-2xl md:text-3xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
             </div>
+            {viewMode !== 'chat' && (
+              <button 
+                onClick={() => setViewMode('chat')}
+                className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
+              >
+                <MessageCircle size={20} />
+                <span className="text-sm font-bold">Chat</span>
+              </button>
+            )}
+          </div>
         </div>
         
-        {/* === AQUI ESTÁ A CORREÇÃO PRINCIPAL === */}
-        {/* Este é o container que permite o scroll da análise. O chat vai viver ao lado dele. */}
+        {/* CONTAINER DE CONTEÚDO DINÂMICO */}
         <div className="flex-1 min-h-0">
           {viewMode === 'analysis' && (
-            <div className="overflow-y-auto custom-scrollbar p-4 animate-in fade-in">
+            <div className="overflow-y-auto custom-scrollbar px-4 pt-6 pb-20 animate-in fade-in">
               <div className="mb-10">
-                <div className="flex p-1 rounded-xl bg-zinc-800 mb-4">
+                <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
                   {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
-                    <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-zinc-700 text-white shadow-md' : 'text-zinc-400'}`}>
+                    <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>
                       {mode === 'executive' ? 'Executivo' : (mode === 'tldr' ? 'Curto' : (mode === 'eli5' ? 'Simples' : 'Tópicos'))}
                     </button>
                   ))}
                 </div>
                 <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
                   {summaryMode === 'bullets' ? (
-                    <ul className="list-disc pl-5 space-y-3 marker:text-indigo-400 text-sm leading-relaxed">
+                    <ul className="list-disc pl-5 space-y-3 marker:text-indigo-400 text-sm leading-loose">
                       {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
                     </ul>
                   ) : (
-                    <p className="text-sm leading-relaxed text-zinc-200">{aiData.summaries[summaryMode]}</p>
+                    <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                      {aiData.summaries[summaryMode]}
+                    </p>
                   )}
                 </div>
               </div>
@@ -7310,7 +7337,7 @@ return (
           )}
         </div>
 
-        {/* MODAIS E OVERLAYS (separados, mas dentro da condição 'complete') */}
+        {/* MODAIS (Renderizados por cima de tudo, mas dentro da condição 'complete') */}
         {showCenterModal && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
         {viewMode === 'drilldown' && focusedNode && (
           <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
@@ -7347,14 +7374,12 @@ return (
             <MagicPremiumView article={article} readerContent={readerContent} highlightText={highlightRequest} isDarkMode={isDarkMode} fontSize={fontSize} />
           </div>
         )}
-  </> // Fim do Fragmento
-    )} 
-    
-    {/* O modal showCenterModal também deve estar dentro do div principal para ter o contexto correto */}
-    
-  </div> // <-- ADICIONE ESTA LINHA PARA FECHAR O DIV PRINCIPAL
+      </>
+    )}
+  </div>
 );
 });
+
 
 
 
