@@ -1147,7 +1147,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
 
             {/* Botões no Canto Superior Direito */}
             <div className="absolute top-4 right-4 z-20">
-                <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/30 backdrop-blur-md border border-white/10">
+                <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black border border-white/10">
                     <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/80 hover:text-white'}`}>
                         <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
                     </button>
