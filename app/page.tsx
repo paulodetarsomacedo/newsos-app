@@ -3682,30 +3682,30 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   }}
 >
   {/* LINHA SUPERIOR GROSSA COM MOVIMENTO */}
-  <div
-    className="absolute top-0 left-0 right-0 h-[4px]"
-    style={{
-      background: `linear-gradient(
-        90deg,
-        ${style.color},
-        rgba(255,255,255,0.45),
-        ${style.color}
-      )`,
-      animation: 'bar-shimmer 2.2s linear infinite',
-      opacity: isActive ? 1 : 0.7,
-    }}
+<div
+  className="absolute top-0 left-0 right-0 h-[4px]"
+  style={{
+    background: `linear-gradient(
+      90deg,
+      ${style.color},
+      rgba(255,255,255,0.45),
+      ${style.color}
+    )`,
+    backgroundSize: '200% 100%',
+    animation: 'bar-shimmer 2.2s linear infinite',
+    opacity: isActive ? 1 : 0.7,
+  }}
 />
 </div>
                       
                       {/* TÍTULO LEGÍVEL ABAIXO DA BARRA */}
-                      <p
-  className="text-[16px] font-bold text-center absolute w-full transition-opacity duration-300"
+ <p
+  className="text-[11px] font-bold text-center absolute -bottom-5 w-full transition-all duration-300"
   style={{
-  color: rgb(255, 255, 255),            // mesma cor EXATA da barra
-  opacity: isActive ? 1 : 0.55,   // destaque visual sem mudar cor
-  textShadow: '0 1px 2px rgba(255, 254, 254, 0.7)', // legibilidade sutil
-}}
-
+    color: '#ffffff',
+    opacity: isActive ? 1 : 0.6,
+    textShadow: '0 1px 2px rgba(0,0,0,0.45)',
+  }}
 >
                         {item.topic}
                       </p>
