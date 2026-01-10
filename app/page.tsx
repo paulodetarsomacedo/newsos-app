@@ -900,7 +900,7 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
   }, [videos]);
 
   return (
-    <div className="absolute left-180 top-25 z-[1001]">
+    <div className="absolute left-180 top-45 z-[1001]">
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-2 h-[42px] px-3 rounded-r-2xl border-y border-l border-r-0 backdrop-blur-xl shadow-sm transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-white' : 'bg-white/80 border-zinc-200 text-zinc-600'}`}
@@ -3023,7 +3023,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
         <div>
             {/* Texto inteligente que aparece sobre o skeleton */}
             <div className="px-6 pb-2 text-center">
-                <p className={`text-sm font-medium animate-pulse ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                <p className={`text-xl font-medium animate-pulse ${isDarkMode ? 'text-purple-500' : 'text-purple-400'}`}>
                     Analisando as últimas notícias para você...
                 </p>
             </div>
@@ -3554,14 +3554,14 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
 
 
 
-// --- COMPONENTE TREND RADAR (V4 - EQUALIZADOR DE RELEVÂNCIA - COMPLETO E CORRIGIDO) ---
+// --- COMPONENTE TREND RADAR (V5 - BARRAS VIVAS + TÍTULOS LEGÍVEIS) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  const STORAGE_KEY = 'newsos_trend_radar_data_v4';
+  const STORAGE_KEY = 'newsos_trend_radar_data_v5';
 
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
@@ -3577,12 +3577,11 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   }, []);
 
   const getTrendStyle = (score) => {
-    let colorBase = '';
-    if (score >= 9) { colorBase = '#ef4444'; return { color: colorBase, heightPercent: 100 }; }
-    if (score >= 7) { colorBase = '#f97316'; return { color: colorBase, heightPercent: 85 }; }
-    if (score >= 5) { colorBase = '#eab308'; return { color: colorBase, heightPercent: 65 }; }
-    if (score >= 3) { colorBase = '#22c55e'; return { color: colorBase, heightPercent: 45 }; }
-    colorBase = '#3b82f6'; return { color: colorBase, heightPercent: 30 };
+    if (score >= 9) return { color: '#ef4444', heightPercent: 100 };
+    if (score >= 7) return { color: '#f97316', heightPercent: 85 };
+    if (score >= 5) return { color: '#eab308', heightPercent: 65 };
+    if (score >= 3) return { color: '#22c55e', heightPercent: 45 };
+    return { color: '#3b82f6', heightPercent: 30 };
   };
 
   const runTrendAnalysis = async () => {
@@ -3614,7 +3613,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   return (
     <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 px-4">
       
-      {/* O CABEÇALHO SÓ APARECE SE O RADAR JÁ FOI GERADO */}
       {hasGenerated && (
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 opacity-70">
@@ -3632,7 +3630,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
         </div>
       )}
 
-      {/* ANIMAÇÃO DE CARREGAMENTO */}
       {loading ? (
         <div className="h-48 flex flex-col items-center justify-center text-center gap-4">
             <style jsx="true">{`
@@ -3652,10 +3649,10 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
         </div>
       ) : (
         <div className="w-full">
-          {/* SE JÁ FOI GERADO, MOSTRA O EQUALIZADOR */}
           {hasGenerated && trends ? (
             <div className="relative">
-              <div className="relative h-40 w-full flex items-end justify-around gap-2 px-2">
+              {/* 1. EQUALIZADOR DE BARRAS */}
+              <div className="relative h-32 w-full flex items-end justify-around gap-3 px-2">
                 {trends.map((item, idx) => {
                   const style = getTrendStyle(item.score);
                   const isActive = activeIndex === idx;
@@ -3664,38 +3661,34 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                       key={idx}
                       onClick={() => handleToggle(idx)}
                       className="relative h-full flex-1 flex flex-col items-center justify-end cursor-pointer group"
-                      style={{ filter: `drop-shadow(0 0 10px ${isActive ? style.color + '60' : 'transparent'})` }}
                     >
+                      {/* BARRA COM GRADIENTE VIVO E GLOW NO HOVER/ACTIVE */}
                       <div
-                        className="w-full rounded-t-md border-t-2 transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] flex items-end justify-center overflow-hidden"
+                        className="w-full rounded-md transition-all duration-300 ease-out"
                         style={{
                           height: `${style.heightPercent}%`,
-                          borderColor: style.color,
-                          background: `linear-gradient(to top, ${style.color}20, transparent)`,
-                          opacity: isActive ? 1 : (activeIndex !== null ? 0.4 : 0.8),
-                          transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                          background: `linear-gradient(to top, ${style.color}, ${style.color}99)`,
+                          opacity: isActive ? 1 : (activeIndex !== null ? 0.5 : 0.8),
+                          boxShadow: isActive ? `0 0 15px ${style.color}70, 0 0 5px ${style.color}90` : 'none',
+                        }}
+                      />
+                      
+                      {/* TÍTULO LEGÍVEL ABAIXO DA BARRA */}
+                      <p 
+                        className="text-[10px] font-bold text-center absolute -bottom-5 w-full transition-opacity duration-300"
+                        style={{
+                          color: isActive ? style.color : (isDarkMode ? '#a1a1aa' : '#71717a'), // Cor do tema se ativo, cinza se inativo
                         }}
                       >
-                        <span className="text-xs font-black uppercase text-transparent bg-clip-text transition-all duration-300"
-                          style={{ 
-                            writingMode: 'vertical-rl',
-                            textOrientation: 'mixed',
-                            transform: 'rotate(180deg)',
-                            backgroundImage: `linear-gradient(to top, white 20%, transparent 80%)`,
-                            WebkitBackgroundClip: 'text',
-                            backgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            opacity: isActive ? 1 : 0,
-                          }}
-                        >
-                          {item.topic}
-                        </span>
-                      </div>
+                        {item.topic}
+                      </p>
                     </div>
                   );
                 })}
               </div>
-              <div className="relative mt-4 h-36">
+
+              {/* 2. ÁREA DE DETALHES (BALÃO) */}
+              <div className="relative mt-8 h-36">
                 <AnimatePresence>
                   {activeItem && (
                     <motion.div
@@ -3712,13 +3705,13 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                           boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`
                         }}
                       >
-                        <div className="flex items-center justify-between border-b border-dashed border-white/10 pb-2 mb-1">
+                        <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
                           <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: getTrendStyle(activeItem.score).color }}>Impacto: {activeItem.score}/10</span>
-                          <div className="h-1.5 w-20 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                          <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
                             <div className="h-full rounded-full" style={{ width: `${activeItem.score * 10}%`, backgroundColor: getTrendStyle(activeItem.score).color }} />
                           </div>
                         </div>
-                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-white' : 'text-black'}`}>{activeItem.summary}</p>
+                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{activeItem.summary}</p>
                       </div>
                     </motion.div>
                   )}
@@ -3726,12 +3719,10 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
               </div>
             </div>
           ) : (
-            // SE AINDA NÃO FOI GERADO, MOSTRA O BOTÃO GRANDE (CÓDIGO FALTANTE)
             <div className="h-48 flex flex-col items-center justify-center text-center">
-
-                <p className="font-bold text-lg mb-2">Ative o Radar de Tendências</p>
-                <p className="text-sm text-zinc-500 max-w-xs mb-6">
-                    Clique e deixe a IA  escanear as notícias e revelar as trends mais quentes de agora.
+                <p className="font-bold text-lg mb-4">Clique para a IA escanear as notícias e revelar as trends mais importantes de agora.</p>
+                <p className="text-base text-zinc-500 max-w-xs mb-6">
+                    
                 </p>
                 <button 
                     onClick={runTrendAnalysis}
