@@ -3556,6 +3556,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
 
 
 // --- COMPONENTE TREND RADAR (V5 - BARRAS VIVAS + TÍTULOS LEGÍVEIS) ---
+// --- COMPONENTE TREND RADAR (V5 - BARRAS VIVAS + TÍTULOS LEGÍVEIS) ---
 const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -3676,9 +3677,9 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                       
                       {/* TÍTULO LEGÍVEL ABAIXO DA BARRA */}
                       <p 
-                        className="text-xs font-bold text-center absolute -bottom-5 w-full transition-opacity duration-300"
+                        className="text-[13px] font-bold text-center absolute -bottom-5 w-full transition-opacity duration-300"
                         style={{
-                          color: isActive ? style.color : (isDarkMode ? '#a1a1aa' : '#71717a'), // Cor do tema se ativo, cinza se inativo
+                          color: isActive ? style.color : (isDarkMode ? 'black' : '#71717a'), // Cor do tema se ativo, cinza se inativo
                         }}
                       >
                         {item.topic}
@@ -3689,7 +3690,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
               </div>
 
               {/* 2. ÁREA DE DETALHES (BALÃO) */}
-              <div className="relative mt-8 min-h-[1px]"> {/* min-h-[1px] para garantir que o container exista */}
+              <div className="relative mt-8 h-36">
                 <AnimatePresence>
                   {activeItem && (
                     <motion.div
@@ -3721,9 +3722,9 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
             </div>
           ) : (
             <div className="h-48 flex flex-col items-center justify-center text-center">
-                <p className="font-bold text-lg mb-4">Clique para a IA escanear as notícias e revelar as trends mais importantes de agora.</p>
+                <p className="font-bold text-lg mb-4">Ative o Radar de Tendências</p>
                 <p className="text-base text-zinc-500 max-w-xs mb-6">
-                    
+                    Clique para escanear as notícias e revelar as trends mais importantes de agora.
                 </p>
                 <button 
                     onClick={runTrendAnalysis}
