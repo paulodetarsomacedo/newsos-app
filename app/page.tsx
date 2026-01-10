@@ -7212,166 +7212,207 @@ const handleNodeClick = useCallback((nodeName, position) => {
   
 return (
   <div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} border-l-2 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
-    <style jsx="true">{`
-        @keyframes spin-slow { to { transform: rotate(360deg); } }
-        .animate-spin-slow { animation: spin-slow 20s linear infinite; }
-        @keyframes spin-reverse-slow { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
-        .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
-    `}</style>
-  
-    {/* --- TELA DE LOADING --- */}
-    {(loadingState === 'extracting' || loadingState === 'analyzing') && (
-      <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black p-8">
-        <div className="flex flex-col items-center mb-12 text-center">
-          <div className="relative w-24 h-24 mb-6">
-            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full blur-2xl opacity-50 animate-pulse"></div>
-            <div className="absolute inset-[-10px] border-t-2 border-white/20 rounded-full animate-spin-slow"></div>
-            <div className="absolute inset-[-20px] border-b-2 border-blue-400/20 rounded-full animate-spin-reverse-slow"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <BrainCircuit size={40} className="text-white animate-pulse" style={{ animationDuration: '2s' }}/>
-            </div>
-          </div>
-          <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-            NEWS OS <span className="text-white">INTELLIGENCE</span>
-          </h3>
-        </div>
-        {/* As 4 Barras Sequenciais não estavam no seu código, então não adicionei */}
-        <button onClick={onClose} className="absolute bottom-8 text-zinc-600 text-xs hover:text-white transition-colors">Cancelar Análise</button>
-      </div>
-    )}
-    
-    {/* --- TELA DE ERRO --- */}
-    {loadingState === 'error' && (
-      <div className="flex flex-col items-center justify-center h-full text-center p-8">
-        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
-        <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
-        <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia. O site pode estar bloqueando a extração ou a API de IA está offline.</p>
-        <button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button>
-      </div>
-    )}
+<style jsx="true">{`
+            @keyframes spin-slow { to { transform: rotate(360deg); } }
+            .animate-spin-slow { animation: spin-slow 20s linear infinite; }
+            @keyframes spin-reverse-slow { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+            .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
+        `}</style>
+      
+        {/* --- A NOVA TELA DE LOADING SUBSTITUI A ANTIGA --- */}
+          {(loadingState === 'extracting' || loadingState === 'analyzing') && (
+         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black p-8">
+                
+                {/* --- BLOCO CORRIGIDO: LOGO E TÍTULO COM ANIMAÇÃO --- */}
+                <div className="flex flex-col items-center mb-12 text-center">
+                    <div className="relative w-24 h-24 mb-6">
+                        {/* A Aura Pulsante */}
+                        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full blur-2xl opacity-50 animate-pulse"></div>
+                        
+                        {/* As Órbitas Girando */}
+                        <div className="absolute inset-[-10px] border-t-2 border-white/20 rounded-full animate-spin-slow"></div>
+                        <div className="absolute inset-[-20px] border-b-2 border-blue-400/20 rounded-full animate-spin-reverse-slow"></div>
 
-    {/* --- TELA DE CONTEÚDO (APÓS SUCESSO) --- */}
-    {loadingState === 'complete' && aiData && (
-      <>
-        {/* CABEÇALHO DO PAINEL */}
-        <div className="relative h-72 w-full flex-shrink-0 sticky top-0 z-20">
-          <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" />
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
-          <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">
-            {viewMode === 'chat' ? (
-              <button onClick={() => setViewMode('analysis')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2">
-                <BrainCircuit size={14}/> Voltar à Análise
-              </button>
-            ) : <div />}
-            <div className="flex gap-2">
-              <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full backdrop-blur-md border ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}><Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/></button>
-              <button onClick={onClose} className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20"><X size={20}/></button>
-            </div>
-          </div>
-          <div className="absolute bottom-6 left-6 right-6 z-10 flex justify-between items-end gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl border-2 border-white/20 bg-white p-0.5 shadow-lg">
-                  <img src={article.logo} className="w-full h-full object-contain rounded-md"/>
+                        {/* O Cérebro no Centro */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <BrainCircuit size={40} className="text-white animate-pulse" style={{ animationDuration: '2s' }}/>
+                        </div>
+                    </div>
+                    <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
+                        NEWS OS <span className="text-white">INTELLIGENCE</span>
+                    </h3>
                 </div>
-                <span className="text-base font-bold text-white/80 uppercase tracking-widest drop-shadow-lg">{article.source}</span>
-              </div>
-              <h1 className="text-2xl md:text-3xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
+
+                {/* As 4 Barras Sequenciais */}
+            <div className="w-full max-w-sm space-y-6">
+                    <LoadingStep 
+                        title="Estabelecendo conexão neural segura..." 
+                        isActive={loadingStep === 0} 
+                        isComplete={loadingStep > 0} 
+                    />
+                    <LoadingStep 
+                        title="Extraindo e sanitizando dados-fonte..." 
+                        isActive={loadingStep === 1} 
+                        isComplete={loadingStep > 1} 
+                    />
+                    <LoadingStep 
+                        title="Processando dados com 1.7M de parâmetros..." 
+                        isActive={loadingStep === 2} 
+                        isComplete={loadingStep > 2} 
+                    />
+                    <LoadingStep 
+                        title="Sintetizando briefing de inteligência..." 
+                        isActive={loadingStep === 3} 
+                        isComplete={loadingStep > 3} 
+                    />
+                  
+                </div>
+                
+                <button onClick={onClose} className="absolute bottom-8 text-zinc-600 text-xs hover:text-white transition-colors">Cancelar Análise</button>
             </div>
-            {viewMode !== 'chat' && (
-              <button 
-                onClick={() => setViewMode('chat')}
-                className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
-              >
-                <MessageCircle size={20} />
-                <span className="text-sm font-bold">Chat</span>
-              </button>
-            )}
-          </div>
-        </div>
+          )}
         
-        {/* CONTAINER DE CONTEÚDO DINÂMICO */}
-        <div className="flex-1 min-h-0">
-          {viewMode === 'analysis' && (
-            <div className="overflow-y-auto custom-scrollbar px-4 pt-6 pb-20 animate-in fade-in">
-              <div className="mb-10">
-                <div className="flex p-1 rounded-xl bg-zinc-800 mb-4">
-                  {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
-                    <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-zinc-700 text-white shadow-md' : 'text-zinc-400'}`}>
-                      {mode === 'executive' ? 'Executivo' : (mode === 'tldr' ? 'Curto' : (mode === 'eli5' ? 'Simples' : 'Tópicos'))}
-                    </button>
-                  ))}
-                </div>
-                <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
-                  {summaryMode === 'bullets' ? (
-                    <ul className="list-disc pl-5 space-y-3 marker:text-indigo-400 text-sm leading-relaxed">
-                      {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
-                    </ul>
+        {/* --- TELA DE ERRO --- */}
+        {loadingState === 'error' && (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
+                <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
+                <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia. O site pode estar bloqueando a extração ou a API de IA está offline.</p>
+                <button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button>
+            </div>
+        )}
+
+        {/* --- TELA DE CONTEÚDO (APÓS SUCESSO) --- */}
+        {loadingState === 'complete' && aiData && (
+            <div className="flex-1 overflow-y-auto relative scrollbar-hide">
+                
+                <div className="relative h-72 w-full flex-shrink-0 sticky top-0 z-20">
+                    <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
+                    <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">
+                      {/* Botão para VOLTAR do chat para a análise */}
+                  {viewMode === 'chat' ? (
+                      <button onClick={() => setViewMode('analysis')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2">
+                          <BrainCircuit size={14}/> Voltar à Análise
+                      </button>
                   ) : (
-                    <p className="text-sm leading-relaxed text-zinc-200">{aiData.summaries[summaryMode]}</p>
+                      <div></div> // Placeholder para manter o layout
                   )}
+                        <div className="flex gap-2">
+                            {viewMode === 'magic' && (<button onClick={() => setViewMode('drilldown')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2"><BrainCircuit size={14}/> Voltar à Análise</button>)}
+                        </div>
+                        <div className="flex gap-2">
+                           <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full backdrop-blur-md border ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}><Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/></button>
+                           <button onClick={onClose} className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20"><X size={20}/></button>
+                        </div>
+                    </div>
+                    <div className="absolute bottom-8 left-6 right-6 z-10">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="w-12 h-12 rounded-2xl border-2 border-white/20 bg-white p-1 shadow-lg">
+                                <img src={article.logo} className="w-full h-full object-contain rounded-lg"/>
+                            </div>
+                            <span className="text-lg font-black text-white/80 uppercase tracking-widest drop-shadow-lg">{article.source}</span>
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
+                    </div>
+                    {/* === BOTÃO DE CHAT NOVO E MODERNO === */}
+              {viewMode !== 'chat' && (
+  <button 
+      onClick={() => setViewMode('chat')}
+      className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
+  >
+      {/* Ícone de Chat */}
+      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.839 8.839 0 01-4.083-.98L2 17l1.02-3.82A8.982 8.982 0 011 10c0-4.97 4.477-9 10-9s10 4.03 10 9zm-5-1a1 1 0 11-2 0 1 1 0 012 0zm-4 0a1 1 0 11-2 0 1 1 0 012 0zm-4 0a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd"></path>
+      </svg>
+      
+      {/* Texto do Botão */}
+      <span className="text-sm font-bold">
+          Chat com a Notícia
+      </span>
+  </button>
+                  )}
+            
                 </div>
-              </div>
-              <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
-              <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
-              <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
-              <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
+                
+                {/* CONTAINER DE CONTEÚDO */}
+          <div className="flex-1 min-h-0">
+                    {viewMode === 'analysis' && (
+                        <div className="animate-in fade-in">
+                            {/* Resumo com Abas */}
+                            <div className="mb-10">
+                                <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
+                                    {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
+                                        <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>
+                                            {mode === 'executive' ? 'Executivo' : (mode === 'tldr' ? 'Curto' : (mode === 'eli5' ? 'Simples' : 'Tópicos'))}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
+                                    {summaryMode === 'bullets' ? (
+                                        <ul className="list-disc pl-5 space-y-3 marker:text-indigo-500 text-sm leading-loose">
+                                            {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
+                                        </ul>
+                                    ) : (
+                                        <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                                            {aiData.summaries[summaryMode]}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
+                            <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
+                            <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
+                            <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
+                        </div>
+                    )}
+
+                    {/* DRILL-DOWN (PAINEL DE FOCO) */}
+                    {viewMode === 'drilldown' && focusedNode && (
+                        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
+                            <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-lg p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="flex items-center gap-2 opacity-70">
+                                        <img src={article.logo} className="w-5 h-5 rounded-full" />
+                                        <span className="text-xs font-bold uppercase tracking-wider">{article.source}</span>
+                                    </div>
+                                    <button onClick={() => setViewMode('analysis')} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
+                                </div>
+                                <h2 className="text-2xl font-black text-indigo-400 leading-tight mb-4">{focusedNode.name || focusedNode.term}</h2>
+                                {(!focusedNode.context || focusedNode.context.toLowerCase().includes('contexto geral')) ? (
+                                    <div>
+                                        <p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p>
+                                        <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                                    </div>
+                                ) : (
+                                    <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{focusedNode.context}</p>
+                                )}
+                                <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
+                                    <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Evidências</h4>
+                                    {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
+                                        focusedNode.evidence_quotes.map((quote, i) => (
+                                            <div key={i} onClick={() => handleQuoteClick(quote)} className={`p-3 rounded-xl border cursor-pointer text-xs italic ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>"{quote}"</div>
+                                        ))
+                                    ) : <p className="text-xs opacity-50 italic">Nenhuma citação direta encontrada.</p>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODO MÁGICO (LEITURA) */}
+                    {viewMode === 'magic' && (
+                        <MagicPremiumView article={article} readerContent={readerContent} highlightText={highlightRequest} isDarkMode={isDarkMode} fontSize={fontSize} />
+                    )}
+                </div>
             </div>
-          )}
-          
-          {viewMode === 'chat' && (
-            <WhatsappChat 
-              articleText={readerContent?.textContent || article.summary}
-              getChatApiKey={getChatApiKey}
-              isDarkMode={isDarkMode}
-            />
-          )}
-        </div>
-
-        {/* MODAIS E OVERLAYS (dentro da condição 'complete') */}
-        {showCenterModal && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
-
-        {viewMode === 'drilldown' && focusedNode && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
-            <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-lg p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-2 opacity-70">
-                  <img src={article.logo} className="w-5 h-5 rounded-full" />
-                  <span className="text-xs font-bold uppercase tracking-wider">{article.source}</span>
-                </div>
-                <button onClick={() => setViewMode('analysis')} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
-              </div>
-              <h2 className="text-2xl font-black text-indigo-400 leading-tight mb-4">{focusedNode.name || focusedNode.term}</h2>
-              {(!focusedNode.context || focusedNode.context.toLowerCase().includes('contexto geral')) ? (
-                <div>
-                  <p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p>
-                  <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                </div>
-              ) : (
-                <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{focusedNode.context}</p>
-              )}
-              <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
-                <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Evidências</h4>
-                {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
-                  focusedNode.evidence_quotes.map((quote, i) => (
-                    <div key={i} onClick={() => handleQuoteClick(quote)} className={`p-3 rounded-xl border cursor-pointer text-xs italic ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>"{quote}"</div>
-                  ))
-                ) : <p className="text-xs opacity-50 italic">Nenhuma citação direta encontrada.</p>}
-              </div>
-            </div>
-          </div>
         )}
-
-        {viewMode === 'magic' && (
-          <div className="absolute inset-0 overflow-y-auto bg-zinc-950 z-30">
-            <MagicPremiumView article={article} readerContent={readerContent} highlightText={highlightRequest} isDarkMode={isDarkMode} fontSize={fontSize} />
-          </div>
-        )}
-      </>
-    )}
-  </div>
-);
-})
+        {showCenterModal && aiData && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
+    
+    
+    </div>
+  );
+});
 
 
 
