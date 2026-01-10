@@ -3677,9 +3677,9 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                       
                       {/* TÍTULO LEGÍVEL ABAIXO DA BARRA */}
                       <p 
-                        className="text-[13px] font-bold text-center absolute -bottom-5 w-full transition-opacity duration-300"
+                        className="text-[15px] font-bold text-center absolute -bottom-5 w-full transition-opacity duration-300"
                         style={{
-                          color: isActive ? style.color : (isDarkMode ? 'black' : '#71717a'), // Cor do tema se ativo, cinza se inativo
+                          color: isActive ? style.color : (isDarkMode ? 'black' : 'white'), // Cor do tema se ativo, cinza se inativo
                         }}
                       >
                         {item.topic}
