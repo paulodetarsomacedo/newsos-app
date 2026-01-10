@@ -2456,166 +2456,164 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
 
 const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [digest, setDigest] = useState(null);
-  const [status, setStatus] = useState('idle'); 
+  const [status, setStatus] = useState('idle');
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [glassArticle, setGlassArticle] = useState(null);
-
   const [voices, setVoices] = useState([]);
+
+  // ✅ Microinterações (sem aura colorida): “acabou de gerar” + revelação progressiva
+  const [justGenerated, setJustGenerated] = useState(false);
+
+  const SESSION_KEY = 'newsos_current_session_digest';
+
+  const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
 
   useEffect(() => {
     const loadVoices = () => {
-        if (!synthRef.current) return;
-        const available = synthRef.current.getVoices();
-        setVoices(available);
+      if (!synthRef.current) return;
+      const available = synthRef.current.getVoices();
+      setVoices(available);
     };
 
     if (synthRef.current) {
-        // Tenta carregar imediatamente
-        loadVoices();
-        // Chrome precisa desse evento
-        synthRef.current.onvoiceschanged = loadVoices;
+      loadVoices();
+      synthRef.current.onvoiceschanged = loadVoices;
     }
   }, []);
 
-  // MUDANÇA 1: Nome da chave e uso de SessionStorage
-  const SESSION_KEY = 'newsos_current_session_digest';
-  
-  const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
-
   // 1. CARREGAR DADOS DA SESSÃO ATUAL
   useEffect(() => {
-      // Tenta ler da memória temporária da sessão
-      const savedData = sessionStorage.getItem(SESSION_KEY);
-      
-      if (savedData) {
-          try {
-              const parsed = JSON.parse(savedData);
-              // Validade de 2 horas (para garantir que não fique velho demais)
-              const now = Date.now();
-              const isValidTime = parsed.timestamp && (now - parsed.timestamp < 2 * 60 * 60 * 1000);
+    if (typeof window === 'undefined') return;
 
-              if (parsed && parsed.data && parsed.data.topics && isValidTime) {
-                  setDigest(parsed.data);
-                  setStatus('success');
-              } else {
-                  // Se for velho ou inválido, limpa
-                  sessionStorage.removeItem(SESSION_KEY);
-              }
-          } catch (e) {
-              console.error("Erro ao carregar Digest da sessão", e);
-          }
+    const savedData = sessionStorage.getItem(SESSION_KEY);
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+
+        const now = Date.now();
+        const isValidTime = parsed.timestamp && (now - parsed.timestamp < 2 * 60 * 60 * 1000);
+
+        if (parsed && parsed.data && parsed.data.topics && isValidTime) {
+          setDigest(parsed.data);
+          setStatus('success');
+        } else {
+          sessionStorage.removeItem(SESSION_KEY);
+        }
+      } catch (e) {
+        console.error("Erro ao carregar Digest da sessão", e);
       }
-  }, []); // Roda apenas ao montar o componente (troca de aba)
+    }
+  }, []);
 
   useEffect(() => {
-      return () => cancelSpeech();
+    return () => cancelSpeech();
   }, []);
 
   const handleGenerate = async () => {
     if (!apiKey) {
-        alert("Configure sua API Key nas configurações primeiro.");
-        return;
+      alert("Configure sua API Key nas configurações primeiro.");
+      return;
     }
+
     setStatus('loading');
-    
-    // Pequeno delay para UX
-    await new Promise(r => setTimeout(r, 800));
+    setExpandedIndex(null);
+
+    await new Promise((r) => setTimeout(r, 800));
 
     const result = await generateBriefing(newsData, apiKey);
-    
+
     if (result) {
-        setDigest(result);
-        setStatus('success');
-        
-        // MUDANÇA 2: Salva na SessionStorage (Morre ao fechar o app)
-        // Adicionamos o timestamp para controlar a validade
-        const sessionPayload = {
-            timestamp: Date.now(),
-            data: result
-        };
+      setDigest(result);
+      setStatus('success');
+
+      // ✅ microinteração: “acabou de gerar”
+      setJustGenerated(true);
+      window.setTimeout(() => setJustGenerated(false), 1600);
+
+      const sessionPayload = {
+        timestamp: Date.now(),
+        data: result,
+      };
+      if (typeof window !== 'undefined') {
         sessionStorage.setItem(SESSION_KEY, JSON.stringify(sessionPayload));
-        
+      }
     } else {
-        setStatus('error');
+      setStatus('error');
     }
   };
 
   const cancelSpeech = () => {
-      if (synthRef.current) {
-          synthRef.current.cancel();
-          setIsSpeaking(false);
-      }
+    if (synthRef.current) {
+      synthRef.current.cancel();
+      setIsSpeaking(false);
+    }
   };
 
- const handlePlayBriefing = () => {
-      if (!synthRef.current || !digest) return;
-      if (isSpeaking) { cancelSpeech(); return; }
+  const handlePlayBriefing = () => {
+    if (!synthRef.current || !digest) return;
+    if (isSpeaking) {
+      cancelSpeech();
+      return;
+    }
 
-      setIsSpeaking(true);
-      const intro = `Briefing Executivo do News O S. ${digest.vibe_title}.`;
-      
-      // Adicionei pausas estratégicas (vírgulas e pontos) para melhorar a cadência
-      const content = digest.topics.map(t => `${t.tag}. ${t.summary}`).join('. ... Próximo: ');
-      const finalText = `${intro} ... ${content}. ... Fim do resumo.`;
+    setIsSpeaking(true);
 
-      const utterance = new SpeechSynthesisUtterance(finalText);
-      
-      // --- A MÁGICA DA VOZ (SELEÇÃO INTELIGENTE) ---
-      // Tenta achar vozes "Premium" gratuitas do sistema
-      const ptVoices = voices.filter(v => v.lang.includes('pt-BR'));
-      
-      // Prioridade 1: Voz do Google (Android/Chrome) - Geralmente a mais natural
-      let bestVoice = ptVoices.find(v => v.name.includes('Google'));
-      
-      // Prioridade 2: Voz "Luciana" ou "Joana" (iOS) - São as melhores da Apple
-      if (!bestVoice) bestVoice = ptVoices.find(v => v.name.includes('Luciana (Aprimorada)') || v.name.includes('Joana'));
-      
-      // Prioridade 3: Qualquer voz "Enhanced" (Melhorada)
-      if (!bestVoice) bestVoice = ptVoices.find(v => v.name.includes('Enhanced'));
-      
-      // Fallback: A primeira que achar em PT-BR
-      if (!bestVoice) bestVoice = ptVoices[0];
+    const intro = `Briefing Executivo do News O S. ${digest.vibe_title}.`;
+    const content = digest.topics.map((t) => `${t.tag}. ${t.summary}`).join('. ... Próximo: ');
+    const finalText = `${intro} ... ${content}. ... Fim do resumo.`;
 
-      if (bestVoice) {
-          utterance.voice = bestVoice;
-          console.log("Voz selecionada:", bestVoice.name);
-      }
+    const utterance = new SpeechSynthesisUtterance(finalText);
 
-      // AJUSTES DE ENTONAÇÃO (Tuning)
-      utterance.lang = 'pt-BR'; 
-      utterance.rate = 1; // Um pouco mais rápido para parecer fluído
-      utterance.pitch = 0.95; // Levemente mais grave (tira o efeito "robô de lata")
-      
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+    const ptVoices = voices.filter((v) => v.lang.includes('pt-BR'));
 
-      synthRef.current.speak(utterance);
+    let bestVoice = ptVoices.find((v) => v.name.includes('Google'));
+    if (!bestVoice) {
+      bestVoice = ptVoices.find(
+        (v) => v.name.includes('Luciana (Aprimorada)') || v.name.includes('Joana')
+      );
+    }
+    if (!bestVoice) bestVoice = ptVoices.find((v) => v.name.includes('Enhanced'));
+    if (!bestVoice) bestVoice = ptVoices[0];
+
+    if (bestVoice) {
+      utterance.voice = bestVoice;
+      console.log("Voz selecionada:", bestVoice.name);
+    }
+
+    utterance.lang = 'pt-BR';
+    utterance.rate = 1;
+    utterance.pitch = 0.95;
+
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    synthRef.current.speak(utterance);
   };
 
   const toggleExpand = (index) => {
-      setExpandedIndex(expandedIndex === index ? null : index);
+    setExpandedIndex(expandedIndex === index ? null : index);
   };
 
   const getTag3DStyle = (index) => {
-      const base3D = "shadow-sm border-t border-b";
-      if (isDarkMode) {
-          const styles = [
-              `bg-blue-500/10 text-blue-300 border-blue-500/20 ${base3D}`,
-              `bg-orange-500/10 text-orange-300 border-orange-500/20 ${base3D}`,
-              `bg-emerald-500/10 text-emerald-300 border-emerald-500/20 ${base3D}`,
-              `bg-purple-500/10 text-purple-300 border-purple-500/20 ${base3D}`,
-          ];
-          return styles[index % styles.length];
-      } else {
-          const styles = [
-              `bg-blue-50 text-blue-700 border-blue-100 ${base3D}`,
-              `bg-orange-50 text-orange-700 border-orange-100 ${base3D}`,
-              `bg-emerald-50 text-emerald-700 border-emerald-100 ${base3D}`,
-              `bg-purple-50 text-purple-700 border-purple-100 ${base3D}`,
-          ];
-          return styles[index % styles.length];
-      }
+    const base3D = "shadow-sm border-t border-b";
+    if (isDarkMode) {
+      const styles = [
+        `bg-blue-500/10 text-blue-300 border-blue-500/20 ${base3D}`,
+        `bg-orange-500/10 text-orange-300 border-orange-500/20 ${base3D}`,
+        `bg-emerald-500/10 text-emerald-300 border-emerald-500/20 ${base3D}`,
+        `bg-purple-500/10 text-purple-300 border-purple-500/20 ${base3D}`,
+      ];
+      return styles[index % styles.length];
+    } else {
+      const styles = [
+        `bg-blue-50 text-blue-700 border-blue-100 ${base3D}`,
+        `bg-orange-50 text-orange-700 border-orange-100 ${base3D}`,
+        `bg-emerald-50 text-emerald-700 border-emerald-100 ${base3D}`,
+        `bg-purple-50 text-purple-700 border-purple-100 ${base3D}`,
+      ];
+      return styles[index % styles.length];
+    }
   };
 
   // --- RENDERIZAÇÃO ---
@@ -2623,20 +2621,38 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   if (status === 'idle') {
     return (
       <div className="px-1 mb-6">
-        <div className={`relative overflow-hidden rounded-[2rem] p-8 border transition-all shadow-lg ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-           <div className="flex flex-col items-center text-center relative z-10">
-              <div className="mb-4 p-3 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
-                 <Sparkles size={24} className="text-white animate-pulse" />
-              </div>
-              <h2 className={`text-xl font-black mb-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Briefing Inteligente</h2>
-              <p className={`text-sm mb-6 max-w-[260px] leading-relaxed opacity-70 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                A IA analisa {newsData?.length || 0} fatos e cria um resumo executivo para você.
-              </p>
-              <button onClick={handleGenerate} className={`group relative px-8 py-3 rounded-full font-bold text-xs uppercase tracking-widest overflow-hidden shadow-xl active:scale-95 transition-all ${isDarkMode ? 'bg-white text-black' : 'bg-zinc-900 text-white'}`}>
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                <span className="flex items-center gap-2 relative z-10"><Zap size={14} fill="currentColor"/> Gerar Agora</span>
-              </button>
-           </div>
+        <div
+          className={`relative overflow-hidden rounded-[2rem] p-8 border transition-all shadow-lg ${
+            isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'
+          }`}
+        >
+          <div className="flex flex-col items-center text-center relative z-10">
+            <div className="mb-4 p-3 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
+              <Sparkles size={24} className="text-white animate-pulse" />
+            </div>
+            <h2 className={`text-xl font-black mb-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+              Briefing Inteligente
+            </h2>
+            <p
+              className={`text-sm mb-6 max-w-[260px] leading-relaxed opacity-70 ${
+                isDarkMode ? 'text-zinc-300' : 'text-zinc-600'
+              }`}
+            >
+              A IA analisa {newsData?.length || 0} fatos e cria um resumo executivo para você.
+            </p>
+
+            <button
+              onClick={handleGenerate}
+              className={`group relative px-8 py-3 rounded-full font-bold text-xs uppercase tracking-widest overflow-hidden shadow-xl active:scale-95 transition-all ${
+                isDarkMode ? 'bg-white text-black' : 'bg-zinc-900 text-white'
+              }`}
+            >
+              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+              <span className="flex items-center gap-2 relative z-10">
+                <Zap size={14} fill="currentColor" /> Gerar Agora
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -2645,196 +2661,358 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   if (status === 'loading') {
     return (
       <div className="px-1 mb-6">
-        <div className={`h-[350px] rounded-[2rem] flex flex-col items-center justify-center border relative overflow-hidden ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'}`}>
-           <div className="w-16 h-16 border-4 border-t-purple-500 border-r-transparent border-b-purple-500 border-l-transparent rounded-full animate-spin mb-6" />
-           <div className="text-center space-y-1 relative z-10">
-               <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Redigindo Briefing...</p>
-               <p className="text-xs font-mono opacity-50 uppercase tracking-widest">Conectando Fatos</p>
-           </div>
+        <div
+          className={`h-[350px] rounded-[2rem] flex flex-col items-center justify-center border relative overflow-hidden ${
+            isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-100'
+          }`}
+        >
+          <div className="w-16 h-16 border-4 border-t-purple-500 border-r-transparent border-b-purple-500 border-l-transparent rounded-full animate-spin mb-6" />
+          <div className="text-center space-y-1 relative z-10">
+            <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+              Redigindo Briefing...
+            </p>
+            <p className="text-xs font-mono opacity-50 uppercase tracking-widest">Conectando Fatos</p>
+          </div>
         </div>
       </div>
     );
   }
 
   if (status === 'error' || !digest) {
-      return (
-        <div className="px-1 mb-6">
-            <div className="p-6 rounded-[2rem] bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 text-center">
-                <p className="text-red-500 font-bold text-sm mb-2">Falha na análise.</p>
-                <button onClick={handleGenerate} className="text-xs font-bold underline decoration-red-500 underline-offset-4 opacity-80 hover:opacity-100">Tentar Novamente</button>
-            </div>
+    return (
+      <div className="px-1 mb-6">
+        <div className="p-6 rounded-[2rem] bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 text-center">
+          <p className="text-red-500 font-bold text-sm mb-2">Falha na análise.</p>
+          <button
+            onClick={handleGenerate}
+            className="text-xs font-bold underline decoration-red-500 underline-offset-4 opacity-80 hover:opacity-100"
+          >
+            Tentar Novamente
+          </button>
         </div>
-      );
+      </div>
+    );
   }
 
-  // --- ÁREA DE IMAGENS (COLLAGE) ---
-const topicImages = digest.topics.slice(0, 4).map(t => {
-    const articleWithImg = t.articles?.find(a => a.img && a.img.length > 10);
-    // === MUDANÇA 4: Garantir imagem real para o representative_image ===
-    return (articleWithImg && articleWithImg.img && articleWithImg.img.length > 10) ? articleWithImg.img : null;
-});
+  // --- IMAGENS: solução moderna quando collage não fica boa ---
+  // Regra visual: se não tiver pelo menos 2 imagens boas, cai para “hero editorial” neutro (sem poluição).
+  const topicImages = digest.topics
+    .slice(0, 4)
+    .map((t) => {
+      const articleWithImg = t.articles?.find((a) => a.img && a.img.length > 10);
+      return articleWithImg && articleWithImg.img && articleWithImg.img.length > 10 ? articleWithImg.img : null;
+    })
+    .filter(Boolean);
 
-  <style jsx="true">{`
-    @keyframes fast-pulse {
-        50% { opacity: 0.6; }
-    }
-    .animate-fast-pulse {
-        animation: fast-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-`}</style>
+  const hasGoodCollage = topicImages.length >= 2;
+  const heroImage = topicImages[0] || null;
 
- return (
+  return (
     <>
-    {/* === MUDANÇA 4: COLOCAR GEMINI AURA NO SMARTDIGEST === */}
- <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-    <div className="relative"> {/* 1. Adicionado um container 'relative' para posicionar a aura */}
+      <style jsx="true">{`
+        @keyframes reveal-up {
+          0% { opacity: 0; transform: translateY(6px); }
+          100% { opacity: 1; transform: translateY(0px); }
+        }
+        @keyframes sweep-line {
+          0% { transform: translateX(-120%); opacity: 0; }
+          20% { opacity: 1; }
+          100% { transform: translateX(120%); opacity: 0; }
+        }
+      `}</style>
 
-        {/* 2. A AURA: Este novo div fica *atrás* de tudo e é o único que pisca */}
-<div 
-    className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-50 blur-lg" 
-    style={{ animation: 'pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
-/>
-        {/* 3. O CONTORNO E O CONTEÚDO: Este div *não tem mais* a classe 'animate-pulse' */}
-        <div className="relative rounded-[2.5rem] p-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-            {/* O div do contorno fino permanece, mas agora dentro de um container estático */}
-            <div className="absolute -inset-[1px] rounded-[2.5rem] bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-100" />
-            
-            <div className={`
-                relative p-0 overflow-hidden rounded-[2.25rem] shadow-2xl transition-all
-                ${isDarkMode 
-                    ? 'bg-zinc-950 border border-white/10' 
-                    : 'bg-white border border-zinc-100/50'}
-            `}>
-                
-                {/* As imagens e todo o resto do seu código permanecem aqui dentro, inalterados */}
-                <div className="relative w-full h-32 flex overflow-hidden rounded-tl-[2.25rem] rounded-tr-[2.25rem]">
-                    {topicImages.map((img, idx) => (
-                        <div key={idx} className="flex-1 relative h-full overflow-hidden">
-                            {img ? (
-                                <img src={img} className="w-full h-full object-cover scale-110" />
-                            ) : (
-                                <div className={`w-full h-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-                            )}
-                            <div className={`absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent ${idx === topicImages.length - 1 ? 'to-transparent' : (isDarkMode ? 'to-zinc-950/50' : 'to-white/30')}`} />
-                            <div className={`absolute inset-0 ${isDarkMode ? 'bg-indigo-900/20 mix-blend-overlay' : 'bg-indigo-500/10 mix-blend-overlay'}`} />
-                        </div>
+      <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+        <div className="relative">
+
+          {/* ✅ REMOVIDO: aura colorida/piscante
+              ✅ NOVO: contorno neutro + profundidade limpa (silenciosa) */}
+          <div
+            className={`relative rounded-[2.5rem] p-1 ${
+              isDarkMode ? 'bg-white/10' : 'bg-black/5'
+            }`}
+            style={{
+              boxShadow: isDarkMode
+                ? '0 30px 80px rgba(0,0,0,0.60)'
+                : '0 30px 80px rgba(0,0,0,0.16)',
+            }}
+          >
+            {/* linha superior sutil (feedback de geração) */}
+            <div
+              className="absolute left-6 right-6 top-2 h-px overflow-hidden"
+              style={{
+                opacity: justGenerated ? 1 : 0,
+                transition: 'opacity 280ms ease',
+              }}
+            >
+              <div
+                className="h-full"
+                style={{
+                  background: isDarkMode
+                    ? 'linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)'
+                    : 'linear-gradient(90deg, transparent, rgba(0,0,0,0.35), transparent)',
+                  animation: justGenerated ? 'sweep-line 900ms ease-out 1' : 'none',
+                }}
+              />
+            </div>
+
+            <div
+              className={`
+                relative p-0 overflow-hidden rounded-[2.25rem] transition-all
+                ${isDarkMode ? 'bg-zinc-950 border border-white/10' : 'bg-white border border-zinc-100/60'}
+              `}
+            >
+              {/* TOPO: Collage quando boa, senão hero editorial neutro */}
+              <div className="relative w-full h-32 overflow-hidden rounded-tl-[2.25rem] rounded-tr-[2.25rem]">
+                {hasGoodCollage ? (
+                  <div className="w-full h-full flex">
+                    {topicImages.slice(0, 4).map((img, idx) => (
+                      <div key={idx} className="flex-1 relative h-full overflow-hidden">
+                        <img
+                          src={img}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        <div
+                          className={`absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent ${
+                            idx === Math.min(3, topicImages.length - 1)
+                              ? 'to-transparent'
+                              : isDarkMode
+                                ? 'to-zinc-950/50'
+                                : 'to-white/35'
+                          }`}
+                        />
+                        <div
+                          className={`absolute inset-0 ${
+                            isDarkMode ? 'bg-indigo-900/10' : 'bg-indigo-500/08'
+                          }`}
+                          style={{ mixBlendMode: 'overlay' }}
+                        />
+                      </div>
                     ))}
-                    <div className={`absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t ${isDarkMode ? 'from-zinc-950' : 'from-white'} to-transparent`} />
-                    
-                    <button 
-                        onClick={handlePlayBriefing}
-                        className="absolute bottom-3 right-4 bg-black/50 backdrop-blur-md text-white p-2 rounded-full border border-white/20 shadow-lg active:scale-95 transition-transform"
-                    >
-                        {isSpeaking ? <Pause size={16} fill="white"/> : <Play size={16} fill="white" className="ml-0.5"/>}
-                    </button>
+
+                    <div
+                      className={`absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t ${
+                        isDarkMode ? 'from-zinc-950' : 'from-white'
+                      } to-transparent`}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full relative">
+                    {/* hero editorial: se tiver 1 imagem, usa como ambiente; se não, gradiente neutro */}
+                    {heroImage ? (
+                      <>
+                        <img
+                          src={heroImage}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover"
+                          loading="lazy"
+                          style={{ filter: 'blur(10px)', transform: 'scale(1.08)' }}
+                        />
+                        <div className="absolute inset-0"
+                          style={{
+                            background: isDarkMode
+                              ? 'linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.85))'
+                              : 'linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0.95))',
+                          }}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div
+                          className="absolute inset-0"
+                          style={{
+                            background: isDarkMode
+                              ? 'linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
+                              : 'linear-gradient(135deg, rgba(0,0,0,0.05), rgba(0,0,0,0.02))',
+                          }}
+                        />
+                        <div
+                          className="absolute inset-0"
+                          style={{
+                            backgroundImage:
+                              'radial-gradient(circle at 20% 30%, rgba(99,102,241,0.10), transparent 55%), radial-gradient(circle at 80% 10%, rgba(168,85,247,0.08), transparent 60%)',
+                          }}
+                        />
+                      </>
+                    )}
+
+                    <div
+                      className={`absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t ${
+                        isDarkMode ? 'from-zinc-950' : 'from-white'
+                      } to-transparent`}
+                    />
+                  </div>
+                )}
+
+                {/* botão áudio (NÃO MEXI) */}
+                <button
+                  onClick={handlePlayBriefing}
+                  className="absolute bottom-3 right-4 bg-black/50 backdrop-blur-md text-white p-2 rounded-full border border-white/20 shadow-lg active:scale-95 transition-transform"
+                >
+                  {isSpeaking ? (
+                    <Pause size={16} fill="white" />
+                  ) : (
+                    <Play size={16} fill="white" className="ml-0.5" />
+                  )}
+                </button>
+              </div>
+
+              {/* CONTEÚDO EDITORIAL */}
+              <div className="px-6 pb-8 relative z-10 -mt-2">
+                <div
+                  className="flex flex-col items-start text-left mb-6"
+                  style={{
+                    animation: 'reveal-up 420ms ease-out both',
+                    animationDelay: '40ms',
+                  }}
+                >
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500 mb-2 flex items-center gap-2">
+                    <Sparkles size={12} /> Briefing Executivo
+                  </span>
+
+                  <h2
+                    className={`text-2xl md:text-3xl font-serif font-black leading-tight ${
+                      isDarkMode ? 'text-white' : 'text-zinc-900'
+                    }`}
+                  >
+                    {digest.vibe_title}
+                  </h2>
+
+                  {/* microfeedback discreto “gerado agora” */}
+                  <div
+                    className={`mt-2 text-[10px] font-mono uppercase tracking-widest ${
+                      isDarkMode ? 'text-white/35' : 'text-black/35'
+                    }`}
+                    style={{
+                      opacity: justGenerated ? 1 : 0,
+                      transform: justGenerated ? 'translateY(0px)' : 'translateY(-2px)',
+                      transition: 'opacity 280ms ease, transform 280ms ease',
+                    }}
+                  >
+                    Atualizado agora
+                  </div>
                 </div>
 
-         {/* CONTEÚDO EDITORIAL */}
-         <div className="px-6 pb-8 relative z-10 -mt-2">
-             
-             <div className="flex flex-col items-start text-left mb-6">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500 mb-2 flex items-center gap-2">
-                    <Sparkles size={12} /> Briefing Executivo
-                </span>
-                <h2 className={`text-2xl md:text-3xl font-serif font-black leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                    {digest.vibe_title}
-                </h2>
-             </div>
-
-             <div className="grid grid-cols-1 gap-4">
-                {digest.topics?.map((topic, i) => {
+                <div className="grid grid-cols-1 gap-4">
+                  {digest.topics?.map((topic, i) => {
                     const isExpanded = expandedIndex === i;
-                    
+
                     return (
-                        <div 
-                            key={i} 
-                            onClick={() => toggleExpand(i)}
-                            className={`
-                                group relative p-5 rounded-2xl transition-all duration-300 cursor-pointer border
-                                ${isDarkMode 
-                                    ? 'bg-zinc-900/50 border-white/5 hover:bg-zinc-800' 
-                                    : 'bg-zinc-50 border-zinc-200 hover:bg-white'}
-                            `}
-                        >
-                            <div className="flex justify-between items-start mb-2">
-                                <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md ${getTag3DStyle(i)}`}>
-                                    {topic.tag}
-                                </span>
-                                <ChevronRight size={14} className={`opacity-30 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                            </div>
-                            
-                            <p className={`text-sm font-medium leading-relaxed font-serif ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                                {topic.summary}
-                            </p>
-
-                            {/* FONTES */}
-                            {isExpanded && (
-                                <div className="mt-4 pt-4 border-t border-dashed border-zinc-500/20 animate-in slide-in-from-top-2">
-                                    <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2">Fontes Analisadas:</p>
-                                    <div className="space-y-2">
-                                        {topic.articles?.map((article, idx) => (
-                                            <div 
-                                                key={idx}
-                                                onClick={(e) => { 
-                                                    e.stopPropagation(); 
-                                                    setGlassArticle(article); 
-                                                }}
-                                                className={`
-                                                    flex items-center gap-3 p-3 rounded-xl border transition-colors
-                                                    ${isDarkMode 
-                                                        ? 'bg-black/30 border-white/10 hover:bg-white/5' 
-                                                        : 'bg-white border-zinc-200 hover:bg-zinc-50'}
-                                                `}
-                                            >
-                                                <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
-                                                    <img 
-                                                        src={article.logo} 
-                                                        className="w-full h-full object-cover" 
-                                                        onError={(e) => e.target.style.display = 'none'}
-                                                    />
-                                                </div>
-                                                
-                                                <div className="flex flex-col min-w-0">
-                                                    <span className={`text-[9px] font-bold uppercase tracking-wide truncate ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
-                                                        {article.source}
-                                                    </span>
-                                                    <span className={`text-xs font-bold truncate leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
-                                                        {article.title}
-                                                    </span>
-                                                </div>
-                                                
-                                                <ArrowRight size={12} className="opacity-30 ml-auto" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                      <div
+                        key={i}
+                        onClick={() => toggleExpand(i)}
+                        className={`
+                          group relative p-5 rounded-2xl transition-all duration-300 cursor-pointer border
+                          ${isDarkMode
+                            ? 'bg-zinc-900/50 border-white/5 hover:bg-zinc-800'
+                            : 'bg-zinc-50 border-zinc-200 hover:bg-white'}
+                        `}
+                        style={{
+                          animation: 'reveal-up 420ms ease-out both',
+                          animationDelay: `${120 + i * 60}ms`,
+                        }}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md ${getTag3DStyle(i)}`}>
+                            {topic.tag}
+                          </span>
+                          <ChevronRight
+                            size={14}
+                            className={`opacity-30 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                          />
                         </div>
+
+                        <p className={`text-sm font-medium leading-relaxed font-serif ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                          {topic.summary}
+                        </p>
+
+                        {/* FONTES (MANTIDO) */}
+                        {isExpanded && (
+                          <div className="mt-4 pt-4 border-t border-dashed border-zinc-500/20 animate-in slide-in-from-top-2">
+                            <p className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2">
+                              Fontes Analisadas:
+                            </p>
+                            <div className="space-y-2">
+                              {topic.articles?.map((article, idx) => (
+                                <div
+                                  key={idx}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setGlassArticle(article);
+                                  }}
+                                  className={`
+                                    flex items-center gap-3 p-3 rounded-xl border transition-colors
+                                    ${isDarkMode
+                                      ? 'bg-black/30 border-white/10 hover:bg-white/5'
+                                      : 'bg-white border-zinc-200 hover:bg-zinc-50'}
+                                  `}
+                                >
+                                  <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
+                                    <img
+                                      src={article.logo}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                      }}
+                                      loading="lazy"
+                                    />
+                                  </div>
+
+                                  <div className="flex flex-col min-w-0">
+                                    <span className={`text-[9px] font-bold uppercase tracking-wide truncate ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
+                                      {article.source}
+                                    </span>
+                                    <span className={`text-xs font-bold truncate leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
+                                      {article.title}
+                                    </span>
+                                  </div>
+
+                                  <ArrowRight size={12} className="opacity-30 ml-auto" />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
-                })}
-             </div>
+                  })}
+                </div>
 
-             <div className="mt-6 flex justify-between items-center opacity-40">
-                    <span className="text-[10px] font-mono">Análise via Gemini 2.5</span>
-                    <button onClick={handleGenerate} className="p-2 hover:text-indigo-500 transition-colors" title="Atualizar Briefing"><RefreshCw size={14}/></button>
-                 </div>
-             </div>
+                <div
+                  className="mt-6 flex justify-between items-center opacity-40"
+                  style={{
+                    animation: 'reveal-up 420ms ease-out both',
+                    animationDelay: `${120 + (digest.topics?.length || 0) * 60 + 120}ms`,
+                  }}
+                >
+                  <span className="text-[10px] font-mono">Análise via Gemini 2.5</span>
+                  <button
+                    onClick={handleGenerate}
+                    className="p-2 hover:text-indigo-500 transition-colors"
+                    title="Atualizar Briefing"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-      </div>
-    </div>
 
-    {glassArticle && (
-            <GlassBrowser 
-                article={glassArticle} 
-                onClose={() => setGlassArticle(null)}
-                isDarkMode={isDarkMode}
+          {glassArticle && (
+            <GlassBrowser
+              article={glassArticle}
+              onClose={() => setGlassArticle(null)}
+              isDarkMode={isDarkMode}
             />
-        )}
-      </div> {/* <--- LINHA MOVIDA PARA CÁ */}
+          )}
+        </div>
+      </div>
     </>
   );
-
 };
+
 
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
@@ -3808,16 +3986,20 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                                     <div className="flex items-start justify-between gap-2">
                                       <div className="min-w-0">
                                         <div
-                                          className="font-black tracking-tight truncate"
-                                          style={{
-                                            color: titleColor,
-                                            fontSize: '12px',
-                                            lineHeight: '1.1',
-                                          }}
-                                          title={item.topic}
-                                        >
-                                          {item.topic}
-                                        </div>
+                                      className="font-black tracking-tight break-words"
+  style={{
+    color: titleColor,
+    fontSize: '12px',
+    lineHeight: '1.15',
+    display: '-webkit-box',
+    WebkitLineClamp: 2,          // até 2 linhas
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  }}
+  title={item.topic}
+>
+  {item.topic}
+</div>
 
                                         <div
                                           className="mt-1 text-[10px] font-black uppercase tracking-widest"
