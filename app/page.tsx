@@ -3556,24 +3556,17 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
 
 
 // --- COMPONENTE TREND RADAR (V5 - BARRAS VIVAS + TÍTULOS LEGÍVEIS) ---
-// --- COMPONENTE TREND RADAR (V5 - TERMÔMETRO + ANTI-COLISÃO + BALÕES) ---
-// ✅ NÃO mexe na sua função de IA (generateTrendRadar) nem na lógica de clique/balão.
-// ✅ Mantém cada chip na altura do score, mas aplica anti-colisão (sem sobreposição).
+// --- COMPONENTE TREND RADAR (V5 - TERMÔMETRO HORIZONTAL 0–10 + CARDS AGRUPADOS POR NÍVEL + BALÕES) ---
+// ✅ NÃO mexe na sua função de IA (generateTrendRadar)
+// ✅ Mantém a lógica: click -> handleToggle(idx) -> activeIndex/activeItem -> balão
+// ✅ Termômetro agora é horizontal (0–10)
+// ✅ Cards menores, agrupados horizontalmente por faixas de temperatura (colunas)
+// ✅ Texto legível: dark = branco, light = preto/cinza escuro
 const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
   const [hasGenerated, setHasGenerated] = useState(false);
-
-  // --- ANTI-COLISÃO ---
-  const trackRef = React.useRef(null);
-  const [chipY, setChipY] = useState([]);
-
-  // Ajuste fino conforme seu chip real (altura e espaçamento)
-  const CHIP_H = 46;      // altura aproximada do chip (px)
-  const CHIP_GAP = 10;    // espaço mínimo entre chips (px)
-  const TOP_PAD = 6;      // margem superior do trilho (px)
-  const BOTTOM_PAD = 6;   // margem inferior do trilho (px)
 
   const STORAGE_KEY = 'newsos_trend_radar_data_v5';
 
@@ -3607,8 +3600,11 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
     }
     setLoading(true);
     setActiveIndex(null);
-    await new Promise(r => setTimeout(r, 800));
-    const data = await generateTrendRadar(newsData, apiKey); // ✅ NÃO ALTERADO
+    await new Promise((r) => setTimeout(r, 800));
+
+    // ✅ NÃO ALTERADO: chama sua IA como está
+    const data = await generateTrendRadar(newsData, apiKey);
+
     if (data && Array.isArray(data) && data.length > 0) {
       const sortedData = data.sort((a, b) => b.score - a.score);
       setTrends(sortedData);
@@ -3626,133 +3622,43 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
 
   const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
 
-  // --- FUNÇÕES ANTI-COLISÃO (SEM ABREVIAÇÕES) ---
-  const clampValue = (value, min, max) => {
-    return Math.max(min, Math.min(max, value));
+  // --- FUNÇÕES DE AGRUPAMENTO POR FAIXAS (SEM ABREVIAÇÕES) ---
+  const temperatureBands = [
+    { label: '🧊 FRIO', min: 0, max: 2 },
+    { label: '🟢 LEVE', min: 2, max: 4 },
+    { label: '🟡 MÉDIO', min: 4, max: 6 },
+    { label: '🟠 QUENTE', min: 6, max: 8 },
+    { label: '🔥 MUITO QUENTE', min: 8, max: 10.01 }, // para incluir 10
+  ];
+
+  const getBandIndexByScore = (score) => {
+    for (let i = 0; i < temperatureBands.length; i++) {
+      const band = temperatureBands[i];
+      if (score >= band.min && score < band.max) return i;
+    }
+    return temperatureBands.length - 1;
   };
 
-  const computeNonOverlappingTopPositionsPx = (scoresArray, trackHeightPx) => {
-    if (!scoresArray || scoresArray.length === 0) return [];
-
-    const usableHeight = Math.max(
-      0,
-      trackHeightPx - TOP_PAD - BOTTOM_PAD - CHIP_H
-    );
-
-    // desiredTop: posição ideal (px) de cima pra baixo
-    const items = scoresArray.map((score, index) => {
-      const normalized = clampValue(score / 10, 0, 1);      // 0..1
-      const desiredTop = TOP_PAD + (1 - normalized) * usableHeight; // score alto => top menor
-      return { index, desiredTop };
-    });
-
-    // Ordena do topo para baixo (menor top primeiro)
-    items.sort((a, b) => a.desiredTop - b.desiredTop);
-
-    // Passo 1: empurra para baixo para evitar colisões
-    const placed = [];
-    let previousTop = -Infinity;
-
-    for (let i = 0; i < items.length; i++) {
-      const current = items[i];
-      const minimumTop =
-        previousTop === -Infinity
-          ? TOP_PAD
-          : previousTop + CHIP_H + CHIP_GAP;
-
-      const placedTop = Math.max(current.desiredTop, minimumTop);
-
-      placed.push({
-        index: current.index,
-        desiredTop: current.desiredTop,
-        top: placedTop,
-      });
-
-      previousTop = placedTop;
+  const buildGroupedTrends = (trendsArray) => {
+    const grouped = temperatureBands.map(() => []);
+    for (let i = 0; i < trendsArray.length; i++) {
+      const item = trendsArray[i];
+      const bandIndex = getBandIndexByScore(item.score);
+      grouped[bandIndex].push({ ...item, __originalIndex: i });
     }
-
-    // Passo 2: se o último estourar o fundo, puxa o conjunto para cima
-    const maximumTopAllowed = trackHeightPx - BOTTOM_PAD - CHIP_H;
-    const lastPlaced = placed[placed.length - 1];
-    const overflow = lastPlaced.top - maximumTopAllowed;
-
-    if (overflow > 0) {
-      // puxa o último para caber
-      placed[placed.length - 1].top = placed[placed.length - 1].top - overflow;
-
-      // agora sobe os anteriores respeitando gaps
-      for (let i = placed.length - 2; i >= 0; i--) {
-        const nextTop = placed[i + 1].top;
-        const maxTopForThis = nextTop - CHIP_H - CHIP_GAP;
-        placed[i].top = Math.min(placed[i].top, maxTopForThis);
-      }
-
-      // garante que o primeiro não suba além do topo
-      if (placed[0].top < TOP_PAD) {
-        const delta = TOP_PAD - placed[0].top;
-        for (let i = 0; i < placed.length; i++) {
-          placed[i].top = placed[i].top + delta;
-        }
-      }
-    }
-
-    // Reordena para o índice original
-    const output = new Array(scoresArray.length).fill(TOP_PAD);
-    for (let i = 0; i < placed.length; i++) {
-      const p = placed[i];
-      output[p.index] = clampValue(p.top, TOP_PAD, maximumTopAllowed);
-    }
-
-    return output;
+    return grouped;
   };
-
-  // Recalcula chipY ao montar, ao mudar trends, e em resize/resizeObserver
-  useLayoutEffect(() => {
-    const trackElement = trackRef.current;
-    if (!trackElement || !trends || trends.length === 0) return;
-
-    const recompute = () => {
-      const rect = trackElement.getBoundingClientRect();
-      const heightPx = rect.height;
-
-      const scores = trends.map((t) => t.score);
-      const positions = computeNonOverlappingTopPositionsPx(scores, heightPx);
-      setChipY(positions);
-    };
-
-    recompute();
-
-    const onResize = () => {
-      recompute();
-    };
-    window.addEventListener('resize', onResize);
-
-    const resizeObserver = new ResizeObserver(() => {
-      recompute();
-    });
-    resizeObserver.observe(trackElement);
-
-    return () => {
-      window.removeEventListener('resize', onResize);
-      resizeObserver.disconnect();
-    };
-  }, [trends]);
 
   return (
     <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 px-4">
       <style jsx="true">{`
-        @keyframes radar-sweep { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes radar-pulse { 0%, 100% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.2); opacity: 0.1; } }
-
-        @keyframes thermo-shimmer {
-          0% { transform: translateY(120%); opacity: 0; }
-          25% { opacity: 0.35; }
-          100% { transform: translateY(-120%); opacity: 0; }
+        @keyframes radar-sweep {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
-
-        @keyframes thermo-active-pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.06); }
+        @keyframes radar-pulse {
+          0%, 100% { transform: scale(0.5); opacity: 0; }
+          50% { transform: scale(1.2); opacity: 0.1; }
         }
       `}</style>
 
@@ -3760,12 +3666,19 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 opacity-70">
             <Activity size={14} className="text-orange-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Trend Radar AI</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+              Trend Radar AI
+            </span>
           </div>
+
           <button
             onClick={runTrendAnalysis}
             disabled={loading}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-200 text-zinc-600 hover:text-black'}`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${
+              isDarkMode
+                ? 'bg-zinc-800 text-zinc-400 hover:text-white'
+                : 'bg-zinc-200 text-zinc-600 hover:text-black'
+            }`}
           >
             {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
             {loading ? 'Analisando...' : 'Atualizar'}
@@ -3778,199 +3691,177 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
           <div className="relative h-40 w-40 flex items-center justify-center">
             <div className="absolute w-full h-full rounded-full border border-dashed border-orange-500/20"></div>
             <div className="absolute w-2/3 h-2/3 rounded-full border border-dashed border-orange-500/20"></div>
-            <div className="absolute w-full h-full rounded-full bg-orange-500" style={{ animation: 'radar-pulse 2s ease-out infinite' }}></div>
-            <div className="absolute w-full h-full origin-center" style={{ animation: 'radar-sweep 2s linear infinite' }}>
+            <div
+              className="absolute w-full h-full rounded-full bg-orange-500"
+              style={{ animation: 'radar-pulse 2s ease-out infinite' }}
+            ></div>
+            <div
+              className="absolute w-full h-full origin-center"
+              style={{ animation: 'radar-sweep 2s linear infinite' }}
+            >
               <div className="w-1/2 h-px bg-gradient-to-r from-transparent to-orange-400 absolute top-1/2"></div>
             </div>
             <Activity size={24} className="text-orange-400 z-10" />
           </div>
-          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Analisando tendências...</p>
+          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+            Analisando tendências...
+          </p>
         </div>
       ) : (
         <div className="w-full">
           {hasGenerated && trends ? (
             <div className="relative">
-              {/* TERMÔMETRO */}
+              {/* 1) TERMÔMETRO HORIZONTAL + GRUPOS */}
               <div className="relative mt-2">
+                {/* Título */}
                 <div className="flex items-center justify-between mb-3">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-white/40' : 'text-black/40'}`}>
-                    Termômetro de tendências
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-widest ${
+                      isDarkMode ? 'text-white/40' : 'text-black/40'
+                    }`}
+                  >
+                    Termômetro de tendências (0–10)
                   </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-white/50">FRIO</span>
-                    <div
-                      className="h-2 w-24 rounded-full"
-                      style={{
-                        background: 'linear-gradient(90deg, #3b82f6, #22c55e, #eab308, #f97316, #ef4444)'
-                      }}
-                    />
-                    <span className="text-[10px] font-black text-white/50">QUENTE</span>
-                  </div>
                 </div>
 
+                {/* Container */}
                 <div
                   className="relative w-full rounded-2xl p-4"
                   style={{
-                    background: isDarkMode ? 'rgba(24,24,27,0.55)' : 'rgba(255,255,255,0.65)',
+                    background: isDarkMode ? 'rgba(24,24,27,0.55)' : 'rgba(255,255,255,0.75)',
                     border: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)',
                     backdropFilter: 'blur(10px)',
                   }}
                 >
-                  <div className="relative flex gap-4">
-                    {/* COLUNA TERMÔMETRO */}
-                    <div className="relative w-10 flex justify-center">
-                      <div
-                        className="relative h-52 w-3 rounded-full overflow-hidden"
-                        style={{
-                          background: 'linear-gradient(180deg, #ef4444, #f97316, #eab308, #22c55e, #3b82f6)',
-                          boxShadow: isDarkMode
-                            ? '0 10px 24px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)'
-                            : '0 10px 24px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.25)',
-                        }}
-                      >
-                        <div
-                          className="absolute left-0 right-0 h-16"
-                          style={{
-                            background: 'linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.32), rgba(255,255,255,0))',
-                            animation: 'thermo-shimmer 3.4s linear infinite',
-                          }}
-                        />
-                      </div>
+                  {/* Régua 0–10 */}
+                  <div className="relative mb-4">
+                    <div
+                      className="h-3 w-full rounded-full overflow-hidden"
+                      style={{
+                        background:
+                          'linear-gradient(90deg, #3b82f6, #22c55e, #eab308, #f97316, #ef4444)',
+                        boxShadow: isDarkMode
+                          ? '0 10px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.20)'
+                          : '0 10px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.35)',
+                      }}
+                    />
 
-                      <div
-                        className="absolute -bottom-2 h-8 w-8 rounded-full"
-                        style={{
-                          background: '#ef4444',
-                          boxShadow: '0 12px 26px rgba(239,68,68,0.35)',
-                          border: isDarkMode ? '2px solid rgba(255,255,255,0.12)' : '2px solid rgba(0,0,0,0.12)',
-                        }}
-                      />
-                    </div>
-
-                    {/* TRILHO DOS CHIPS (COM ANTI-COLISÃO) */}
-                    <div ref={trackRef} className="relative flex-1 h-52">
-                      {/* Linhas de referência */}
-                      {[2, 4, 6, 8, 10].map((t) => {
-                        const yPercent = Math.min(98, Math.max(2, t * 10));
-                        return (
+                    <div className="relative mt-2 flex justify-between">
+                      {Array.from({ length: 11 }).map((_, i) => (
+                        <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
                           <div
-                            key={t}
-                            className="absolute left-0 right-0"
-                            style={{ bottom: `${yPercent}%` }}
-                          >
-                            <div
-                              className="h-px w-full"
-                              style={{
-                                background: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
-                              }}
-                            />
-                            <span
-                              className={`absolute -left-1 -translate-x-full -translate-y-1/2 text-[10px] font-black ${isDarkMode ? 'text-white/35' : 'text-black/35'}`}
-                            >
-                              {t}
-                            </span>
-                          </div>
-                        );
-                      })}
-
-                      {trends.map((item, idx) => {
-                        const style = getTrendStyle(item.score);
-                        const isActive = activeIndex === idx;
-
-                        const topPx = chipY[idx] ?? TOP_PAD;
-
-                        return (
-                          <div
-                            key={idx}
-                            className="absolute left-0 right-0"
                             style={{
-                              top: `${topPx}px`,
-                              transition: 'top 260ms ease, transform 260ms ease, opacity 260ms ease',
-                              zIndex: isActive ? 50 : 10,
+                              height: '6px',
+                              width: '1px',
+                              background: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)',
                             }}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div
-                                className="h-3 w-3 rounded-full"
-                                style={{
-                                  background: style.color,
-                                  boxShadow: isActive
-                                    ? `0 0 0 6px ${style.color}22, 0 0 18px ${style.color}66`
-                                    : `0 0 0 4px ${style.color}14`,
-                                  animation: isActive ? 'thermo-active-pulse 1.6s ease-in-out infinite' : 'none',
-                                }}
-                              />
+                          />
+                          <span className={`mt-1 text-[10px] font-black ${isDarkMode ? 'text-white/40' : 'text-black/40'}`}>
+                            {i}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-                              <button
-                                onClick={() => handleToggle(idx)}
-                                className="group w-full text-left"
-                                style={{ outline: 'none' }}
-                              >
-                                <div
-                                  className="w-full rounded-xl px-4 py-2.5 transition-all duration-250"
-                                  style={{
-                                    background: isDarkMode ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.75)',
-                                    border: isActive
-                                      ? `1px solid ${style.color}66`
-                                      : (isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)'),
-                                    boxShadow: isActive
-                                      ? `0 14px 30px rgba(0,0,0,0.35), 0 0 0 1px ${style.color}22, 0 0 18px ${style.color}33`
-                                      : (isDarkMode ? '0 10px 22px rgba(0,0,0,0.28)' : '0 10px 22px rgba(0,0,0,0.12)'),
-                                    transform: isActive ? 'translateX(0px) scale(1.02)' : 'translateX(0px) scale(1)',
-                                  }}
+                  {/* GRID DE COLUNAS POR FAIXA */}
+                  <div className="grid grid-cols-5 gap-3">
+                    {(() => {
+                      const grouped = buildGroupedTrends(trends);
+
+                      return temperatureBands.map((band, colIndex) => (
+                        <div key={band.label} className="min-w-0">
+                          <div className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDarkMode ? 'text-white/40' : 'text-black/40'}`}>
+                            {band.label}
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            {grouped[colIndex].map((item) => {
+                              const style = getTrendStyle(item.score);
+                              const isActive = activeIndex === item.__originalIndex;
+
+                              const cardBackground = isDarkMode ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.92)';
+                              const cardBorder = isActive
+                                ? `${style.color}88`
+                                : (isDarkMode ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)');
+
+                              const titleColor = isDarkMode ? '#ffffff' : '#111827';
+                              const subColor = isDarkMode ? 'rgba(255,255,255,0.55)' : 'rgba(17,24,39,0.60)';
+
+                              return (
+                                <button
+                                  key={item.__originalIndex}
+                                  onClick={() => handleToggle(item.__originalIndex)}
+                                  className="w-full text-left transition-transform active:scale-[0.99]"
+                                  style={{ outline: 'none' }}
                                 >
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span
-                                      className="font-black tracking-tight"
-                                      style={{
-                                        color: '#ffffff',
-                                        textShadow: '0 1px 2px rgba(0,0,0,0.45)',
-                                        fontSize: '12px',
-                                        lineHeight: '1.1',
-                                        opacity: isActive ? 1 : 0.92,
-                                      }}
-                                    >
-                                      {item.topic}
-                                    </span>
-
-                                    <span
-                                      className="text-[10px] font-black uppercase tracking-widest"
-                                      style={{
-                                        color: style.color,
-                                        textShadow: '0 1px 2px rgba(0,0,0,0.35)',
-                                      }}
-                                    >
-                                      {item.score}/10
-                                    </span>
-                                  </div>
-
                                   <div
-                                    className="mt-2 h-1.5 w-full rounded-full overflow-hidden"
+                                    className="rounded-xl px-3 py-2"
                                     style={{
-                                      background: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
+                                      background: cardBackground,
+                                      border: `1px solid ${cardBorder}`,
+                                      boxShadow: isActive
+                                        ? `0 16px 30px rgba(0,0,0,0.20), 0 0 0 1px ${style.color}22, 0 0 18px ${style.color}22`
+                                        : (isDarkMode ? '0 10px 20px rgba(0,0,0,0.30)' : '0 10px 20px rgba(0,0,0,0.10)'),
                                     }}
                                   >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <div
+                                          className="font-black tracking-tight truncate"
+                                          style={{
+                                            color: titleColor,
+                                            fontSize: '12px',
+                                            lineHeight: '1.1',
+                                          }}
+                                          title={item.topic}
+                                        >
+                                          {item.topic}
+                                        </div>
+
+                                        <div
+                                          className="mt-1 text-[10px] font-black uppercase tracking-widest"
+                                          style={{ color: subColor }}
+                                        >
+                                          Impacto
+                                        </div>
+                                      </div>
+
+                                      <div
+                                        className="text-[11px] font-black"
+                                        style={{ color: style.color }}
+                                      >
+                                        {item.score}/10
+                                      </div>
+                                    </div>
+
                                     <div
-                                      className="h-full rounded-full"
+                                      className="mt-2 h-1.5 w-full rounded-full overflow-hidden"
                                       style={{
-                                        width: `${Math.min(100, Math.max(0, item.score * 10))}%`,
-                                        background: style.color,
-                                        boxShadow: `0 0 12px ${style.color}55`,
+                                        background: isDarkMode ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)',
                                       }}
-                                    />
+                                    >
+                                      <div
+                                        className="h-full rounded-full"
+                                        style={{
+                                          width: `${Math.min(100, Math.max(0, item.score * 10))}%`,
+                                          background: style.color,
+                                        }}
+                                      />
+                                    </div>
                                   </div>
-                                </div>
-                              </button>
-                            </div>
+                                </button>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               </div>
 
-              {/* 2. ÁREA DE DETALHES (BALÃO) - MANTIDA */}
+              {/* 2) BALÃO DE DETALHES (MANTIDO) */}
               <div className="relative mt-8 h-36">
                 <AnimatePresence>
                   {activeItem && (
@@ -3982,10 +3873,12 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                       className="absolute inset-0"
                     >
                       <div
-                        className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'}`}
+                        className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${
+                          isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
+                        }`}
                         style={{
                           border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-                          boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`
+                          boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
                         }}
                       >
                         <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
@@ -3995,16 +3888,18 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                           >
                             Impacto: {activeItem.score}/10
                           </span>
+
                           <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
                             <div
                               className="h-full rounded-full"
                               style={{
                                 width: `${activeItem.score * 10}%`,
-                                backgroundColor: getTrendStyle(activeItem.score).color
+                                backgroundColor: getTrendStyle(activeItem.score).color,
                               }}
                             />
                           </div>
                         </div>
+
                         <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
                           {activeItem.summary}
                         </p>
@@ -4013,7 +3908,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                   )}
                 </AnimatePresence>
               </div>
-
             </div>
           ) : (
             <div className="h-48 flex flex-col items-center justify-center text-center">
