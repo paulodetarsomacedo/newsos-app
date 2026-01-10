@@ -562,9 +562,9 @@ const triggerSearch = () => {
 
         <div className="relative px-6 pt-6 pb-4 flex flex-col gap-4">
            {/* --- NOVO LOGO NEWSOS --- */}
-                    <div className="absolute top-2 left-2 flex items-center gap-3 opacity-95">
+                    <div className="absolute top-2 left-3 flex items-center gap-3 opacity-95">
                         <div className="w-10 h-10 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
-                            <span className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
+                            <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
                         </div>
                         <span className="text-xs font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
                     </div>
