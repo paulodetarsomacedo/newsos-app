@@ -5296,37 +5296,41 @@ const handleStoryNavigation = (direction) => {
           if (data.read_history) setReadHistory(data.read_history);
           if (data.liked_items) setLikedItems(data.liked_items);
        if (data.api_key) {
-              try {
-                  const parsed = JSON.parse(data.api_key);
-                  
-                  if (Array.isArray(parsed)) {
-                      // SE O BANCO TROUXER MENOS CHAVES QUE O NECESSÁRIO (6 em vez de 11)
-                      if (parsed.length < 11) {
-                          console.log("Migrando banco de dados para 11 chaves...");
-                          // Mantém as que já existem (1-6) e adiciona as novas (7-11)
-                          const missingKeys = [
-                              { id: 7, value: '', type: 'heavy_rotation' },
-                              { id: 8, value: '', type: 'heavy_rotation' },
-                              { id: 9, value: '', type: 'heavy_rotation' },
-                              { id: 10, value: '', type: 'heavy_rotation' },
-                              { id: 11, value: '', type: 'heavy_rotation' }
-                          ];
-                          setApiKeys([...parsed, ...missingKeys]);
-                      } else {
-                          // Se já tem 11, usa o do banco
-                          setApiKeys(parsed);
-                      }
-                  } 
-                  // Migração de formatos muito antigos (Objeto ou String)
-                  else if (typeof parsed === 'object') {
-                       // Reseta para o padrão novo se o formato for incompatível
-                       // (Mantendo valores se possível seria complexo, melhor resetar para o padrão de 11 limpo ou manter o state inicial)
-                       console.log("Formato de chaves antigo detectado. Mantendo estado inicial atualizado.");
-                  }
-              } catch (e) {
-                  console.error("Erro ao migrar chaves", e);
-              }
-          }
+    try {
+        const parsedFromDB = JSON.parse(data.api_key);
+
+        if (Array.isArray(parsedFromDB)) {
+            // Cria uma cópia do estado inicial para usar como base
+            const defaultKeysStructure = [
+                { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
+                { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
+                { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
+                { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
+                { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
+                { id: 11, value: '', type: 'heavy_rotation' },
+                { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
+            ];
+
+            // Mapeia a estrutura padrão e preenche com os valores do banco, se existirem
+            const mergedKeys = defaultKeysStructure.map(defaultKey => {
+                const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
+                // Se a chave existe no banco, usa o valor dela. Senão, usa o valor padrão (vazio).
+                return keyFromDB ? keyFromDB : defaultKey;
+            });
+            
+            // Garante que não haja duplicatas e que todas as 13 chaves estejam presentes
+            const finalKeys = Array.from(new Map(mergedKeys.map(key => [key.id, key])).values());
+            
+            setApiKeys(finalKeys);
+
+        } else {
+            // Se o dado do banco não for uma array, ignora e mantém o estado padrão
+            console.warn("Formato de chaves antigo no banco. Mantendo estado padrão.");
+        }
+    } catch (e) {
+        console.error("Erro ao fazer parse das chaves do banco:", e);
+    }
+}
           if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
           if (data.seen_story_ids) setSeenStoryIds(data.seen_story_ids);
           
