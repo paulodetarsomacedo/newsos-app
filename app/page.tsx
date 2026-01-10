@@ -964,35 +964,28 @@ const SmartImage = ({ src, title, logo, isDarkMode, className, sourceName }) => 
     return words + (title.split(/\s+/).length > 6 ? "..." : "");
   };
 
-  if (hasError) {
-    const bgColor = stringToColor(sourceName || title);
-    
-    return (
-      <div 
-        className={`w-full h-full flex flex-col items-center justify-center p-4 relative overflow-hidden ${className}`}
-        style={{ backgroundColor: bgColor }} 
-      >
-        <div className="absolute inset-0 opacity-10 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
-        
-        <div className="relative z-10 flex flex-col items-center gap-3 text-center">
-          {/* Mantive o logo pequeno pois ajuda na identificação */}
-          <div className="p-1 rounded-full shadow-lg bg-white/20 backdrop-blur-md border border-white/30">
-             <img 
-               src={logo} 
-               alt="Logo" 
-               className="w-6 h-6 rounded-full object-cover" 
-               onError={(e) => e.target.style.display = 'none'} 
-             />
-          </div>
+if (hasError) {
+  const bgColor = stringToColor(sourceName || title);
+  
+  return (
+    <div 
+      className={`w-full h-full flex flex-col items-center justify-center p-4 relative overflow-hidden ${className}`}
+      style={{ backgroundColor: bgColor }} 
+    >
+      <div className="absolute inset-0 opacity-10 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+      
+      <div className="relative z-10 flex flex-col items-center gap-3 text-center">
+        {/* === MUDANÇA 4: REMOVER LOGO DO FALLBACK DE SMARTIMAGE === */}
+        {/* Removido o bloco de código que exibia o logo aqui */}
 
-          {/* --- AQUI ESTÁ A MUDANÇA: Exibe o Título (6 palavras) --- */}
-          <h3 className={`font-black leading-tight tracking-tight uppercase select-none opacity-90 ${isDarkMode ? 'text-white' : 'text-zinc-900'} text-[10px] md:text-xs line-clamp-3`}>
-            {getDisplayTitle()}
-          </h3>
-        </div>
+        {/* --- AQUI ESTÁ A MUDANÇA: Exibe o Título (6 palavras) --- */}
+        <h3 className={`font-black leading-tight tracking-tight uppercase select-none opacity-90 ${isDarkMode ? 'text-white' : 'text-zinc-900'} text-[10px] md:text-xs line-clamp-3`}>
+          {getDisplayTitle()}
+        </h3>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <img 
@@ -1165,12 +1158,14 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
           
           {/* --- PÍLULA NA TRANSIÇÃO --- */}
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-            <div className="flex shadow-2xl rounded-full p-1.5 bg-white-900/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50">
-              <button onClick={(e) => { e.stopPropagation(); onClick(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors">Ler</button>
-              <div className="w-[1px] bg-white/10 my-1"></div>
-              <button onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg"><Sparkles size={14} className="mr-2 inline text-yellow-300 animate-pulse" /> Analisar</button>
-            </div>
-          </div>
+  <div className="flex shadow-2xl rounded-full p-1.5 bg-gradient-to-br from-indigo-600/90 to-purple-600/90 backdrop-blur-xl border border-white/20 ring-1 ring-black/50"> {/* ALTERADO AQUI */}
+    <button onClick={(e) => { e.stopPropagation(); onClick(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors">Ler</button> {/* Mantém text-white */}
+    <div className="w-[1px] bg-white/10 my-1"></div>
+    <button onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-transparent hover:bg-white/10 transition-all shadow-none"> {/* ALTERADO AQUI: bg-transparent e sem shadow */}
+      <Sparkles size={14} className="mr-2 inline text-yellow-300 animate-pulse" /> Analisar
+    </button>
+  </div>
+</div>
           
           {/* ÁREA DE TEXTO */}
           <div className="relative px-5 pt-10 pb-3">
@@ -2030,21 +2025,26 @@ const generateSmartClustering = async (news, apiKey, limit = 50) => {
   Você é um Editor Sênior de Jornalismo. Analise as manchetes abaixo.
   
   SUA MISSÃO:
-  Identificar os 4 (QUATRO) maiores acontecimentos do momento e criar grupos.
+  Identificar os 5 (CINCO) maiores acontecimentos do momento e criar grupos.
   
-  PARA CADA GRUPO, CRIE UM TÍTULO QUE SEJA UMA FRASE JORNALÍSTICA COMPLETA.
-  - NÃO faça listas de palavras (ex: "Mercado, Dólar, Bolsa").
-  - FAÇA uma frase explicativa (ex: "Dólar cai e Bolsa sobe com otimismo sobre juros nos EUA").
-  - O título deve ser claro, direto e em Português do Brasil.
-  
-  RETORNE APENAS JSON:
-  [
-    {
-      "ai_title": "Frase jornalística explicativa (Máx 12 palavras)",
-      "representative_index": 0, (Índice da melhor imagem para capa)
-      "related_indices": [0, 5, 8] (Pelo menos 2 índices que formam este grupo)
-    }
-  ]
+PARA CADA GRUPO, CRIE:
+1.  Um título que seja uma FRASE JORNALÍSTICA COMPLETA, clara e direta.
+    - NÃO faça listas de palavras (ex: "Mercado, Dólar, Bolsa").
+    - FAÇA uma frase explicativa (ex: "Dólar cai e Bolsa sobe com otimismo sobre juros nos EUA").
+    - O título deve ser claro, direto e em Português do Brasil (Máx 12 palavras).
+2.  Um resumo complementar para o título principal (20-30 palavras). // <-- ADICIONE ESTA LINHA
+3.  O índice da melhor notícia para servir de imagem de capa (representative_index).
+4.  Os índices das notícias relacionadas (related_indices), contendo pelo menos 2 índices.
+
+RETORNE APENAS JSON:
+[
+  {
+    "ai_title": "Frase jornalística explicativa (Máx 12 palavras)",
+    "ai_summary": "Resumo complementar de 20-30 palavras para o título.", // <-- ADICIONE ESTA LINHA
+    "representative_index": 0,
+    "related_indices": [0, 5, 8] 
+  }
+]
   DADOS:
   ${simplifiedNews}
   `;
@@ -2086,13 +2086,14 @@ const generateSmartClustering = async (news, apiKey, limit = 50) => {
 
         return { 
             ai_title: cluster.ai_title,
+            ai_summary: cluster.ai_summary,
             representative_image: repImage,
             related_articles: uniqueArticles 
         };
     }).filter(c => c.related_articles.length > 0); 
 
     // Garante que retornamos no máximo 4, conforme pedido, caso a IA se empolgue
-    return Array.isArray(hydratedJson) ? hydratedJson.slice(0, 4) : null;
+    return Array.isArray(hydratedJson) ? hydratedJson.slice(0, 5) : null;
 
   } catch (error) {
     console.error("Erro Smart Clustering:", error);
@@ -2637,20 +2638,28 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   }
 
   // --- ÁREA DE IMAGENS (COLLAGE) ---
-  const topicImages = digest.topics.slice(0, 4).map(t => {
-      const articleWithImg = t.articles?.find(a => a.img && a.img.length > 10);
-      return articleWithImg ? articleWithImg.img : null;
-  });
+const topicImages = digest.topics.slice(0, 4).map(t => {
+    const articleWithImg = t.articles?.find(a => a.img && a.img.length > 10);
+    // === MUDANÇA 4: Garantir imagem real para o representative_image ===
+    return (articleWithImg && articleWithImg.img && articleWithImg.img.length > 10) ? articleWithImg.img : null;
+});
 
-  return (
+ return (
     <>
+    {/* === MUDANÇA 4: COLOCAR GEMINI AURA NO SMARTDIGEST === */}
     <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-      <div className={`
-        relative p-0 overflow-hidden rounded-[2.5rem] shadow-2xl border transition-all
-        ${isDarkMode 
-            ? 'bg-zinc-950 border-white/10' 
-            : 'bg-white border-white/40 shadow-indigo-500/10'}
-      `}>
+      <div 
+        className="rounded-[2.5rem] p-1" // O padding cria a borda
+        style={{ background: 'linear-gradient(135deg, #4f46e5, #a855f7, #ec4899, #f97316)' }}
+      >
+        <div className={`
+          relative p-0 overflow-hidden rounded-[2.25rem] shadow-2xl border transition-all
+          ${isDarkMode 
+              ? 'bg-zinc-950 border-white/10' 
+              : 'bg-white border-white/40 shadow-indigo-500/10'}
+        `}>
+
+        </div>
          
          {/* BANNER DE IMAGENS */}
          <div className="relative w-full h-32 flex">
@@ -2934,27 +2943,60 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
               onScroll={handleScroll}
               className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-4 px-2"
             >
-                {displayClusters.map((cluster, idx) => (
-                    <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
-                        <div className="group relative h-[420px] w-full rounded-[2.5rem] overflow-hidden cursor-default border border-white/10 shadow-[inset_0_0_40px_rgba(0,0,0,0.5)]">
-                            <img src={cluster.representative_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="" onError={(e) => { e.target.style.display = 'none'; }} />
-                            <div className="absolute inset-0 -z-10 bg-gradient-to-br from-indigo-900 to-purple-900" /> 
-                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
-                            <div className="absolute top-6 left-6"><div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg"><Globe size={14} className="text-blue-400" /><span className="text-white text-[10px] font-black uppercase tracking-[0.15em]">{cluster.related_articles.length} {cluster.related_articles.length > 1 ? 'Fontes' : 'Fonte'}</span></div></div>
-                            <div className="absolute bottom-0 left-0 w-full p-8 flex flex-col justify-end">
-                                <h2 className="text-3xl font-black text-white leading-tight mb-6 drop-shadow-lg tracking-tight">{cluster.ai_title}</h2>
-                                <div className="flex flex-wrap items-center gap-4">
-                                   {cluster.related_articles.map(article => (
-                                       <button key={article.id} onClick={() => openArticle(article)} className={`relative w-12 h-12 rounded-full p-[2px] transition-all duration-300 hover:scale-125 hover:z-10 bg-black/40 backdrop-blur-sm border-2 ${getSentimentGlow(article.ai_sentiment)}`} title={`${article.source}: ${article.title}`}>
-                                           <img src={article.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.style.display='none'} />
-                                       </button>
-                                   ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
+             <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center px-0.5"> {/* px-0.5 para respiro mínimo */}
+    <div className="group relative h-[480px] w-full rounded-[2.5rem] overflow-hidden cursor-default border border-white/10 shadow-lg"> {/* Aumentado para 480px */}
+        
+        {/* IMAGEM E GRADIENTE (agora como bloco próprio no topo) */}
+        <div className="relative h-64 w-full bg-zinc-900"> {/* Imagem mais alta */}
+            <img 
+                src={cluster.representative_image} 
+                className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" 
+                alt={cluster.ai_title} 
+                onError={(e) => e.target.style.display = 'none'} 
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
+            
+            {/* Ícone de Fontes no Canto Superior Esquerdo */}
+            <div className="absolute top-6 left-6 z-10">
+                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg">
+                    <Globe size={14} className="text-blue-400" />
+                    <span className="text-white text-[10px] font-black uppercase tracking-[0.15em]">
+                        {cluster.related_articles.length} {cluster.related_articles.length > 1 ? 'Fontes' : 'Fonte'}
+                    </span>
+                </div>
             </div>
+        </div>
+
+        {/* ÁREA DE TEXTO E FONTES (abaixo da imagem) */}
+        <div className="relative z-10 -mt-8 px-6 pb-6 pt-4 flex flex-col h-full"> {/* mt negativo para sobrepor um pouco */}
+            <h2 className="text-3xl font-black text-white leading-tight mb-4 drop-shadow-lg tracking-tight font-serif">
+                {cluster.ai_title}
+            </h2>
+            
+            {/* BARRA VERTICAL E RESUMO */}
+            <div className="flex items-start gap-3 mb-6">
+                <div className="w-1 h-16 bg-purple-500 rounded-full flex-shrink-0" />
+                <p className="text-base text-zinc-300 leading-relaxed font-serif">
+                    {cluster.ai_summary} {/* Novo campo ai_summary */}
+                </p>
+            </div>
+
+            {/* Círculos das fontes (diminuídos) */}
+            <div className="flex flex-wrap items-center gap-3 mt-auto"> {/* mt-auto para empurrar para baixo */}
+               {cluster.related_articles.map(article => (
+                   <button 
+                       key={article.id} 
+                       onClick={() => openArticle(article)} 
+                       className={`relative w-8 h-8 rounded-full p-[1px] transition-all duration-300 hover:scale-125 hover:z-10 bg-black/40 backdrop-blur-sm border-2 ${getSentimentGlow(article.ai_sentiment)}`} 
+                       title={`${article.source}: ${article.title}`}
+                   >
+                       <img src={article.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.style.display='none'} />
+                   </button>
+               ))}
+            </div>
+        </div>
+    </div>
+</div>
             
             {displayClusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-2 pb-4">
@@ -3711,16 +3753,11 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                 <Sparkles size={18} />
             </div>
             <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                As principais notícias, em múltiplos ângulos.
+                As principais notícias de agora, em múltiplos ângulos.
             </h3>
         </div>
 
-        {/* CONTORNO AURA ENVOLVENDO O WIDGET */}
-        <div 
-          className="rounded-[2.5rem] p-1" // O padding cria a borda
-          style={{ background: 'linear-gradient(135deg, #4f46e5, #a855f7, #ec4899, #f97316)' }}
-        >
-          <div className={`rounded-[2.25rem] overflow-hidden ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+     
             <WhileYouWereAwayWidget 
               news={newsData} 
               openArticle={openArticle} 
@@ -3731,8 +3768,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
               onContextReady={() => {}} // onContextReady pode ser ajustado se necessário
             />
           </div>
-        </div>
-      </div>
+    
 
       <SmartDigestWidget 
           newsData={newsData} 
