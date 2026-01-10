@@ -3556,13 +3556,24 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
 
 
 // --- COMPONENTE TREND RADAR (V5 - BARRAS VIVAS + TÍTULOS LEGÍVEIS) ---
-// --- COMPONENTE TREND RADAR (V5 - BARRAS VIVAS + TÍTULOS LEGÍVEIS) ---
-// --- COMPONENTE TREND RADAR (V5 - TERMÔMETRO + BALÕES) ---
+// --- COMPONENTE TREND RADAR (V5 - TERMÔMETRO + ANTI-COLISÃO + BALÕES) ---
+// ✅ NÃO mexe na sua função de IA (generateTrendRadar) nem na lógica de clique/balão.
+// ✅ Mantém cada chip na altura do score, mas aplica anti-colisão (sem sobreposição).
 const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
   const [hasGenerated, setHasGenerated] = useState(false);
+
+  // --- ANTI-COLISÃO ---
+  const trackRef = React.useRef(null);
+  const [chipY, setChipY] = useState([]);
+
+  // Ajuste fino conforme seu chip real (altura e espaçamento)
+  const CHIP_H = 46;      // altura aproximada do chip (px)
+  const CHIP_GAP = 10;    // espaço mínimo entre chips (px)
+  const TOP_PAD = 6;      // margem superior do trilho (px)
+  const BOTTOM_PAD = 6;   // margem inferior do trilho (px)
 
   const STORAGE_KEY = 'newsos_trend_radar_data_v5';
 
@@ -3575,7 +3586,9 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
           setTrends(parsed.sort((a, b) => b.score - a.score));
           setHasGenerated(true);
         }
-      } catch (e) { console.error("Erro ao ler Trend Radar salvo", e); }
+      } catch (e) {
+        console.error("Erro ao ler Trend Radar salvo", e);
+      }
     }
   }, []);
 
@@ -3595,7 +3608,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
     setLoading(true);
     setActiveIndex(null);
     await new Promise(r => setTimeout(r, 800));
-    const data = await generateTrendRadar(newsData, apiKey);
+    const data = await generateTrendRadar(newsData, apiKey); // ✅ NÃO ALTERADO
     if (data && Array.isArray(data) && data.length > 0) {
       const sortedData = data.sort((a, b) => b.score - a.score);
       setTrends(sortedData);
@@ -3613,22 +3626,130 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
 
   const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
 
+  // --- FUNÇÕES ANTI-COLISÃO (SEM ABREVIAÇÕES) ---
+  const clampValue = (value, min, max) => {
+    return Math.max(min, Math.min(max, value));
+  };
+
+  const computeNonOverlappingTopPositionsPx = (scoresArray, trackHeightPx) => {
+    if (!scoresArray || scoresArray.length === 0) return [];
+
+    const usableHeight = Math.max(
+      0,
+      trackHeightPx - TOP_PAD - BOTTOM_PAD - CHIP_H
+    );
+
+    // desiredTop: posição ideal (px) de cima pra baixo
+    const items = scoresArray.map((score, index) => {
+      const normalized = clampValue(score / 10, 0, 1);      // 0..1
+      const desiredTop = TOP_PAD + (1 - normalized) * usableHeight; // score alto => top menor
+      return { index, desiredTop };
+    });
+
+    // Ordena do topo para baixo (menor top primeiro)
+    items.sort((a, b) => a.desiredTop - b.desiredTop);
+
+    // Passo 1: empurra para baixo para evitar colisões
+    const placed = [];
+    let previousTop = -Infinity;
+
+    for (let i = 0; i < items.length; i++) {
+      const current = items[i];
+      const minimumTop =
+        previousTop === -Infinity
+          ? TOP_PAD
+          : previousTop + CHIP_H + CHIP_GAP;
+
+      const placedTop = Math.max(current.desiredTop, minimumTop);
+
+      placed.push({
+        index: current.index,
+        desiredTop: current.desiredTop,
+        top: placedTop,
+      });
+
+      previousTop = placedTop;
+    }
+
+    // Passo 2: se o último estourar o fundo, puxa o conjunto para cima
+    const maximumTopAllowed = trackHeightPx - BOTTOM_PAD - CHIP_H;
+    const lastPlaced = placed[placed.length - 1];
+    const overflow = lastPlaced.top - maximumTopAllowed;
+
+    if (overflow > 0) {
+      // puxa o último para caber
+      placed[placed.length - 1].top = placed[placed.length - 1].top - overflow;
+
+      // agora sobe os anteriores respeitando gaps
+      for (let i = placed.length - 2; i >= 0; i--) {
+        const nextTop = placed[i + 1].top;
+        const maxTopForThis = nextTop - CHIP_H - CHIP_GAP;
+        placed[i].top = Math.min(placed[i].top, maxTopForThis);
+      }
+
+      // garante que o primeiro não suba além do topo
+      if (placed[0].top < TOP_PAD) {
+        const delta = TOP_PAD - placed[0].top;
+        for (let i = 0; i < placed.length; i++) {
+          placed[i].top = placed[i].top + delta;
+        }
+      }
+    }
+
+    // Reordena para o índice original
+    const output = new Array(scoresArray.length).fill(TOP_PAD);
+    for (let i = 0; i < placed.length; i++) {
+      const p = placed[i];
+      output[p.index] = clampValue(p.top, TOP_PAD, maximumTopAllowed);
+    }
+
+    return output;
+  };
+
+  // Recalcula chipY ao montar, ao mudar trends, e em resize/resizeObserver
+  useLayoutEffect(() => {
+    const trackElement = trackRef.current;
+    if (!trackElement || !trends || trends.length === 0) return;
+
+    const recompute = () => {
+      const rect = trackElement.getBoundingClientRect();
+      const heightPx = rect.height;
+
+      const scores = trends.map((t) => t.score);
+      const positions = computeNonOverlappingTopPositionsPx(scores, heightPx);
+      setChipY(positions);
+    };
+
+    recompute();
+
+    const onResize = () => {
+      recompute();
+    };
+    window.addEventListener('resize', onResize);
+
+    const resizeObserver = new ResizeObserver(() => {
+      recompute();
+    });
+    resizeObserver.observe(trackElement);
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      resizeObserver.disconnect();
+    };
+  }, [trends]);
+
   return (
     <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 px-4">
-
-      {/* KEYFRAMES (uma vez no componente) */}
       <style jsx="true">{`
         @keyframes radar-sweep { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes radar-pulse { 0%, 100% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.2); opacity: 0.1; } }
 
-        /* shimmer sutil no termômetro */
         @keyframes thermo-shimmer {
           0% { transform: translateY(120%); opacity: 0; }
           25% { opacity: 0.35; }
           100% { transform: translateY(-120%); opacity: 0; }
         }
 
-        /* respiração sutil do ativo */
         @keyframes thermo-active-pulse {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.06); }
@@ -3669,11 +3790,8 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
         <div className="w-full">
           {hasGenerated && trends ? (
             <div className="relative">
-
-              {/* 1) TERMÔMETRO (substitui o equalizador, mantém a mesma lógica de click/active) */}
+              {/* TERMÔMETRO */}
               <div className="relative mt-2">
-
-                {/* Cabeçalho/legenda pequena (Frio → Quente) */}
                 <div className="flex items-center justify-between mb-3">
                   <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-white/40' : 'text-black/40'}`}>
                     Termômetro de tendências
@@ -3690,8 +3808,8 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                   </div>
                 </div>
 
-                {/* Área do termômetro */}
-                <div className="relative w-full rounded-2xl p-4"
+                <div
+                  className="relative w-full rounded-2xl p-4"
                   style={{
                     background: isDarkMode ? 'rgba(24,24,27,0.55)' : 'rgba(255,255,255,0.65)',
                     border: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)',
@@ -3699,7 +3817,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                   }}
                 >
                   <div className="relative flex gap-4">
-
                     {/* COLUNA TERMÔMETRO */}
                     <div className="relative w-10 flex justify-center">
                       <div
@@ -3711,7 +3828,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                             : '0 10px 24px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.25)',
                         }}
                       >
-                        {/* shimmer vertical sutil */}
                         <div
                           className="absolute left-0 right-0 h-16"
                           style={{
@@ -3721,7 +3837,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                         />
                       </div>
 
-                      {/* Bulbo do termômetro */}
                       <div
                         className="absolute -bottom-2 h-8 w-8 rounded-full"
                         style={{
@@ -3732,22 +3847,26 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                       />
                     </div>
 
-                    {/* MARCADORES + CHIPS (clicáveis) */}
-                    <div className="relative flex-1 h-52">
-                      {/* Linhas de referência (2,4,6,8,10) */}
-                      {[2,4,6,8,10].map((t) => {
-                        const y = Math.min(98, Math.max(2, t * 10));
+                    {/* TRILHO DOS CHIPS (COM ANTI-COLISÃO) */}
+                    <div ref={trackRef} className="relative flex-1 h-52">
+                      {/* Linhas de referência */}
+                      {[2, 4, 6, 8, 10].map((t) => {
+                        const yPercent = Math.min(98, Math.max(2, t * 10));
                         return (
                           <div
                             key={t}
                             className="absolute left-0 right-0"
-                            style={{ bottom: `${y}%` }}
+                            style={{ bottom: `${yPercent}%` }}
                           >
                             <div
                               className="h-px w-full"
-                              style={{ background: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}
+                              style={{
+                                background: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
+                              }}
                             />
-                            <span className={`absolute -left-1 -translate-x-full -translate-y-1/2 text-[10px] font-black ${isDarkMode ? 'text-white/35' : 'text-black/35'}`}>
+                            <span
+                              className={`absolute -left-1 -translate-x-full -translate-y-1/2 text-[10px] font-black ${isDarkMode ? 'text-white/35' : 'text-black/35'}`}
+                            >
                               {t}
                             </span>
                           </div>
@@ -3758,18 +3877,19 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                         const style = getTrendStyle(item.score);
                         const isActive = activeIndex === idx;
 
-                        // posição vertical (termômetro): score 1..10 => 10%..100%
-                        const pos = Math.min(96, Math.max(6, item.score * 10));
+                        const topPx = chipY[idx] ?? TOP_PAD;
 
                         return (
                           <div
                             key={idx}
                             className="absolute left-0 right-0"
-                            style={{ bottom: `${pos}%` }}
+                            style={{
+                              top: `${topPx}px`,
+                              transition: 'top 260ms ease, transform 260ms ease, opacity 260ms ease',
+                              zIndex: isActive ? 50 : 10,
+                            }}
                           >
                             <div className="flex items-center gap-3">
-
-                              {/* “Dot” na coluna (cor do nível) */}
                               <div
                                 className="h-3 w-3 rounded-full"
                                 style={{
@@ -3781,7 +3901,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                                 }}
                               />
 
-                              {/* Chip clicável do tópico */}
                               <button
                                 onClick={() => handleToggle(idx)}
                                 className="group w-full text-left"
@@ -3814,7 +3933,6 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                                       {item.topic}
                                     </span>
 
-                                    {/* score “termômetro” */}
                                     <span
                                       className="text-[10px] font-black uppercase tracking-widest"
                                       style={{
@@ -3826,9 +3944,11 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                                     </span>
                                   </div>
 
-                                  {/* mini-barra horizontal (só pra reforçar termômetro) */}
-                                  <div className="mt-2 h-1.5 w-full rounded-full overflow-hidden"
-                                    style={{ background: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }}
+                                  <div
+                                    className="mt-2 h-1.5 w-full rounded-full overflow-hidden"
+                                    style={{
+                                      background: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
+                                    }}
                                   >
                                     <div
                                       className="h-full rounded-full"
@@ -3850,7 +3970,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                 </div>
               </div>
 
-              {/* 2. ÁREA DE DETALHES (BALÃO) — MANTIDA DO SEU CÓDIGO */}
+              {/* 2. ÁREA DE DETALHES (BALÃO) - MANTIDA */}
               <div className="relative mt-8 h-36">
                 <AnimatePresence>
                   {activeItem && (
@@ -3869,14 +3989,25 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                         }}
                       >
                         <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
-                          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: getTrendStyle(activeItem.score).color }}>
+                          <span
+                            className="text-[10px] font-black uppercase tracking-widest"
+                            style={{ color: getTrendStyle(activeItem.score).color }}
+                          >
                             Impacto: {activeItem.score}/10
                           </span>
                           <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${activeItem.score * 10}%`, backgroundColor: getTrendStyle(activeItem.score).color }} />
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${activeItem.score * 10}%`,
+                                backgroundColor: getTrendStyle(activeItem.score).color
+                              }}
+                            />
                           </div>
                         </div>
-                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{activeItem.summary}</p>
+                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                          {activeItem.summary}
+                        </p>
                       </div>
                     </motion.div>
                   )}
@@ -3894,7 +4025,9 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                 onClick={runTrendAnalysis}
                 className="group relative px-8 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-orange-500 text-white hover:bg-orange-400 shadow-orange-500/30"
               >
-                <span className="flex items-center gap-2"><Sparkles size={16} className="text-yellow-300" /> Ativar Radar</span>
+                <span className="flex items-center gap-2">
+                  <Sparkles size={16} className="text-yellow-300" /> Ativar Radar
+                </span>
               </button>
             </div>
           )}
