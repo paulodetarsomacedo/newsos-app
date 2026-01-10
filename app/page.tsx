@@ -2941,62 +2941,62 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
             <div 
               ref={scrollRef}
               onScroll={handleScroll}
-              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-4 px-2"
+              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-4 px-0.5"
             >
-             <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center px-0.5"> {/* px-0.5 para respiro mínimo */}
-    <div className="group relative h-[480px] w-full rounded-[2.5rem] overflow-hidden cursor-default border border-white/10 shadow-lg"> {/* Aumentado para 480px */}
-        
-        {/* IMAGEM E GRADIENTE (agora como bloco próprio no topo) */}
-        <div className="relative h-64 w-full bg-zinc-900"> {/* Imagem mais alta */}
-            <img 
-                src={cluster.representative_image} 
-                className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" 
-                alt={cluster.ai_title} 
-                onError={(e) => e.target.style.display = 'none'} 
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
-            
-            {/* Ícone de Fontes no Canto Superior Esquerdo */}
-            <div className="absolute top-6 left-6 z-10">
-                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg">
-                    <Globe size={14} className="text-blue-400" />
-                    <span className="text-white text-[10px] font-black uppercase tracking-[0.15em]">
-                        {cluster.related_articles.length} {cluster.related_articles.length > 1 ? 'Fontes' : 'Fonte'}
-                    </span>
-                </div>
-            </div>
-        </div>
+                {/* === INÍCIO DA CORREÇÃO: ADICIONANDO O .MAP() DE VOLTA === */}
+                {displayClusters.map((cluster, idx) => (
+                    <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center px-0.5">
+                        <div className="group relative h-[480px] w-full rounded-[2.5rem] overflow-hidden cursor-default border border-white/10 shadow-lg">
+                            
+                            <div className="relative h-64 w-full bg-zinc-900">
+                                <img 
+                                    src={cluster.representative_image} 
+                                    className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" 
+                                    alt={cluster.ai_title} 
+                                    onError={(e) => e.target.style.display = 'none'} 
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
+                                
+                                <div className="absolute top-6 left-6 z-10">
+                                    <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg">
+                                        <Globe size={14} className="text-blue-400" />
+                                        <span className="text-white text-[10px] font-black uppercase tracking-[0.15em]">
+                                            {cluster.related_articles.length} {cluster.related_articles.length > 1 ? 'Fontes' : 'Fonte'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
 
-        {/* ÁREA DE TEXTO E FONTES (abaixo da imagem) */}
-        <div className="relative z-10 -mt-8 px-6 pb-6 pt-4 flex flex-col h-full"> {/* mt negativo para sobrepor um pouco */}
-            <h2 className="text-3xl font-black text-white leading-tight mb-4 drop-shadow-lg tracking-tight font-serif">
-                {cluster.ai_title}
-            </h2>
-            
-            {/* BARRA VERTICAL E RESUMO */}
-            <div className="flex items-start gap-3 mb-6">
-                <div className="w-1 h-16 bg-purple-500 rounded-full flex-shrink-0" />
-                <p className="text-base text-zinc-300 leading-relaxed font-serif">
-                    {cluster.ai_summary} {/* Novo campo ai_summary */}
-                </p>
-            </div>
+                            <div className="relative z-10 -mt-8 px-6 pb-6 pt-4 flex flex-col h-[calc(100%-16rem)]">
+                                <h2 className="text-3xl font-black text-white leading-tight mb-4 drop-shadow-lg tracking-tight font-serif">
+                                    {cluster.ai_title}
+                                </h2>
+                                
+                                <div className="flex items-start gap-3 mb-6">
+                                    <div className="w-1 h-16 bg-purple-500 rounded-full flex-shrink-0" />
+                                    <p className="text-base text-zinc-300 leading-relaxed font-serif">
+                                        {cluster.ai_summary}
+                                    </p>
+                                </div>
 
-            {/* Círculos das fontes (diminuídos) */}
-            <div className="flex flex-wrap items-center gap-3 mt-auto"> {/* mt-auto para empurrar para baixo */}
-               {cluster.related_articles.map(article => (
-                   <button 
-                       key={article.id} 
-                       onClick={() => openArticle(article)} 
-                       className={`relative w-8 h-8 rounded-full p-[1px] transition-all duration-300 hover:scale-125 hover:z-10 bg-black/40 backdrop-blur-sm border-2 ${getSentimentGlow(article.ai_sentiment)}`} 
-                       title={`${article.source}: ${article.title}`}
-                   >
-                       <img src={article.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.style.display='none'} />
-                   </button>
-               ))}
+                                <div className="flex flex-wrap items-center gap-3 mt-auto">
+                                   {cluster.related_articles.map(article => (
+                                       <button 
+                                           key={article.id} 
+                                           onClick={() => openArticle(article)} 
+                                           className={`relative w-8 h-8 rounded-full p-[1px] transition-all duration-300 hover:scale-125 hover:z-10 bg-black/40 backdrop-blur-sm border-2 ${getSentimentGlow(article.ai_sentiment)}`} 
+                                           title={`${article.source}: ${article.title}`}
+                                       >
+                                           <img src={article.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.style.display='none'} />
+                                       </button>
+                                   ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))} 
+                {/* === FIM DA CORREÇÃO: FECHAMENTO DO .MAP() === */}
             </div>
-        </div>
-    </div>
-</div>
             
             {displayClusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-2 pb-4">
@@ -3008,8 +3008,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
         </div>
     </div>
   );
-};
-
 
 
 
