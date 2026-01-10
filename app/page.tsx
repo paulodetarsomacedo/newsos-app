@@ -2690,8 +2690,8 @@ const topicImages = digest.topics.slice(0, 4).map(t => {
 
         {/* 2. A AURA: Este novo div fica *atrás* de tudo e é o único que pisca */}
 <div 
-    className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-75 blur-lg" 
-    style={{ animation: 'pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
+    className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-50 blur-lg" 
+    style={{ animation: 'pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
 />
         {/* 3. O CONTORNO E O CONTEÚDO: Este div *não tem mais* a classe 'animate-pulse' */}
         <div className="relative rounded-[2.5rem] p-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
@@ -2887,41 +2887,48 @@ const generateHeuristicClusters = (news) => {
 
 
 
-// --- WIDGET: CONTEXTO GLOBAL (V2 - SEM TÍTULO INTERNO) ---
+// --- WIDGET: CONTEXTO GLOBAL (V4 - LAYOUT FINAL CORRIGIDO CONFORME PRINT) ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters, onContextReady }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
 
+  // Garante que o fallback heurístico tenha a mesma estrutura de dados que a IA
   const heuristicClusters = useMemo(() => {
-      if (clusters && clusters.length > 0) return [];
-      return generateHeuristicClusters(news);
+    if (clusters && clusters.length > 0) return [];
+    const generated = generateHeuristicClusters(news);
+    // Adiciona o campo ai_summary para consistência de design
+    return generated.map(cluster => ({
+      ...cluster,
+      ai_summary: cluster.ai_summary || 'Clique em "Analisar" para obter um resumo detalhado gerado por IA sobre este tópico.'
+    }));
   }, [news, clusters]);
 
+
   const runAI = async () => {
-      if (!apiKey) {
-          alert("Configure sua API Key nas configurações primeiro.");
-          return;
-      }
-      if (!news || news.length < 10) {
-          alert("Aguarde o carregamento de mais notícias para uma análise completa.");
-          return;
-      }
-      setLoading(true);
-      setClusters(null); 
-      await new Promise(r => setTimeout(r, 800));
-      const result = await generateSmartClustering(news, apiKey, 300);
-      if (result) {
-          setClusters(result);
-      } else {
-          alert("A IA não encontrou correlações suficientes no momento. Tente novamente mais tarde.");
-      }
-      setLoading(false);
+    if (!apiKey) {
+      alert("Configure sua API Key nas configurações primeiro.");
+      return;
+    }
+    if (!news || news.length < 10) {
+      alert("Aguarde o carregamento de mais notícias para uma análise completa.");
+      return;
+    }
+    setLoading(true);
+    setClusters(null);
+    await new Promise(r => setTimeout(r, 800));
+    const result = await generateSmartClustering(news, apiKey, 300);
+    if (result) {
+      setClusters(result);
+    } else {
+      alert("A IA não encontrou correlações suficientes no momento. Tente novamente mais tarde.");
+    }
+    setLoading(false);
   };
-  
+
   useEffect(() => {
     if (heuristicClusters && heuristicClusters.length > 0 && onContextReady) {
-        onContextReady();
+      onContextReady();
     }
   }, [heuristicClusters, onContextReady]);
 
@@ -2933,141 +2940,125 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       if (newIndex !== activeIndex) setActiveIndex(newIndex);
     }
   };
-
-  const getSentimentGlow = (sentiment) => {
-      if (sentiment === 'positive') return 'border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]';
-      if (sentiment === 'negative') return 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]';
-      return 'border-white/30 shadow-[0_0_10px_rgba(255,255,255,0.1)]';
-  };
   
   const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
 
+  // Renderização de Loading
   if (loading) {
-      return (
-        <div className="relative w-full">
-            <div className={`h-[480px] w-full flex flex-col items-center justify-center relative overflow-hidden ${isDarkMode ? 'bg-zinc-900/50' : 'bg-zinc-100/50'}`}>
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-500/10 to-transparent h-full w-full animate-[shimmer_2s_infinite] translate-y-[-100%]" />
-                <div className="flex flex-col items-center gap-4 z-10">
-                    <Loader2 size={48} className="animate-spin text-purple-500" />
-                    <span className="text-xs font-bold uppercase tracking-[0.2em] animate-pulse opacity-60">Analisando 300 Fontes</span>
-                </div>
-            </div>
+    return (
+      <div className="relative w-full h-[380px] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 z-10">
+          <Loader2 size={48} className="animate-spin text-purple-500" />
+          <span className="text-xs font-bold uppercase tracking-[0.2em] animate-pulse opacity-60">Analisando Notícias...</span>
         </div>
-      );
+      </div>
+    );
   }
 
+  // Renderização de Fallback (sem notícias)
   if (!displayClusters || displayClusters.length === 0) {
-      return (
-        <div className="relative w-full animate-pulse">
-            <div className={`h-[480px] w-full rounded-b-[2.25rem] ${isDarkMode ? 'bg-zinc-900/50' : 'bg-zinc-200'}`}></div>
-        </div>
-      );
+    return (
+      <div className="relative w-full animate-pulse h-[380px] p-2">
+        <div className={`h-full w-full rounded-2xl ${isDarkMode ? 'bg-zinc-900/50' : 'bg-zinc-200'}`}></div>
+      </div>
+    );
   }
 
   return (
-     <div className="animate-in fade-in duration-1000">
-        {/* O div do botão foi removido daqui */}
-        <div className="relative w-full">
-            {/* === BOTÃO REPOSICIONADO AQUI === */}
-            <div className="absolute top-[-4.5rem] right-4 z-20">
-                <button 
-                    onClick={runAI}
-                    className={`
-                        group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider
-                        transition-all duration-300 active:scale-95 shadow-lg
-                        bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/30
-                    `}
-                >
-                    {loading ? (
-                        <div className="flex items-center gap-2"><Loader2 size={12} className="animate-spin"/><span>Analisando</span></div>
-                    ) : clusters ? (
-                        <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar</span></div>
-                    ) : (
-                        <div className="flex items-center gap-2"><Sparkles size={14} className="text-yellow-300" /><span>Analisar</span></div>
-                    )}
-                </button>
-            </div>
+    <div className="relative">
+      
+      {/* BOTÃO ATUALIZAR/ANALISAR */}
+      <div className="absolute top-[-4.5rem] right-4 z-20">
+        <button
+          onClick={runAI}
+          className="group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/30"
+        >
+          {loading ? ( <div className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /><span>Analisando</span></div> ) 
+          : clusters ? ( <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar</span></div> ) 
+          : ( <div className="flex items-center gap-2"><Sparkles size={14} className="text-yellow-300" /><span>Analisar</span></div> )}
+        </button>
+      </div>
 
-            <div 
-              ref={scrollRef}
-              onScroll={handleScroll}
-              className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
-            >
-                {/* === INÍCIO DA CORREÇÃO: ADICIONANDO O .MAP() DE VOLTA === */}
-           {displayClusters.map((cluster, idx) => (
-                    <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-1">
-                        {/* === ETAPA 1: O NOVO CONTAINER COM SOMBRA E BORDAS ARREDONDADAS === */}
-                        <div className={`
-        w-full h-[450px] rounded-2xl overflow-hidden flex flex-col transition-shadow duration-300
-        ${isDarkMode 
-            ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' 
-            : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
-    `}>
-        
-        {/* Banner com altura fixa (h-64, que é 256px) */}
-        <div className="relative w-full h-64 bg-zinc-800">
-                                <img
-                                    src={cluster.representative_image}
-                                    className="w-full h-full object-cover"
-                                    alt={cluster.ai_title}
-                                    onError={(e) => e.target.style.display = 'none'}
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+      {/* CARROSSEL */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+      >
+        {displayClusters.map((cluster, idx) => (
+          <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
+            <div className={`
+              w-full rounded-2xl overflow-hidden flex flex-col
+              ${isDarkMode 
+                ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' 
+                : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
+            `}>
 
-                                {/* Container do texto sobreposto */}
-                                <div className="relative z-10 px-6 py-4 flex-1 flex flex-col">
-                                    <h2 className="text-3xl lg:text-4xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-3">
-                                        {cluster.ai_title}
-                                    </h2>
-                                    <div className="flex items-start gap-3">
-                                        <div className="w-1 h-auto self-stretch bg-purple-400 rounded-full flex-shrink-0" />
-                                        <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">
-                                            {cluster.ai_summary}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Selo de fontes */}
-                                <div className="absolute top-4 left-4 z-10">
-                                    <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-                                        <Globe size={12} />
-                                        <span className="text-white text-[10px] font-bold uppercase tracking-wider">
-                                            {cluster.related_articles.length} Fontes
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* === ÁREA DOS LOGOS (ABAIXO DA IMAGEM) === */}
-                            <div className="px-6 py-4">
-                                <div className="flex flex-wrap items-center gap-3">
-                                    {cluster.related_articles.map(article => (
-                                        <button
-                                            key={article.id}
-                                            onClick={() => openArticle(article)}
-                                            className="relative w-8 h-8 rounded-full transition-all duration-300 hover:scale-125 hover:z-10"
-                                            title={`${article.source}: ${article.title}`}
-                                        >
-                                            <img src={article.logo} className="w-full h-full object-cover rounded-full border border-black/10" onError={(e) => e.target.style.display = 'none'} />
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-          {displayClusters.length > 1 && (
-              <div className="flex justify-center gap-2 mt-2 pb-4">
-                  {displayClusters.map((_, idx) => (
-                      <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-6' : 'bg-zinc-700 w-1.5'}`} />
-                  ))}
+              {/* === BLOCO 1: IMAGEM (ALTURA FIXA) === */}
+              <div className="relative w-full h-52 bg-zinc-800">
+                <img
+                  src={cluster.representative_image}
+                  className="w-full h-full object-cover"
+                  alt={cluster.ai_title}
+                  onError={(e) => e.target.style.display = 'none'}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                <div className="absolute top-4 left-4 z-10">
+                  <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                    <Globe size={12} />
+                    <span className="text-white text-[10px] font-bold uppercase tracking-wider">
+                      {cluster.related_articles.length} Fontes
+                    </span>
+                  </div>
+                </div>
               </div>
-            )}
+
+              {/* === BLOCO 2: CONTEÚDO (TEXTO E LOGOS) === */}
+              <div className="p-6 flex-1 flex flex-col">
+                <h2 className={`text-2xl font-black leading-tight mb-3 font-serif
+                  ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}
+                `}>
+                  {cluster.ai_title}
+                </h2>
+                
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-1 h-auto self-stretch bg-purple-400 rounded-full flex-shrink-0" />
+                  <p className={`text-sm leading-relaxed 
+                    ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}
+                  `}>
+                    {cluster.ai_summary}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 mt-auto pt-4">
+                  {cluster.related_articles.map(article => (
+                    <button
+                      key={article.id}
+                      onClick={() => openArticle(article)}
+                      className="relative w-8 h-8 rounded-full transition-all duration-300 hover:scale-125 hover:z-10"
+                      title={`${article.source}: ${article.title}`}
+                    >
+                      <img src={article.logo} className="w-full h-full object-cover rounded-full border border-black/10" onError={(e) => e.target.style.display = 'none'} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* INDICADOR DO CARROSSEL */}
+      {displayClusters.length > 1 && (
+        <div className="flex justify-center gap-2 mt-4 pb-4">
+          {displayClusters.map((_, idx) => (
+            <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-6' : 'bg-zinc-400 dark:bg-zinc-700 w-1.5'}`} />
+          ))}
         </div>
+      )}
     </div>
   );
-}; // <--- LINHA CORRIGIDA com };
+};
 
 
 
@@ -6170,7 +6161,9 @@ return (
                 ${isDarkMode ? 'bg-zinc-950/95' : 'bg-slate-900/95'}
                 backdrop-blur-2xl
             `}>
-                
+                <div className="w-full flex justify-center pt-4 pb-2 relative z-20">
+        <div className={`rounded-full transition-all duration-300 ${isNavVisible ? 'bg-white/10 w-12 h-1.5 opacity-50' : 'bg-white/60 w-24 h-2 opacity-0 shadow-[0_0_20px_rgba(255,255,255,0.4)]'}`} />
+    </div>
                 
 
                 <div className={`relative z-10 w-full flex justify-center gap-2 px-2 pb-10 transition-all duration-300 ${isNavVisible ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}> 
