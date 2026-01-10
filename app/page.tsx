@@ -1164,7 +1164,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     - Efeito de vidro (backdrop-blur-xl)
     - Contorno (border) e Relevo/Sombra (shadow-2xl)
   */}
-  <div className="flex items-center shadow-2xl rounded-full p-1.5 bg-black/50 backdrop-blur-xl border border-white/10">
+  <div className="flex items-center shadow-2xl rounded-full p-1.5 bg-black/10 backdrop-blur-xl border border-white/10">
     
     {/* 
       2. BOTÃO "LER":
@@ -1173,7 +1173,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     */}
     <button 
       onClick={(e) => { e.stopPropagation(); onClick(news); }} 
-      className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-transparent hover:bg-white/10 transition-colors"
+      className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-transparent hover:bg-white/10 transition-colors"
     >
       Ler
     </button>
@@ -1188,9 +1188,9 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     */}
     <button 
       onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
-      className="px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30"
+      className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30"
     >
-      <Sparkles size={14} className="mr-2 inline text-yellow-300 animate-pulse" /> Analisar
+      <Sparkles size={14} className="mr-2 inline text-purple-500 animate-pulse" /> Analisar
     </button>
 
   </div>
@@ -2677,38 +2677,45 @@ const topicImages = digest.topics.slice(0, 4).map(t => {
     <>
     {/* === MUDANÇA 4: COLOCAR GEMINI AURA NO SMARTDIGEST === */}
  <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-      <div className="relative rounded-[2.5rem] p-1 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 animate-pulse">
-          <div className="absolute -inset-[1px] rounded-[2.5rem] bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-100" />
-          
-          <div className={`
-            relative p-0 overflow-hidden rounded-[2.25rem] shadow-2xl transition-all
-            ${isDarkMode 
-                ? 'bg-zinc-950 border border-white/10' 
-                : 'bg-white border border-zinc-100/50'}
-          `}> {/* === MUDANÇA 2: BG MODERNO E NEUTRO === */}
-             
-             {/* === MUDANÇA 3: CANTOS ARREDONDADOS NAS IMAGENS === */}
-             <div className="relative w-full h-32 flex overflow-hidden rounded-tl-[2.25rem] rounded-tr-[2.25rem]">
-                 {topicImages.map((img, idx) => (
-                     <div key={idx} className="flex-1 relative h-full overflow-hidden">
-                         {img ? (
-                             <img src={img} className="w-full h-full object-cover scale-110" />
-                         ) : (
-                             <div className={`w-full h-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
-                         )}
-                         <div className={`absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent ${idx === topicImages.length - 1 ? 'to-transparent' : (isDarkMode ? 'to-zinc-950/50' : 'to-white/30')}`} />
-                         <div className={`absolute inset-0 ${isDarkMode ? 'bg-indigo-900/20 mix-blend-overlay' : 'bg-indigo-500/10 mix-blend-overlay'}`} />
-                     </div>
-                 ))}
-                 <div className={`absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t ${isDarkMode ? 'from-zinc-950' : 'from-white'} to-transparent`} />
-                 
-                 <button 
-                    onClick={handlePlayBriefing}
-                    className="absolute bottom-3 right-4 bg-black/50 backdrop-blur-md text-white p-2 rounded-full border border-white/20 shadow-lg active:scale-95 transition-transform"
-                 >
-                    {isSpeaking ? <Pause size={16} fill="white"/> : <Play size={16} fill="white" className="ml-0.5"/>}
-                 </button>
-             </div>
+    <div className="relative"> {/* 1. Adicionado um container 'relative' para posicionar a aura */}
+
+        {/* 2. A AURA: Este novo div fica *atrás* de tudo e é o único que pisca */}
+        <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-75 blur-xl animate-pulse" />
+
+        {/* 3. O CONTORNO E O CONTEÚDO: Este div *não tem mais* a classe 'animate-pulse' */}
+        <div className="relative rounded-[2.5rem] p-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
+            {/* O div do contorno fino permanece, mas agora dentro de um container estático */}
+            <div className="absolute -inset-[1px] rounded-[2.5rem] bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-100" />
+            
+            <div className={`
+                relative p-0 overflow-hidden rounded-[2.25rem] shadow-2xl transition-all
+                ${isDarkMode 
+                    ? 'bg-zinc-950 border border-white/10' 
+                    : 'bg-white border border-zinc-100/50'}
+            `}>
+                
+                {/* As imagens e todo o resto do seu código permanecem aqui dentro, inalterados */}
+                <div className="relative w-full h-32 flex overflow-hidden rounded-tl-[2.25rem] rounded-tr-[2.25rem]">
+                    {topicImages.map((img, idx) => (
+                        <div key={idx} className="flex-1 relative h-full overflow-hidden">
+                            {img ? (
+                                <img src={img} className="w-full h-full object-cover scale-110" />
+                            ) : (
+                                <div className={`w-full h-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
+                            )}
+                            <div className={`absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent ${idx === topicImages.length - 1 ? 'to-transparent' : (isDarkMode ? 'to-zinc-950/50' : 'to-white/30')}`} />
+                            <div className={`absolute inset-0 ${isDarkMode ? 'bg-indigo-900/20 mix-blend-overlay' : 'bg-indigo-500/10 mix-blend-overlay'}`} />
+                        </div>
+                    ))}
+                    <div className={`absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t ${isDarkMode ? 'from-zinc-950' : 'from-white'} to-transparent`} />
+                    
+                    <button 
+                        onClick={handlePlayBriefing}
+                        className="absolute bottom-3 right-4 bg-black/50 backdrop-blur-md text-white p-2 rounded-full border border-white/20 shadow-lg active:scale-95 transition-transform"
+                    >
+                        {isSpeaking ? <Pause size={16} fill="white"/> : <Play size={16} fill="white" className="ml-0.5"/>}
+                    </button>
+                </div>
 
          {/* CONTEÚDO EDITORIAL */}
          <div className="px-6 pb-8 relative z-10 -mt-2">
@@ -2976,56 +2983,69 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
               className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
             >
                 {/* === INÍCIO DA CORREÇÃO: ADICIONANDO O .MAP() DE VOLTA === */}
-              {displayClusters.map((cluster, idx) => (
-                        <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center">
-                            {/* O CARD AGORA TEM UM BACKGROUND PRÓPRIO E PADDING */}
-                            <div className={`
-                                group relative w-full flex flex-col justify-end
-                                ${isDarkMode ? 'bg-zinc-900' : 'bg-slate-100'}
-                            `}>
-                                
-                                {/* IMAGEM MAIOR, 100% LARGURA */}
-                                <div className="absolute inset-0 bottom-auto h-[65%] w-full">
-                                    <img 
-                                        src={cluster.representative_image} 
-                                        className="w-full h-full object-cover" 
-                                        alt={cluster.ai_title} 
-                                        onError={(e) => e.target.style.display = 'none'} 
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
-                                    <div className={`absolute bottom-0 w-full h-16 bg-gradient-to-t ${isDarkMode ? 'from-zinc-900' : 'from-slate-100'} to-transparent`} />
-                                </div>
+           {displayClusters.map((cluster, idx) => (
+                    <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
+                        {/* === ETAPA 1: O NOVO CONTAINER COM SOMBRA E BORDAS ARREDONDADAS === */}
+                        <div className={`
+                            w-full rounded-2xl overflow-hidden flex flex-col transition-shadow duration-300
+                            ${isDarkMode 
+                                ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' 
+                                : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
+                        `}>
 
-                                {/* ÁREA DE TEXTO MENOR E COM ESTILO ATUALIZADO */}
-                                <div className="relative z-10 px-6 pb-6 pt-4 min-h-[35%] flex flex-col">
-                                    <h2 className={`text-4xl font-black leading-tight mb-4 drop-shadow-lg tracking-tight font-serif ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                            {/* === BANNER COM SOBREPOSIÇÃO (OVERLAY) === */}
+                            <div className="relative w-full aspect-[16/7] bg-zinc-800">
+                                <img
+                                    src={cluster.representative_image}
+                                    className="w-full h-full object-cover"
+                                    alt={cluster.ai_title}
+                                    onError={(e) => e.target.style.display = 'none'}
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+
+                                {/* Container do texto sobreposto */}
+                                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                                    <h2 className="text-3xl lg:text-4xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-3">
                                         {cluster.ai_title}
                                     </h2>
-                                    
-                                    <div className="flex items-start gap-3 mb-6">
-                                        <div className="w-1 h-auto self-stretch bg-purple-500 rounded-full flex-shrink-0" />
-                                        <p className={`text-base leading-relaxed font-serif ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-1 h-auto self-stretch bg-purple-400 rounded-full flex-shrink-0" />
+                                        <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">
                                             {cluster.ai_summary}
                                         </p>
                                     </div>
+                                </div>
 
-                                    <div className="flex flex-wrap items-center gap-3 mt-auto">
-                                       {cluster.related_articles.map(article => (
-                                           <button 
-                                               key={article.id} 
-                                               onClick={() => openArticle(article)} 
-                                               className={`relative w-8 h-8 rounded-full p-[1px] transition-all duration-300 hover:scale-125 hover:z-10 bg-black/40 backdrop-blur-sm border-2 ${getSentimentGlow(article.ai_sentiment)}`} 
-                                               title={`${article.source}: ${article.title}`}
-                                           >
-                                               <img src={article.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.style.display='none'} />
-                                           </button>
-                                       ))}
+                                {/* Selo de fontes */}
+                                <div className="absolute top-4 left-4 z-10">
+                                    <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                                        <Globe size={12} />
+                                        <span className="text-white text-[10px] font-bold uppercase tracking-wider">
+                                            {cluster.related_articles.length} Fontes
+                                        </span>
                                     </div>
                                 </div>
                             </div>
+
+                            {/* === ÁREA DOS LOGOS (ABAIXO DA IMAGEM) === */}
+                            <div className="px-6 py-4">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    {cluster.related_articles.map(article => (
+                                        <button
+                                            key={article.id}
+                                            onClick={() => openArticle(article)}
+                                            className="relative w-8 h-8 rounded-full transition-all duration-300 hover:scale-125 hover:z-10"
+                                            title={`${article.source}: ${article.title}`}
+                                        >
+                                            <img src={article.logo} className="w-full h-full object-cover rounded-full border border-black/10" onError={(e) => e.target.style.display = 'none'} />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ))}
+            </div>
           {displayClusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-2 pb-4">
                   {displayClusters.map((_, idx) => (
@@ -3773,7 +3793,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
 
   {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA COM LAYOUT CORRIGIDO --- */}
-      <div className="space-y-4 px-2">
+      <div className="space-y-4">
         {/* TÍTULO PRINCIPAL DA SEÇÃO */}
         <div className="flex items-center gap-3 px-4">
             <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
