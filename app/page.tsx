@@ -2812,17 +2812,16 @@ const topicImages = digest.topics.slice(0, 4).map(t => {
     </div>
 
     {glassArticle && (
-        <GlassBrowser 
-            article={glassArticle} 
-            onClose={() => setGlassArticle(null)}
-            isDarkMode={isDarkMode}
-       />
-    )}
+            <GlassBrowser 
+                article={glassArticle} 
+                onClose={() => setGlassArticle(null)}
+                isDarkMode={isDarkMode}
+            />
+        )}
+      </div> {/* <--- LINHA MOVIDA PARA CÁ */}
     </>
   );
-}; // <-- ADICIONE O PONTO E VÍRGULA AQUI
-             
-
+};
 
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
