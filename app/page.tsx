@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 import { Browser } from '@capacitor/browser';
 import { InAppBrowser } from '@awesome-cordova-plugins/in-app-browser';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as stringSimilarity from 'string-similarity';
 
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
@@ -3675,7 +3676,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                       
                       {/* TÍTULO LEGÍVEL ABAIXO DA BARRA */}
                       <p 
-                        className="text-[10px] font-bold text-center absolute -bottom-5 w-full transition-opacity duration-300"
+                        className="text-xs font-bold text-center absolute -bottom-5 w-full transition-opacity duration-300"
                         style={{
                           color: isActive ? style.color : (isDarkMode ? '#a1a1aa' : '#71717a'), // Cor do tema se ativo, cinza se inativo
                         }}
@@ -3688,7 +3689,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
               </div>
 
               {/* 2. ÁREA DE DETALHES (BALÃO) */}
-              <div className="relative mt-8 h-36">
+              <div className="relative mt-8 min-h-[1px]"> {/* min-h-[1px] para garantir que o container exista */}
                 <AnimatePresence>
                   {activeItem && (
                     <motion.div
@@ -5046,7 +5047,10 @@ export default function NewsOS_V12() {
     { id: 9, value: '', type: 'heavy_rotation' },
     { id: 10, value: '', type: 'heavy_rotation' },
     { id: 11, value: '', type: 'heavy_rotation' },
-  ]);
+    { id: 12, value: '', type: 'chat_key' },
+    { id: 13, value: '', type: 'chat_key' },
+]);
+
 
 
 
@@ -5124,6 +5128,7 @@ export default function NewsOS_V12() {
   // Índices para rotação (Refs não causam re-render)
   const widgetRotationIndex = useRef(0);
   const heavyRotationIndex = useRef(0);
+  const chatRotationIndex = useRef(0);
 
   // --- O DISTRIBUIDOR DE CHAVES INTELIGENTE ---
   const getApiKey = useCallback((purpose) => {
@@ -5161,6 +5166,16 @@ export default function NewsOS_V12() {
 
     return null;
   }, [apiKeys]);  
+
+  const getChatApiKey = useCallback(() => {
+    const chatKeys = apiKeys.filter(k => k.type === 'chat_key' && k.value.trim() !== '');
+    if (chatKeys.length === 0) return null;
+    
+    const key = chatKeys[chatRotationIndex.current % chatKeys.length];
+    chatRotationIndex.current += 1;
+    console.log(`[Load Balancer] Usando Chave de Chat #${key.id}`);
+    return key.value;
+}, [apiKeys]);
   
 const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
@@ -6304,7 +6319,10 @@ return (
                     onToggleSave={handleToggleSave}
                     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
                     apiKey={getApiKey('analysis')}
+                    getChatApiKey={getChatApiKey}
+                    readerContent={readerContent}
                     isDarkMode={isDarkMode}
+
                 />
             )}
         </div>
@@ -6876,11 +6894,161 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
     );
 };
 
+
+
+// --- FUNÇÃO DE IA: CHAT CONTEXTUAL DINÂMICO ---
+const generateChatResponse = async (chatHistory, articleText, apiKey) => {
+  if (!apiKey) return "Desculpe, a conexão com a IA não está configurada.";
+
+  // 1. Extrai a última pergunta do usuário
+  const userQuestion = chatHistory.findLast(m => m.from === 'user')?.text;
+  if (!userQuestion) return "Não entendi sua pergunta.";
+
+  // 2. Busca contexto na web baseado na pergunta E no artigo
+  const articleKeywords = articleText.split(' ').slice(0, 5).join(' '); // Pega palavras-chave do início do artigo
+  const searchQuery = `${articleKeywords} ${userQuestion}`;
+  const webResults = await searchWeb(searchQuery);
+  const webContext = webResults.map(r => r.snippet).join('\n');
+
+  // 3. Monta o histórico para a IA (importante para manter o contexto da conversa)
+  const formattedHistory = chatHistory.map(m => `${m.from === 'user' ? 'Usuário' : 'Assistente'}: ${m.text}`).join('\n');
+
+  const prompt = `
+  Você é um Assistente de Pesquisa especialista e amigável, conversando dentro de uma interface de chat.
+
+  CONTEXTO PRINCIPAL (A notícia que o usuário está lendo):
+  ---
+  ${articleText.slice(0, 4000)}
+  ---
+
+  INFORMAÇÕES ADICIONAIS DA WEB (Buscadas agora com base na última pergunta):
+  ---
+  ${webContext || "Nenhum resultado web encontrado para esta pergunta."}
+  ---
+  
+  HISTÓRICO DA CONVERSA ATÉ AGORA:
+  ---
+  ${formattedHistory}
+  ---
+
+  SUA TAREFA:
+  Continue a conversa respondendo à última pergunta do "Usuário" de forma natural e conversacional, como se estivesse em um chat.
+  - Utilize o CONTEXTO PRINCIPAL para responder sobre fatos da notícia.
+  - Utilize as INFORMAÇÕES DA WEB para responder perguntas que vão além da notícia (eventos atuais, definições, etc).
+  - Mantenha as respostas curtas e diretas (1-3 frases).
+  - AJA COMO UMA PESSOA, NÃO COMO UM ROBÔ. Seja prestativo.
+  - Não repita a pergunta. Apenas dê a resposta.
+  `;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Não consegui processar a resposta. Tente novamente.";
+  } catch (e) {
+    return "Houve um problema ao conectar com a IA.";
+  }
+};
+
+
+
+
+// --- NOVO COMPONENTE: WHATSAPP CHAT INTERFACE ---
+const WhatsappChat = ({ articleText, apiKey, getChatApiKey, isDarkMode }) => {
+  const [history, setHistory] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    // Mensagem inicial da IA
+    setHistory([{ 
+      from: 'ai', 
+      text: `Olá! Eu li esta notícia. Sobre o que você gostaria de saber mais ou pesquisar?` 
+    }]);
+  }, []);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history, isAiTyping]);
+
+  const handleSendMessage = async () => {
+    const userQuestion = inputValue.trim();
+    if (userQuestion === '' || isAiTyping) return;
+
+    const newHistory = [...history, { from: 'user', text: userQuestion }];
+    setHistory(newHistory);
+    setInputValue('');
+    setIsAiTyping(true);
+
+    const chatApiKey = getChatApiKey(); // Pega uma chave rotacionada
+    if (!chatApiKey) {
+      setHistory(prev => [...prev, { from: 'ai', text: 'Erro: Nenhuma chave de API para o chat está configurada.' }]);
+      setIsAiTyping(false);
+      return;
+    }
+
+    const aiResponse = await generateChatResponse(newHistory, articleText, chatApiKey);
+
+    setHistory(prev => [...prev, { from: 'ai', text: aiResponse }]);
+    setIsAiTyping(false);
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-cover bg-center" style={{ backgroundImage: isDarkMode ? "url('https://i.redd.it/qwd81h444yv51.jpg')" : "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')" }}>
+      {/* Histórico de Mensagens */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {history.map((msg, index) => (
+          <div key={index} className={`flex ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[80%] p-2 px-3 rounded-xl shadow-md ${msg.from === 'user' ? 'bg-[#005c4b] text-white rounded-tr-none' : (isDarkMode ? 'bg-[#2a3942] text-zinc-200 rounded-tl-none' : 'bg-white text-zinc-800 rounded-tl-none')}`}>
+              <p className="text-sm" style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p>
+            </div>
+          </div>
+        ))}
+        {isAiTyping && (
+          <div className="flex justify-start">
+            <div className={`max-w-[80%] p-2 px-3 rounded-xl shadow-md ${isDarkMode ? 'bg-[#2a3942] text-zinc-200 rounded-tl-none' : 'bg-white text-zinc-800 rounded-tl-none'}`}>
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                    <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                </div>
+            </div>
+          </div>
+        )}
+        <div ref={chatEndRef} />
+      </div>
+      
+      {/* Input */}
+      <div className="p-2 bg-transparent">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Mensagem"
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+            className={`w-full px-4 py-2.5 rounded-full outline-none border-none text-sm ${isDarkMode ? 'bg-[#2a3942] text-white placeholder:text-zinc-400' : 'bg-white text-black placeholder:text-zinc-500'}`}
+          />
+          <button onClick={handleSendMessage} className="w-11 h-11 flex items-center justify-center rounded-full bg-[#00a884] text-white shrink-0 hover:bg-[#008a6b] transition-colors">
+            <ArrowRight size={22} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+
 // ==============================================================================
 // 2. O PAINEL DE IA PRINCIPAL
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey }) => {
+const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, getChatApiKey }) => {
   const [aiData, setAiData] = useState(null);
   const [loadingState, setLoadingState] = useState('idle'); 
   const [viewMode, setViewMode] = useState('analysis');
@@ -7118,6 +7286,14 @@ return (
                     <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" />
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
                     <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">
+                      {/* Botão para VOLTAR do chat para a análise */}
+                  {viewMode === 'chat' ? (
+                      <button onClick={() => setViewMode('analysis')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2">
+                          <BrainCircuit size={14}/> Voltar à Análise
+                      </button>
+                  ) : (
+                      <div></div> // Placeholder para manter o layout
+                  )}
                         <div className="flex gap-2">
                             {viewMode === 'magic' && (<button onClick={() => setViewMode('drilldown')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2"><BrainCircuit size={14}/> Voltar à Análise</button>)}
                         </div>
@@ -7135,10 +7311,25 @@ return (
                         </div>
                         <h1 className="text-3xl md:text-4xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
                     </div>
+                    {/* === BOTÃO DE CHAT NOVO E MODERNO === */}
+                  {viewMode !== 'chat' && (
+                    <button 
+                        onClick={() => setViewMode('chat')}
+                        className="group relative w-14 h-14 flex items-center justify-center rounded-2xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
+                    >
+                        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12.04 2C6.58 2 2.13 6.45 2.13 12C2.13 17.55 6.58 22 12.04 22C13.82 22 15.5 21.56 16.94 20.81L21.5 22L20.81 17.6C21.56 16.16 22 14.48 22 12.7C22 7.15 17.5 2 12.04 2ZM13.12 15.88H11.12V13.88H13.12V15.88ZM13.12 11.88H11.12V6.88H13.12V11.88Z"></path>
+                        </svg>
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                            Perguntar à IA
+                        </span>
+                    </button>
+                  )}
+            
                 </div>
                 
-                <div className="relative z-10 px-4 py-2 space-y-10 pb-40">
-                    {/* VISÃO GERAL (COMPLETA) */}
+                {/* CONTAINER DE CONTEÚDO */}
+          <div className="flex-1 min-h-0">
                     {viewMode === 'analysis' && (
                         <div className="animate-in fade-in">
                             {/* Resumo com Abas */}
@@ -7770,6 +7961,26 @@ const handleKeyChange = (targetId, newValue) => {
                             ))}
                         </div>
                      </div>
+
+                     {/* POOL 3: CHAT */}
+ <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+    <div className="flex items-center gap-2 mb-2">
+        <MessageCircle size={14} className="text-green-500"/> {/* Use um ícone de chat, se tiver 'lucide-react' */}
+        <h3 className="text-sm font-bold">Pool 3: Chat com IA</h3>
+    </div>
+    <div className="space-y-2">
+        {apiKeys.filter(k => k.type === 'chat_key').map((key) => (
+            <input 
+                key={key.id}
+                type="text" 
+                value={key.value} 
+                onChange={(e) => handleKeyChange(key.id, e.target.value)} 
+                placeholder={`Chave de Chat #${key.id}`} 
+                className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-green-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+            />
+        ))}
+    </div>
+ </div>
 
                      {/* LEGADO (5-6) - Opcional, esconde num accordion ou deixa no fim */}
                      <div className="opacity-50 hover:opacity-100 transition-opacity">
