@@ -3666,22 +3666,45 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                     >
                       {/* BARRA COM GRADIENTE VIVO E GLOW NO HOVER/ACTIVE */}
                       <div
-                        className="w-full rounded-md transition-all duration-300 ease-out"
-                        style={{
-                          height: `${style.heightPercent}%`,
-                          background: `linear-gradient(to top, ${style.color}, ${style.color}99)`,
-                          opacity: isActive ? 1 : (activeIndex !== null ? 0.5 : 0.8),
-                          boxShadow: isActive ? `0 0 15px ${style.color}70, 0 0 5px ${style.color}90` : 'none',
-                        }}
-                      />
+                          className="w-full rounded-md transition-all duration-300 ease-out"
+  style={{
+    height: `${style.heightPercent}%`,
+    backgroundImage: `
+      linear-gradient(to top, ${style.color}, ${style.color}99),
+      linear-gradient(to right, rgba(255,255,255,0.28), rgba(255,255,255,0)),
+      linear-gradient(to left, rgba(0,0,0,0.22), rgba(0,0,0,0))
+    `,
+    backgroundBlendMode: 'screen, normal, normal',
+    opacity: isActive ? 1 : (activeIndex !== null ? 0.5 : 0.85),
+
+    // 3D: sombra externa + sombreamento interno (inset)
+    boxShadow: isActive
+      ? `
+        0 10px 18px rgba(0,0,0,0.28),
+        inset 0 2px 0 rgba(255,255,255,0.20),
+        inset -3px 0 6px rgba(0,0,0,0.25),
+        0 0 15px ${style.color}50
+      `
+      : `
+        0 8px 14px rgba(0,0,0,0.22),
+        inset 0 2px 0 rgba(255,255,255,0.16),
+        inset -3px 0 6px rgba(0,0,0,0.22)
+      `,
+  }}
+/>
                       
                       {/* TÍTULO LEGÍVEL ABAIXO DA BARRA */}
-                      <p 
-                        className="text-[15px] font-bold text-center absolute -bottom-5 w-full transition-opacity duration-300"
-                        style={{
-                          color: isActive ? style.color : (isDarkMode ? 'black' : 'white'), // Cor do tema se ativo, cinza se inativo
-                        }}
-                      >
+                      <p
+  className="text-[16px] font-bold text-center absolute -bottom-5 w-full transition-opacity duration-300"
+  style={{
+    color: isActive
+      ? style.color
+      : (isDarkMode ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)'),
+      textShadow: isDarkMode
+    ? '0 1px 2px rgba(0,0,0,0.6)'
+    : '0 1px 2px rgba(255,255,255,0.6)',
+  }}
+>
                         {item.topic}
                       </p>
                     </div>
