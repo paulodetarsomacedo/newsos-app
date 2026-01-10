@@ -2673,6 +2673,15 @@ const topicImages = digest.topics.slice(0, 4).map(t => {
     return (articleWithImg && articleWithImg.img && articleWithImg.img.length > 10) ? articleWithImg.img : null;
 });
 
+  <style jsx="true">{`
+    @keyframes fast-pulse {
+        50% { opacity: 0.6; }
+    }
+    .animate-fast-pulse {
+        animation: fast-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+`}</style>
+
  return (
     <>
     {/* === MUDANÇA 4: COLOCAR GEMINI AURA NO SMARTDIGEST === */}
@@ -2680,8 +2689,10 @@ const topicImages = digest.topics.slice(0, 4).map(t => {
     <div className="relative"> {/* 1. Adicionado um container 'relative' para posicionar a aura */}
 
         {/* 2. A AURA: Este novo div fica *atrás* de tudo e é o único que pisca */}
-        <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-75 blur-xl animate-pulse" />
-
+<div 
+    className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-75 blur-lg" 
+    style={{ animation: 'pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
+/>
         {/* 3. O CONTORNO E O CONTEÚDO: Este div *não tem mais* a classe 'animate-pulse' */}
         <div className="relative rounded-[2.5rem] p-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
             {/* O div do contorno fino permanece, mas agora dentro de um container estático */}
@@ -2821,6 +2832,7 @@ const topicImages = digest.topics.slice(0, 4).map(t => {
       </div> {/* <--- LINHA MOVIDA PARA CÁ */}
     </>
   );
+
 };
 
 const generateHeuristicClusters = (news) => {
@@ -2983,17 +2995,17 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
             >
                 {/* === INÍCIO DA CORREÇÃO: ADICIONANDO O .MAP() DE VOLTA === */}
            {displayClusters.map((cluster, idx) => (
-                    <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
+                    <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-1">
                         {/* === ETAPA 1: O NOVO CONTAINER COM SOMBRA E BORDAS ARREDONDADAS === */}
                         <div className={`
-                            w-full rounded-2xl overflow-hidden flex flex-col transition-shadow duration-300
-                            ${isDarkMode 
-                                ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' 
-                                : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
-                        `}>
-
-                            {/* === BANNER COM SOBREPOSIÇÃO (OVERLAY) === */}
-                            <div className="relative w-full aspect-[16/7] bg-zinc-800">
+        w-full h-[450px] rounded-2xl overflow-hidden flex flex-col transition-shadow duration-300
+        ${isDarkMode 
+            ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' 
+            : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
+    `}>
+        
+        {/* Banner com altura fixa (h-64, que é 256px) */}
+        <div className="relative w-full h-64 bg-zinc-800">
                                 <img
                                     src={cluster.representative_image}
                                     className="w-full h-full object-cover"
@@ -3003,7 +3015,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
 
                                 {/* Container do texto sobreposto */}
-                                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                                <div className="relative z-10 px-6 py-4 flex-1 flex flex-col">
                                     <h2 className="text-3xl lg:text-4xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-3">
                                         {cluster.ai_title}
                                     </h2>
@@ -3048,7 +3060,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
           {displayClusters.length > 1 && (
               <div className="flex justify-center gap-2 mt-2 pb-4">
                   {displayClusters.map((_, idx) => (
-                      <div key={idx} className={`h-1 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-8' : 'bg-zinc-700 w-2'}`} />
+                      <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-6' : 'bg-zinc-700 w-1.5'}`} />
                   ))}
               </div>
             )}
@@ -6159,9 +6171,7 @@ return (
                 backdrop-blur-2xl
             `}>
                 
-                <div className="w-full flex justify-center pt-4 pb-2 relative z-20">
-                    <div className={`rounded-full transition-all duration-300 ${isNavVisible ? 'bg-white/10 w-12 h-1.5 opacity-50' : 'bg-white/60 w-24 h-2 opacity-0 shadow-[0_0_20px_rgba(255,255,255,0.4)]'}`} />
-                </div>
+                
 
                 <div className={`relative z-10 w-full flex justify-center gap-2 px-2 pb-10 transition-all duration-300 ${isNavVisible ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}> 
                     <TabButton icon={<Sparkles size={24} />} label="Agora" active={activeTab === 'happening'} onClick={() => handleTabClick('happening')} isDarkMode={isDarkMode} />
