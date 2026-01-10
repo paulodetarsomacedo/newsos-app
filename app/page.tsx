@@ -7316,18 +7316,21 @@ return (
                         <h1 className="text-3xl md:text-4xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
                     </div>
                     {/* === BOTÃO DE CHAT NOVO E MODERNO === */}
-                  {viewMode !== 'chat' && (
-                    <button 
-                        onClick={() => setViewMode('chat')}
-                        className="group relative w-14 h-14 flex items-center justify-center rounded-2xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
-                    >
-                        <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12.04 2C6.58 2 2.13 6.45 2.13 12C2.13 17.55 6.58 22 12.04 22C13.82 22 15.5 21.56 16.94 20.81L21.5 22L20.81 17.6C21.56 16.16 22 14.48 22 12.7C22 7.15 17.5 2 12.04 2ZM13.12 15.88H11.12V13.88H13.12V15.88ZM13.12 11.88H11.12V6.88H13.12V11.88Z"></path>
-                        </svg>
-                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                            Perguntar à IA
-                        </span>
-                    </button>
+              {viewMode !== 'chat' && (
+  <button 
+      onClick={() => setViewMode('chat')}
+      className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
+  >
+      {/* Ícone de Chat */}
+      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.839 8.839 0 01-4.083-.98L2 17l1.02-3.82A8.982 8.982 0 011 10c0-4.97 4.477-9 10-9s10 4.03 10 9zm-5-1a1 1 0 11-2 0 1 1 0 012 0zm-4 0a1 1 0 11-2 0 1 1 0 012 0zm-4 0a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd"></path>
+      </svg>
+      
+      {/* Texto do Botão */}
+      <span className="text-sm font-bold">
+          Chat com a Notícia
+      </span>
+  </button>
                   )}
             
                 </div>
