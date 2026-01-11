@@ -3431,7 +3431,7 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
 
 
 // --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
-const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters, onContextReady }) => {
+const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
@@ -3455,6 +3455,11 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     if (!news || news.length < 10) {
       alert("Aguarde o carregamento de mais notícias para uma análise completa.");
       return;
+    }
+
+    // Antes de fazer qualquer coisa, avisa o componente principal para girar a chave.
+    if (onTriggerWidgetRotation) {
+        onTriggerWidgetRotation();
     }
     setLoading(true);
     setClusters(null);
@@ -4416,7 +4421,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey, savedClusters, setSavedClusters, seenStoryIds }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [startY, setStartY] = useState(0);
@@ -4573,7 +4578,10 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
               clusters={savedClusters}
               setClusters={setSavedClusters}
               onContextReady={() => {}} // onContextReady pode ser ajustado se necessário
-            />
+              // A "PONTE": Repassa a função que veio do avô
+          onTriggerWidgetRotation={onTriggerWidgetRotation}
+        />
+       
           </div>
     
 
@@ -6797,24 +6805,23 @@ const storiesForHappeningTab = useMemo(() => {
 
   }, [realNews]); // REMOVIDO 'seenStoryIds' DAS DEPENDÊNCIAS
 
-
-  // 1. CHAVE DE ANÁLISE (Congelada por Artigo)
-  // A chave só vai mudar (rotacionar) quando o ID do artigo selecionado mudar.
+// ==========================================================
+  // ALTERAÇÃO 1: LÓGICA DE "CONGELAMENTO" E GATILHO
+  // ==========================================================
+  
+  // A chave de análise continua congelada por artigo (isto está correto)
   const analysisApiKey = useMemo(() => {
       if (!selectedArticle) return null;
       return getApiKey('analysis');
   }, [selectedArticle?.id, getApiKey]);
 
-// 2. Chave de Widgets (Controlada por Gatilho Manual)
-  // Este estado servirá como um botão que "pede" uma nova chave do pool de widgets.
+  // O gatilho manual para o Pool de Widgets
   const [widgetTrigger, setWidgetTrigger] = useState(0);
   
+  // A chave de widget agora SÓ depende do gatilho
   const widgetApiKey = useMemo(() => {
-      // O console.log aqui só vai disparar quando o widgetTrigger mudar.
-      console.log("--- Acionando nova chave de Widget ---");
       return getApiKey('widgets');
-  }, [widgetTrigger, getApiKey]); // Depende APENAS do gatilho, não mais de 'activeTab'
-
+  }, [widgetTrigger, getApiKey]);
 
 
 // 2. Esta lista é para a NAVEGAÇÃO. Ela contém TODOS os stories, sem filtro.
@@ -6898,15 +6905,12 @@ return (
                     savedClusters={globalClusters}
                     // AÇÃO 2: Botão de Análise de Clusters (se ele existir dentro do HappeningTab)
                     // Você precisaria passar essa função para o WhileYouWereAwayWidget
-                    setSavedClusters={(clusters) => {
-                        setGlobalClusters(clusters);
-                        // Se a análise foi manual (clique no botão), aciona o gatilho
-                        if (clusters !== null) { // Evita acionar se estiver limpando
-                            setWidgetTrigger(prev => prev + 1);
-                        }
-                    }}
+                    setSavedClusters={setGlobalClusters}
+                    // A "PONTE": Passamos a função que muda o estado para o filho
+                    onTriggerWidgetRotation={() => setWidgetTrigger(prev => prev + 1)}
                 />
             )}
+        
 
             {activeTab === 'podcast' && (
                 <PodcastTab 
