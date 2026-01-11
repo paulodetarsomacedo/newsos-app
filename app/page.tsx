@@ -4617,7 +4617,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
               <MarketPulseWidget 
                 newsData={newsData}
-                apiKey={apiKey} 
+                getApiKey={getApiKey} // Repassa a função
                 isDarkMode={isDarkMode}
                 openArticle={openArticle}
               />
@@ -6907,7 +6907,7 @@ return (
                     // Você precisaria passar essa função para o WhileYouWereAwayWidget
                     setSavedClusters={setGlobalClusters}
                     getApiKey={getApiKey}
-                    apiKey={getApiKey('widgets')}
+                  
                 />
             )}
         
