@@ -5983,59 +5983,74 @@ export default function NewsOS_V12() {
   
   // --- FIM DO BLOCO DE RESIZE ---
 
-
-
-  // Índices para rotação (Refs não causam re-render)
+// --- ÍNDICES DE ROTAÇÃO (PERSISTENTES) ---
+  // Usamos useRef para que o índice não resete a cada renderização
   const widgetRotationIndex = useRef(0);
   const heavyRotationIndex = useRef(0);
   const chatRotationIndex = useRef(0);
 
-  // --- O DISTRIBUIDOR DE CHAVES INTELIGENTE ---
+  // --- O DISTRIBUIDOR DE CHAVES (ROTAÇÃO SEQUENCIAL OTIMIZADA) ---
   const getApiKey = useCallback((purpose) => {
     
-    // 1. POOL LEVE (Widgets, Chat, Trend Radar) - Chaves 1 a 4
-    if (purpose === 'widgets' || purpose === 'chat') {
-        const freeKeys = apiKeys.filter(k => k.id >= 1 && k.id <= 4 && k.value.trim() !== '');
+    // 1. POOL LEVE (Widgets) - IDs 1 a 4
+    if (purpose === 'widgets') {
+        // Filtra apenas as chaves desse pool que têm valor preenchido
+        const freeKeys = apiKeys.filter(k => k.id >= 1 && k.id <= 4 && k.value && k.value.trim() !== '');
         
-        if (freeKeys.length === 0) return null; // Sem chaves configuradas
+        if (freeKeys.length === 0) return null; 
         
+        // Pega a chave baseada no contador atual
         const key = freeKeys[widgetRotationIndex.current % freeKeys.length];
+        
+        // Incrementa o contador para a próxima vez
         widgetRotationIndex.current += 1; 
-        // console.log(`[Load Balancer] Usando Chave Widget #${key.id}`);
+        
+        console.log(`[Rotação Widgets] Usando chave ID: ${key.id}`);
         return key.value;
     }
 
-    // 2. POOL PESADO (Análise, Texto, Áudio) - Chaves 7 a 11
-    // Substitui o uso das antigas 5 e 6
+    // 2. POOL PESADO (Análise, Texto, Áudio) - IDs 7 a 11
     if (purpose === 'analysis' || purpose === 'script' || purpose === 'audio') {
-        const heavyKeys = apiKeys.filter(k => k.id >= 7 && k.id <= 11 && k.value.trim() !== '');
+        const heavyKeys = apiKeys.filter(k => k.id >= 7 && k.id <= 11 && k.value && k.value.trim() !== '');
         
-        // Se não tiver chaves no Pool Novo, tenta fallback para as antigas 5 ou 6
+        // Fallback para chaves antigas (5 e 6) se o pool novo estiver vazio
         if (heavyKeys.length === 0) {
-             if (purpose === 'audio') return apiKeys.find(k => k.id === 6)?.value || null;
-             return apiKeys.find(k => k.id === 5)?.value || null;
+             const legacyKey = apiKeys.find(k => (purpose === 'audio' ? k.id === 6 : k.id === 5))?.value;
+             return legacyKey || null;
         }
         
-        // Rotação Round-Robin
+        // Rotação Sequencial
         const key = heavyKeys[heavyRotationIndex.current % heavyKeys.length];
         heavyRotationIndex.current += 1;
         
-        console.log(`[Load Balancer] Usando Chave Pesada #${key.id} para ${purpose}`);
+        console.log(`[Rotação Heavy] Usando chave ID: ${key.id} para ${purpose}`);
+        return key.value;
+    }
+
+    // 3. POOL CHAT - IDs 12 e 13
+    if (purpose === 'chat') {
+        const chatKeys = apiKeys.filter(k => k.type === 'chat_key' && k.value && k.value.trim() !== '');
+        
+        // Se não tiver chave de chat, tenta usar do pool de widgets como fallback
+        if (chatKeys.length === 0) {
+             return getApiKey('widgets'); 
+        }
+        
+        const key = chatKeys[chatRotationIndex.current % chatKeys.length];
+        chatRotationIndex.current += 1;
+        
+        console.log(`[Rotação Chat] Usando chave ID: ${key.id}`);
         return key.value;
     }
 
     return null;
-  }, [apiKeys]);  
+  }, [apiKeys]); // Recria a função apenas se o usuário mudar as chaves nas configurações
 
+  // Função helper para o Chat (passada como callback)
   const getChatApiKey = useCallback(() => {
-    const chatKeys = apiKeys.filter(k => k.type === 'chat_key' && k.value.trim() !== '');
-    if (chatKeys.length === 0) return null;
-    
-    const key = chatKeys[chatRotationIndex.current % chatKeys.length];
-    chatRotationIndex.current += 1;
-    console.log(`[Load Balancer] Usando Chave de Chat #${key.id}`);
-    return key.value;
-}, [apiKeys]);
+      return getApiKey('chat');
+  }, [getApiKey]);
+
   
 const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
@@ -6936,6 +6951,28 @@ const storiesForHappeningTab = useMemo(() => {
   }, [realNews]); // REMOVIDO 'seenStoryIds' DAS DEPENDÊNCIAS
 
 
+// =====================================================================================
+  // LÓGICA DE CONTROLE DE ROTAÇÃO (MEMOIZAÇÃO)
+  // =====================================================================================
+  
+  // 1. CHAVE DE ANÁLISE (Congelada por Artigo)
+  // A chave só vai mudar (rotacionar) quando o ID do artigo selecionado mudar.
+  // Isso impede que re-renderizações da interface troquem a chave no meio da leitura.
+  const analysisApiKey = useMemo(() => {
+      if (!selectedArticle) return null;
+      return getApiKey('analysis');
+  }, [selectedArticle?.id, getApiKey]);
+
+  // 2. CHAVE DE WIDGETS (Congelada por Atualização)
+  // Criamos um gatilho manual. A chave dos widgets só muda quando você puxar para atualizar
+  // ou quando trocar de aba, não a cada milissegundo.
+  const [refreshTrigger, setRefreshTrigger] = useState(0); 
+  
+  const widgetApiKey = useMemo(() => {
+      return getApiKey('widgets');
+  }, [refreshTrigger, activeTab, getApiKey]);
+
+
 // 2. Esta lista é para a NAVEGAÇÃO. Ela contém TODOS os stories, sem filtro.
 const allAvailableStories = useMemo(() => {
     if (!realNews || realNews.length === 0) return [];
@@ -7004,10 +7041,13 @@ return (
                    }}
                     isDarkMode={isDarkMode} 
                     newsData={realNews}
-                    onRefresh={handleHappeningRefresh}
+                    onRefresh={async () => {
+                        await handleHappeningRefresh();
+                        setRefreshTrigger(prev => prev + 1); 
+                    }}
                     seenStoryIds={seenStoryIds} 
                     onMarkAsSeen={markStoryAsSeen}
-                    apiKey={getApiKey('widgets')} 
+                    apiKey={widgetApiKey} 
                     storiesToDisplay={storiesForHappeningTab}
                     savedClusters={globalClusters}
                     setSavedClusters={setGlobalClusters}
@@ -7060,6 +7100,8 @@ return (
                     onRefresh={fetchFeeds}
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
+                    apiKey={analysisApiKey} 
+                    getChatApiKey={getChatApiKey}
                 />
             )}
             
@@ -7183,7 +7225,7 @@ return (
                     onClose={closeArticle}
                     onToggleSave={handleToggleSave}
                     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-                    apiKey={getApiKey('analysis')}
+                    apiKey={analysisApiKey} 
                     getChatApiKey={getChatApiKey}
                     isDarkMode={isDarkMode}
                 />
