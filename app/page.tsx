@@ -1212,7 +1212,7 @@ const NewsCard = React.memo(({
             MELHORIA 1: Padding vertical reduzido para diminuir a altura
             ================================================================
           */}
-          <div className="relative px-6 pt-10 pb-5 flex-1 flex flex-col justify-end">
+          <div className="relative px-6 pt-8 pb-4 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
                  <h3 className={`text-xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
