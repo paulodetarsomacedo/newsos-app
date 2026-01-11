@@ -6900,7 +6900,7 @@ return (
                     }}
                     seenStoryIds={seenStoryIds} 
                     onMarkAsSeen={markStoryAsSeen}
-                    apiKey={widgetApiKey} // Passa a chave já congelada
+                    
                     storiesToDisplay={storiesForHappeningTab}
                     savedClusters={globalClusters}
                     // AÇÃO 2: Botão de Análise de Clusters (se ele existir dentro do HappeningTab)
