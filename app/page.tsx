@@ -5850,7 +5850,27 @@ export default function NewsOS_V12() {
   // --- ÍNDICES DE ROTAÇÃO (PERSISTENTES) ---
   // Usamos useRef para que o índice não resete a cada renderização
   const widgetRotationIndex = useRef(0);
-  const heavyRotationIndex = useRef(0);
+  // 1. Inicializa o ref lendo o valor salvo no localStorage. Se não houver, começa em 0.
+const heavyRotationIndex = useRef(
+  typeof window !== 'undefined' ? parseInt(localStorage.getItem('heavyRotationIndex') || '0', 10) : 0
+);
+
+// 2. Adicione este useEffect em qualquer lugar dentro do NewsOS_V12
+// Ele salva o valor atual do contador no localStorage toda vez que ele é atualizado.
+useEffect(() => {
+  const saveIndex = () => {
+    localStorage.setItem('heavyRotationIndex', heavyRotationIndex.current.toString());
+  };
+
+  // Salva quando o componente é desmontado (usuário fecha a aba/navegador)
+  window.addEventListener('beforeunload', saveIndex);
+
+  return () => {
+    // Garante que o último valor seja salvo ao sair
+    saveIndex(); 
+    window.removeEventListener('beforeunload', saveIndex);
+  };
+}, []); // Roda apenas uma vez, na montagem do componente.
   const chatRotationIndex = useRef(0);
 
   // --- O DISTRIBUIDOR DE CHAVES (ROTAÇÃO SEQUENCIAL OTIMIZADA) ---
