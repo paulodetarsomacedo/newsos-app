@@ -1179,8 +1179,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       Ler
     </button>
 
-    {/* Separador vertical sutil */}
-    <div className="w-[1px] bg-white/20 mx-1 h-4"></div>
+  
 
     {/* 
       3. BOTÃO "ANALISAR":
@@ -1191,7 +1190,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
       className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30"
     >
-      <Sparkles size={14} className="mr-2 inline text-purple-500 animate-pulse" /> Analisar
+      <Sparkles size={18} className="mr-2 inline text-purple animate-pulse" /> Analisar
     </button>
 
   </div>
@@ -5725,72 +5724,94 @@ export default function NewsOS_V12() {
 
 
   
-  // --- INICIO DO BLOCO DE RESIZE ---
+  // --- INICIO DO BLOCO DE RESIZE (FUNCIONAL E OTIMIZADO) ---
 
-  // 1. Estados e Referências (Necessários para o funcionamento)
+  // 1. Estados e Referências
   const [panelWidth, setPanelWidth] = useState(600);
   const panelDivRef = useRef(null);
   const isResizing = useRef(false);
   const resizeStartX = useRef(0);
   const initialWidth = useRef(0);
+  const rafId = useRef(null);
 
-  // 2. Função MOVE (O erro diz que esta função estava faltando)
-  // Ela precisa estar definida para que o 'handleResizePointerDown' consiga chamá-la.
-  const handleResizePointerMove = (e) => {
+  // 2. Função MOVE (Direto no DOM para performance máxima no iPad)
+  const handleResizeMove = useCallback((e) => {
     if (!isResizing.current || !panelDivRef.current) return;
     
-    requestAnimationFrame(() => {
-        const deltaX = e.clientX - resizeStartX.current;
-        // Invertido (delta negativo aumenta) pois o painel está à direita
-        const newWidth = Math.max(400, Math.min(initialWidth.current - deltaX, window.innerWidth));
+    // Previne comportamento padrão (scroll)
+    if(e.cancelable) e.preventDefault();
+
+    // Pega a posição X (suporta Mouse e Touch)
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+
+    // Cancela frame anterior se houver
+    if (rafId.current) cancelAnimationFrame(rafId.current);
+
+    rafId.current = requestAnimationFrame(() => {
+        const deltaX = clientX - resizeStartX.current;
+        // Invertido pois o painel está à direita
+        // Limites: Mínimo 300px, Máximo largura da tela - 50px
+        const newWidth = Math.max(300, Math.min(initialWidth.current - deltaX, window.innerWidth));
+        
         panelDivRef.current.style.width = `${newWidth}px`;
     });
-  };
+  }, []);
 
-// 3. Função UP (Finaliza o arraste e devolve a animação suave)
-  const handleResizePointerUp = () => {
+  // 3. Função UP (Finaliza e salva no React)
+  const handleResizeUp = useCallback(() => {
     isResizing.current = false;
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
-    document.body.style.touchAction = '';
+    document.body.style.touchAction = ''; // Devolve o controle de touch
     
     if (panelDivRef.current) {
-        // REATIVA a animação suave do CSS para quando você clicar em fechar/abrir
-        panelDivRef.current.style.transition = ''; 
+        // Reativa a transição suave do CSS
+        panelDivRef.current.style.transition = 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
         
+        // Só agora atualiza o React (evita lag durante o arraste)
         const finalWidth = parseInt(panelDivRef.current.style.width, 10);
         setPanelWidth(finalWidth);
     }
 
-    window.removeEventListener('pointermove', handleResizePointerMove);
-    window.removeEventListener('pointerup', handleResizePointerUp);
-  };
+    if (rafId.current) cancelAnimationFrame(rafId.current);
 
-  // 4. Função DOWN (Inicia o arraste e MATAA animação para ficar rápido)
-  const handleResizePointerDown = (e) => {
+    // Remove listeners globais
+    window.removeEventListener('mousemove', handleResizeMove);
+    window.removeEventListener('mouseup', handleResizeUp);
+    window.removeEventListener('touchmove', handleResizeMove);
+    window.removeEventListener('touchend', handleResizeUp);
+  }, [handleResizeMove]);
+
+  // 4. Função DOWN (Inicia)
+  const handleResizeStart = (e) => {
+    // Ignora clique com botão direito
+    if (e.type === 'mousedown' && e.button !== 0) return;
+    
     e.preventDefault(); 
     e.stopPropagation();
 
     isResizing.current = true;
-    resizeStartX.current = e.clientX;
+    resizeStartX.current = e.touches ? e.touches[0].clientX : e.clientX;
     initialWidth.current = panelWidth;
     
-    // OTIMIZAÇÃO CRÍTICA: Desliga a transição CSS enquanto arrasta
-    // Isso faz o painel responder instantaneamente ao mouse (sem delay/"elástico")
+    // DESLIGA a transição temporariamente para o arraste ser instantâneo
     if (panelDivRef.current) {
         panelDivRef.current.style.transition = 'none';
     }
     
+    // Trava seleções e scroll
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'ew-resize';
-    document.body.style.touchAction = 'none';
+    document.body.style.touchAction = 'none'; // CRÍTICO PARA IPAD
     
-    window.addEventListener('pointermove', handleResizePointerMove, { passive: false });
-    window.addEventListener('pointerup', handleResizePointerUp);
+    // Adiciona listeners na janela inteira
+    window.addEventListener('mousemove', handleResizeMove, { passive: false });
+    window.addEventListener('mouseup', handleResizeUp);
+    window.addEventListener('touchmove', handleResizeMove, { passive: false });
+    window.addEventListener('touchend', handleResizeUp);
   };
-
+  
   // --- FIM DO BLOCO DE RESIZE ---
-
 
 
 
@@ -6942,31 +6963,32 @@ return (
         </div>
       </div>
 
-      {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (AGORA AO LADO) --- */}
+   {/* --- COLUNA 2: PAINEL DE ANÁLISE IA (RESTAURADO E OTIMIZADO) --- */}
       <div 
             ref={panelDivRef}
-            // ADICIONADO: backdrop-blur-3xl e cores com opacidade (/90 e /80)
-            // ADICIONADO: border-l para dar destaque no vidro
             className={`
                 relative shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-                z-[2000] border-l
+                z-[2000] border-l flex-shrink-0
                 ${isDarkMode 
-                    ? 'bg-zinc-950/90 border-white/10' 
-                    : 'bg-white/80 border-white/40'}
+                    ? 'bg-zinc-950/90 border-white/10' // RESTAURADO
+                    : 'bg-white/80 border-white/40'}   // RESTAURADO
                 backdrop-blur-3xl
             `}
             style={{ 
                 width: selectedArticle ? `${panelWidth}px` : '0px',
                 transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
                 maxWidth: '100vw',
-                flexShrink: 0 
+                // A transição é gerenciada via JS durante o resize para não travar
+                transition: isResizing.current ? 'none' : 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
         >
-            {/* INDICADOR DE RESIZE (Mantém o mesmo código visual de antes) */}
+            {/* INDICADOR DE RESIZE (ALÇA) */}
             {selectedArticle && (
                 <div 
-                    onPointerDown={handleResizePointerDown}
-                    className="absolute top-0 bottom-0 left-0 w-8 z-[2001] cursor-ew-resize flex items-center justify-start pl-2 group touch-none select-none"
+                    onMouseDown={handleResizeStart} // Mouse
+                    onTouchStart={handleResizeStart} // Touch (iPad)
+                    className="absolute top-0 bottom-0 left-0 w-8 z-[2001] cursor-ew-resize flex items-center justify-start pl-2 group select-none touch-none"
+                    style={{ touchAction: 'none' }} // IMPEDE SCROLL NO IPAD
                     onClick={(e) => e.stopPropagation()} 
                 >
                     <div className={`
@@ -6993,9 +7015,7 @@ return (
                     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
                     apiKey={getApiKey('analysis')}
                     getChatApiKey={getChatApiKey}
-                    
                     isDarkMode={isDarkMode}
-
                 />
             )}
         </div>
