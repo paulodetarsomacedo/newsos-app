@@ -6957,7 +6957,6 @@ return (
                     onRefresh={fetchFeeds}
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
-                    apiKey={analysisApiKey} 
                     getChatApiKey={getChatApiKey}
                 />
             )}
