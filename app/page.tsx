@@ -1041,10 +1041,8 @@ const NewsCard = React.memo(({
   onToggleSave, 
   onToggleLike, 
   onPlay, 
-  isViewedFromStory, 
   playingAudio 
 }) => {
-  // Formatação de data segura
   const displayTime = news.rawDate 
     ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
     : '...';
@@ -1053,7 +1051,6 @@ const NewsCard = React.memo(({
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
 
-  // --- SUB-COMPONENT: InlinePlayer ---
   const InlinePlayer = () => (
     <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
         <div className="p-4 flex items-center gap-4">
@@ -1096,11 +1093,7 @@ const NewsCard = React.memo(({
       `}
     >
       
-      {/* 
-          ================================================================
-          EFEITOS DE AURA (GEMINI STYLE)
-          ================================================================
-      */}
+      {/* EFEITOS DE AURA */}
       {isSelected && (
         <>
             <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-60 blur-xl animate-pulse transition-all duration-500" />
@@ -1108,47 +1101,45 @@ const NewsCard = React.memo(({
         </>
       )}
 
-      {/* 
-         CONTAINER PRINCIPAL
-      */}
+      {/* CONTAINER PRINCIPAL */}
       <div className={`
         relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem]
         ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'}
         ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}
       `}>
       
-          {/* 1. ÁREA DE IMAGEM */}
-          <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800">
+          {/* 
+            ================================================================
+            1. ÁREA DE IMAGEM
+            ================================================================
+          */}
+          <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
             
-            {/* Componente de Imagem Inteligente */}
-            {/* Nota: SmartImage deve ser importado ou definido no seu projeto */}
+            {/*
+              MELHORIA 2: Imagem "puxada" para baixo com margem negativa
+              para criar mais espaço no topo sem distorcer.
+            */}
             <img 
                 src={news.img} 
                 alt={news.title}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 -mt-4"
             />
             
-            {/* Gradiente Inferior para legibilidade do Título (Dark Overlay) */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-90" />
+            {/* Gradiente Inferior para legibilidade do Título */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-            {/* 
-                ================================================================
-                REQ 1: CABEÇALHO BRANCO COM FADE
-                Sobreposto à imagem, no topo, para dar fundo ao logo/texto
-                ================================================================
+            {/*
+              MELHORIA 3: Cabeçalho branco menos transparente
+              A opacidade foi para 100 e as cores do gradiente ajustadas para um fade suave.
             */}
-            <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-white via-white/90 to-transparent opacity-95 mix-blend-normal pointer-events-none" />
+            <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
-            {/* 
-                ================================================================
-                REQ 2 & 3: CABEÇALHO "LIQUID" (Logo + Fonte)
-                ================================================================
+            {/*
+              CABEÇALHO "LIQUID" (Logo + Fonte + Hora)
+              MELHORIA 2: Descido um pouco (`top-6`)
             */}
-            <div className="absolute top-5 left-5 flex items-center z-20">
-                {/* 
-                    O LOGO (Quadrado arredondado)
-                    Z-Index maior para ficar "por cima" do container de texto
-                */}
+            <div className="absolute top-6 left-5 flex items-center z-20">
+                {/* O LOGO */}
                 <div className="relative z-20 shrink-0 shadow-lg">
                     <img 
                         src={news.logo} 
@@ -1158,39 +1149,28 @@ const NewsCard = React.memo(({
                     />
                 </div>
 
-                {/* 
-                    O NOME DA FONTE (Efeito Liquid)
-                    - Margem negativa ( -ml-5 ) para entrar embaixo do logo
-                    - Padding left grande ( pl-7 ) para empurrar o texto para fora da área do logo
-                    - Altura menor que o logo ( h-10 vs h-14 )
-                    - Rounded-r-full para a ponta direita arredondada
-                */}
+                {/* O NOME DA FONTE */}
                 <div className="-ml-5 pl-7 pr-4 h-10 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
                     <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none mt-0.5">
                         {news.source}
                     </span>
                 </div>
 
-                {/* Badge de Tempo (Separado, estilo pílula escura) */}
-                <div className="ml-2 bg-black/60 backdrop-blur-md py-1.5 px-3 rounded-full border border-white/10 shadow-sm">
-                    <span className="text-[11px] font-bold text-white">{displayTime}</span>
+                {/*
+                  MELHORIA 4: Pílula da hora com o mesmo estilo
+                */}
+                <div className="ml-2 px-4 h-10 flex items-center bg-white rounded-full shadow-md border border-zinc-100">
+                    <span className="text-xs font-bold text-zinc-600">{displayTime}</span>
                 </div>
             </div>
 
-            {/* 
-                ================================================================
-                REQ 4: INDICADOR DE LIDO + BOTÕES DE AÇÃO
-                ================================================================
-            */}
+            {/* BOTÕES DE AÇÃO */}
             <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-3">
-                {/* Indicador de Lido */}
                 {isRead && (
                     <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
                         Lida
                     </div>
                 )}
-
-                {/* Botões de Ação */}
                 <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/20 backdrop-blur-md border border-white/10 shadow-lg">
                     <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/90 hover:text-white'}`}>
                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
@@ -1208,9 +1188,7 @@ const NewsCard = React.memo(({
 
           </div>
           
-          {/* 
-             PÍLULA FLUTUANTE DE AÇÃO (CENTRAL)
-          */}
+          {/* PÍLULA FLUTUANTE DE AÇÃO */}
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
             <div className="flex items-center shadow-2xl rounded-full p-1.5 bg-black/20 backdrop-blur-xl border border-white/20">
                 <button 
@@ -1228,10 +1206,15 @@ const NewsCard = React.memo(({
             </div>
           </div>
           
-          {/* ÁREA DE TEXTO (Título e Sumário) */}
-          <div className="relative px-6 pt-12 pb-6 flex-1 flex flex-col justify-end">
+          {/*
+            ================================================================
+            2. ÁREA DE TEXTO
+            MELHORIA 1: Padding vertical reduzido para diminuir a altura
+            ================================================================
+          */}
+          <div className="relative px-6 pt-10 pb-5 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
-                 <h3 className={`text-xl font-black leading-tight mb-3 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                 <h3 className={`text-xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
                  </h3>
                  <p className={`text-sm font-medium leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} line-clamp-2`}>
