@@ -1165,7 +1165,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     - Efeito de vidro (backdrop-blur-xl)
     - Contorno (border) e Relevo/Sombra (shadow-2xl)
   */}
-  <div className="flex items-center shadow-2xg rounded-full p-1.5 bg-black/10 backdrop-blur-xl border border-white/10">
+  <div className="flex items-center shadow-4xl rounded-full p-1.5 bg-black/10 backdrop-blur-xl border border-white/10">
     
     {/* 
       2. BOTÃO "LER":
@@ -1190,7 +1190,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
       className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-violet-600 to-purple-400 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30"
     >
-      <Sparkles size={18} className="mr-2 inline text-fuchsia-500 animate-pulse" /> Analisar
+      <Sparkles size={18} className="mr-2 inline text-amber-500 animate-pulse" /> Analisar
     </button>
 
   </div>
