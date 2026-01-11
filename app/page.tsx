@@ -2593,7 +2593,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
   );
 };
 
-export default GlassBrowser;
+
 
 const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [digest, setDigest] = useState(null);
