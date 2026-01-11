@@ -1115,31 +1115,26 @@ const NewsCard = React.memo(({
           */}
           <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
             
-            {/*
-              MELHORIA 2: Imagem "puxada" para baixo com margem negativa
-              para criar mais espaço no topo sem distorcer.
+            {/* 
+              NOVA LÓGICA:
+              - A imagem agora é absoluta dentro do container.
+              - Ela é maior que o container (h-[calc(100%+1.5rem)]) e posicionada 
+                para baixo (-bottom-6) para cobrir o fundo cinza.
             */}
             <img 
                 src={news.img} 
                 alt={news.title}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 -mt-4"
+                className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6"
             />
             
             {/* Gradiente Inferior para legibilidade do Título */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-            {/*
-              MELHORIA 3: Cabeçalho branco menos transparente
-              A opacidade foi para 100 e as cores do gradiente ajustadas para um fade suave.
-            */}
+            {/* Gradiente Superior Branco */}
             <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
-            {/*
-              CABEÇALHO "LIQUID" (Logo + Fonte + Hora)
-              MELHORIA 2: Descido um pouco (`top-6`)
-            */}
+            {/* CABEÇALHO "LIQUID" */}
             <div className="absolute top-6 left-5 flex items-center z-20">
-                {/* O LOGO */}
                 <div className="relative z-20 shrink-0 shadow-lg">
                     <img 
                         src={news.logo} 
@@ -1148,17 +1143,11 @@ const NewsCard = React.memo(({
                         alt={news.source}
                     />
                 </div>
-
-                {/* O NOME DA FONTE */}
                 <div className="-ml-5 pl-7 pr-4 h-10 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
                     <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none mt-0.5">
                         {news.source}
                     </span>
                 </div>
-
-                {/*
-                  MELHORIA 4: Pílula da hora com o mesmo estilo
-                */}
                 <div className="ml-2 px-4 h-10 flex items-center bg-white rounded-full shadow-md border border-zinc-100">
                     <span className="text-xs font-bold text-zinc-600">{displayTime}</span>
                 </div>
@@ -1206,13 +1195,13 @@ const NewsCard = React.memo(({
             </div>
           </div>
           
-          {/*
+          {/* 
             ================================================================
             2. ÁREA DE TEXTO
-            MELHORIA 1: Padding vertical reduzido para diminuir a altura
+            MELHORIA: Padding vertical ainda mais reduzido para diminuir a altura.
             ================================================================
           */}
-          <div className="relative px-6 pt-8 pb-4 flex-1 flex flex-col justify-end">
+          <div className="relative px-6 pt-10 pb-5 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
                  <h3 className={`text-xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
@@ -1228,7 +1217,6 @@ const NewsCard = React.memo(({
     </div>
   );
 });
-
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onReadArticle, onGenerateAudio }) {
