@@ -6805,14 +6805,15 @@ const storiesForHappeningTab = useMemo(() => {
       return getApiKey('analysis');
   }, [selectedArticle?.id, getApiKey]);
 
-  // 2. CHAVE DE WIDGETS (Congelada por Atualização)
-  // Criamos um gatilho manual. A chave dos widgets só muda quando você puxar para atualizar
-  // ou quando trocar de aba.
-  const [refreshTrigger, setRefreshTrigger] = useState(0); 
+// 2. Chave de Widgets (Controlada por Gatilho Manual)
+  // Este estado servirá como um botão que "pede" uma nova chave do pool de widgets.
+  const [widgetTrigger, setWidgetTrigger] = useState(0);
   
   const widgetApiKey = useMemo(() => {
+      // O console.log aqui só vai disparar quando o widgetTrigger mudar.
+      console.log("--- Acionando nova chave de Widget ---");
       return getApiKey('widgets');
-  }, [refreshTrigger, activeTab, getApiKey]); 
+  }, [widgetTrigger, getApiKey]); // Depende APENAS do gatilho, não mais de 'activeTab'
 
 
 
@@ -6875,7 +6876,7 @@ return (
 
           <main ref={mainRef} className="flex-1 overflow-y-auto pb-40 px-4 md:px-6 scrollbar-hide pt-2">
             
-            {activeTab === 'happening' && (
+       {activeTab === 'happening' && (
                 <HappeningTab 
                    openArticle={handleReadNative}
                    openStory={(story) => {
@@ -6884,16 +6885,26 @@ return (
                    }}
                     isDarkMode={isDarkMode} 
                     newsData={realNews}
+                    // AÇÃO 1: Pull-to-Refresh
                     onRefresh={async () => {
                         await handleHappeningRefresh();
-                        setRefreshTrigger(prev => prev + 1); 
+                        // Aciona o gatilho para pegar uma nova chave de widget
+                        setWidgetTrigger(prev => prev + 1); 
                     }}
                     seenStoryIds={seenStoryIds} 
                     onMarkAsSeen={markStoryAsSeen}
-                   apiKey={widgetApiKey} 
+                    apiKey={widgetApiKey} // Passa a chave já congelada
                     storiesToDisplay={storiesForHappeningTab}
                     savedClusters={globalClusters}
-                    setSavedClusters={setGlobalClusters}
+                    // AÇÃO 2: Botão de Análise de Clusters (se ele existir dentro do HappeningTab)
+                    // Você precisaria passar essa função para o WhileYouWereAwayWidget
+                    setSavedClusters={(clusters) => {
+                        setGlobalClusters(clusters);
+                        // Se a análise foi manual (clique no botão), aciona o gatilho
+                        if (clusters !== null) { // Evita acionar se estiver limpando
+                            setWidgetTrigger(prev => prev + 1);
+                        }
+                    }}
                 />
             )}
 
