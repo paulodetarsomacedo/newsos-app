@@ -2462,8 +2462,12 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   const [glassArticle, setGlassArticle] = useState(null);
   const [voices, setVoices] = useState([]);
 
-  // ✅ Microinterações (sem aura colorida): “acabou de gerar” + revelação progressiva
+  // ✅ Micro-sinal “gerado agora” + timestamp para “destaque temporal”
   const [justGenerated, setJustGenerated] = useState(false);
+  const [lastGeneratedAt, setLastGeneratedAt] = useState(null);
+
+  // ✅ Microinteração de leitura: card em foco (hover/focus/expand)
+  const [readingIndex, setReadingIndex] = useState(null);
 
   const SESSION_KEY = 'newsos_current_session_digest';
 
@@ -2497,6 +2501,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
         if (parsed && parsed.data && parsed.data.topics && isValidTime) {
           setDigest(parsed.data);
           setStatus('success');
+          setLastGeneratedAt(parsed.timestamp || null);
         } else {
           sessionStorage.removeItem(SESSION_KEY);
         }
@@ -2510,6 +2515,19 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     return () => cancelSpeech();
   }, []);
 
+  // ✅ Destaque temporal (texto “Atualizado há X min”)
+  const getRelativeTime = (timestamp) => {
+    if (!timestamp) return '';
+    const diffMs = Date.now() - timestamp;
+    if (diffMs < 10 * 1000) return 'Atualizado agora';
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return `Atualizado há ${diffSec}s`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `Atualizado há ${diffMin}min`;
+    const diffH = Math.floor(diffMin / 60);
+    return `Atualizado há ${diffH}h`;
+  };
+
   const handleGenerate = async () => {
     if (!apiKey) {
       alert("Configure sua API Key nas configurações primeiro.");
@@ -2518,6 +2536,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
 
     setStatus('loading');
     setExpandedIndex(null);
+    setReadingIndex(null);
 
     await new Promise((r) => setTimeout(r, 800));
 
@@ -2527,12 +2546,15 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
       setDigest(result);
       setStatus('success');
 
+      const now = Date.now();
+      setLastGeneratedAt(now);
+
       // ✅ microinteração: “acabou de gerar”
       setJustGenerated(true);
-      window.setTimeout(() => setJustGenerated(false), 1600);
+      window.setTimeout(() => setJustGenerated(false), 1400);
 
       const sessionPayload = {
-        timestamp: Date.now(),
+        timestamp: now,
         data: result,
       };
       if (typeof window !== 'undefined') {
@@ -2550,6 +2572,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     }
   };
 
+  // ⚠️ NÃO MEXI NA LÓGICA DO ÁUDIO
   const handlePlayBriefing = () => {
     if (!synthRef.current || !digest) return;
     if (isSpeaking) {
@@ -2592,7 +2615,15 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   };
 
   const toggleExpand = (index) => {
-    setExpandedIndex(expandedIndex === index ? null : index);
+    const next = expandedIndex === index ? null : index;
+    setExpandedIndex(next);
+
+    // ✅ quando expande, considera como “estou lendo este”
+    if (next === null) {
+      setReadingIndex(null);
+    } else {
+      setReadingIndex(index);
+    }
   };
 
   const getTag3DStyle = (index) => {
@@ -2694,19 +2725,6 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
     );
   }
 
-  // --- IMAGENS: solução moderna quando collage não fica boa ---
-  // Regra visual: se não tiver pelo menos 2 imagens boas, cai para “hero editorial” neutro (sem poluição).
-  const topicImages = digest.topics
-    .slice(0, 4)
-    .map((t) => {
-      const articleWithImg = t.articles?.find((a) => a.img && a.img.length > 10);
-      return articleWithImg && articleWithImg.img && articleWithImg.img.length > 10 ? articleWithImg.img : null;
-    })
-    .filter(Boolean);
-
-  const hasGoodCollage = topicImages.length >= 2;
-  const heroImage = topicImages[0] || null;
-
   return (
     <>
       <style jsx="true">{`
@@ -2716,27 +2734,28 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
         }
         @keyframes sweep-line {
           0% { transform: translateX(-120%); opacity: 0; }
-          20% { opacity: 1; }
+          15% { opacity: 1; }
+          100% { transform: translateX(120%); opacity: 0; }
+        }
+        @keyframes read-sheen {
+          0% { transform: translateX(-120%); opacity: 0; }
+          25% { opacity: 0.9; }
           100% { transform: translateX(120%); opacity: 0; }
         }
       `}</style>
 
       <div className="px-1 mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
         <div className="relative">
-
-          {/* ✅ REMOVIDO: aura colorida/piscante
-              ✅ NOVO: contorno neutro + profundidade limpa (silenciosa) */}
+          {/* ✅ Contorno neutro + profundidade editorial */}
           <div
-            className={`relative rounded-[2.5rem] p-1 ${
-              isDarkMode ? 'bg-white/10' : 'bg-black/5'
-            }`}
+            className={`relative rounded-[2.5rem] p-1 ${isDarkMode ? 'bg-white/10' : 'bg-black/5'}`}
             style={{
               boxShadow: isDarkMode
                 ? '0 30px 80px rgba(0,0,0,0.60)'
                 : '0 30px 80px rgba(0,0,0,0.16)',
             }}
           >
-            {/* linha superior sutil (feedback de geração) */}
+            {/* ✅ Micro-sinal de geração (scan fininho, 1x) */}
             <div
               className="absolute left-6 right-6 top-2 h-px overflow-hidden"
               style={{
@@ -2757,111 +2776,47 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
 
             <div
               className={`
-                relative p-0 overflow-hidden rounded-[2.25rem] transition-all
+                relative overflow-hidden rounded-[2.25rem] transition-all
                 ${isDarkMode ? 'bg-zinc-950 border border-white/10' : 'bg-white border border-zinc-100/60'}
               `}
             >
-              {/* TOPO: Collage quando boa, senão hero editorial neutro */}
-              <div className="relative w-full h-32 overflow-hidden rounded-tl-[2.25rem] rounded-tr-[2.25rem]">
-                {hasGoodCollage ? (
-                  <div className="w-full h-full flex">
-                    {topicImages.slice(0, 4).map((img, idx) => (
-                      <div key={idx} className="flex-1 relative h-full overflow-hidden">
-                        <img
-                          src={img}
-                          alt=""
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                        <div
-                          className={`absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent ${
-                            idx === Math.min(3, topicImages.length - 1)
-                              ? 'to-transparent'
-                              : isDarkMode
-                                ? 'to-zinc-950/50'
-                                : 'to-white/35'
-                          }`}
-                        />
-                        <div
-                          className={`absolute inset-0 ${
-                            isDarkMode ? 'bg-indigo-900/10' : 'bg-indigo-500/08'
-                          }`}
-                          style={{ mixBlendMode: 'overlay' }}
-                        />
-                      </div>
-                    ))}
+              {/* ✅ TOPO LIMPO (sem collage): DATA AURA SILENCIOSA + LINHA EDITORIAL */}
+              <div className="relative px-6 pt-6 pb-4">
+                {/* Data Aura silenciosa (pattern quase invisível) */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    opacity: isDarkMode ? 0.06 : 0.04,
+                    backgroundImage: isDarkMode
+                      ? 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.35) 1px, transparent 0)'
+                      : 'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.25) 1px, transparent 0)',
+                    backgroundSize: '18px 18px',
+                    maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1), rgba(0,0,0,0))',
+                    WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1), rgba(0,0,0,0))',
+                  }}
+                />
 
-                    <div
-                      className={`absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t ${
-                        isDarkMode ? 'from-zinc-950' : 'from-white'
-                      } to-transparent`}
-                    />
-                  </div>
-                ) : (
-                  <div className="w-full h-full relative">
-                    {/* hero editorial: se tiver 1 imagem, usa como ambiente; se não, gradiente neutro */}
-                    {heroImage ? (
-                      <>
-                        <img
-                          src={heroImage}
-                          alt=""
-                          className="absolute inset-0 w-full h-full object-cover"
-                          loading="lazy"
-                          style={{ filter: 'blur(10px)', transform: 'scale(1.08)' }}
-                        />
-                        <div className="absolute inset-0"
-                          style={{
-                            background: isDarkMode
-                              ? 'linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.85))'
-                              : 'linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0.95))',
-                          }}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <div
-                          className="absolute inset-0"
-                          style={{
-                            background: isDarkMode
-                              ? 'linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
-                              : 'linear-gradient(135deg, rgba(0,0,0,0.05), rgba(0,0,0,0.02))',
-                          }}
-                        />
-                        <div
-                          className="absolute inset-0"
-                          style={{
-                            backgroundImage:
-                              'radial-gradient(circle at 20% 30%, rgba(99,102,241,0.10), transparent 55%), radial-gradient(circle at 80% 10%, rgba(168,85,247,0.08), transparent 60%)',
-                          }}
-                        />
-                      </>
-                    )}
+                {/* Linha editorial em gradiente (assinatura) */}
+                <div
+                  className="relative w-full h-[2px] rounded-full"
+                  style={{
+                    background:
+                      'linear-gradient(90deg, rgba(59,130,246,0.9), rgba(168,85,247,0.9), rgba(249,115,22,0.9))',
+                    opacity: 0.85,
+                  }}
+                />
 
-                    <div
-                      className={`absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t ${
-                        isDarkMode ? 'from-zinc-950' : 'from-white'
-                      } to-transparent`}
-                    />
-                  </div>
-                )}
-
-                {/* botão áudio (NÃO MEXI) */}
+                {/* Botão áudio (NÃO MEXI) */}
                 <button
                   onClick={handlePlayBriefing}
-                  className="absolute bottom-3 right-4 bg-black/50 backdrop-blur-md text-white p-2 rounded-full border border-white/20 shadow-lg active:scale-95 transition-transform"
+                  className="absolute top-5 right-6 bg-black/40 backdrop-blur-md text-white p-2 rounded-full border border-white/15 shadow-lg active:scale-95 transition-transform"
                 >
-                  {isSpeaking ? (
-                    <Pause size={16} fill="white" />
-                  ) : (
-                    <Play size={16} fill="white" className="ml-0.5" />
-                  )}
+                  {isSpeaking ? <Pause size={16} fill="white" /> : <Play size={16} fill="white" className="ml-0.5" />}
                 </button>
-              </div>
 
-              {/* CONTEÚDO EDITORIAL */}
-              <div className="px-6 pb-8 relative z-10 -mt-2">
+                {/* Cabeçalho editorial */}
                 <div
-                  className="flex flex-col items-start text-left mb-6"
+                  className="relative mt-4"
                   style={{
                     animation: 'reveal-up 420ms ease-out both',
                     animationDelay: '40ms',
@@ -2871,39 +2826,66 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                     <Sparkles size={12} /> Briefing Executivo
                   </span>
 
-                  <h2
-                    className={`text-2xl md:text-3xl font-serif font-black leading-tight ${
-                      isDarkMode ? 'text-white' : 'text-zinc-900'
-                    }`}
-                  >
+                  <h2 className={`text-2xl md:text-3xl font-serif font-black leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                     {digest.vibe_title}
                   </h2>
 
-                  {/* microfeedback discreto “gerado agora” */}
-                  <div
-                    className={`mt-2 text-[10px] font-mono uppercase tracking-widest ${
-                      isDarkMode ? 'text-white/35' : 'text-black/35'
-                    }`}
-                    style={{
-                      opacity: justGenerated ? 1 : 0,
-                      transform: justGenerated ? 'translateY(0px)' : 'translateY(-2px)',
-                      transition: 'opacity 280ms ease, transform 280ms ease',
-                    }}
-                  >
-                    Atualizado agora
+                  {/* ✅ Destaque temporal */}
+                  <div className="mt-2 flex items-center gap-3">
+                    <span
+                      className={`text-[10px] font-mono uppercase tracking-widest ${
+                        isDarkMode ? 'text-white/38' : 'text-black/38'
+                      }`}
+                    >
+                      {getRelativeTime(lastGeneratedAt)}
+                    </span>
+
+                    {/* “chip” discreto estilo AI (só quando acabou de gerar) */}
+                    <span
+                      className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 rounded-full ${
+                        isDarkMode ? 'bg-white/5 text-white/45' : 'bg-black/5 text-black/45'
+                      }`}
+                      style={{
+                        opacity: justGenerated ? 1 : 0,
+                        transform: justGenerated ? 'translateY(0px)' : 'translateY(-2px)',
+                        transition: 'opacity 240ms ease, transform 240ms ease',
+                      }}
+                    >
+                      síntese pronta
+                    </span>
                   </div>
                 </div>
+              </div>
 
+              {/* CONTEÚDO */}
+              <div className="px-6 pb-8 relative z-10 -mt-1">
                 <div className="grid grid-cols-1 gap-4">
                   {digest.topics?.map((topic, i) => {
                     const isExpanded = expandedIndex === i;
+                    const isReading = readingIndex === i;
+
+                    // ✅ microinteração de leitura: destaque moderno “AI”
+                    const readingBorderColor = isDarkMode ? 'rgba(99,102,241,0.55)' : 'rgba(99,102,241,0.35)';
+                    const readingGlow = isDarkMode
+                      ? '0 0 0 1px rgba(99,102,241,0.18), 0 18px 40px rgba(0,0,0,0.35)'
+                      : '0 0 0 1px rgba(99,102,241,0.10), 0 18px 40px rgba(0,0,0,0.12)';
 
                     return (
                       <div
                         key={i}
                         onClick={() => toggleExpand(i)}
+                        onMouseEnter={() => setReadingIndex(i)}
+                        onMouseLeave={() => {
+                          // se estiver expandido, mantém como lendo
+                          if (!isExpanded) setReadingIndex(null);
+                        }}
+                        onFocus={() => setReadingIndex(i)}
+                        onBlur={() => {
+                          if (!isExpanded) setReadingIndex(null);
+                        }}
+                        tabIndex={0}
                         className={`
-                          group relative p-5 rounded-2xl transition-all duration-300 cursor-pointer border
+                          group relative p-5 rounded-2xl transition-all duration-300 cursor-pointer border outline-none
                           ${isDarkMode
                             ? 'bg-zinc-900/50 border-white/5 hover:bg-zinc-800'
                             : 'bg-zinc-50 border-zinc-200 hover:bg-white'}
@@ -2911,8 +2893,42 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
                         style={{
                           animation: 'reveal-up 420ms ease-out both',
                           animationDelay: `${120 + i * 60}ms`,
+                          transform: isReading ? 'translateY(-1px)' : 'translateY(0px)',
+                          boxShadow: isReading ? readingGlow : 'none',
+                          borderColor: isReading ? readingBorderColor : undefined,
                         }}
                       >
+                        {/* “AI read accent” (barra lateral sutil) */}
+                        <div
+                          className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
+                          style={{
+                            opacity: isReading ? 1 : 0,
+                            transition: 'opacity 220ms ease',
+                            background: 'linear-gradient(180deg, rgba(59,130,246,0.9), rgba(168,85,247,0.9), rgba(249,115,22,0.85))',
+                          }}
+                        />
+
+                        {/* brilho de leitura (1x enquanto está lendo/hover) */}
+                        <div
+                          className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none"
+                          style={{
+                            opacity: isReading ? 1 : 0,
+                            transition: 'opacity 220ms ease',
+                          }}
+                        >
+                          <div
+                            className="absolute -inset-y-10 w-1/2"
+                            style={{
+                              left: '-60%',
+                              transform: 'skewX(-16deg)',
+                              background: isDarkMode
+                                ? 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)'
+                                : 'linear-gradient(90deg, transparent, rgba(0,0,0,0.05), transparent)',
+                              animation: isReading ? 'read-sheen 900ms ease-out 1' : 'none',
+                            }}
+                          />
+                        </div>
+
                         <div className="flex justify-between items-start mb-2">
                           <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md ${getTag3DStyle(i)}`}>
                             {topic.tag}
@@ -3000,6 +3016,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
             </div>
           </div>
 
+          {/* GLASS (MANTIDO) */}
           {glassArticle && (
             <GlassBrowser
               article={glassArticle}
@@ -3053,7 +3070,7 @@ const generateHeuristicClusters = (news) => {
             clusters[keyword] = {
                 ai_title: representativeArticle.title,
                 representative_image: representativeArticle.img,
-                related_articles: relatedArticles.slice(0, 4) // Limita a 4 logos
+                related_articles: relatedArticles.slice(0, 5) // Limita a 4 logos
             };
             
             // Marca como usadas
