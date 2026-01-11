@@ -3876,7 +3876,6 @@ const generateFullAnalysis = async (text, apiKey) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -8006,8 +8005,11 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
               method: "POST", 
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
-          });
+              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], 
+                })
+
+    });
+
           
           const jsonRes = await response.json();
           if (!response.ok) throw new Error(jsonRes.error?.message || "Erro na API Gemini");
