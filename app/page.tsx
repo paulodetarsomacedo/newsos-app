@@ -2365,10 +2365,7 @@ const generateTrendRadar = async (news, apiKey) => {
 
 
 
-// 1. Sub-componente do Mini Navegador (VERSÃO MAXIMIZADA)
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, X } from 'lucide-react';
-import { Browser } from '@capacitor/browser';
+
 
 const GlassBrowser = ({ article, onClose, isDarkMode }) => {
   // ✅ URL do seu Worker (troque se necessário)
