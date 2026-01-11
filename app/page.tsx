@@ -1028,13 +1028,31 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
-const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDarkMode, onClick, onAnalyze, onToggleSave, onToggleLike, onPlay, isViewedFromStory, playingAudio }) => {
-  const displayTime = news.rawDate ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
+const NewsCard = React.memo(({ 
+  news, 
+  isSelected, 
+  isRead, 
+  isSaved, 
+  isLiked, 
+  isDarkMode, 
+  onClick, 
+  onAnalyze, 
+  onToggleSave, 
+  onToggleLike, 
+  onPlay, 
+  isViewedFromStory, 
+  playingAudio 
+}) => {
+  // Formatação de data segura
+  const displayTime = news.rawDate 
+    ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+    : '...';
+
   const isPlayable = !!news.title;
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
 
-  // --- FUNÇÃO InlinePlayer COMPLETA E RESTAURADA ---
+  // --- SUB-COMPONENT: InlinePlayer ---
   const InlinePlayer = () => (
     <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
         <div className="p-4 flex items-center gap-4">
@@ -1069,7 +1087,6 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
   return (
     <div 
       onClick={() => onClick(news)}
-      // Aumenta o Z-Index quando selecionado para a aura ficar por cima dos vizinhos
       style={{ zIndex: isSelected ? 40 : 1 }}
       className={`
         group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer
@@ -1080,22 +1097,18 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
       
       {/* 
           ================================================================
-          1. GEMINI AURA (SÓ APARECE QUANDO SELECIONADO/ANALISANDO)
+          EFEITOS DE AURA (GEMINI STYLE)
           ================================================================
       */}
       {isSelected && (
         <>
-            {/* O Brilho Externo (Blur Pesado) */}
             <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-60 blur-xl animate-pulse transition-all duration-500" />
-            
-            {/* A Borda Fina e Brilhante */}
             <div className="absolute -inset-[2px] rounded-[2.5rem] bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-100" />
         </>
       )}
 
       {/* 
-         CONTAINER PRINCIPAL DO CARD 
-         (Precisa de z-10 e background para tapar a aura no centro) 
+         CONTAINER PRINCIPAL
       */}
       <div className={`
         relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem]
@@ -1106,103 +1119,121 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
           {/* 1. ÁREA DE IMAGEM */}
           <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800">
             
-            <SmartImage 
-                src={news.img} title={news.title} logo={news.logo} sourceName={news.source} isDarkMode={isDarkMode} 
+            {/* Componente de Imagem Inteligente */}
+            {/* Nota: SmartImage deve ser importado ou definido no seu projeto */}
+            <img 
+                src={news.img} 
+                alt={news.title}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
             
-            {/* Gradiente Inferior (Preto para o título) */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+            {/* Gradiente Inferior para legibilidade do Título (Dark Overlay) */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-90" />
 
             {/* 
                 ================================================================
-                2. TOP WHITE FADE (BRANCO NO TOPO PARA DESTACAR LOGO)
+                REQ 1: CABEÇALHO BRANCO COM FADE
+                Sobreposto à imagem, no topo, para dar fundo ao logo/texto
                 ================================================================
             */}
-            <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-white/40 to-transparent pointer-events-none mix-blend-overlay" />
+            <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-white via-white/90 to-transparent opacity-95 mix-blend-normal pointer-events-none" />
 
-
-            {/* Cabeçalho Sobre a Imagem */}
-            <div className="absolute top-4 left-4 flex items-center z-10">
-                {/* LOGO SOLTO */}
-                <img 
-                    src={news.logo} 
-                    className="relative z-10 -mt-0.5 w-11 h-11 rounded-lg bg-white p-0.5 shadow-lg border border-white/40" 
-                    onError={(e) => e.target.style.display = 'none'} 
-                />
-                {/* PÍLULA APENAS NO NOME */}
-                <div className="-ml-3 pl-4 pr-2 py-2  bg-black/50  px-1 rounded-r-md border border-white/10 shadow-lg flex items-center justify-center h-fit">
-                    <span className="text-[10px] font-black text-white uppercase tracking-wider">{news.source}</span>
+            {/* 
+                ================================================================
+                REQ 2 & 3: CABEÇALHO "LIQUID" (Logo + Fonte)
+                ================================================================
+            */}
+            <div className="absolute top-5 left-5 flex items-center z-20">
+                {/* 
+                    O LOGO (Quadrado arredondado)
+                    Z-Index maior para ficar "por cima" do container de texto
+                */}
+                <div className="relative z-20 shrink-0 shadow-lg">
+                    <img 
+                        src={news.logo} 
+                        className="w-14 h-14 rounded-2xl bg-white object-contain p-0.5 border-2 border-white shadow-sm" 
+                        onError={(e) => e.target.style.display = 'none'} 
+                        alt={news.source}
+                    />
                 </div>
-                <div className="ml-2 bg-black/50  py-1 px-2 rounded-md border border-white/5">
-                    <span className="text-[12px] font-bold text-white">{displayTime}</span>
+
+                {/* 
+                    O NOME DA FONTE (Efeito Liquid)
+                    - Margem negativa ( -ml-5 ) para entrar embaixo do logo
+                    - Padding left grande ( pl-7 ) para empurrar o texto para fora da área do logo
+                    - Altura menor que o logo ( h-10 vs h-14 )
+                    - Rounded-r-full para a ponta direita arredondada
+                */}
+                <div className="-ml-5 pl-7 pr-4 h-10 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
+                    <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none mt-0.5">
+                        {news.source}
+                    </span>
+                </div>
+
+                {/* Badge de Tempo (Separado, estilo pílula escura) */}
+                <div className="ml-2 bg-black/60 backdrop-blur-md py-1.5 px-3 rounded-full border border-white/10 shadow-sm">
+                    <span className="text-[11px] font-bold text-white">{displayTime}</span>
                 </div>
             </div>
 
-            {/* Botões no Canto Superior Direito */}
-            <div className="absolute top-35 right-4 z-20">
-                <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/10 border border-white/10">
-                    <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/80 hover:text-white'}`}>
-                        <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
+            {/* 
+                ================================================================
+                REQ 4: INDICADOR DE LIDO + BOTÕES DE AÇÃO
+                ================================================================
+            */}
+            <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-3">
+                {/* Indicador de Lido */}
+                {isRead && (
+                    <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
+                        Lida
+                    </div>
+                )}
+
+                {/* Botões de Ação */}
+                <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/20 backdrop-blur-md border border-white/10 shadow-lg">
+                    <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/90 hover:text-white'}`}>
+                        <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-1.5 transition-colors ${isSaved ? 'text-purple-500' : 'text-white/80 hover:text-white'}`}>
-                        <Bookmark size={22} fill={isSaved ? "currentColor" : "none"} />
+                    <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-1.5 transition-colors ${isSaved ? 'text-purple-500' : 'text-white/90 hover:text-white'}`}>
+                        <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
                     </button>
                     {isPlayable && (
-                        <button onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-md group ${isCurrentPlaying ? 'bg-purple-600' : 'bg-green-500'}`}>
+                        <button onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-md group ${isCurrentPlaying ? 'bg-purple-600' : 'bg-green-500 hover:bg-green-400'}`}>
                             {isGenerating ? (<Loader2 size={14} className="text-white animate-spin" />) : isCurrentPlaying ? (<Pause size={14} fill="white"/>) : (<Play size={14} fill="white" className="ml-0.5" />)}
                         </button>
                     )}
                 </div>
             </div>
+
           </div>
           
-      {/* --- PÍLULA NA TRANSIÇÃO (ESTILO iOS 16) --- */}
-<div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-  {/* 
-    1. O CONTAINER PRINCIPAL DA PÍLULA:
-    - Fundo escuro e semi-transparente (bg-black/50)
-    - Efeito de vidro (backdrop-blur-xl)
-    - Contorno (border) e Relevo/Sombra (shadow-2xl)
-  */}
-  <div className="flex items-center shadow-4xl rounded-full p-1.5 bg-black/10 backdrop-blur-xl border border-white/10">
-    
-    {/* 
-      2. BOTÃO "LER":
-      - Fundo transparente (bg-transparent) para mostrar o fundo escuro da pílula.
-      - Efeito de hover sutil.
-    */}
-    <button 
-      onClick={(e) => { e.stopPropagation(); onClick(news); }} 
-      className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-transparent hover:bg-white/10 transition-colors"
-    >
-      Ler
-    </button>
-
-  
-
-    {/* 
-      3. BOTÃO "ANALISAR":
-      - Fundo com gradiente roxo, como solicitado.
-      - Sombra para dar destaque.
-    */}
-    <button 
-      onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
-      className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-violet-600 to-purple-400 hover:brightness-110 transition-all shadow-9xl shadow-purple-500/30"
-    >
-      <Sparkles size={18} className="mr-2 inline text-pink-500 animate-pulse" /> Analisar
-    </button>
-
-  </div>
-</div>
+          {/* 
+             PÍLULA FLUTUANTE DE AÇÃO (CENTRAL)
+          */}
+          <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
+            <div className="flex items-center shadow-2xl rounded-full p-1.5 bg-black/20 backdrop-blur-xl border border-white/20">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onClick(news); }} 
+                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-transparent hover:bg-white/10 transition-colors"
+                >
+                  Ler
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
+                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-violet-600 to-purple-500 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30 border border-white/10"
+                >
+                  <Sparkles size={16} className="mr-2 inline text-pink-300 animate-pulse" /> Analisar
+                </button>
+            </div>
+          </div>
           
-          {/* ÁREA DE TEXTO */}
-          <div className="relative px-5 pt-10 pb-3">
+          {/* ÁREA DE TEXTO (Título e Sumário) */}
+          <div className="relative px-6 pt-12 pb-6 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
-                 <h3 className={`text-lg font-black leading-tight mb-2 line-clamp-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                 <h3 className={`text-xl font-black leading-tight mb-3 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
                  </h3>
-                 <p className={`text-sm font-serif leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'} line-clamp-2`}>
+                 <p className={`text-sm font-medium leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} line-clamp-2`}>
                      {news.summary}
                  </p>
             </div>
@@ -1213,6 +1244,7 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     </div>
   );
 });
+
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onReadArticle, onGenerateAudio }) {
