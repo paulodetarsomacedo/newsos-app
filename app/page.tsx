@@ -2366,30 +2366,158 @@ const generateTrendRadar = async (news, apiKey) => {
 
 
 // 1. Sub-componente do Mini Navegador (VERSÃO MAXIMIZADA)
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, X } from 'lucide-react';
+import { Browser } from '@capacitor/browser';
+
 const GlassBrowser = ({ article, onClose, isDarkMode }) => {
   // ✅ URL do seu Worker (troque se necessário)
   const WORKER_BASE = 'https://newsos-extract.paulodetarsomacedo.workers.dev';
 
   const [excerpt, setExcerpt] = useState('');
   const [excerptStatus, setExcerptStatus] = useState('idle'); // idle | loading | success | error
-
   const abortRef = useRef(null);
 
-  // --- Heurística: detecta summary "curto demais" (1–2 linhas / pouco texto)
+  // --- Raw summary vindo do RSS (ou do seu pipeline)
   const summaryRaw = (article?.summary || '').trim();
-  const summaryLineCount = summaryRaw.split('\n').map(s => s.trim()).filter(Boolean).length;
 
-  // ✅ Ajuste fino aqui se quiser:
-  // - 220~320 costuma funcionar bem
+  // --- Helpers (só lógica)
+  const normalize = (s) =>
+    (s || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const summaryNormalized = useMemo(() => normalize(summaryRaw), [summaryRaw]);
+
+  // --- Heurísticas: detectar boilerplate e "texto-lixo" (menus/breadcrumb)
+  const isBoilerplateSummary = useMemo(() => {
+    const s = summaryNormalized;
+    if (!s) return false;
+
+    const boilerplateSignals = [
+      'toque abaixo para ler',
+      'toque abaixo para abrir',
+      'toque abaixo',
+      'clique abaixo para ler',
+      'ler a matéria completa',
+      'ler notícia completa',
+      'diretamente na fonte original',
+      'não foi possível extrair automaticamente',
+      'nao foi possivel extrair automaticamente',
+      'abra na fonte',
+      'abrir na fonte',
+      'matéria completa na fonte',
+      'materia completa na fonte',
+      'veja na fonte',
+    ];
+
+    return boilerplateSignals.some((sig) => s.includes(sig));
+  }, [summaryNormalized]);
+
+  const looksLikeMenuOrBreadcrumb = useMemo(() => {
+    const s = summaryNormalized;
+    if (!s) return false;
+
+    const menuSignals = [
+      'home',
+      'buscar',
+      'menu',
+      'assine',
+      'assinante',
+      'entrar',
+      'login',
+      'cadastre',
+      'cadastre-se',
+      'carregando',
+      'princípios editoriais',
+      'principios editoriais',
+      'política',
+      'politica',
+      'economia',
+      'mundo',
+      'mercados',
+      'bolsas',
+      'moedas',
+      'commodities',
+      'índices',
+      'indices',
+      'voltar',
+      'sair',
+      'conta',
+    ];
+
+    // se tiver muitos desses termos, é breadcrumb/menu e não conteúdo
+    const hits = menuSignals.reduce((acc, term) => (s.includes(term) ? acc + 1 : acc), 0);
+
+    // “hits >= 2” já pega bem esses casos de prints que você mandou
+    return hits >= 2;
+  }, [summaryNormalized]);
+
+  const summaryLineCount = useMemo(() => {
+    if (!summaryRaw) return 0;
+    return summaryRaw
+      .split('\n')
+      .map((t) => t.trim())
+      .filter(Boolean).length;
+  }, [summaryRaw]);
+
+  // Ajuste fino: se quiser, altere isso
   const MIN_CHARS = 240;
 
-  const summaryTooShort =
-    !summaryRaw ||
-    summaryRaw.length < MIN_CHARS ||
-    summaryLineCount <= 1;
+  const summaryTooShortByLength =
+    !summaryRaw || summaryRaw.length < MIN_CHARS || summaryLineCount <= 1;
 
-  // --- Cache key por URL (session)
-  const cacheKey = article?.link ? `newsos_excerpt_cache:${article.link}` : null;
+  // “Densidade ruim”: se for texto “colado” com muitas palavras curtas repetidas
+  const summaryLowQualityByDensity = useMemo(() => {
+    if (!summaryNormalized) return true;
+
+    const tokens = summaryNormalized.split(' ').filter(Boolean);
+    if (tokens.length < 18) return true; // muito curto
+
+    const shortTokens = tokens.filter((t) => t.length <= 3).length;
+    const ratioShort = shortTokens / tokens.length;
+
+    // se tiver muita palavra curta, tende a ser breadcrumb/menu
+    if (ratioShort > 0.38) return true;
+
+    // repetição excessiva
+    const unique = new Set(tokens).size;
+    const repetitionRatio = unique / tokens.length;
+    if (repetitionRatio < 0.55) return true;
+
+    return false;
+  }, [summaryNormalized]);
+
+  // ✅ Regra final: quando extrair?
+  const shouldExtract = useMemo(() => {
+    // sem link, não tem o que extrair
+    if (!article?.link) return false;
+
+    // se summary é boilerplate/menu/lixo: extrai SEMPRE
+    if (isBoilerplateSummary) return true;
+    if (looksLikeMenuOrBreadcrumb) return true;
+
+    // se é curto/ruim: extrai
+    if (summaryTooShortByLength) return true;
+
+    // se tem cara de “texto ruim”: extrai
+    if (summaryLowQualityByDensity) return true;
+
+    // caso contrário, aceita o summary
+    return false;
+  }, [
+    article?.link,
+    isBoilerplateSummary,
+    looksLikeMenuOrBreadcrumb,
+    summaryTooShortByLength,
+    summaryLowQualityByDensity,
+  ]);
+
+  // ✅ Cache key por URL (session)
+  const cacheKey = useMemo(() => {
+    return article?.link ? `newsos_excerpt_cache:${article.link}` : null;
+  }, [article?.link]);
 
   useEffect(() => {
     // limpa qualquer request anterior
@@ -2401,11 +2529,11 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
     setExcerpt('');
     setExcerptStatus('idle');
 
-    // se não tem link, não tem o que extrair
+    // sem link: não extrai
     if (!article?.link) return;
 
-    // se o summary é bom, não precisa extrair
-    if (!summaryTooShort) return;
+    // se não precisa extrair: para aqui
+    if (!shouldExtract) return;
 
     // tenta cache primeiro
     if (cacheKey) {
@@ -2430,14 +2558,11 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
         const res = await fetch(url, {
           method: 'GET',
           signal: controller.signal,
-          headers: {
-            Accept: 'application/json',
-          },
+          headers: { Accept: 'application/json' },
         });
 
         const data = await res.json().catch(() => null);
 
-        // se foi abortado, sai
         if (controller.signal.aborted) return;
 
         const extracted = data?.excerpt ? String(data.excerpt).trim() : '';
@@ -2466,7 +2591,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
       abortRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [article?.link]);
+  }, [article?.link, shouldExtract]);
 
   const openInNativeBrowser = async () => {
     try {
@@ -2482,10 +2607,14 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
   };
 
   // ✅ Texto final exibido no card
+  // Regra:
+  // - se não precisa extrair => usa summary
+  // - se precisa extrair => usa excerpt (quando chegar)
+  // - se falhar => fallback
   const finalText =
-    (!summaryTooShort ? summaryRaw : '') ||
+    (!shouldExtract ? summaryRaw : '') ||
     (excerpt && excerpt.length > 0 ? excerpt : '') ||
-    "Toque abaixo para ler a matéria completa diretamente na fonte original.";
+    'Toque abaixo para ler a matéria completa diretamente na fonte original.';
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
@@ -2494,7 +2623,6 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
         onClick={onClose}
       />
 
-      {/* AQUI ESTÁ A MUDANÇA DE TAMANHO: w-[95vw] h-[90vh] */}
       <div
         className={`
           relative w-[95vw] h-[85vh] md:w-[800px] md:h-[90vh]
@@ -2506,7 +2634,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
           backdrop-blur-2xl
         `}
       >
-        {/* Imagem de Capa (Hero) - Aumentei a altura também */}
+        {/* Imagem de Capa (Hero) */}
         <div className="relative h-56 md:h-72 w-full flex-shrink-0">
           <img
             src={article.img || article.logo}
@@ -2552,8 +2680,8 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
               {finalText}
             </p>
 
-            {/* ✅ Indicador discreto (não muda layout, só informa) */}
-            {summaryTooShort && excerptStatus === 'loading' && (
+            {/* ✅ Indicador discreto */}
+            {shouldExtract && excerptStatus === 'loading' && (
               <p
                 className={`mt-3 text-[10px] font-mono uppercase tracking-widest ${
                   isDarkMode ? 'text-white/30' : 'text-black/30'
@@ -2563,7 +2691,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
               </p>
             )}
 
-            {summaryTooShort && excerptStatus === 'error' && (
+            {shouldExtract && excerptStatus === 'error' && (
               <p
                 className={`mt-3 text-[10px] font-mono uppercase tracking-widest ${
                   isDarkMode ? 'text-white/30' : 'text-black/30'
@@ -2592,6 +2720,8 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
     </div>
   );
 };
+
+
 
 
 
