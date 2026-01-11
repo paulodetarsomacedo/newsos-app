@@ -2737,7 +2737,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
 
 
 
-const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
+const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) => {
   const [digest, setDigest] = useState(null);
   const [status, setStatus] = useState('idle');
   const [expandedIndex, setExpandedIndex] = useState(null);
@@ -2812,7 +2812,10 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   };
 
   const handleGenerate = async () => {
-    if (!apiKey) {
+    // ALTERAÇÃO AQUI: Chama getApiKey no momento do clique
+    const currentApiKey = getApiKey('widgets');
+
+    if (!currentApiKey) {
       alert("Configure sua API Key nas configurações primeiro.");
       return;
     }
@@ -2823,7 +2826,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
 
     await new Promise((r) => setTimeout(r, 800));
 
-    const result = await generateBriefing(newsData, apiKey);
+    const result = await generateBriefing(newsData, currentApiKey);
 
     if (result) {
       setDigest(result);
@@ -3431,7 +3434,7 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
 
 
 // --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
-const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
+const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
@@ -3447,9 +3450,12 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     }));
   }, [news, clusters]);
 
-  const runAI = async () => {
-    if (!apiKey) {
-      alert("Configure sua API Key nas configurações primeiro.");
+const runAI = async () => {
+    // 1. CHAMA A FUNÇÃO PARA PEGAR UMA NOVA CHAVE NO MOMENTO DO CLIQUE
+    const currentApiKey = getApiKey('widgets'); // Especifica o pool de widgets
+    
+    if (!currentApiKey) {
+      alert("Configure sua API Key de Widgets nas configurações primeiro.");
       return;
     }
     if (!news || news.length < 10) {
@@ -3457,14 +3463,13 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
       return;
     }
 
-    // Antes de fazer qualquer coisa, avisa o componente principal para girar a chave.
-    if (onTriggerWidgetRotation) {
-        onTriggerWidgetRotation();
-    }
     setLoading(true);
     setClusters(null);
     await new Promise(r => setTimeout(r, 800));
-    const result = await generateSmartClustering(news, apiKey, 300);
+    
+    // 2. USA A CHAVE RECÉM-BUSCADA PARA CHAMAR A IA
+    const result = await generateSmartClustering(news, currentApiKey, 300);
+    
     if (result) {
       setClusters(result);
     } else {
@@ -4045,7 +4050,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
 // ✅ Termômetro agora é horizontal (0–10)
 // ✅ Cards menores, agrupados horizontalmente por faixas de temperatura (colunas)
 // ✅ Texto legível: dark = branco, light = preto/cinza escuro
-const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
+const TrendRadar = ({ newsData, getApiKey, isDarkMode }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
@@ -4077,7 +4082,10 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   };
 
   const runTrendAnalysis = async () => {
-    if (!apiKey || !newsData || newsData.length === 0) {
+    // ALTERAÇÃO AQUI: Chama getApiKey no momento do clique
+    const currentApiKey = getApiKey('widgets');
+    
+    if (!currentApiKey || !newsData || newsData.length === 0) {
       alert("Aguarde o carregamento das notícias ou configure a API Key.");
       return;
     }
@@ -4085,8 +4093,8 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
     setActiveIndex(null);
     await new Promise((r) => setTimeout(r, 800));
 
-    // ✅ NÃO ALTERADO: chama sua IA como está
-    const data = await generateTrendRadar(newsData, apiKey);
+    // Usa a chave recém-buscada
+    const data = await generateTrendRadar(newsData, currentApiKey);
 
     if (data && Array.isArray(data) && data.length > 0) {
       const sortedData = data.sort((a, b) => b.score - a.score);
@@ -4421,7 +4429,7 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [startY, setStartY] = useState(0);
@@ -4555,7 +4563,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
       
-      <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
+      <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
 
   {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA COM LAYOUT CORRIGIDO --- */}
       <div className="space-y-4">
@@ -4574,7 +4582,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
               news={newsData} 
               openArticle={openArticle} 
               isDarkMode={isDarkMode} 
-              apiKey={apiKey} 
+              getApiKey={getApiKey}
               clusters={savedClusters}
               setClusters={setSavedClusters}
               onContextReady={() => {}} // onContextReady pode ser ajustado se necessário
@@ -4587,7 +4595,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
       <SmartDigestWidget 
           newsData={newsData} 
-          apiKey={apiKey} 
+         getApiKey={getApiKey}
           isDarkMode={isDarkMode} 
           refreshTrigger={refreshTrigger} 
       />
@@ -6809,19 +6817,11 @@ const storiesForHappeningTab = useMemo(() => {
   // ALTERAÇÃO 1: LÓGICA DE "CONGELAMENTO" E GATILHO
   // ==========================================================
   
-  // A chave de análise continua congelada por artigo (isto está correto)
+  // A chave de análise para o painel lateral. Esta lógica está CORRETA e deve ser mantida.
   const analysisApiKey = useMemo(() => {
       if (!selectedArticle) return null;
       return getApiKey('analysis');
   }, [selectedArticle?.id, getApiKey]);
-
-  // O gatilho manual para o Pool de Widgets
-  const [widgetTrigger, setWidgetTrigger] = useState(0);
-  
-  // A chave de widget agora SÓ depende do gatilho
-  const widgetApiKey = useMemo(() => {
-      return getApiKey('widgets');
-  }, [widgetTrigger, getApiKey]);
 
 
 // 2. Esta lista é para a NAVEGAÇÃO. Ela contém TODOS os stories, sem filtro.
@@ -6906,8 +6906,7 @@ return (
                     // AÇÃO 2: Botão de Análise de Clusters (se ele existir dentro do HappeningTab)
                     // Você precisaria passar essa função para o WhileYouWereAwayWidget
                     setSavedClusters={setGlobalClusters}
-                    // A "PONTE": Passamos a função que muda o estado para o filho
-                    onTriggerWidgetRotation={() => setWidgetTrigger(prev => prev + 1)}
+                    getApiKey={getApiKey}
                 />
             )}
         
