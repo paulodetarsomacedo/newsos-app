@@ -1188,9 +1188,9 @@ const NewsCard = React.memo(({ news, isSelected, isRead, isSaved, isLiked, isDar
     */}
     <button 
       onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
-      className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30"
+      className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-violet-600 to-purple-400 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30"
     >
-      <Sparkles size={18} className="mr-2 inline text-purple-500 animate-pulse" /> Analisar
+      <Sparkles size={18} className="mr-2 inline text-fuchsia-500 animate-pulse" /> Analisar
     </button>
 
   </div>
