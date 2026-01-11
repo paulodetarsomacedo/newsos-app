@@ -17,6 +17,7 @@
     "@ducanh2912/next-pwa": "^10.2.9",
     "@supabase/supabase-js": "^2.87.1",
     "@use-gesture/react": "^10.3.1",
+    "cheerio": "^1.1.2",
     "cordova-plugin-inappbrowser": "^6.0.0",
     "framer-motion": "^12.24.6",
     "lucide-react": "^0.556.0",

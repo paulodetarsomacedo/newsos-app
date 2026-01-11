@@ -2367,92 +2367,233 @@ const generateTrendRadar = async (news, apiKey) => {
 
 // 1. Sub-componente do Mini Navegador (VERSÃO MAXIMIZADA)
 const GlassBrowser = ({ article, onClose, isDarkMode }) => {
-    
-    const openInNativeBrowser = async () => {
-        try {
-            await Browser.open({
-                url: article.link,
-                presentationStyle: 'fullscreen',
-                toolbarColor: isDarkMode ? '#000000' : '#FFFFFF',
-            });
-            onClose();
-        } catch (e) {
-            window.open(article.link, '_blank');
+  // ✅ URL do seu Worker (troque se necessário)
+  const WORKER_BASE = 'https://newsos-extract.paulodetarsomacedo.workers.dev';
+
+  const [excerpt, setExcerpt] = useState('');
+  const [excerptStatus, setExcerptStatus] = useState('idle'); // idle | loading | success | error
+
+  const abortRef = useRef(null);
+
+  // --- Heurística: detecta summary "curto demais" (1–2 linhas / pouco texto)
+  const summaryRaw = (article?.summary || '').trim();
+  const summaryLineCount = summaryRaw.split('\n').map(s => s.trim()).filter(Boolean).length;
+
+  // ✅ Ajuste fino aqui se quiser:
+  // - 220~320 costuma funcionar bem
+  const MIN_CHARS = 240;
+
+  const summaryTooShort =
+    !summaryRaw ||
+    summaryRaw.length < MIN_CHARS ||
+    summaryLineCount <= 1;
+
+  // --- Cache key por URL (session)
+  const cacheKey = article?.link ? `newsos_excerpt_cache:${article.link}` : null;
+
+  useEffect(() => {
+    // limpa qualquer request anterior
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+
+    setExcerpt('');
+    setExcerptStatus('idle');
+
+    // se não tem link, não tem o que extrair
+    if (!article?.link) return;
+
+    // se o summary é bom, não precisa extrair
+    if (!summaryTooShort) return;
+
+    // tenta cache primeiro
+    if (cacheKey) {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached && cached.trim().length > 0) {
+        setExcerpt(cached.trim());
+        setExcerptStatus('success');
+        return;
+      }
+    }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const run = async () => {
+      try {
+        setExcerptStatus('loading');
+        setExcerpt('');
+
+        const url = `${WORKER_BASE}/?url=${encodeURIComponent(article.link)}`;
+
+        const res = await fetch(url, {
+          method: 'GET',
+          signal: controller.signal,
+          headers: {
+            Accept: 'application/json',
+          },
+        });
+
+        const data = await res.json().catch(() => null);
+
+        // se foi abortado, sai
+        if (controller.signal.aborted) return;
+
+        const extracted = data?.excerpt ? String(data.excerpt).trim() : '';
+
+        if (res.ok && extracted.length > 0) {
+          setExcerpt(extracted);
+          setExcerptStatus('success');
+          if (cacheKey) sessionStorage.setItem(cacheKey, extracted);
+        } else {
+          setExcerpt('');
+          setExcerptStatus('error');
         }
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        setExcerpt('');
+        setExcerptStatus('error');
+      } finally {
+        if (!controller.signal.aborted) abortRef.current = null;
+      }
     };
 
-    return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
-            <div 
-                className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity" 
-                onClick={onClose} 
+    run();
+
+    return () => {
+      controller.abort();
+      abortRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [article?.link]);
+
+  const openInNativeBrowser = async () => {
+    try {
+      await Browser.open({
+        url: article.link,
+        presentationStyle: 'fullscreen',
+        toolbarColor: isDarkMode ? '#000000' : '#FFFFFF',
+      });
+      onClose();
+    } catch (e) {
+      window.open(article.link, '_blank');
+    }
+  };
+
+  // ✅ Texto final exibido no card
+  const finalText =
+    (!summaryTooShort ? summaryRaw : '') ||
+    (excerpt && excerpt.length > 0 ? excerpt : '') ||
+    "Toque abaixo para ler a matéria completa diretamente na fonte original.";
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* AQUI ESTÁ A MUDANÇA DE TAMANHO: w-[95vw] h-[90vh] */}
+      <div
+        className={`
+          relative w-[95vw] h-[85vh] md:w-[800px] md:h-[90vh]
+          rounded-[2.5rem] overflow-hidden shadow-2xl border flex flex-col 
+          transition-all transform scale-100 animate-in zoom-in-95 duration-300
+          ${isDarkMode
+            ? 'bg-zinc-900/95 border-white/10 shadow-purple-500/20'
+            : 'bg-white/95 border-white/40 shadow-xl'}
+          backdrop-blur-2xl
+        `}
+      >
+        {/* Imagem de Capa (Hero) - Aumentei a altura também */}
+        <div className="relative h-56 md:h-72 w-full flex-shrink-0">
+          <img
+            src={article.img || article.logo}
+            className="w-full h-full object-cover"
+            onError={(e) => (e.target.style.display = 'none')}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 rounded-full bg-black/30 text-white backdrop-blur-md border border-white/20 hover:bg-black/50 transition active:scale-90"
+          >
+            <X size={20} />
+          </button>
+
+          <div className="absolute bottom-4 left-6 flex items-center gap-2">
+            <img
+              src={article.logo}
+              className="w-6 h-6 rounded-full border border-white/50 bg-white"
             />
-
-            {/* AQUI ESTÁ A MUDANÇA DE TAMANHO: w-[95vw] h-[90vh] */}
-            <div className={`
-                relative w-[95vw] h-[85vh] md:w-[800px] md:h-[90vh]
-                rounded-[2.5rem] overflow-hidden shadow-2xl border flex flex-col 
-                transition-all transform scale-100 animate-in zoom-in-95 duration-300
-                ${isDarkMode 
-                    ? 'bg-zinc-900/95 border-white/10 shadow-purple-500/20' 
-                    : 'bg-white/95 border-white/40 shadow-xl'}
-                backdrop-blur-2xl
-            `}>
-                
-                {/* Imagem de Capa (Hero) - Aumentei a altura também */}
-                <div className="relative h-56 md:h-72 w-full flex-shrink-0">
-                    <img 
-                        src={article.img || article.logo} 
-                        className="w-full h-full object-cover" 
-                        onError={(e) => e.target.style.display = 'none'}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-                    
-                    <button 
-                        onClick={onClose} 
-                        className="absolute top-4 right-4 p-2 rounded-full bg-black/30 text-white backdrop-blur-md border border-white/20 hover:bg-black/50 transition active:scale-90"
-                    >
-                        <X size={20} />
-                    </button>
-
-                    <div className="absolute bottom-4 left-6 flex items-center gap-2">
-                        <img src={article.logo} className="w-6 h-6 rounded-full border border-white/50 bg-white" />
-                        <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black drop-shadow-md">
-                            {article.source}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Conteúdo do Card */}
-                <div className="p-6 md:p-8 flex flex-col flex-1 overflow-y-auto">
-                    <h2 className={`text-2xl md:text-3xl font-black leading-tight mb-4 font-serif ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                        {article.title}
-                    </h2>
-                    
-                    <div className="flex-1">
-                        <p className={`text-base md:text-lg leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                            {article.summary || "Toque abaixo para ler a matéria completa diretamente na fonte original."}
-                        </p>
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-dashed border-zinc-500/20">
-                        <button 
-                            onClick={openInNativeBrowser}
-                            className={`
-                                w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-lg
-                                ${isDarkMode 
-                                    ? 'bg-white text-black hover:bg-zinc-200' 
-                                    : 'bg-black text-white hover:bg-zinc-800'}
-                            `}
-                        >
-                            Ler Notícia Completa <ArrowRight size={18} />
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black drop-shadow-md">
+              {article.source}
+            </span>
+          </div>
         </div>
-    );
+
+        {/* Conteúdo do Card */}
+        <div className="p-6 md:p-8 flex flex-col flex-1 overflow-y-auto">
+          <h2
+            className={`text-2xl md:text-3xl font-black leading-tight mb-4 font-serif ${
+              isDarkMode ? 'text-white' : 'text-zinc-900'
+            }`}
+          >
+            {article.title}
+          </h2>
+
+          <div className="flex-1">
+            <p
+              className={`text-base md:text-lg leading-relaxed ${
+                isDarkMode ? 'text-zinc-300' : 'text-zinc-700'
+              }`}
+            >
+              {finalText}
+            </p>
+
+            {/* ✅ Indicador discreto (não muda layout, só informa) */}
+            {summaryTooShort && excerptStatus === 'loading' && (
+              <p
+                className={`mt-3 text-[10px] font-mono uppercase tracking-widest ${
+                  isDarkMode ? 'text-white/30' : 'text-black/30'
+                }`}
+              >
+                extraindo 15 linhas da fonte…
+              </p>
+            )}
+
+            {summaryTooShort && excerptStatus === 'error' && (
+              <p
+                className={`mt-3 text-[10px] font-mono uppercase tracking-widest ${
+                  isDarkMode ? 'text-white/30' : 'text-black/30'
+                }`}
+              >
+                não foi possível extrair automaticamente — abra na fonte.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-dashed border-zinc-500/20">
+            <button
+              onClick={openInNativeBrowser}
+              className={`
+                w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-lg
+                ${isDarkMode
+                  ? 'bg-white text-black hover:bg-zinc-200'
+                  : 'bg-black text-white hover:bg-zinc-800'}
+              `}
+            >
+              Ler Notícia Completa <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
+
+export default GlassBrowser;
 
 const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
   const [digest, setDigest] = useState(null);
