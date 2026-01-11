@@ -2121,7 +2121,6 @@ const generateBriefingFallback = async (news, apiKey) => {
     try {
 const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {            body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { response_mime_type: "application/json" }
             })
         });
         
@@ -2187,12 +2186,11 @@ const generateFullAnalysis = async (text, apiKey) => {
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -2254,7 +2252,6 @@ RETORNE APENAS JSON:
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -2347,10 +2344,7 @@ const generateNewsContext = async (fullText, apiKey) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { 
-            response_mime_type: "application/json",
-            temperature: 0.3
-        }
+        
       })
     });
 
@@ -2409,7 +2403,6 @@ const generateBriefing = async (news, apiKey) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -2504,7 +2497,6 @@ const generateTrendRadar = async (news, apiKey) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -3822,7 +3814,6 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1/model
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
