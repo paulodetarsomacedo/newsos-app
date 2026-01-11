@@ -2119,8 +2119,9 @@ const generateBriefingFallback = async (news, apiKey) => {
     `;
 
     try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {            body: JSON.stringify({
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {            body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { response_mime_type: "application/json" }
             })
         });
         
@@ -2186,11 +2187,12 @@ const generateFullAnalysis = async (text, apiKey) => {
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -2247,11 +2249,12 @@ RETORNE APENAS JSON:
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST", 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -2339,12 +2342,15 @@ const generateNewsContext = async (fullText, apiKey) => {
   try {
     // CORREÇÃO 1: Atualizado para gemini-2.5-flash
     // CORREÇÃO 2: Garantido method: "POST"
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        
+        generationConfig: { 
+            response_mime_type: "application/json",
+            temperature: 0.3
+        }
       })
     });
 
@@ -2398,11 +2404,12 @@ const generateBriefing = async (news, apiKey) => {
 
   try {
     // ATUALIZADO PARA gemini-2.5-flash
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -2492,11 +2499,12 @@ const generateTrendRadar = async (news, apiKey) => {
 
   try {
     // ATUALIZADO PARA gemini-2.5-flash
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -3810,10 +3818,11 @@ const generateMarketAnalysis = async (news, apiKey) => {
   `;
 
   try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {      method: "POST",
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -3876,6 +3885,7 @@ const generateFullAnalysis = async (text, apiKey) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
       })
     });
 
@@ -7836,7 +7846,7 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -8002,14 +8012,11 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
             Aja como um Analista de Inteligência Sênior... (SEU PROMPT ORIGINAL) ...
             TEXTO: ${fullText.slice(0, 25000)}`;
           
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
               method: "POST", 
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], 
-                })
-
-    });
-
+              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
+          });
           
           const jsonRes = await response.json();
           if (!response.ok) throw new Error(jsonRes.error?.message || "Erro na API Gemini");
