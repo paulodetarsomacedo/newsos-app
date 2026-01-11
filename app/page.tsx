@@ -6907,6 +6907,7 @@ return (
                     // Você precisaria passar essa função para o WhileYouWereAwayWidget
                     setSavedClusters={setGlobalClusters}
                     getApiKey={getApiKey}
+                    apiKey={getApiKey('widgets')}
                 />
             )}
         
@@ -6957,6 +6958,7 @@ return (
                     onRefresh={fetchFeeds}
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
+                    apiKey={analysisApiKey} 
                     getChatApiKey={getChatApiKey}
                 />
             )}
