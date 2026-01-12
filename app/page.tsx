@@ -7668,27 +7668,27 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
 
 
 
-// --- FUNÇÃO DE IA: CHAT CONTEXTUAL DINÂMICO ---
-// --- FUNÇÃO DE IA MODIFICADA ---
-const generateChatResponse = async (chatHistory, articleText) => {
+// --- FUNÇÃO DE IA HÍBRIDA E FINAL ---
+const generateChatResponse = async (chatHistory, articleText, apiKeyFromModal) => {
+  // apiKeyFromModal é a chave que vem do seu getChatApiKey()
   try {
-    // A chamada fetch agora aponta para o NOSSO backend na Vercel
-    // O endereço '/api/chat' funciona automaticamente na Vercel
     const response = await fetch('/api/chat', {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // Enviamos os dados que o backend precisa para montar o prompt
-      body: JSON.stringify({ chatHistory, articleText }) 
+      body: JSON.stringify({ 
+          chatHistory, 
+          articleText, 
+          apiKeyFromFrontend: apiKeyFromModal // <<<<<< ENVIAMOS A CHAVE DO MODAL AQUI
+      })
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-        // Mostra o erro que nosso backend nos enviou
         throw new Error(data.error || "Erro desconhecido no servidor.");
     }
 
-    return data.text; // Retorna o texto que o backend recebeu da IA
+    return data.text;
 
   } catch (e) {
     console.error("Erro ao chamar o backend:", e);
