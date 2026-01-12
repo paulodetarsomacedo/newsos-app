@@ -1131,7 +1131,7 @@ const NewsCard = React.memo(({
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
             {/* Gradiente Superior Branco */}
-            <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
+            <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
             {/* CABEÇALHO "LIQUID" */}
             <div className="absolute top-6 left-5 flex items-center z-20">
@@ -1188,7 +1188,7 @@ const NewsCard = React.memo(({
                 </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-violet-600 to-purple-500 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30 border border-white/10"
+                  className="px-6 py-2.5 rounded-full text-[15px] font-black tracking-widest text-white bg-gradient-to-r from-violet-600 to-purple-500 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30 border border-white/10"
                 >
                   <Sparkles size={16} className="mr-2 inline text-pink-300 animate-pulse" /> Analisar
                 </button>
@@ -1201,9 +1201,9 @@ const NewsCard = React.memo(({
             MELHORIA: Padding vertical ainda mais reduzido para diminuir a altura.
             ================================================================
           */}
-          <div className="relative px-6 pt-10 pb-5 flex-1 flex flex-col justify-end">
+          <div className="relative px-6 pt-7 pb-2 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
-                 <h3 className={`text-xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                 <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
                  </h3>
                  <p className={`text-sm font-medium leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} line-clamp-2`}>
