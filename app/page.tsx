@@ -7669,59 +7669,30 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
 
 
 // --- FUNÇÃO DE IA: CHAT CONTEXTUAL DINÂMICO ---
-const generateChatResponse = async (chatHistory, articleText, apiKey) => {
-  if (!apiKey) return "Desculpe, a conexão com a IA não está configurada.";
-
-  // 1. Extrai a última pergunta do usuário
-  const userQuestion = chatHistory.findLast(m => m.from === 'user')?.text;
-  if (!userQuestion) return "Não entendi sua pergunta.";
-
-  // 2. Busca contexto na web baseado na pergunta E no artigo
-  const articleKeywords = articleText.split(' ').slice(0, 5).join(' '); // Pega palavras-chave do início do artigo
-  const searchQuery = `${articleKeywords} ${userQuestion}`;
-  const webResults = await searchWeb(searchQuery);
-  const webContext = webResults.map(r => r.snippet).join('\n');
-
-  // 3. Monta o histórico para a IA (importante para manter o contexto da conversa)
-  const formattedHistory = chatHistory.map(m => `${m.from === 'user' ? 'Usuário' : 'Assistente'}: ${m.text}`).join('\n');
-
-  const prompt = `
-  Você é um Assistente de Pesquisa especialista e amigável, conversando dentro de uma interface de chat.
-
-  CONTEXTO PRINCIPAL (A notícia que o usuário está lendo):
-  ---
-  ${articleText.slice(0, 4000)}
-  ---
-
-  INFORMAÇÕES ADICIONAIS DA WEB (Buscadas agora com base na última pergunta):
-  ---
-  ${webContext || "Nenhum resultado web encontrado para esta pergunta."}
-  ---
-  
-  HISTÓRICO DA CONVERSA ATÉ AGORA:
-  ---
-  ${formattedHistory}
-  ---
-
-  SUA TAREFA:
-  Continue a conversa respondendo à última pergunta do "Usuário" de forma natural e conversacional, como se estivesse em um chat.
-  - Utilize o CONTEXTO PRINCIPAL para responder sobre fatos da notícia.
-  - Utilize as INFORMAÇÕES DA WEB para responder perguntas que vão além da notícia (eventos atuais, definições, etc).
-  - Mantenha as respostas curtas e diretas (1-3 frases).
-  - AJA COMO UMA PESSOA, NÃO COMO UM ROBÔ. Seja prestativo.
-  - Não repita a pergunta. Apenas dê a resposta.
-  `;
-
+// --- FUNÇÃO DE IA MODIFICADA ---
+const generateChatResponse = async (chatHistory, articleText) => {
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    // A chamada fetch agora aponta para o NOSSO backend na Vercel
+    // O endereço '/api/chat' funciona automaticamente na Vercel
+    const response = await fetch('/api/chat', {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      // Enviamos os dados que o backend precisa para montar o prompt
+      body: JSON.stringify({ chatHistory, articleText }) 
     });
+
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Não consegui processar a resposta. Tente novamente.";
+
+    if (!response.ok) {
+        // Mostra o erro que nosso backend nos enviou
+        throw new Error(data.error || "Erro desconhecido no servidor.");
+    }
+
+    return data.text; // Retorna o texto que o backend recebeu da IA
+
   } catch (e) {
-    return "Houve um problema ao conectar com a IA.";
+    console.error("Erro ao chamar o backend:", e);
+    return `Houve um problema de conexão: ${e.message}`;
   }
 };
 
