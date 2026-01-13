@@ -3609,68 +3609,47 @@ const runAI = async () => {
 // ==========================================================
 // FUNÇÃO DE IA: ANÁLISE DE MERCADO (VERSÃO CORRIGIDA)
 // ==========================================================
-const generateMarketAnalysis = async (news, apiKey) => {
-  if (!apiKey) {
-      alert("A chave de API para Análise de Mercado não está configurada.");
+const generateMarketAnalysis = async (news, apiKey) => { // apiKey aqui é opcional agora
+  
+  // 1. Filtragem (Mantemos a heurística aqui para economizar processamento do backend)
+  const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico', 'CNN Economia', 'InfoMoney']; // Adicionei mais fontes
+  
+  // Filtra por fonte OU se o título contém palavras-chave financeiras (mais robusto)
+  const keywords = ['bolsa', 'dólar', 'ibovespa', 'selic', 'juros', 'inflação', 'mercado', 'ações'];
+  
+  const marketNews = news.filter(n => {
+      const isSource = financialSources.some(s => n.source.includes(s));
+      const isKeyword = keywords.some(k => n.title.toLowerCase().includes(k));
+      return isSource || isKeyword;
+  }).slice(0, 40);
+
+  if (marketNews.length < 2) { // Relaxei para 2 notícias
+      console.log("Poucas notícias financeiras para análise.");
       return null;
   }
-  
-  // Reutilizamos a mesma lógica de filtro da heurística para dar à IA o melhor contexto
-  const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico'];
-  const marketNews = news.filter(n => financialSources.includes(n.source)).slice(0, 40); // Limita a 40 notícias para a IA
-
-  if (marketNews.length < 3) {
-      alert("Não há notícias financeiras suficientes para uma análise de IA no momento.");
-      return null;
-  }
-
-  const context = marketNews.map(n => `ID: ${n.id} | TÍTULO: ${n.title}`).join('\n');
-  
-  const prompt = `
-  Aja como um Analista Financeiro Sênior da Bloomberg. Analise as manchetes de mercado fornecidas.
-
-  MANCHETES:
-  ${context}
-
-  SUAS TAREFAS:
-  1.  **Sentimento Geral:** Determine o humor do mercado (Ex: "Otimista", "Pessimista", "Neutro com Viés de Alta", "Cauteloso").
-  2.  **Resumo Executivo:** Escreva uma única frase, curta e impactante, que resuma a principal narrativa do mercado hoje.
-  3.  **Principais Movimentos (Movers):** Identifique os 2 ou 3 ativos mais importantes mencionados. Para cada um:
-      - Determine a tendência (up, down, neutral).
-      - Explique o **motivo** do movimento em uma frase curta, baseando-se nas notícias.
-      - Associe o ID da notícia mais relevante para aquele movimento.
-
-  RETORNE APENAS O OBJETO JSON VÁLIDO COM ESTA ESTRUTURA ESTRITA:
-  {
-    "market_status": "Otimismo Cauteloso",
-    "summary": "Juros futuros impulsionam otimismo na bolsa, mas dólar volátil gera cautela nos investidores.",
-    "movers": [
-      { 
-        "asset": "Ibovespa", 
-        "trend": "up", 
-        "reason": "Reage positivamente à expectativa de corte na taxa Selic.",
-        "news_id": "id_da_noticia_exato_sobre_ibov"
-      },
-      { 
-        "asset": "Dólar", 
-        "trend": "neutral", 
-        "reason": "Opera com instabilidade aguardando dados de inflação dos EUA.",
-        "news_id": "id_da_noticia_exato_sobre_dolar"
-      }
-    ]
-  }
-  `;
 
   try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
+    // 2. Chamada ao Backend Seguro (Vercel)
+    // Passamos apiKeyFromFrontend apenas como fallback, se quiser
+    const response = await fetch("https://newsos-app2.vercel.app/api/market", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+            marketNews: marketNews,
+            apiKeyFromFrontend: apiKey || null
+        })
     });
 
+    if (!response.ok) throw new Error("Erro no servidor de análise");
+
     const data = await response.json();
+    return data;
+
+  } catch (error) {
+    console.error("Erro ao gerar análise de mercado:", error);
+    return null;
+  }
+};
 
 
 
@@ -3782,87 +3761,142 @@ const generateFullAnalysis = async (text, apiKey) => {
 
 // --- NOVO SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO (COM ACORDEÃO) ---
 const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
-    const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
-    // Encontra as notícias relacionadas a este ativo para mostrar no acordeão
-    const relatedArticles = useMemo(() => {
-        if (!allNews || !asset.keywords) return [];
-        // Filtra todas as notícias que contenham alguma das palavras-chave no título
-        return allNews.filter(n => {
-            const title = n.title.toLowerCase();
-            return asset.keywords.some(k => title.includes(k));
-        }).slice(0, 4); // Limita a 4 notícias para não sobrecarregar
-    }, [asset.keywords, allNews]);
+  // Encontra as notícias relacionadas a este ativo para mostrar no acordeão
+  const relatedArticles = useMemo(() => {
+    if (!allNews || !asset.keywords) return [];
+    // Filtra todas as notícias que contenham alguma das palavras-chave no título
+    return allNews
+      .filter((n) => {
+        const title = (n.title || "").toLowerCase();
+        return asset.keywords.some((k) => title.includes(k));
+      })
+      .slice(0, 4); // Limita a 4 notícias para não sobrecarregar
+  }, [asset.keywords, allNews]);
 
-    // Escolhe o ícone com base no nome do ativo
-    const getIcon = (assetName) => {
-        const name = assetName.toUpperCase();
-        if (name.includes('BTC') || name.includes('BITCOIN')) return <Bitcoin size={20} />;
-        if (name.includes('USD') || name.includes('DÓLAR')) return <DollarSign size={20} />;
-        if (name.includes('EUR') || name.includes('EURO')) return <Euro size={20} />;
-        if (name.includes('IBOV') || name.includes('BOLSA')) return <Activity size={20} />;
-        return <TrendingUp size={20} />;
-    };
+  // Escolhe o ícone com base no nome do ativo
+  const getIcon = (assetName) => {
+    const name = (assetName || "").toUpperCase();
+    if (name.includes("BTC") || name.includes("BITCOIN")) return <Bitcoin size={20} />;
+    if (name.includes("USD") || name.includes("DÓLAR") || name.includes("DOLAR")) return <DollarSign size={20} />;
+    if (name.includes("EUR") || name.includes("EURO")) return <Euro size={20} />;
+    if (name.includes("IBOV") || name.includes("BOLSA")) return <Activity size={20} />;
+    return <TrendingUp size={20} />;
+  };
 
-    return (
-        <div className={`rounded-2xl transition-all duration-300 overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-zinc-200 shadow-sm'}`}>
-            {/* ÁREA CLICÁVEL (CABEÇALHO) */}
-            <button 
-                onClick={() => setIsOpen(!isOpen)}
-                className="p-4 w-full text-left outline-none flex justify-between items-center group"
+  return (
+    <div
+      className={`rounded-2xl transition-all duration-300 overflow-hidden border backdrop-blur-md
+      ${isDarkMode ? "bg-black/25 border-white/10" : "bg-white/60 border-black/10"}
+      hover:shadow-[0_20px_60px_-35px_rgba(0,0,0,0.85)]`}
+    >
+      {/* ÁREA CLICÁVEL (CABEÇALHO) */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`p-4 w-full text-left outline-none flex justify-between items-center group
+        ${isDarkMode ? "hover:bg-white/5" : "hover:bg-black/[0.03]"} transition-colors`}
+        aria-expanded={isOpen}
+        aria-label={`Abrir notícias de ${asset.name}`}
+      >
+        <div className="flex items-center gap-4 min-w-0">
+          <div
+            className={`p-2 rounded-xl border flex items-center justify-center
+            ${isDarkMode ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"}
+            text-purple-400`}
+          >
+            {getIcon(asset.name)}
+          </div>
+
+          <div className="min-w-0">
+            <div
+              className={`text-[11px] font-black uppercase tracking-[0.22em]
+              ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}
             >
-                <div className="flex items-center gap-4">
-                    <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-black/20' : 'bg-zinc-100'} text-purple-400`}>
-                        {getIcon(asset.name)}
-                    </div>
-                    <span className={`text-base font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
-                        {asset.name}
-                    </span>
-                </div>
-                
-                <div className={`transition-transform duration-300 ${isOpen ? 'rotate-90' : 'rotate-0'}`}>
-                    <ChevronRight size={20} className="text-zinc-500" />
-                </div>
-            </button>
-
-            {/* ÁREA DO ACORDEÃO (NOTÍCIAS) */}
-            <div 
-                className={`grid transition-all duration-500 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
-            >
-                <div className="min-h-0 overflow-hidden">
-                    <div className={`border-t px-2 pb-2 space-y-1 ${isDarkMode ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
-                        {relatedArticles.length > 0 ? (
-                            relatedArticles.map((news) => (
-                                <button 
-                                    key={news.id}
-                                    onClick={(e) => { e.stopPropagation(); openArticle(news); }}
-                                    className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
-                                >
-                                    <img src={news.logo} className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover" alt="Logo" onError={(e) => e.target.style.display='none'} />
-                                    <span className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300 group-hover:text-white' : 'text-zinc-700 group-hover:text-black'}`}>
-                                        {news.title}
-                                    </span>
-                                </button>
-                            ))
-                        ) : (
-                            <div className="p-3 text-center text-[10px] opacity-50">
-                                Sem notícias recentes para este ativo.
-                            </div>
-                        )}
-                    </div>
-                </div>
+              Ativo
             </div>
+            <div
+              className={`text-base font-extrabold tracking-tight truncate
+              ${isDarkMode ? "text-white" : "text-zinc-900"}`}
+              title={asset.name}
+            >
+              {asset.name}
+            </div>
+          </div>
         </div>
-    );
+
+        <div
+          className={`transition-transform duration-300 ${isOpen ? "rotate-90" : "rotate-0"}`}
+        >
+          <ChevronRight size={20} className={`${isDarkMode ? "text-white/50" : "text-zinc-500"}`} />
+        </div>
+      </button>
+
+      {/* ÁREA DO ACORDEÃO (NOTÍCIAS) */}
+      <div
+        className={`grid transition-all duration-500 ease-in-out ${
+          isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={`border-t px-2 pb-2 pt-2 space-y-1
+            ${isDarkMode ? "border-white/10 bg-black/20" : "border-black/10 bg-white/40"}`}
+          >
+            {relatedArticles.length > 0 ? (
+              relatedArticles.map((news) => (
+                <button
+                  key={news.id || news.link || news.title}
+                  type="button"
+                  // ✅ FIX: impede o clique de “subir” e acionar o toggle do card
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openArticle(news);
+                  }}
+                  className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group
+                  ${isDarkMode ? "hover:bg-white/10" : "hover:bg-black/5"}`}
+                  aria-label={`Abrir notícia: ${news.title}`}
+                >
+                  <img
+                    src={news.logo}
+                    className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover"
+                    alt=""
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                  <span
+                    className={`text-xs font-semibold leading-tight line-clamp-2
+                    ${isDarkMode ? "text-zinc-300 group-hover:text-white" : "text-zinc-700 group-hover:text-black"}`}
+                  >
+                    {news.title}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <div
+                className={`p-3 text-center text-[10px] font-bold uppercase tracking-widest
+                ${isDarkMode ? "text-white/40" : "text-zinc-500"}`}
+              >
+                Sem notícias recentes para este ativo.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 
 
 
 // --- WIDGET: MARKET PULSE (V7 - DESIGN PREMIUM COM BACKDROP FINANCEIRO) ---
+// --- WIDGET: MARKET PULSE (V7 - DESIGN PREMIUM COM BACKDROP FINANCEIRO) ---
 const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
   const [analysisData, setAnalysisData] = useState(null);
-  const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'success'
+  const [status, setStatus] = useState("idle"); // 'idle' | 'loading' | 'success'
 
   // =========================
   // ✅ VISUAIS AUXILIARES (NÃO MEXEM NA LÓGICA)
@@ -3929,24 +3963,27 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
     `);
 
     return (
-      <div aria-hidden className="absolute inset-0 overflow-hidden rounded-[1.75rem]">
+      <div
+        aria-hidden
+        // ✅ FIX CRÍTICO: impede o backdrop de “capturar” cliques
+        className="pointer-events-none absolute inset-0 overflow-hidden rounded-[1.75rem]"
+      >
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: `url("data:image/svg+xml,${svg}")`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            backgroundSize: "cover",
+            backgroundPosition: "center",
           }}
         />
-        {/* grain sutil */}
         <div
-          className={`absolute inset-0 ${isDarkMode ? 'opacity-[0.10]' : 'opacity-[0.06]'} mix-blend-overlay`}
+          className={`absolute inset-0 ${isDarkMode ? "opacity-[0.10]" : "opacity-[0.06]"} mix-blend-overlay`}
           style={{
             backgroundImage:
               "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E\")",
           }}
         />
-        <div className={`absolute inset-0 ${isDarkMode ? 'bg-zinc-950/35' : 'bg-white/35'}`} />
+        <div className={`absolute inset-0 ${isDarkMode ? "bg-zinc-950/35" : "bg-white/35"}`} />
       </div>
     );
   };
@@ -3954,7 +3991,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
   const CardShell = ({ children }) => (
     <div
       className={`relative rounded-[1.75rem] border overflow-hidden
-      ${isDarkMode ? 'border-white/10 bg-zinc-950' : 'border-zinc-200 bg-white'}
+      ${isDarkMode ? "border-white/10 bg-zinc-950" : "border-zinc-200 bg-white"}
       shadow-[0_25px_70px_-35px_rgba(0,0,0,0.8)]`}
     >
       <FinanceBackdrop isDarkMode={isDarkMode} />
@@ -3966,31 +4003,28 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
   // ✅ LÓGICA ORIGINAL (INALTERADA)
   // =========================
 
-  // Lógica para verificar se o mercado está aberto (simplificado para o horário)
   const isMarketOpen = useMemo(() => {
     const currentHour = new Date().getHours();
-    // Considera o mercado aberto entre 9h e 18h
     return currentHour >= 9 && currentHour < 18;
   }, []);
 
-  // A lógica heurística permanece a mesma, como fallback e estado inicial
   const heuristicData = useMemo(() => {
     if (!newsData || newsData.length === 0) return { topMovers: [], allAssets: [] };
-    const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico'];
-    const marketNews = newsData.filter(n => financialSources.includes(n.source));
+    const financialSources = ["Uol Economia", "Investing", "Istoé Dinheiro", "Valor Econômico"];
+    const marketNews = newsData.filter((n) => financialSources.includes(n.source));
     const assets = [
-      { name: 'Dólar', keywords: ['dólar', 'dolar', 'usd', 'câmbio'] },
-      { name: 'Ibovespa', keywords: ['ibovespa', 'b3', 'ações', 'bolsa', 'índice'] },
-      { name: 'Bitcoin', keywords: ['bitcoin', 'btc', 'cripto'] },
-      { name: 'Euro', keywords: ['euro', 'eur'] },
-      { name: 'Juros', keywords: ['juros', 'selic', 'copom', 'inflação'] },
+      { name: "Dólar", keywords: ["dólar", "dolar", "usd", "câmbio"] },
+      { name: "Ibovespa", keywords: ["ibovespa", "b3", "ações", "bolsa", "índice"] },
+      { name: "Bitcoin", keywords: ["bitcoin", "btc", "cripto"] },
+      { name: "Euro", keywords: ["euro", "eur"] },
+      { name: "Juros", keywords: ["juros", "selic", "copom", "inflação"] },
     ];
     const topicScores = new Map();
-    assets.forEach(asset => topicScores.set(asset.name, { count: 0, latestArticle: null }));
-    marketNews.forEach(article => {
+    assets.forEach((asset) => topicScores.set(asset.name, { count: 0, latestArticle: null }));
+    marketNews.forEach((article) => {
       const title = article.title.toLowerCase();
       for (const asset of assets) {
-        if (asset.keywords.some(k => title.includes(k))) {
+        if (asset.keywords.some((k) => title.includes(k))) {
           const score = topicScores.get(asset.name);
           score.count++;
           if (!score.latestArticle || new Date(article.rawDate) > new Date(score.latestArticle.rawDate)) {
@@ -4008,30 +4042,28 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
     return { topMovers, allAssets: assets };
   }, [newsData]);
 
-  // Função para chamar a IA (NOME ORIGINAL MANTIDO)
   const runAI = async () => {
-    setStatus('loading');
+    setStatus("loading");
     const result = await generateMarketAnalysis(newsData, apiKey);
     if (result) {
       setAnalysisData(result);
-      setStatus('success');
+      setStatus("success");
     } else {
-      setStatus('idle');
+      setStatus("idle");
     }
   };
 
-  // Helper para classes de borda da IA (NOME ORIGINAL MANTIDO)
   const getTrendBorder = (trend) => {
-    if (trend === 'up') return 'border-emerald-500';
-    if (trend === 'down') return 'border-rose-500';
-    return 'border-blue-500'; // Azul para estável/neutro
+    if (trend === "up") return "border-emerald-500";
+    if (trend === "down") return "border-rose-500";
+    return "border-blue-500";
   };
 
   // =========================
   // ✅ RENDERIZAÇÃO (VISUAL NOVO)
   // =========================
 
-  if (status === 'loading') {
+  if (status === "loading") {
     return (
       <CardShell>
         <div className="h-[400px] flex flex-col items-center justify-center text-center gap-4">
@@ -4039,24 +4071,24 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
             <div className="absolute inset-0 rounded-3xl bg-purple-500/30 blur-2xl animate-pulse" />
             <div
               className={`relative w-16 h-16 rounded-2xl flex items-center justify-center border
-              ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`}
+              ${isDarkMode ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"}`}
             >
               <BrainCircuit size={30} className="text-purple-400" />
             </div>
           </div>
 
           <div className="space-y-1">
-            <h3 className={`text-lg font-extrabold tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+            <h3 className={`text-lg font-extrabold tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
               Market Pulse em tempo real
             </h3>
-            <p className={`${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'} text-sm max-w-xs`}>
+            <p className={`${isDarkMode ? "text-zinc-300" : "text-zinc-600"} text-sm max-w-xs`}>
               A IA está correlacionando notícias e sinais para gerar um briefing financeiro curto e objetivo.
             </p>
           </div>
 
           <div
             className={`mt-2 px-3 py-1.5 rounded-full text-[11px] font-bold border
-            ${isDarkMode ? 'border-white/10 bg-black/20 text-white/70' : 'border-black/10 bg-white/50 text-zinc-700'}`}
+            ${isDarkMode ? "border-white/10 bg-black/20 text-white/70" : "border-black/10 bg-white/50 text-zinc-700"}`}
           >
             Gemini • análise contextual • baixa latência
           </div>
@@ -4065,20 +4097,19 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
     );
   }
 
-  if (status === 'success' && analysisData) {
+  if (status === "success" && analysisData) {
     return (
       <CardShell>
         <div className="space-y-4 animate-in fade-in">
-          {/* HERO HEADER */}
           <div
             className={`relative overflow-hidden rounded-2xl border p-4
-            ${isDarkMode ? 'border-white/10 bg-black/30' : 'border-black/10 bg-white/60'}`}
+            ${isDarkMode ? "border-white/10 bg-black/30" : "border-black/10 bg-white/60"}`}
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div
                   className={`w-9 h-9 rounded-xl flex items-center justify-center border
-                  ${isDarkMode ? 'border-white/10 bg-white/5' : 'border-black/10 bg-black/5'}`}
+                  ${isDarkMode ? "border-white/10 bg-white/5" : "border-black/10 bg-black/5"}`}
                 >
                   <BrainCircuit size={18} className="text-purple-400" />
                 </div>
@@ -4086,27 +4117,25 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
                   <div className="text-[10px] font-black uppercase tracking-[0.22em] text-purple-400">
                     Análise do Dia
                   </div>
-                  <div className={`text-xs font-bold ${isDarkMode ? 'text-white/70' : 'text-zinc-700'}`}>
+                  <div className={`text-xs font-bold ${isDarkMode ? "text-white/70" : "text-zinc-700"}`}>
                     {analysisData.market_status}
                   </div>
                 </div>
               </div>
 
               <button
-                onClick={() => setStatus('idle')}
+                type="button"
+                onClick={() => setStatus("idle")}
                 className={`text-[11px] font-extrabold px-3 py-1.5 rounded-full border
                 ${isDarkMode
-                  ? 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10'
-                  : 'border-black/10 bg-black/5 text-zinc-800 hover:bg-black/10'}`}
+                  ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                  : "border-black/10 bg-black/5 text-zinc-800 hover:bg-black/10"}`}
               >
                 Voltar
               </button>
             </div>
 
-            <h3
-              className={`mt-3 text-[15px] font-extrabold leading-snug tracking-tight
-              ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}
-            >
+            <h3 className={`mt-3 text-[15px] font-extrabold leading-snug tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
               {analysisData.summary}
             </h3>
 
@@ -4115,31 +4144,31 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
             </div>
           </div>
 
-          {/* MOVERS */}
           <div className="grid grid-cols-1 gap-3">
             {analysisData.movers.map((mover, idx) => (
               <div
                 key={idx}
                 className={`rounded-2xl border-2 p-4 backdrop-blur-md
-                ${isDarkMode ? 'bg-black/25' : 'bg-white/60'} ${getTrendBorder(mover.trend)}`}
+                ${isDarkMode ? "bg-black/25" : "bg-white/60"} ${getTrendBorder(mover.trend)}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className={`text-sm font-extrabold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                    <div className={`text-sm font-extrabold ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
                       {mover.asset}
                     </div>
-                    <div className={`mt-1 text-xs leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                    <div className={`mt-1 text-xs leading-relaxed ${isDarkMode ? "text-zinc-300" : "text-zinc-700"}`}>
                       {mover.reason}
                     </div>
                   </div>
 
                   {mover.article && (
                     <button
+                      type="button"
                       onClick={() => openArticle(mover.article)}
                       className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-extrabold border
                       ${isDarkMode
-                        ? 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10'
-                        : 'border-black/10 bg-black/5 text-zinc-800 hover:bg-black/10'}`}
+                        ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                        : "border-black/10 bg-black/5 text-zinc-800 hover:bg-black/10"}`}
                     >
                       <img src={mover.article.logo} className="w-4 h-4 rounded-full" />
                       Fonte
@@ -4154,15 +4183,13 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
     );
   }
 
-  // ESTADO PADRÃO (HEURÍSTICO)
   return (
     <CardShell>
       <div className="space-y-4">
-        {/* Persistência da última análise */}
         {analysisData && (
           <div
             className={`rounded-2xl border p-4 text-center backdrop-blur-md animate-in fade-in
-            ${isDarkMode ? 'border-white/10 bg-black/25' : 'border-black/10 bg-white/60'}`}
+            ${isDarkMode ? "border-white/10 bg-black/25" : "border-black/10 bg-white/60"}`}
           >
             <div className="flex items-center justify-center gap-2 mb-2">
               <BrainCircuit size={14} className="text-purple-400" />
@@ -4170,19 +4197,18 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
                 Última Análise IA
               </span>
             </div>
-            <h3 className={`text-sm font-extrabold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+            <h3 className={`text-sm font-extrabold ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
               {analysisData.summary}
             </h3>
           </div>
         )}
 
-        {/* TOP BAR PREMIUM */}
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-0.5">
-            <div className={`text-[10px] font-black uppercase tracking-[0.25em] ${isDarkMode ? 'text-white/50' : 'text-zinc-600'}`}>
+            <div className={`text-[10px] font-black uppercase tracking-[0.25em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>
               Market Pulse
             </div>
-            <div className={`text-sm font-extrabold tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+            <div className={`text-sm font-extrabold tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
               Briefing financeiro com sinais e notícias
             </div>
           </div>
@@ -4201,6 +4227,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
             )}
 
             <button
+              type="button"
               onClick={runAI}
               className="flex items-center gap-2 px-3 py-2 rounded-full text-[11px] font-extrabold
               bg-purple-600 text-white shadow-lg shadow-purple-500/30 hover:bg-purple-500 transition"
@@ -4210,12 +4237,11 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
           </div>
         </div>
 
-        {/* Destaques do dia */}
         <div className="flex items-center justify-between">
-          <h4 className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? 'text-white/50' : 'text-zinc-600'}`}>
+          <h4 className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>
             Destaques do Dia
           </h4>
-          <div className={`text-[10px] font-mono ${isDarkMode ? 'text-white/40' : 'text-zinc-500'}`}>
+          <div className={`text-[10px] font-mono ${isDarkMode ? "text-white/40" : "text-zinc-500"}`}>
             heurística
           </div>
         </div>
@@ -4225,21 +4251,22 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
             <div
               key={idx}
               className={`p-4 rounded-2xl flex flex-col justify-between h-36 border backdrop-blur-md
-              ${isDarkMode ? 'bg-black/25 border-white/10' : 'bg-white/60 border-black/10'}`}
+              ${isDarkMode ? "bg-black/25 border-white/10" : "bg-white/60 border-black/10"}`}
             >
               <div>
-                <span className={`text-xs font-extrabold uppercase tracking-wider ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                <span className={`text-xs font-extrabold uppercase tracking-wider ${isDarkMode ? "text-purple-300" : "text-purple-700"}`}>
                   {name}
                 </span>
-                <h4 className={`font-extrabold text-sm leading-tight line-clamp-2 mt-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                <h4 className={`font-extrabold text-sm leading-tight line-clamp-2 mt-1 ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
                   {article.title}
                 </h4>
               </div>
 
               <button
+                type="button"
                 onClick={() => openArticle(article)}
                 className={`flex items-center gap-2 text-xs font-extrabold transition-colors self-start
-                ${isDarkMode ? 'text-white/70 hover:text-white' : 'text-zinc-700 hover:text-zinc-900'}`}
+                ${isDarkMode ? "text-white/70 hover:text-white" : "text-zinc-700 hover:text-zinc-900"}`}
               >
                 <img src={article.logo} className="w-4 h-4 rounded-full" />
                 Ler na fonte
@@ -4248,8 +4275,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
           ))}
         </div>
 
-        {/* Explorar ativos */}
-        <h4 className={`text-[10px] font-black uppercase tracking-[0.22em] pt-2 ${isDarkMode ? 'text-white/50' : 'text-zinc-600'}`}>
+        <h4 className={`text-[10px] font-black uppercase tracking-[0.22em] pt-2 ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>
           Explorar Ativos
         </h4>
 
