@@ -7864,7 +7864,7 @@ const runSuperPrompt = useCallback(async () => {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ 
                   fullText: fullText,
-                  apiKeyFromFrontend: fallbackKey
+                  apiKeyFromFrontend: null
               })
           });
           
