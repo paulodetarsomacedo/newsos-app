@@ -7669,16 +7669,28 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
 
 
 // --- FUNÇÃO DE IA HÍBRIDA E FINAL ---
+// 1. Defina o endereço do seu site (IMPORTANTE: Sem a barra '/' no final)
+// Troque pelo seu link real se for diferente deste
+const VERCEL_URL = "https://newsos-app2.vercel.app"; 
+
+// --- FUNÇÃO DE IA HÍBRIDA (Compatível com Web e iPad) ---
 const generateChatResponse = async (chatHistory, articleText, apiKeyFromModal) => {
-  // apiKeyFromModal é a chave que vem do seu getChatApiKey()
   try {
-    const response = await fetch('/api/chat', {
+    // Monta a URL
+    const apiUrl = `${VERCEL_URL}/api/chat`;
+    
+    // --- ADICIONE ESTA LINHA AQUI ---
+    console.log("TENTANDO ACESSAR A URL:", apiUrl); 
+    // --------------------------------
+
+    // Se a URL estiver errada, o erro acontece NESTA linha abaixo:
+    const response = await fetch(apiUrl, { 
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
           chatHistory, 
           articleText, 
-          apiKeyFromFrontend: apiKeyFromModal // <<<<<< ENVIAMOS A CHAVE DO MODAL AQUI
+          apiKeyFromFrontend: apiKeyFromModal 
       })
     });
 
@@ -7691,7 +7703,7 @@ const generateChatResponse = async (chatHistory, articleText, apiKeyFromModal) =
     return data.text;
 
   } catch (e) {
-    console.error("Erro ao chamar o backend:", e);
+    console.error("Erro detalhado:", e);
     return `Houve um problema de conexão: ${e.message}`;
   }
 };
