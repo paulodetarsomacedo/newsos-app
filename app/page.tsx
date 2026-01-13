@@ -7827,9 +7827,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   }, [article?.id, isOpen]);
 
   // A NOVA FUNÇÃO SINCRONIZADA COM A REALIDADE
-  const runSuperPrompt = useCallback(async () => {
-      // Nota: Removemos a verificação de !apiKey aqui para permitir o uso do backend seguro
-      // mesmo se o usuário não tiver colocado chave.
+const runSuperPrompt = useCallback(async () => {
       if (!article.link) {
           setLoadingState('error');
           return;
@@ -7840,7 +7838,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setLoadingStep(0); 
           await new Promise(r => setTimeout(r, 600));
 
-          // --- ETAPA 1: EXTRAÇÃO (MANTIDA IGUAL) ---
+          // --- ETAPA 1: EXTRAÇÃO ---
           setLoadingStep(1);
           
           const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
@@ -7854,12 +7852,13 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setLoadingStep(2); 
           setLoadingState('analyzing'); 
 
-          // Se você quiser passar a chave antiga como fallback, pode passar.
-          // Se quiser forçar o uso da produção, passe null ou remova.
-          // Aqui mantive passando para garantir retrocompatibilidade se o backend falhar.
-          const fallbackKey = apiKey || (getChatApiKey ? getChatApiKey() : null);
+          // --- AQUI ESTÁ A CORREÇÃO ---
+          // Removemos a rotação automática. 
+          // Se o usuário não digitou chave no modal (apiKey), enviamos null.
+          // Isso força o backend (api/analyze.js) a usar a Conta de Serviço (Produção).
+          const fallbackKey = apiKey || null; 
 
-          // URL EXPLICITA PARA O IPAD NÃO RECLAMAR
+          // URL EXPLICITA PARA O IPAD
           const response = await fetch("https://newsos-app2.vercel.app/api/analyze", {
               method: "POST", 
               headers: { "Content-Type": "application/json" },
@@ -7876,7 +7875,6 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setLoadingStep(3);
           await new Promise(r => setTimeout(r, 400));
 
-          // O backend já nos devolve o objeto JSON pronto! Não precisa de JSON.parse aqui.
           setAiData(jsonRes);
           
           // --- FINALIZAÇÃO ---
@@ -7888,7 +7886,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           console.error("Erro no runSuperPrompt:", err);
           setLoadingState('error'); 
       }
-  }, [apiKey, article, getChatApiKey]);
+  }, [apiKey, article]); // Removi getChatApiKey das dependências pois não usamos mais
 
   
 const handleNodeClick = useCallback((nodeName, position) => {
