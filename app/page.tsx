@@ -3658,49 +3658,7 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
   }
 };
 
-// --- FUNÇÃO 2: ANÁLISE COMPLETA (Ainda no método antigo/direto por enquanto) ---
-const generateFullAnalysis = async (text: string, apiKey: string) => {
-  if (!text || text.length < 100 || !apiKey) return null;
 
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 12000);
-
-  const prompt = `
-  Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
-  GERE UM JSON ESTRITO COM ESTA ESTRUTURA EXATA (Tudo em PT-BR):
-  {
-    "summaries": { "executive": "...", "tldr": "...", "eli5": "...", "bullets": [] },
-    "mindmap": { "center": "...", "nodes": [] },
-    "contextualTerms": [ { "term": "...", "context": "...", "sentiment": "neutral", "evidence_quotes": [] } ],
-    "timeline": [ { "time": "...", "event": "..." } ],
-    "future": { "optimistic": "...", "pessimistic": "...", "probable": "..." }
-  }
-  TEXTO: ${cleanText}
-  `;
-
-  try {
-    // Nota: Futuramente, moveremos isso para /api/analyze também para segurança total
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
-    });
-
-    const data = await response.json();
-    if (!response.ok || data.error) throw new Error(data.error?.message || "Erro API");
-
-    const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text
-        .replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    return JSON.parse(jsonString);
-
-  } catch (error) {
-    console.error("Erro Full Analysis:", error);
-    return null;
-  }
-};
 
 // --- NOVO SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO (COM ACORDEÃO) ---
 const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
