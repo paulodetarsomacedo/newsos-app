@@ -1179,10 +1179,10 @@ const NewsCard = React.memo(({
           
           {/* PÍLULA FLUTUANTE DE AÇÃO */}
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-            <div className="flex items-center shadow-2xl rounded-full p-1.5 bg-black/20 backdrop-blur-xl border border-white/20">
+            <div className="flex items-center shadow-2xl rounded-full p-1.5 bg-white/80 backdrop-blur border border-white/20">
                 <button 
                   onClick={(e) => { e.stopPropagation(); onClick(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-transparent hover:bg-white/10 transition-colors"
+                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-violet-600 bg-transparent hover:bg-white/10 transition-colors"
                 >
                   Ler
                 </button>
@@ -7828,22 +7828,20 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
 
   // A NOVA FUNÇÃO SINCRONIZADA COM A REALIDADE
   const runSuperPrompt = useCallback(async () => {
-      if (!apiKey || !article.link) {
+      // Nota: Removemos a verificação de !apiKey aqui para permitir o uso do backend seguro
+      // mesmo se o usuário não tiver colocado chave.
+      if (!article.link) {
           setLoadingState('error');
           return;
       }
       
       try {
           // --- ETAPA 0: CONEXÃO ---
-          // Começa imediatamente
           setLoadingStep(0); 
-          
-          // Pequeno delay artificial (500ms) só para o usuário ler "Conectando..." 
-          // senão é rápido demais e parece glitch
           await new Promise(r => setTimeout(r, 600));
 
-          // --- ETAPA 1: EXTRAÇÃO (SUPABASE/PROXY) ---
-          setLoadingStep(1); // Atualiza a barra visual para "Extraindo..."
+          // --- ETAPA 1: EXTRAÇÃO (MANTIDA IGUAL) ---
+          setLoadingStep(1);
           
           const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
           
@@ -7852,81 +7850,45 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           const fullText = proxyData.reader.textContent;
           setReaderContent(proxyData.reader); 
 
-          // --- ETAPA 2: ANÁLISE (GEMINI) ---
-          setLoadingStep(2); // Atualiza a barra visual para "Processando parâmetros..."
-          setLoadingState('analyzing'); // Mantém estado interno
+          // --- ETAPA 2: ANÁLISE (VIA VERCEL BACKEND) ---
+          setLoadingStep(2); 
+          setLoadingState('analyzing'); 
 
-const prompt = `
-  Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
-  
-  GERE UM JSON ESTRITO COM ESTA ESTRUTURA EXATA (Tudo em PT-BR):
-  {
-    "summaries": {
-      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos e bem explicados).",
-      "tldr": "Resumo em 1 única frase de impacto (Too Long Didn't Read).",
-      "eli5": "Explicação didática como se fosse para uma criança de 5 anos (analogias).",
-      "bullets": ["Ponto chave 1", "Ponto chave 2", "Ponto chave 3", "Ponto chave 4"]
-    },
-    "mindmap": {
-    "center": "Tema Central (Max 3 palavras)",
-    "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"]
-},
-"contextualTerms": [
-    {
-        "term": "Nó A (Nome exato do nó do mindmap)",
-        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. SEJA DENSO E DETALHADO. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
-        "sentiment": "neutral", 
-        "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
-    },
-    { "term": "Nó B", "context": "...", "sentiment": "positive", "evidence_quotes": ["..."] },
-    { "term": "Nó C", "context": "...", "sentiment": "negative", "evidence_quotes": ["..."] },
-    { "term": "Nó D", "context": "...", "sentiment": "neutral", "evidence_quotes": ["..."] }
-],
-    "timeline": [
-                      { "time": "Passado (Causa Raiz)", "event": "O que causou o contexto geral desta notícia?" },
-                      { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
-                      { "time": "Hoje (Fato Principal)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
-                  ],
-    "future": {
-      "optimistic": "Melhor cenário possível a longo prazo.",
-      "pessimistic": "Pior cenário/Riscos envolvidos.",
-      "probable": "O que realmente deve acontecer (análise realista)."
-    }
-  }
- "future": { "optimistic": "...", "pessimistic": "...", "probable": "..." } } TEXTO: ${fullText.slice(0, 25000)}`;
-          
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+          // Se você quiser passar a chave antiga como fallback, pode passar.
+          // Se quiser forçar o uso da produção, passe null ou remova.
+          // Aqui mantive passando para garantir retrocompatibilidade se o backend falhar.
+          const fallbackKey = apiKey || (getChatApiKey ? getChatApiKey() : null);
+
+          // URL EXPLICITA PARA O IPAD NÃO RECLAMAR
+          const response = await fetch("https://newsos-app2.vercel.app/api/analyze", {
               method: "POST", 
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
+              body: JSON.stringify({ 
+                  fullText: fullText,
+                  apiKeyFromFrontend: fallbackKey
+              })
           });
           
           const jsonRes = await response.json();
-          if (!response.ok) throw new Error(jsonRes.error?.message);
+          if (!response.ok) throw new Error(jsonRes.error || "Erro na análise");
 
-          // --- ETAPA 3: SÍNTESE (JSON PARSE) ---
-          setLoadingStep(3); // Atualiza a barra visual para "Sintetizando..."
-          
-          // Parsing é muito rápido, damos um delay minúsculo para a animação da barra anterior terminar
+          // --- ETAPA 3: SÍNTESE ---
+          setLoadingStep(3);
           await new Promise(r => setTimeout(r, 400));
 
-          const textRes = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text;
-          const finalData = JSON.parse(textRes.replace(/```json/g, '').replace(/```/g, '').trim());
-          
-          setAiData(finalData);
+          // O backend já nos devolve o objeto JSON pronto! Não precisa de JSON.parse aqui.
+          setAiData(jsonRes);
           
           // --- FINALIZAÇÃO ---
-          // Marca tudo como completo
           setLoadingStep(4); 
-          await new Promise(r => setTimeout(r, 800)); // Deixa o usuário ver todas as barras verdes por um instante
+          await new Promise(r => setTimeout(r, 800)); 
           setLoadingState('complete');
 
       } catch (err) { 
-          console.error(err);
+          console.error("Erro no runSuperPrompt:", err);
           setLoadingState('error'); 
       }
-  }, [apiKey, article]);
-
+  }, [apiKey, article, getChatApiKey]);
 
   
 const handleNodeClick = useCallback((nodeName, position) => {
