@@ -3660,138 +3660,20 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 
 
 
-// --- NOVO SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO (COM ACORDEÃO) ---
-const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  // Encontra as notícias relacionadas a este ativo para mostrar no acordeão
-  const relatedArticles = useMemo(() => {
-    if (!allNews || !asset.keywords) return [];
-    return allNews
-      .filter((n) => {
-        const title = (n.title || "").toLowerCase();
-        return asset.keywords.some((k) => title.includes(k));
-      })
-      .slice(0, 4);
-  }, [asset.keywords, allNews]);
-
-  const getIcon = (assetName) => {
-    const name = (assetName || "").toUpperCase();
-    if (name.includes("BTC") || name.includes("BITCOIN")) return <Bitcoin size={20} />;
-    if (name.includes("USD") || name.includes("DÓLAR") || name.includes("DOLAR")) return <DollarSign size={20} />;
-    if (name.includes("EUR") || name.includes("EURO")) return <Euro size={20} />;
-    if (name.includes("IBOV") || name.includes("BOLSA")) return <Activity size={20} />;
-    return <TrendingUp size={20} />;
-  };
-
-  // ✅ Função de Toggle Simples (sem complexidade extra)
-  const toggleCard = () => setIsOpen(!isOpen);
-
-  return (
-    <div
-      className={`relative z-10 rounded-2xl transition-all duration-300 overflow-hidden border backdrop-blur-md
-      ${isDarkMode ? "bg-black/25 border-white/10" : "bg-white/60 border-black/10"}
-      hover:shadow-[0_20px_60px_-35px_rgba(0,0,0,0.85)]`}
-    >
-      {/* 
-         ✅ MUDANÇA ESTRUTURAL 1: O botão de toggle é EXCLUSIVO do cabeçalho.
-         Ele não envolve o conteúdo das notícias.
-      */}
-      <button
-        type="button"
-        onClick={toggleCard}
-        className={`p-4 w-full text-left outline-none flex justify-between items-center group
-        ${isDarkMode ? "hover:bg-white/5" : "hover:bg-black/[0.03]"} transition-colors`}
-        aria-expanded={isOpen}
-      >
-        <div className="flex items-center gap-4 min-w-0">
-          <div
-            className={`p-2 rounded-xl border flex items-center justify-center
-            ${isDarkMode ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"}
-            text-purple-400`}
-          >
-            {getIcon(asset.name)}
-          </div>
-
-          <div className="min-w-0">
-            <div className={`text-[11px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>
-              Ativo
-            </div>
-            <div
-              className={`text-base font-extrabold tracking-tight truncate ${isDarkMode ? "text-white" : "text-zinc-900"}`}
-            >
-              {asset.name}
-            </div>
-          </div>
-        </div>
-
-        <div className={`transition-transform duration-300 ${isOpen ? "rotate-90" : "rotate-0"}`}>
-          <ChevronRight size={20} className={`${isDarkMode ? "text-white/50" : "text-zinc-500"}`} />
-        </div>
-      </button>
-
-      {/* 
-         ✅ MUDANÇA ESTRUTURAL 2: Área de conteúdo isolada.
-         Qualquer clique aqui dentro NUNCA vai disparar o botão acima, pois não é filho dele.
-      */}
-      <div 
-        className={`grid transition-all duration-500 ease-in-out ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div className={`border-t px-2 pb-2 pt-2 space-y-1 ${isDarkMode ? "border-white/10 bg-black/20" : "border-black/10 bg-white/40"}`}>
-            {relatedArticles.length > 0 ? (
-              relatedArticles.map((news) => (
-                <button
-                  key={news.id || news.link}
-                  type="button"
-                  // ✅ Ação Limpa: Apenas chama a função, sem brigar com eventos
-                  onClick={(e) => {
-                    // Impede que qualquer listener global capture isso (opcional, mas seguro)
-                    e.stopPropagation(); 
-                    openArticle(news);
-                  }}
-                  className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group
-                  ${isDarkMode ? "hover:bg-white/10" : "hover:bg-black/5"}`}
-                >
-                  <img
-                    src={news.logo}
-                    className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover"
-                    alt=""
-                    onError={(e) => (e.currentTarget.style.display = "none")}
-                  />
-                  <span className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? "text-zinc-300 group-hover:text-white" : "text-zinc-700 group-hover:text-black"}`}>
-                    {news.title}
-                  </span>
-                </button>
-              ))
-            ) : (
-              <div className={`p-3 text-center text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? "text-white/40" : "text-zinc-500"}`}>
-                Sem notícias recentes.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 
 
 
 
 
 // --- WIDGET: MARKET PULSE (V7 - DESIGN PREMIUM COM BACKDROP FINANCEIRO) ---
-// --- WIDGET: MARKET PULSE (V7 - DESIGN PREMIUM COM BACKDROP FINANCEIRO) ---
-// --- WIDGET: MARKET PULSE (V7 - DESIGN PREMIUM COM BACKDROP FINANCEIRO) ---
+// --- WIDGET: MARKET PULSE (V7 - FIX TOUCH) ---
 const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
   const [analysisData, setAnalysisData] = useState(null);
-  const [status, setStatus] = useState("idle"); // 'idle' | 'loading' | 'success'
+  const [status, setStatus] = useState("idle");
 
-  // =========================
-  // ✅ VISUAIS AUXILIARES (NÃO MEXEM NA LÓGICA)
-  // =========================
+  // ... (FinanceBackdrop permanece igual, omitido para brevidade) ...
   const FinanceBackdrop = ({ isDarkMode }) => {
+    /* ... cole o código do FinanceBackdrop aqui ... */
     const svg = encodeURIComponent(`
       <svg xmlns='http://www.w3.org/2000/svg' width='1200' height='800' viewBox='0 0 1200 800'>
         <defs>
@@ -3800,30 +3682,19 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
             <stop offset='0.55' stop-color='${isDarkMode ? "#06b6d4" : "#22c55e"}' stop-opacity='0.18'/>
             <stop offset='1' stop-color='${isDarkMode ? "#0b1020" : "#ffffff"}' stop-opacity='0'/>
           </linearGradient>
-
           <pattern id='grid' width='48' height='48' patternUnits='userSpaceOnUse'>
             <path d='M 48 0 L 0 0 0 48' fill='none' stroke='${isDarkMode ? "#ffffff" : "#0f172a"}' stroke-opacity='0.08' stroke-width='1'/>
           </pattern>
-
           <filter id='blurGlow' x='-20%' y='-20%' width='140%' height='140%'>
             <feGaussianBlur stdDeviation='16' result='b'/>
-            <feColorMatrix in='b' type='matrix'
-              values='1 0 0 0 0
-                      0 1 0 0 0
-                      0 0 1 0 0
-                      0 0 0 0.9 0' />
+            <feColorMatrix in='b' type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.9 0' />
           </filter>
         </defs>
-
         <rect width='1200' height='800' fill='url(#g1)'/>
         <rect width='1200' height='800' fill='url(#grid)'/>
-
         <circle cx='280' cy='230' r='180' fill='${isDarkMode ? "#a855f7" : "#7c3aed"}' opacity='0.18' filter='url(#blurGlow)'/>
         <circle cx='900' cy='520' r='220' fill='${isDarkMode ? "#22c55e" : "#06b6d4"}' opacity='0.12' filter='url(#blurGlow)'/>
-
-        <path d='M80 560 C 260 460, 360 620, 520 520 S 780 380, 920 430 S 1080 540, 1140 360'
-          fill='none' stroke='${isDarkMode ? "#e879f9" : "#7c3aed"}' stroke-opacity='0.35' stroke-width='4'/>
-
+        <path d='M80 560 C 260 460, 360 620, 520 520 S 780 380, 920 430 S 1080 540, 1140 360' fill='none' stroke='${isDarkMode ? "#e879f9" : "#7c3aed"}' stroke-opacity='0.35' stroke-width='4'/>
         <g stroke-linecap='round' stroke='${isDarkMode ? "#ffffff" : "#0f172a"}' stroke-opacity='0.18'>
           <line x1='220' y1='500' x2='220' y2='610' stroke-width='3'/>
           <line x1='300' y1='420' x2='300' y2='560' stroke-width='3'/>
@@ -3836,7 +3707,6 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
           <line x1='860' y1='420' x2='860' y2='610' stroke-width='3'/>
           <line x1='940' y1='390' x2='940' y2='540' stroke-width='3'/>
         </g>
-
         <g opacity='0.28'>
           <rect x='212' y='540' width='16' height='40' rx='4' fill='#22c55e'/>
           <rect x='292' y='470' width='16' height='54' rx='4' fill='#ef4444'/>
@@ -3851,47 +3721,22 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
         </g>
       </svg>
     `);
-
     return (
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 overflow-hidden rounded-[1.75rem] z-0"
-      >
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,${svg}")`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        />
-        <div
-          className={`absolute inset-0 ${isDarkMode ? "opacity-[0.10]" : "opacity-[0.06]"} mix-blend-overlay`}
-          style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E\")",
-          }}
-        />
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[1.75rem] z-0">
+        <div className="absolute inset-0" style={{ backgroundImage: `url("data:image/svg+xml,${svg}")`, backgroundSize: "cover", backgroundPosition: "center" }} />
+        <div className={`absolute inset-0 ${isDarkMode ? "opacity-[0.10]" : "opacity-[0.06]"} mix-blend-overlay`} style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E\")" }} />
         <div className={`absolute inset-0 ${isDarkMode ? "bg-zinc-950/35" : "bg-white/35"}`} />
       </div>
     );
   };
 
   const CardShell = ({ children }) => (
-    <div
-      className={`relative rounded-[1.75rem] border overflow-hidden
-      ${isDarkMode ? "border-white/10 bg-zinc-950" : "border-zinc-200 bg-white"}
-      shadow-[0_25px_70px_-35px_rgba(0,0,0,0.8)]`}
-    >
+    <div className={`relative rounded-[1.75rem] border overflow-hidden ${isDarkMode ? "border-white/10 bg-zinc-950" : "border-zinc-200 bg-white"} shadow-[0_25px_70px_-35px_rgba(0,0,0,0.8)]`}>
       <FinanceBackdrop isDarkMode={isDarkMode} />
-      {/* ✅ GARANTE que todo conteúdo clicável fica ACIMA do backdrop */}
       <div className="relative z-10 p-5">{children}</div>
     </div>
   );
 
-  // =========================
-  // ✅ LÓGICA ORIGINAL (INALTERADA)
-  // =========================
   const isMarketOpen = useMemo(() => {
     const currentHour = new Date().getHours();
     return currentHour >= 9 && currentHour < 18;
@@ -3948,9 +3793,6 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
     return "border-blue-500";
   };
 
-  // =========================
-  // ✅ RENDERIZAÇÃO
-  // =========================
   if (status === "loading") {
     return (
       <CardShell>
@@ -3961,19 +3803,11 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
               <BrainCircuit size={30} className="text-purple-400" />
             </div>
           </div>
-
           <div className="space-y-1">
-            <h3 className={`text-lg font-extrabold tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
-              Market Pulse em tempo real
-            </h3>
-            <p className={`${isDarkMode ? "text-zinc-300" : "text-zinc-600"} text-sm max-w-xs`}>
-              A IA está correlacionando notícias e sinais para gerar um briefing financeiro curto e objetivo.
-            </p>
+            <h3 className={`text-lg font-extrabold tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>Market Pulse em tempo real</h3>
+            <p className={`${isDarkMode ? "text-zinc-300" : "text-zinc-600"} text-sm max-w-xs`}>A IA está correlacionando notícias e sinais para gerar um briefing financeiro curto e objetivo.</p>
           </div>
-
-          <div className={`mt-2 px-3 py-1.5 rounded-full text-[11px] font-bold border ${isDarkMode ? "border-white/10 bg-black/20 text-white/70" : "border-black/10 bg-white/50 text-zinc-700"}`}>
-            Gemini • análise contextual • baixa latência
-          </div>
+          <div className={`mt-2 px-3 py-1.5 rounded-full text-[11px] font-bold border ${isDarkMode ? "border-white/10 bg-black/20 text-white/70" : "border-black/10 bg-white/50 text-zinc-700"}`}>Gemini • análise contextual • baixa latência</div>
         </div>
       </CardShell>
     );
@@ -3994,26 +3828,19 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
                   <div className={`text-xs font-bold ${isDarkMode ? "text-white/70" : "text-zinc-700"}`}>{analysisData.market_status}</div>
                 </div>
               </div>
-
               <button
                 type="button"
                 onClick={() => setStatus("idle")}
-                className={`text-[11px] font-extrabold px-3 py-1.5 rounded-full border
-                ${isDarkMode ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/10" : "border-black/10 bg-black/5 text-zinc-800 hover:bg-black/10"}`}
+                // ✅ CORREÇÃO TOUCH: 'hover:' mudado para 'active:' e hover só em desktop
+                className={`text-[11px] font-extrabold px-3 py-1.5 rounded-full border active:scale-95 transition-transform
+                ${isDarkMode ? "border-white/10 bg-white/5 text-white/80 md:hover:bg-white/10" : "border-black/10 bg-black/5 text-zinc-800 md:hover:bg-black/10"}`}
               >
                 Voltar
               </button>
             </div>
-
-            <h3 className={`mt-3 text-[15px] font-extrabold leading-snug tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
-              {analysisData.summary}
-            </h3>
-
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-[10px] font-mono opacity-60">Análise via Gemini 1.5 Flash</span>
-            </div>
+            <h3 className={`mt-3 text-[15px] font-extrabold leading-snug tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>{analysisData.summary}</h3>
+            <div className="mt-3 flex items-center justify-between"><span className="text-[10px] font-mono opacity-60">Análise via Gemini 1.5 Flash</span></div>
           </div>
-
           <div className="grid grid-cols-1 gap-3">
             {analysisData.movers.map((mover, idx) => (
               <div key={idx} className={`rounded-2xl border-2 p-4 backdrop-blur-md ${isDarkMode ? "bg-black/25" : "bg-white/60"} ${getTrendBorder(mover.trend)}`}>
@@ -4022,13 +3849,13 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
                     <div className={`text-sm font-extrabold ${isDarkMode ? "text-white" : "text-zinc-900"}`}>{mover.asset}</div>
                     <div className={`mt-1 text-xs leading-relaxed ${isDarkMode ? "text-zinc-300" : "text-zinc-700"}`}>{mover.reason}</div>
                   </div>
-
                   {mover.article && (
                     <button
                       type="button"
                       onClick={() => openArticle(mover.article)}
-                      className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-extrabold border
-                      ${isDarkMode ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/10" : "border-black/10 bg-black/5 text-zinc-800 hover:bg-black/10"}`}
+                      // ✅ CORREÇÃO TOUCH
+                      className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-extrabold border active:scale-95 transition-transform
+                      ${isDarkMode ? "border-white/10 bg-white/5 text-white/80 md:hover:bg-white/10" : "border-black/10 bg-black/5 text-zinc-800 md:hover:bg-black/10"}`}
                     >
                       <img src={mover.article.logo} className="w-4 h-4 rounded-full" />
                       Fonte
@@ -4055,45 +3882,31 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
             <h3 className={`text-sm font-extrabold ${isDarkMode ? "text-white" : "text-zinc-900"}`}>{analysisData.summary}</h3>
           </div>
         )}
-
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-0.5">
-            <div className={`text-[10px] font-black uppercase tracking-[0.25em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>
-              Market Pulse
-            </div>
-            <div className={`text-sm font-extrabold tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>
-              Briefing financeiro com sinais e notícias
-            </div>
+            <div className={`text-[10px] font-black uppercase tracking-[0.25em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>Market Pulse</div>
+            <div className={`text-sm font-extrabold tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>Briefing financeiro com sinais e notícias</div>
           </div>
-
           <div className="flex items-center gap-2">
             {isMarketOpen ? (
-              <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-extrabold uppercase">
-                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /> Aberto
-              </div>
+              <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-extrabold uppercase"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /> Aberto</div>
             ) : (
-              <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] font-extrabold uppercase">
-                <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full" /> Fechado
-              </div>
+              <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] font-extrabold uppercase"><span className="w-1.5 h-1.5 bg-zinc-400 rounded-full" /> Fechado</div>
             )}
-
             <button
               type="button"
               onClick={runAI}
-              className="flex items-center gap-2 px-3 py-2 rounded-full text-[11px] font-extrabold bg-purple-600 text-white shadow-lg shadow-purple-500/30 hover:bg-purple-500 transition"
+              // ✅ CORREÇÃO TOUCH: 'active:scale-95' dá feedback imediato no toque
+              className="flex items-center gap-2 px-3 py-2 rounded-full text-[11px] font-extrabold bg-purple-600 text-white shadow-lg shadow-purple-500/30 active:scale-95 transition-transform md:hover:bg-purple-500"
             >
               <Sparkles size={14} /> Análise IA
             </button>
           </div>
         </div>
-
         <div className="flex items-center justify-between">
-          <h4 className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>
-            Destaques do Dia
-          </h4>
+          <h4 className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>Destaques do Dia</h4>
           <div className={`text-[10px] font-mono ${isDarkMode ? "text-white/40" : "text-zinc-500"}`}>heurística</div>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {heuristicData?.topMovers?.map(({ name, article }, idx) => (
             <div key={idx} className={`p-4 rounded-2xl flex flex-col justify-between h-36 border backdrop-blur-md ${isDarkMode ? "bg-black/25 border-white/10" : "bg-white/60 border-black/10"}`}>
@@ -4101,11 +3914,11 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
                 <span className={`text-xs font-extrabold uppercase tracking-wider ${isDarkMode ? "text-purple-300" : "text-purple-700"}`}>{name}</span>
                 <h4 className={`font-extrabold text-sm leading-tight line-clamp-2 mt-1 ${isDarkMode ? "text-white" : "text-zinc-900"}`}>{article.title}</h4>
               </div>
-
               <button
                 type="button"
                 onClick={() => openArticle(article)}
-                className={`flex items-center gap-2 text-xs font-extrabold transition-colors self-start ${isDarkMode ? "text-white/70 hover:text-white" : "text-zinc-700 hover:text-zinc-900"}`}
+                // ✅ CORREÇÃO TOUCH
+                className={`flex items-center gap-2 text-xs font-extrabold transition-colors self-start ${isDarkMode ? "text-white/70 active:text-white md:hover:text-white" : "text-zinc-700 active:text-zinc-900 md:hover:text-zinc-900"}`}
               >
                 <img src={article.logo} className="w-4 h-4 rounded-full" />
                 Ler na fonte
@@ -4113,20 +3926,10 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
             </div>
           ))}
         </div>
-
-        <h4 className={`text-[10px] font-black uppercase tracking-[0.22em] pt-2 ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>
-          Explorar Ativos
-        </h4>
-
+        <h4 className={`text-[10px] font-black uppercase tracking-[0.22em] pt-2 ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>Explorar Ativos</h4>
         <div className="space-y-2">
           {heuristicData?.allAssets?.map((asset) => (
-            <AssetCard
-              key={asset.name}
-              asset={asset}
-              allNews={newsData}
-              openArticle={openArticle}
-              isDarkMode={isDarkMode}
-            />
+            <AssetCard key={asset.name} asset={asset} allNews={newsData} openArticle={openArticle} isDarkMode={isDarkMode} />
           ))}
         </div>
       </div>
@@ -4134,6 +3937,120 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
   );
 };
 
+const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const relatedArticles = useMemo(() => {
+    if (!allNews || !asset.keywords) return [];
+    return allNews
+      .filter((n) => {
+        const title = (n.title || "").toLowerCase();
+        return asset.keywords.some((k) => title.includes(k));
+      })
+      .slice(0, 4);
+  }, [asset.keywords, allNews]);
+
+  const getIcon = (assetName) => {
+    const name = (assetName || "").toUpperCase();
+    if (name.includes("BTC") || name.includes("BITCOIN")) return <Bitcoin size={20} />;
+    if (name.includes("USD") || name.includes("DÓLAR") || name.includes("DOLAR")) return <DollarSign size={20} />;
+    if (name.includes("EUR") || name.includes("EURO")) return <Euro size={20} />;
+    if (name.includes("IBOV") || name.includes("BOLSA")) return <Activity size={20} />;
+    return <TrendingUp size={20} />;
+  };
+
+  const toggleCard = (e) => {
+    // Para evitar qualquer comportamento estranho se houver listeners globais
+    e?.preventDefault();
+    e?.stopPropagation();
+    setIsOpen((prev) => !prev);
+  };
+
+  return (
+    <div
+      className={`relative z-10 rounded-2xl transition-all duration-300 overflow-hidden border backdrop-blur-md
+      ${isDarkMode ? "bg-black/25 border-white/10" : "bg-white/60 border-black/10"}
+      hover:shadow-[0_20px_60px_-35px_rgba(0,0,0,0.85)]`}
+    >
+      {/* CABEÇALHO (BOTÃO DE TOGGLE) */}
+      <button
+        type="button"
+        onClick={toggleCard}
+        className={`p-4 w-full text-left outline-none flex justify-between items-center group active:bg-white/10 transition-colors cursor-pointer
+        ${isDarkMode ? "md:hover:bg-white/5" : "md:hover:bg-black/[0.03]"}`}
+        aria-expanded={isOpen}
+      >
+        <div className="flex items-center gap-4 min-w-0">
+          <div
+            className={`p-2 rounded-xl border flex items-center justify-center
+            ${isDarkMode ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"}
+            text-purple-400`}
+          >
+            {getIcon(asset.name)}
+          </div>
+
+          <div className="min-w-0">
+            <div className={`text-[11px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>
+              Ativo
+            </div>
+            <div
+              className={`text-base font-extrabold tracking-tight truncate ${isDarkMode ? "text-white" : "text-zinc-900"}`}
+            >
+              {asset.name}
+            </div>
+          </div>
+        </div>
+
+        <div className={`transition-transform duration-300 ${isOpen ? "rotate-90" : "rotate-0"}`}>
+          <ChevronRight size={20} className={`${isDarkMode ? "text-white/50" : "text-zinc-500"}`} />
+        </div>
+      </button>
+
+      {/* ÁREA DE CONTEÚDO (NOTÍCIAS) */}
+      <div
+        className={`grid transition-all duration-500 ease-in-out ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+        // Barreira simples: cliques aqui não fecham o card
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={`border-t px-2 pb-2 pt-2 space-y-1 ${isDarkMode ? "border-white/10 bg-black/20" : "border-black/10 bg-white/40"}`}
+          >
+            {relatedArticles.length > 0 ? (
+              relatedArticles.map((news) => (
+                <button
+                  key={news.id || news.link}
+                  type="button"
+                  // ✅ CORREÇÃO: Apenas onClick. Removemos o PointerDown que estava bloqueando o iPad.
+                  onClick={(e) => {
+                    e.stopPropagation(); // Garante que o evento pare aqui
+                    openArticle(news);
+                  }}
+                  className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group active:scale-[0.98] cursor-pointer
+                  ${isDarkMode ? "md:hover:bg-white/10" : "md:hover:bg-black/5"}`}
+                >
+                  <img
+                    src={news.logo}
+                    className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover"
+                    alt=""
+                    onError={(e) => (e.currentTarget.style.display = "none")}
+                  />
+                  <span className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? "text-zinc-300 md:group-hover:text-white" : "text-zinc-700 md:group-hover:text-black"}`}>
+                    {news.title}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <div className={`p-3 text-center text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? "text-white/40" : "text-zinc-500"}`}>
+                Sem notícias recentes.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 
 
