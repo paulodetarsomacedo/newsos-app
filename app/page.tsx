@@ -7676,15 +7676,10 @@ const VERCEL_URL = "https://newsos-app2.vercel.app";
 // --- FUNÇÃO DE IA HÍBRIDA (Compatível com Web e iPad) ---
 const generateChatResponse = async (chatHistory, articleText, apiKeyFromModal) => {
   try {
-    // Monta a URL
+    // 2. Montamos a URL completa aqui
     const apiUrl = `${VERCEL_URL}/api/chat`;
-    
-    // --- ADICIONE ESTA LINHA AQUI ---
-    console.log("TENTANDO ACESSAR A URL:", apiUrl); 
-    // --------------------------------
 
-    // Se a URL estiver errada, o erro acontece NESTA linha abaixo:
-    const response = await fetch(apiUrl, { 
+    const response = await fetch("https://newsos-app2.vercel.app/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
@@ -7703,7 +7698,7 @@ const generateChatResponse = async (chatHistory, articleText, apiKeyFromModal) =
     return data.text;
 
   } catch (e) {
-    console.error("Erro detalhado:", e);
+    console.error("Erro ao chamar o backend:", e);
     return `Houve um problema de conexão: ${e.message}`;
   }
 };
