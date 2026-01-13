@@ -7727,12 +7727,7 @@ const WhatsappChat = ({ articleText, apiKey, getChatApiKey, isDarkMode }) => {
     setInputValue('');
     setIsAiTyping(true);
 
-    const chatApiKey = getChatApiKey(); // Pega uma chave rotacionada
-    if (!chatApiKey) {
-      setHistory(prev => [...prev, { from: 'ai', text: 'Erro: Nenhuma chave de API para o chat está configurada.' }]);
-      setIsAiTyping(false);
-      return;
-    }
+const chatApiKey = null;
 
     const aiResponse = await generateChatResponse(newHistory, articleText, chatApiKey);
 
