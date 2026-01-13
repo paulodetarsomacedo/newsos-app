@@ -1201,7 +1201,7 @@ const NewsCard = React.memo(({
             MELHORIA: Padding vertical ainda mais reduzido para diminuir a altura.
             ================================================================
           */}
-          <div className="relative px-6 pt-7 pb-2 flex-1 flex flex-col justify-end">
+          <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
                  <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
@@ -7091,8 +7091,8 @@ return (
                     onClose={closeArticle}
                     onToggleSave={handleToggleSave}
                     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-                    apiKey={analysisApiKey} 
-                    getChatApiKey={getChatApiKey}
+                    
+                    
                     isDarkMode={isDarkMode}
                      isResizing={isResizing.current} 
                 />
@@ -7793,7 +7793,7 @@ const chatApiKey = null;
 // 2. O PAINEL DE IA PRINCIPAL
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, getChatApiKey }) => {
+const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey }) => {
   const [aiData, setAiData] = useState(null);
   const [loadingState, setLoadingState] = useState('idle'); 
   const [viewMode, setViewMode] = useState('analysis');
