@@ -3793,6 +3793,7 @@ const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
 
 
 
+
 // --- WIDGET: MARKET PULSE (V7 - DESIGN PREMIUM COM BACKDROP FINANCEIRO) ---
 // --- WIDGET: MARKET PULSE (V7 - DESIGN PREMIUM COM BACKDROP FINANCEIRO) ---
 const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
