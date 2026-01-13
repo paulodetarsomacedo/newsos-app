@@ -3609,28 +3609,25 @@ const runAI = async () => {
 // ==========================================================
 // FUNÇÃO DE IA: ANÁLISE DE MERCADO (VERSÃO CORRIGIDA)
 // ==========================================================
-const generateMarketAnalysis = async (news, apiKey) => { // apiKey aqui é opcional agora
-  
-  // 1. Filtragem (Mantemos a heurística aqui para economizar processamento do backend)
-  const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico', 'CNN Economia', 'InfoMoney']; // Adicionei mais fontes
-  
-  // Filtra por fonte OU se o título contém palavras-chave financeiras (mais robusto)
+// --- FUNÇÃO 1: ANÁLISE DE MERCADO (Backend Seguro Vercel) ---
+const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
+  // 1. Filtragem
+  const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico', 'CNN Economia', 'InfoMoney'];
   const keywords = ['bolsa', 'dólar', 'ibovespa', 'selic', 'juros', 'inflação', 'mercado', 'ações'];
   
   const marketNews = news.filter(n => {
-      const isSource = financialSources.some(s => n.source.includes(s));
-      const isKeyword = keywords.some(k => n.title.toLowerCase().includes(k));
+      const isSource = financialSources.some(s => n.source && n.source.includes(s));
+      const isKeyword = keywords.some(k => n.title && n.title.toLowerCase().includes(k));
       return isSource || isKeyword;
   }).slice(0, 40);
 
-  if (marketNews.length < 2) { // Relaxei para 2 notícias
+  if (marketNews.length < 2) {
       console.log("Poucas notícias financeiras para análise.");
       return null;
   }
 
   try {
-    // 2. Chamada ao Backend Seguro (Vercel)
-    // Passamos apiKeyFromFrontend apenas como fallback, se quiser
+    // 2. Chamada ao Backend Seguro
     const response = await fetch("https://newsos-app2.vercel.app/api/market", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3642,8 +3639,18 @@ const generateMarketAnalysis = async (news, apiKey) => { // apiKey aqui é opcio
 
     if (!response.ok) throw new Error("Erro no servidor de análise");
 
-    const data = await response.json();
-    return data;
+    const json = await response.json();
+
+    // 3. Hidratação (Recuperando essa lógica que estava perdida no final)
+    // O backend devolve os IDs, aqui nós reconectamos com o objeto de notícia completo
+    if (json.movers) {
+        json.movers = json.movers.map((mover: any) => {
+            const article = news.find(n => n.id === mover.news_id);
+            return { ...mover, article }; 
+        }).filter((mover: any) => mover.article);
+    }
+
+    return json;
 
   } catch (error) {
     console.error("Erro ao gerar análise de mercado:", error);
@@ -3651,63 +3658,32 @@ const generateMarketAnalysis = async (news, apiKey) => { // apiKey aqui é opcio
   }
 };
 
-
-
-    // --- FUNÇÃO DE IA: ANÁLISE COMPLETA 360º (1 Chamada = Tudo) ---
-const generateFullAnalysis = async (text, apiKey) => {
+// --- FUNÇÃO 2: ANÁLISE COMPLETA (Ainda no método antigo/direto por enquanto) ---
+const generateFullAnalysis = async (text: string, apiKey: string) => {
   if (!text || text.length < 100 || !apiKey) return null;
 
-  // Limpa e corta para não estourar tokens desnecessariamente
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 12000);
 
   const prompt = `
   Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
-  
   GERE UM JSON ESTRITO COM ESTA ESTRUTURA EXATA (Tudo em PT-BR):
   {
-    "summaries": {
-      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos e bem explicados).",
-      "tldr": "Resumo em 1 única frase de impacto (Too Long Didn't Read).",
-      "eli5": "Explicação didática como se fosse para uma criança de 5 anos (analogias).",
-      "bullets": ["Ponto chave 1", "Ponto chave 2", "Ponto chave 3", "Ponto chave 4"]
-    },
-    "mindmap": {
-    "center": "Tema Central (Max 3 palavras)",
-    "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"]
-},
-"contextualTerms": [
-    {
-        "term": "Nó A (Nome exato do nó do mindmap)",
-        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. SEJA DENSO E DETALHADO. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
-        "sentiment": "neutral", 
-        "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
-    },
-    { "term": "Nó B", "context": "...", "sentiment": "positive", "evidence_quotes": ["..."] },
-    { "term": "Nó C", "context": "...", "sentiment": "negative", "evidence_quotes": ["..."] },
-    { "term": "Nó D", "context": "...", "sentiment": "neutral", "evidence_quotes": ["..."] }
-],
-    "timeline": [
-                      { "time": "Passado (Causa Raiz)", "event": "O que causou o contexto geral desta notícia?" },
-                      { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
-                      { "time": "Hoje (Fato Principal)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
-                  ],
-    "future": {
-      "optimistic": "Melhor cenário possível a longo prazo.",
-      "pessimistic": "Pior cenário/Riscos envolvidos.",
-      "probable": "O que realmente deve acontecer (análise realista)."
-    }
+    "summaries": { "executive": "...", "tldr": "...", "eli5": "...", "bullets": [] },
+    "mindmap": { "center": "...", "nodes": [] },
+    "contextualTerms": [ { "term": "...", "context": "...", "sentiment": "neutral", "evidence_quotes": [] } ],
+    "timeline": [ { "time": "...", "event": "..." } ],
+    "future": { "optimistic": "...", "pessimistic": "...", "probable": "..." }
   }
-
-  TEXTO:
-  ${cleanText}
+  TEXTO: ${cleanText}
   `;
 
   try {
+    // Nota: Futuramente, moveremos isso para /api/analyze também para segurança total
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: { response_mime_type: "application/json" }
       })
     });
@@ -3725,39 +3701,6 @@ const generateFullAnalysis = async (text, apiKey) => {
     return null;
   }
 };
-
-
-
-
-    // ==========================================================
-    // CORREÇÃO FINAL: Sintaxe correta para acessar os arrays
-    // ==========================================================
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) {
-      throw new Error("Resposta da IA de mercado vazia.");
-    }
-    
-    // A limpeza do JSON já estava correta
-    const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-    
-    // Hidratação: Adiciona o objeto de notícia completo aos movers
-    if (json.movers) {
-        json.movers = json.movers.map(mover => {
-            const article = news.find(n => n.id === mover.news_id);
-            return { ...mover, article }; 
-        }).filter(mover => mover.article);
-    }
-
-    return json;
-
-  } catch (error) {
-    console.error("Erro na Análise de Mercado IA:", error);
-    return null;
-  }
-};
-
-
 
 // --- NOVO SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO (COM ACORDEÃO) ---
 const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
