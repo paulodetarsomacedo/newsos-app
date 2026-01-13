@@ -3675,7 +3675,6 @@ const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
       .slice(0, 4);
   }, [asset.keywords, allNews]);
 
-  // Escolhe o ícone com base no nome do ativo
   const getIcon = (assetName) => {
     const name = (assetName || "").toUpperCase();
     if (name.includes("BTC") || name.includes("BITCOIN")) return <Bitcoin size={20} />;
@@ -3685,12 +3684,8 @@ const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
     return <TrendingUp size={20} />;
   };
 
-  // ✅ Toggle blindado: se o clique veio de um elemento marcado como notícia, NÃO alterna o card
-  const handleToggle = (e) => {
-    const clickedInsideNews = e.target?.closest?.("[data-news-click='true']");
-    if (clickedInsideNews) return;
-    setIsOpen((prev) => !prev);
-  };
+  // ✅ Função de Toggle Simples (sem complexidade extra)
+  const toggleCard = () => setIsOpen(!isOpen);
 
   return (
     <div
@@ -3698,14 +3693,16 @@ const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
       ${isDarkMode ? "bg-black/25 border-white/10" : "bg-white/60 border-black/10"}
       hover:shadow-[0_20px_60px_-35px_rgba(0,0,0,0.85)]`}
     >
-      {/* ÁREA CLICÁVEL (CABEÇALHO) */}
+      {/* 
+         ✅ MUDANÇA ESTRUTURAL 1: O botão de toggle é EXCLUSIVO do cabeçalho.
+         Ele não envolve o conteúdo das notícias.
+      */}
       <button
         type="button"
-        onClick={handleToggle}
+        onClick={toggleCard}
         className={`p-4 w-full text-left outline-none flex justify-between items-center group
         ${isDarkMode ? "hover:bg-white/5" : "hover:bg-black/[0.03]"} transition-colors`}
         aria-expanded={isOpen}
-        aria-label={`Abrir notícias de ${asset.name}`}
       >
         <div className="flex items-center gap-4 min-w-0">
           <div
@@ -3722,7 +3719,6 @@ const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
             </div>
             <div
               className={`text-base font-extrabold tracking-tight truncate ${isDarkMode ? "text-white" : "text-zinc-900"}`}
-              title={asset.name}
             >
               {asset.name}
             </div>
@@ -3734,44 +3730,34 @@ const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
         </div>
       </button>
 
-      {/* ÁREA DO ACORDEÃO (NOTÍCIAS) */}
-      <div className={`grid transition-all duration-500 ease-in-out ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+      {/* 
+         ✅ MUDANÇA ESTRUTURAL 2: Área de conteúdo isolada.
+         Qualquer clique aqui dentro NUNCA vai disparar o botão acima, pois não é filho dele.
+      */}
+      <div 
+        className={`grid transition-all duration-500 ease-in-out ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+      >
         <div className="min-h-0 overflow-hidden">
-          <div
-            className={`relative z-10 border-t px-2 pb-2 pt-2 space-y-1
-            ${isDarkMode ? "border-white/10 bg-black/20" : "border-black/10 bg-white/40"}`}
-            // ✅ EXTRA BLINDAGEM: se algum clique acontecer aqui, ele NÃO deve fechar o card
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
+          <div className={`border-t px-2 pb-2 pt-2 space-y-1 ${isDarkMode ? "border-white/10 bg-black/20" : "border-black/10 bg-white/40"}`}>
             {relatedArticles.length > 0 ? (
               relatedArticles.map((news) => (
                 <button
-                  key={news.id || news.link || news.title}
+                  key={news.id || news.link}
                   type="button"
-                  data-news-click="true"
-                  // ✅ abre a notícia e impede qualquer toggle
+                  // ✅ Ação Limpa: Apenas chama a função, sem brigar com eventos
                   onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
+                    // Impede que qualquer listener global capture isso (opcional, mas seguro)
+                    e.stopPropagation(); 
                     openArticle(news);
-                  }}
-                  // ✅ alguns browsers disparam pointer antes do click; blindagem total:
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
                   }}
                   className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group
                   ${isDarkMode ? "hover:bg-white/10" : "hover:bg-black/5"}`}
-                  aria-label={`Abrir notícia: ${news.title}`}
                 >
                   <img
                     src={news.logo}
                     className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover"
                     alt=""
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
+                    onError={(e) => (e.currentTarget.style.display = "none")}
                   />
                   <span className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? "text-zinc-300 group-hover:text-white" : "text-zinc-700 group-hover:text-black"}`}>
                     {news.title}
@@ -3780,7 +3766,7 @@ const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
               ))
             ) : (
               <div className={`p-3 text-center text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? "text-white/40" : "text-zinc-500"}`}>
-                Sem notícias recentes para este ativo.
+                Sem notícias recentes.
               </div>
             )}
           </div>
