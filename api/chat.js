@@ -68,7 +68,7 @@ export default async function handler(request, response) {
             const accessToken = await auth.getAccessToken();
 
             const PROJECT_ID = process.env.GOOGLE_PROJECT_ID;
-            const API_ENDPOINT = `https://us-central1-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/publishers/google/models/gemini-1.5-flash-preview-0514:generateContent`;
+            const API_ENDPOINT = `https://us-central1-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/publishers/google/models/gemini-2.5-flash:generateContent`;
 
             geminiResponse = await fetch(API_ENDPOINT, {
                 method: 'POST',
