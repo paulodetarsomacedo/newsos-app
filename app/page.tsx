@@ -3552,7 +3552,7 @@ const generateHeuristicClusters = (news) => {
     const clusters = {};
     const articlesUsed = new Set();
 
-    // 1. Encontra palavras-chave importantes (substantivos) nos primeiros 30 títulos
+    // 1. Encontra palavras-chave importantes (lógica mantida)
     const keywordScores = {};
     const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em']);
     
@@ -3565,33 +3565,59 @@ const generateHeuristicClusters = (news) => {
         });
     });
 
-    // 2. Pega as 5 palavras-chave mais frequentes
+    // 2. Pega as 5 palavras-chave mais frequentes (lógica mantida)
     const topKeywords = Object.keys(keywordScores).sort((a, b) => keywordScores[b] - keywordScores[a]).slice(0, 5);
 
-    // 3. Monta os cards baseados nessas palavras-chave
+    // =======================================================================
+    // === INÍCIO DA ALTERAÇÃO: Lógica de escolha inteligente ===
+    // =======================================================================
+
+    // <<-- PASSO 1: Criamos a nossa "lista de bloqueio" de fontes sem imagem.
+    const blockedSources = new Set(['uol', 'istoé', 'estadao', 'folha', 'investing']);
+
+    // 3. Monta os cards baseados nas palavras-chave
     topKeywords.forEach(keyword => {
-        // Encontra a primeira notícia sobre esse tema que ainda não foi usada
-        const representativeArticle = news.find(article => 
+        
+        // <<-- PASSO 2: Em vez de usar .find(), primeiro pegamos TODOS os artigos candidatos para a palavra-chave.
+        const allCandidatesForKeyword = news.filter(article =>
             !articlesUsed.has(article.id) && article.title.toLowerCase().includes(keyword)
         );
 
+        // Se não houver nenhum candidato disponível, pulamos para a próxima palavra-chave.
+        if (allCandidatesForKeyword.length === 0) return;
+
+        // <<-- PASSO 3: Agora, tentamos encontrar o "melhor" candidato dentro dessa lista.
+        // O melhor é aquele cuja fonte NÃO está na nossa lista de bloqueio.
+        const bestImageCandidate = allCandidatesForKeyword.find(article =>
+            !blockedSources.has((article.source || '').toLowerCase())
+        );
+        
+        // <<-- PASSO 4: Escolhemos o artigo representativo.
+        // Priorizamos o candidato com a melhor imagem. Se não houver nenhum, usamos o primeiro da lista como fallback.
+        const representativeArticle = bestImageCandidate || allCandidatesForKeyword[0];
+
+        // A partir daqui, a lógica continua, mas usando nosso 'representativeArticle' que foi escolhido de forma inteligente.
         if (representativeArticle) {
-            // Pega todas as outras fontes que falam sobre o mesmo tema
-            const relatedArticles = news.filter(article => 
+            // Pega todas as outras fontes que falam sobre o mesmo tema (para os logos)
+            const relatedArticles = news.filter(article =>
                 article.title.toLowerCase().includes(keyword)
             );
-            
+
             // Cria o "cluster falso"
             clusters[keyword] = {
                 ai_title: representativeArticle.title,
-                representative_image: representativeArticle.img,
-                related_articles: relatedArticles.slice(0, 5) // Limita a 4 logos
+                representative_image: representativeArticle.img, // <<-- Agora a imagem tem alta probabilidade de ser boa!
+                related_articles: relatedArticles.slice(0, 5)
             };
-            
+
             // Marca como usadas
             relatedArticles.forEach(a => articlesUsed.add(a.id));
         }
     });
+    
+    // =======================================================================
+    // === FIM DA ALTERAÇÃO ===
+    // =======================================================================
 
     return Object.values(clusters);
 };
