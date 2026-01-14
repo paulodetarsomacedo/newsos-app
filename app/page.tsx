@@ -2134,6 +2134,254 @@ RETORNE APENAS JSON:
   }
 };
 
+// --- NOVO SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO (COM ACORDEÃO) ---
+const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    // Encontra as notícias relacionadas a este ativo para mostrar no acordeão
+    const relatedArticles = useMemo(() => {
+        if (!allNews || !asset.keywords) return [];
+        // Filtra todas as notícias que contenham alguma das palavras-chave no título
+        return allNews.filter(n => {
+            const title = n.title.toLowerCase();
+            return asset.keywords.some(k => title.includes(k));
+        }).slice(0, 4); // Limita a 4 notícias para não sobrecarregar
+    }, [asset.keywords, allNews]);
+
+    // Escolhe o ícone com base no nome do ativo
+    const getIcon = (assetName) => {
+        const name = assetName.toUpperCase();
+        if (name.includes('BTC') || name.includes('BITCOIN')) return <Bitcoin size={20} />;
+        if (name.includes('USD') || name.includes('DÓLAR')) return <DollarSign size={20} />;
+        if (name.includes('EUR') || name.includes('EURO')) return <Euro size={20} />;
+        if (name.includes('IBOV') || name.includes('BOLSA')) return <Activity size={20} />;
+        return <TrendingUp size={20} />;
+    };
+
+    return (
+        <div className={`rounded-2xl transition-all duration-300 overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-zinc-200 shadow-sm'}`}>
+            {/* ÁREA CLICÁVEL (CABEÇALHO) */}
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="p-4 w-full text-left outline-none flex justify-between items-center group"
+            >
+                <div className="flex items-center gap-4">
+                    <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-black/20' : 'bg-zinc-100'} text-purple-400`}>
+                        {getIcon(asset.name)}
+                    </div>
+                    <span className={`text-base font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
+                        {asset.name}
+                    </span>
+                </div>
+                
+                <div className={`transition-transform duration-300 ${isOpen ? 'rotate-90' : 'rotate-0'}`}>
+                    <ChevronRight size={20} className="text-zinc-500" />
+                </div>
+            </button>
+
+            {/* ÁREA DO ACORDEÃO (NOTÍCIAS) */}
+            <div 
+                className={`grid transition-all duration-500 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+            >
+                <div className="min-h-0 overflow-hidden">
+                    <div className={`border-t px-2 pb-2 space-y-1 ${isDarkMode ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
+                        {relatedArticles.length > 0 ? (
+                            relatedArticles.map((news) => (
+                                <button 
+                                    key={news.id}
+                                    onClick={(e) => { e.stopPropagation(); openArticle(news); }}
+                                    className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+                                >
+                                    <img src={news.logo} className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover" alt="Logo" onError={(e) => e.target.style.display='none'} />
+                                    <span className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300 group-hover:text-white' : 'text-zinc-700 group-hover:text-black'}`}>
+                                        {news.title}
+                                    </span>
+                                </button>
+                            ))
+                        ) : (
+                            <div className="p-3 text-center text-[10px] opacity-50">
+                                Sem notícias recentes para este ativo.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+
+
+// --- WIDGET: MARKET PULSE (V6 - DESIGN PREMIUM E IA INTEGRADA) ---
+const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
+  const [analysisData, setAnalysisData] = useState(null);
+  const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'success'
+
+  // Lógica para verificar se o mercado está aberto (simplificado para o horário)
+  const isMarketOpen = useMemo(() => {
+    const currentHour = new Date().getHours();
+    // Considera o mercado aberto entre 9h e 18h
+    return currentHour >= 9 && currentHour < 18;
+  }, []);
+
+  // A lógica heurística permanece a mesma, como fallback e estado inicial
+  const heuristicData = useMemo(() => {
+    if (!newsData || newsData.length === 0) return { topMovers: [], allAssets: [] };
+    const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico'];
+    const marketNews = newsData.filter(n => financialSources.includes(n.source));
+    const assets = [
+        { name: 'Dólar', keywords: ['dólar', 'dolar', 'usd', 'câmbio'] },
+        { name: 'Ibovespa', keywords: ['ibovespa', 'b3', 'ações', 'bolsa', 'índice'] },
+        { name: 'Bitcoin', keywords: ['bitcoin', 'btc', 'cripto'] },
+        { name: 'Euro', keywords: ['euro', 'eur'] },
+        { name: 'Juros', keywords: ['juros', 'selic', 'copom', 'inflação'] },
+    ];
+    const topicScores = new Map();
+    assets.forEach(asset => topicScores.set(asset.name, { count: 0, latestArticle: null }));
+    marketNews.forEach(article => {
+        const title = article.title.toLowerCase();
+        for (const asset of assets) {
+            if (asset.keywords.some(k => title.includes(k))) {
+                const score = topicScores.get(asset.name);
+                score.count++;
+                if (!score.latestArticle || new Date(article.rawDate) > new Date(score.latestArticle.rawDate)) {
+                    score.latestArticle = article;
+                }
+                break; 
+            }
+        }
+    });
+    const topMovers = Array.from(topicScores.entries())
+      .filter(([name, data]) => data.count > 0 && data.latestArticle)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 2)
+      .map(([name, data]) => ({ name, article: data.latestArticle }));
+    return { topMovers, allAssets: assets };
+  }, [newsData]);
+
+  // Função para chamar a IA
+  const runAI = async () => {
+      setStatus('loading');
+      const result = await generateMarketAnalysis(newsData, apiKey);
+      if (result) {
+          setAnalysisData(result);
+          setStatus('success');
+      } else {
+          setStatus('idle');
+      }
+  };
+
+  // Helper para classes de borda da IA
+  const getTrendBorder = (trend) => {
+    if (trend === 'up') return 'border-emerald-500';
+    if (trend === 'down') return 'border-rose-500';
+    return 'border-blue-500'; // Azul para estável/neutro
+  };
+  
+  // RENDERIZAÇÃO
+  
+  if (status === 'loading') {
+      return (
+          <div className={`h-[400px] flex flex-col items-center justify-center text-center p-6 space-y-4 rounded-[1.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
+              <div className="relative"><div className="absolute inset-0 bg-purple-500 blur-2xl animate-pulse"></div><div className={`relative w-16 h-16 rounded-2xl flex items-center justify-center border ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-white/50 border-white'}`}><BrainCircuit size={32} className="text-purple-400" /></div></div>
+              <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Analisando o Mercado...</h3>
+              <p className={`text-sm max-w-xs ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>A IA está correlacionando dados e notícias para gerar seu briefing financeiro.</p>
+          </div>
+      );
+  }
+
+  if (status === 'success' && analysisData) {
+      return (
+          <div className={`p-4 rounded-[1.5rem] space-y-4 animate-in fade-in ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
+              {/* CABEÇALHO DA ANÁLISE IA */}
+              <div className={`p-4 rounded-xl text-center relative overflow-hidden ${isDarkMode ? 'bg-gradient-to-br from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-white border border-purple-100'}`}>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                    <BrainCircuit size={14} className="text-purple-400"/>
+                    <span className="text-xs font-bold uppercase tracking-widest text-purple-400">Análise do Dia</span>
+                </div>
+                <p className="text-sm font-bold text-purple-400">{analysisData.market_status}</p>
+                <h3 className={`font-semibold mt-1 text-base ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{analysisData.summary}</h3>
+              </div>
+
+              {/* MOVERS DA IA - AGORA COM NOVO DESIGN E BORDAS */}
+              <div className="space-y-3">
+                  {analysisData.movers.map((mover, idx) => (
+                      <div key={idx} className={`p-3 rounded-lg border-2 ${isDarkMode ? 'bg-black/20' : 'bg-zinc-100'} ${getTrendBorder(mover.trend)}`}>
+                          <div className="flex justify-between items-center mb-2">
+                              <div className="flex items-center gap-2">
+                                  <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>{mover.asset}</span>
+                              </div>
+                              {mover.article && (
+                                <button onClick={() => openArticle(mover.article)} className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-500 hover:text-purple-400 transition-colors">
+                                    Ver fonte <img src={mover.article.logo} className="w-4 h-4 rounded-full" />
+                                </button>
+                              )}
+                          </div>
+                          <p className={`text-xs ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                              {mover.reason}
+                          </p>
+                      </div>
+                  ))}
+              </div>
+              
+              <div className="flex justify-between items-center pt-2">
+                  <span className="text-[9px] font-mono opacity-40">Análise via Gemini 1.5 Flash</span>
+                  <button onClick={() => setStatus('idle')} className="text-xs font-bold text-zinc-500 hover:text-white transition-colors">Voltar</button>
+              </div>
+          </div>
+      );
+  }
+
+  // ESTADO PADRÃO (HEURÍSTICO)
+  return (
+    <div className="space-y-4">
+        {/*
+          NOVO: Se a IA já rodou uma vez, o resumo dela continua visível aqui!
+          Isso cria uma sensação de persistência e inteligência.
+        */}
+        {analysisData && (
+          <div className={`p-4 rounded-xl text-center relative overflow-hidden animate-in fade-in ${isDarkMode ? 'bg-gradient-to-br from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-white border border-purple-100'}`}>
+            <div className="flex items-center justify-center gap-2 mb-2">
+                <BrainCircuit size={14} className="text-purple-400"/>
+                <span className="text-xs font-bold uppercase tracking-widest text-purple-400">Última Análise IA</span>
+            </div>
+            <h3 className={`font-semibold text-base ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{analysisData.summary}</h3>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40">Destaques do Dia</h4>
+              {/* NOVO: INDICADOR DE MERCADO ABERTO/FECHADO */}
+              {isMarketOpen ? (
+                <div className="flex items-center gap-1.5 text-emerald-400 text-[9px] font-bold uppercase"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>Aberto</div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-zinc-500 text-[9px] font-bold uppercase"><span className="w-1.5 h-1.5 bg-zinc-500 rounded-full"></span>Fechado</div>
+              )}
+            </div>
+            <button onClick={runAI} className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold bg-purple-600 text-white shadow-lg shadow-purple-500/30 hover:bg-purple-500 transition">
+                <Sparkles size={12} /> Análise IA
+            </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {heuristicData?.topMovers?.map(({ name, article }, idx) => (
+                <div key={idx} className={`p-4 rounded-2xl flex flex-col justify-between h-36 ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white border-zinc-200 shadow-sm'}`}>
+                    <div><span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>{name}</span><h4 className={`font-bold text-sm leading-tight line-clamp-2 mt-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{article.title}</h4></div>
+                    <button onClick={() => openArticle(article)} className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-white transition-colors self-start"><img src={article.logo} className="w-4 h-4 rounded-full" />Ler na fonte</button>
+                </div>
+            ))}
+        </div>
+        <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40 pt-2">Explorar Ativos</h4>
+        <div className="space-y-2">
+            {heuristicData?.allAssets?.map((asset) => (
+                <AssetCard key={asset.name} asset={asset} allNews={newsData} openArticle={openArticle} isDarkMode={isDarkMode} />
+            ))}
+        </div>
+    </div>
+  );
+};
+
 
 // --- FUNÇÃO DE IA: RAIO-X CONTEXTUAL (PARA ABA WEB/MAGIC) ---
 const generateNewsContext = async (fullText, apiKey) => {
@@ -3666,393 +3914,6 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 
 
 // --- WIDGET: MARKET PULSE (V7 - DESIGN PREMIUM COM BACKDROP FINANCEIRO) ---
-// --- WIDGET: MARKET PULSE (V7 - FIX TOUCH) ---
-const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
-  const [analysisData, setAnalysisData] = useState(null);
-  const [status, setStatus] = useState("idle");
-
-  // ... (FinanceBackdrop permanece igual, omitido para brevidade) ...
-  const FinanceBackdrop = ({ isDarkMode }) => {
-    /* ... cole o código do FinanceBackdrop aqui ... */
-    const svg = encodeURIComponent(`
-      <svg xmlns='http://www.w3.org/2000/svg' width='1200' height='800' viewBox='0 0 1200 800'>
-        <defs>
-          <linearGradient id='g1' x1='0' y1='0' x2='1' y2='1'>
-            <stop offset='0' stop-color='${isDarkMode ? "#7c3aed" : "#a855f7"}' stop-opacity='0.35'/>
-            <stop offset='0.55' stop-color='${isDarkMode ? "#06b6d4" : "#22c55e"}' stop-opacity='0.18'/>
-            <stop offset='1' stop-color='${isDarkMode ? "#0b1020" : "#ffffff"}' stop-opacity='0'/>
-          </linearGradient>
-          <pattern id='grid' width='48' height='48' patternUnits='userSpaceOnUse'>
-            <path d='M 48 0 L 0 0 0 48' fill='none' stroke='${isDarkMode ? "#ffffff" : "#0f172a"}' stroke-opacity='0.08' stroke-width='1'/>
-          </pattern>
-          <filter id='blurGlow' x='-20%' y='-20%' width='140%' height='140%'>
-            <feGaussianBlur stdDeviation='16' result='b'/>
-            <feColorMatrix in='b' type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.9 0' />
-          </filter>
-        </defs>
-        <rect width='1200' height='800' fill='url(#g1)'/>
-        <rect width='1200' height='800' fill='url(#grid)'/>
-        <circle cx='280' cy='230' r='180' fill='${isDarkMode ? "#a855f7" : "#7c3aed"}' opacity='0.18' filter='url(#blurGlow)'/>
-        <circle cx='900' cy='520' r='220' fill='${isDarkMode ? "#22c55e" : "#06b6d4"}' opacity='0.12' filter='url(#blurGlow)'/>
-        <path d='M80 560 C 260 460, 360 620, 520 520 S 780 380, 920 430 S 1080 540, 1140 360' fill='none' stroke='${isDarkMode ? "#e879f9" : "#7c3aed"}' stroke-opacity='0.35' stroke-width='4'/>
-        <g stroke-linecap='round' stroke='${isDarkMode ? "#ffffff" : "#0f172a"}' stroke-opacity='0.18'>
-          <line x1='220' y1='500' x2='220' y2='610' stroke-width='3'/>
-          <line x1='300' y1='420' x2='300' y2='560' stroke-width='3'/>
-          <line x1='380' y1='520' x2='380' y2='640' stroke-width='3'/>
-          <line x1='460' y1='380' x2='460' y2='520' stroke-width='3'/>
-          <line x1='540' y1='460' x2='540' y2='600' stroke-width='3'/>
-          <line x1='620' y1='350' x2='620' y2='520' stroke-width='3'/>
-          <line x1='700' y1='410' x2='700' y2='570' stroke-width='3'/>
-          <line x1='780' y1='330' x2='780' y2='500' stroke-width='3'/>
-          <line x1='860' y1='420' x2='860' y2='610' stroke-width='3'/>
-          <line x1='940' y1='390' x2='940' y2='540' stroke-width='3'/>
-        </g>
-        <g opacity='0.28'>
-          <rect x='212' y='540' width='16' height='40' rx='4' fill='#22c55e'/>
-          <rect x='292' y='470' width='16' height='54' rx='4' fill='#ef4444'/>
-          <rect x='372' y='570' width='16' height='46' rx='4' fill='#22c55e'/>
-          <rect x='452' y='420' width='16' height='60' rx='4' fill='#22c55e'/>
-          <rect x='532' y='520' width='16' height='44' rx='4' fill='#ef4444'/>
-          <rect x='612' y='410' width='16' height='62' rx='4' fill='#22c55e'/>
-          <rect x='692' y='470' width='16' height='52' rx='4' fill='#ef4444'/>
-          <rect x='772' y='380' width='16' height='70' rx='4' fill='#22c55e'/>
-          <rect x='852' y='500' width='16' height='54' rx='4' fill='#ef4444'/>
-          <rect x='932' y='450' width='16' height='50' rx='4' fill='#22c55e'/>
-        </g>
-      </svg>
-    `);
-    return (
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[1.75rem] z-0">
-        <div className="absolute inset-0" style={{ backgroundImage: `url("data:image/svg+xml,${svg}")`, backgroundSize: "cover", backgroundPosition: "center" }} />
-        <div className={`absolute inset-0 ${isDarkMode ? "opacity-[0.10]" : "opacity-[0.06]"} mix-blend-overlay`} style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E\")" }} />
-        <div className={`absolute inset-0 ${isDarkMode ? "bg-zinc-950/35" : "bg-white/35"}`} />
-      </div>
-    );
-  };
-
-  const CardShell = ({ children }) => (
-    <div className={`relative rounded-[1.75rem] border overflow-hidden ${isDarkMode ? "border-white/10 bg-zinc-950" : "border-zinc-200 bg-white"} shadow-[0_25px_70px_-35px_rgba(0,0,0,0.8)]`}>
-      <FinanceBackdrop isDarkMode={isDarkMode} />
-      <div className="relative z-10 p-5">{children}</div>
-    </div>
-  );
-
-  const isMarketOpen = useMemo(() => {
-    const currentHour = new Date().getHours();
-    return currentHour >= 9 && currentHour < 18;
-  }, []);
-
-  const heuristicData = useMemo(() => {
-    if (!newsData || newsData.length === 0) return { topMovers: [], allAssets: [] };
-    const financialSources = ["Uol Economia", "Investing", "Istoé Dinheiro", "Valor Econômico"];
-    const marketNews = newsData.filter((n) => financialSources.includes(n.source));
-    const assets = [
-      { name: "Dólar", keywords: ["dólar", "dolar", "usd", "câmbio"] },
-      { name: "Ibovespa", keywords: ["ibovespa", "b3", "ações", "bolsa", "índice"] },
-      { name: "Bitcoin", keywords: ["bitcoin", "btc", "cripto"] },
-      { name: "Euro", keywords: ["euro", "eur"] },
-      { name: "Juros", keywords: ["juros", "selic", "copom", "inflação"] },
-    ];
-    const topicScores = new Map();
-    assets.forEach((asset) => topicScores.set(asset.name, { count: 0, latestArticle: null }));
-    marketNews.forEach((article) => {
-      const title = article.title.toLowerCase();
-      for (const asset of assets) {
-        if (asset.keywords.some((k) => title.includes(k))) {
-          const score = topicScores.get(asset.name);
-          score.count++;
-          if (!score.latestArticle || new Date(article.rawDate) > new Date(score.latestArticle.rawDate)) {
-            score.latestArticle = article;
-          }
-          break;
-        }
-      }
-    });
-    const topMovers = Array.from(topicScores.entries())
-      .filter(([name, data]) => data.count > 0 && data.latestArticle)
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 2)
-      .map(([name, data]) => ({ name, article: data.latestArticle }));
-    return { topMovers, allAssets: assets };
-  }, [newsData]);
-
-  const runAI = async () => {
-    setStatus("loading");
-    const result = await generateMarketAnalysis(newsData, apiKey);
-    if (result) {
-      setAnalysisData(result);
-      setStatus("success");
-    } else {
-      setStatus("idle");
-    }
-  };
-
-  const getTrendBorder = (trend) => {
-    if (trend === "up") return "border-emerald-500";
-    if (trend === "down") return "border-rose-500";
-    return "border-blue-500";
-  };
-
-  if (status === "loading") {
-    return (
-      <CardShell>
-        <div className="h-[400px] flex flex-col items-center justify-center text-center gap-4">
-          <div className="relative">
-            <div className="absolute inset-0 rounded-3xl bg-purple-500/30 blur-2xl animate-pulse" />
-            <div className={`relative w-16 h-16 rounded-2xl flex items-center justify-center border ${isDarkMode ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"}`}>
-              <BrainCircuit size={30} className="text-purple-400" />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <h3 className={`text-lg font-extrabold tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>Market Pulse em tempo real</h3>
-            <p className={`${isDarkMode ? "text-zinc-300" : "text-zinc-600"} text-sm max-w-xs`}>A IA está correlacionando notícias e sinais para gerar um briefing financeiro curto e objetivo.</p>
-          </div>
-          <div className={`mt-2 px-3 py-1.5 rounded-full text-[11px] font-bold border ${isDarkMode ? "border-white/10 bg-black/20 text-white/70" : "border-black/10 bg-white/50 text-zinc-700"}`}>Gemini • análise contextual • baixa latência</div>
-        </div>
-      </CardShell>
-    );
-  }
-
-  if (status === "success" && analysisData) {
-    return (
-      <CardShell>
-        <div className="space-y-4 animate-in fade-in">
-          <div className={`relative overflow-hidden rounded-2xl border p-4 ${isDarkMode ? "border-white/10 bg-black/30" : "border-black/10 bg-white/60"}`}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${isDarkMode ? "border-white/10 bg-white/5" : "border-black/10 bg-black/5"}`}>
-                  <BrainCircuit size={18} className="text-purple-400" />
-                </div>
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-purple-400">Análise do Dia</div>
-                  <div className={`text-xs font-bold ${isDarkMode ? "text-white/70" : "text-zinc-700"}`}>{analysisData.market_status}</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setStatus("idle")}
-                // ✅ CORREÇÃO TOUCH: 'hover:' mudado para 'active:' e hover só em desktop
-                className={`text-[11px] font-extrabold px-3 py-1.5 rounded-full border active:scale-95 transition-transform
-                ${isDarkMode ? "border-white/10 bg-white/5 text-white/80 md:hover:bg-white/10" : "border-black/10 bg-black/5 text-zinc-800 md:hover:bg-black/10"}`}
-              >
-                Voltar
-              </button>
-            </div>
-            <h3 className={`mt-3 text-[15px] font-extrabold leading-snug tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>{analysisData.summary}</h3>
-            <div className="mt-3 flex items-center justify-between"><span className="text-[10px] font-mono opacity-60">Análise via Gemini 1.5 Flash</span></div>
-          </div>
-          <div className="grid grid-cols-1 gap-3">
-            {analysisData.movers.map((mover, idx) => (
-              <div key={idx} className={`rounded-2xl border-2 p-4 backdrop-blur-md ${isDarkMode ? "bg-black/25" : "bg-white/60"} ${getTrendBorder(mover.trend)}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className={`text-sm font-extrabold ${isDarkMode ? "text-white" : "text-zinc-900"}`}>{mover.asset}</div>
-                    <div className={`mt-1 text-xs leading-relaxed ${isDarkMode ? "text-zinc-300" : "text-zinc-700"}`}>{mover.reason}</div>
-                  </div>
-                  {mover.article && (
-                    <button
-                      type="button"
-                      onClick={() => openArticle(mover.article)}
-                      // ✅ CORREÇÃO TOUCH
-                      className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-extrabold border active:scale-95 transition-transform
-                      ${isDarkMode ? "border-white/10 bg-white/5 text-white/80 md:hover:bg-white/10" : "border-black/10 bg-black/5 text-zinc-800 md:hover:bg-black/10"}`}
-                    >
-                      <img src={mover.article.logo} className="w-4 h-4 rounded-full" />
-                      Fonte
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </CardShell>
-    );
-  }
-
-  return (
-    <CardShell>
-      <div className="space-y-4">
-        {analysisData && (
-          <div className={`rounded-2xl border p-4 text-center backdrop-blur-md animate-in fade-in ${isDarkMode ? "border-white/10 bg-black/25" : "border-black/10 bg-white/60"}`}>
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <BrainCircuit size={14} className="text-purple-400" />
-              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-purple-400">Última Análise IA</span>
-            </div>
-            <h3 className={`text-sm font-extrabold ${isDarkMode ? "text-white" : "text-zinc-900"}`}>{analysisData.summary}</h3>
-          </div>
-        )}
-        <div className="flex items-center justify-between gap-3">
-          <div className="space-y-0.5">
-            <div className={`text-[10px] font-black uppercase tracking-[0.25em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>Market Pulse</div>
-            <div className={`text-sm font-extrabold tracking-tight ${isDarkMode ? "text-white" : "text-zinc-900"}`}>Briefing financeiro com sinais e notícias</div>
-          </div>
-          <div className="flex items-center gap-2">
-            {isMarketOpen ? (
-              <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-extrabold uppercase"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /> Aberto</div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] font-extrabold uppercase"><span className="w-1.5 h-1.5 bg-zinc-400 rounded-full" /> Fechado</div>
-            )}
-            <button
-              type="button"
-              onClick={runAI}
-              // ✅ CORREÇÃO TOUCH: 'active:scale-95' dá feedback imediato no toque
-              className="flex items-center gap-2 px-3 py-2 rounded-full text-[11px] font-extrabold bg-purple-600 text-white shadow-lg shadow-purple-500/30 active:scale-95 transition-transform md:hover:bg-purple-500"
-            >
-              <Sparkles size={14} /> Análise IA
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center justify-between">
-          <h4 className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>Destaques do Dia</h4>
-          <div className={`text-[10px] font-mono ${isDarkMode ? "text-white/40" : "text-zinc-500"}`}>heurística</div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {heuristicData?.topMovers?.map(({ name, article }, idx) => (
-            <div key={idx} className={`p-4 rounded-2xl flex flex-col justify-between h-36 border backdrop-blur-md ${isDarkMode ? "bg-black/25 border-white/10" : "bg-white/60 border-black/10"}`}>
-              <div>
-                <span className={`text-xs font-extrabold uppercase tracking-wider ${isDarkMode ? "text-purple-300" : "text-purple-700"}`}>{name}</span>
-                <h4 className={`font-extrabold text-sm leading-tight line-clamp-2 mt-1 ${isDarkMode ? "text-white" : "text-zinc-900"}`}>{article.title}</h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => openArticle(article)}
-                // ✅ CORREÇÃO TOUCH
-                className={`flex items-center gap-2 text-xs font-extrabold transition-colors self-start ${isDarkMode ? "text-white/70 active:text-white md:hover:text-white" : "text-zinc-700 active:text-zinc-900 md:hover:text-zinc-900"}`}
-              >
-                <img src={article.logo} className="w-4 h-4 rounded-full" />
-                Ler na fonte
-              </button>
-            </div>
-          ))}
-        </div>
-        <h4 className={`text-[10px] font-black uppercase tracking-[0.22em] pt-2 ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>Explorar Ativos</h4>
-        <div className="space-y-2">
-          {heuristicData?.allAssets?.map((asset) => (
-            <AssetCard key={asset.name} asset={asset} allNews={newsData} openArticle={openArticle} isDarkMode={isDarkMode} />
-          ))}
-        </div>
-      </div>
-    </CardShell>
-  );
-};
-
-const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const relatedArticles = useMemo(() => {
-    if (!allNews || !asset.keywords) return [];
-    return allNews
-      .filter((n) => {
-        const title = (n.title || "").toLowerCase();
-        return asset.keywords.some((k) => title.includes(k));
-      })
-      .slice(0, 4);
-  }, [asset.keywords, allNews]);
-
-  const getIcon = (assetName) => {
-    const name = (assetName || "").toUpperCase();
-    if (name.includes("BTC") || name.includes("BITCOIN")) return <Bitcoin size={20} />;
-    if (name.includes("USD") || name.includes("DÓLAR") || name.includes("DOLAR")) return <DollarSign size={20} />;
-    if (name.includes("EUR") || name.includes("EURO")) return <Euro size={20} />;
-    if (name.includes("IBOV") || name.includes("BOLSA")) return <Activity size={20} />;
-    return <TrendingUp size={20} />;
-  };
-
-  const toggleCard = (e) => {
-    // Para evitar qualquer comportamento estranho se houver listeners globais
-    e?.preventDefault();
-    e?.stopPropagation();
-    setIsOpen((prev) => !prev);
-  };
-
-  return (
-    <div
-      className={`relative z-10 rounded-2xl transition-all duration-300 overflow-hidden border backdrop-blur-md
-      ${isDarkMode ? "bg-black/25 border-white/10" : "bg-white/60 border-black/10"}
-      hover:shadow-[0_20px_60px_-35px_rgba(0,0,0,0.85)]`}
-    >
-      {/* CABEÇALHO (BOTÃO DE TOGGLE) */}
-      <button
-        type="button"
-        onClick={toggleCard}
-        className={`p-4 w-full text-left outline-none flex justify-between items-center group active:bg-white/10 transition-colors cursor-pointer
-        ${isDarkMode ? "md:hover:bg-white/5" : "md:hover:bg-black/[0.03]"}`}
-        aria-expanded={isOpen}
-      >
-        <div className="flex items-center gap-4 min-w-0">
-          <div
-            className={`p-2 rounded-xl border flex items-center justify-center
-            ${isDarkMode ? "bg-white/5 border-white/10" : "bg-black/5 border-black/10"}
-            text-purple-400`}
-          >
-            {getIcon(asset.name)}
-          </div>
-
-          <div className="min-w-0">
-            <div className={`text-[11px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-white/50" : "text-zinc-600"}`}>
-              Ativo
-            </div>
-            <div
-              className={`text-base font-extrabold tracking-tight truncate ${isDarkMode ? "text-white" : "text-zinc-900"}`}
-            >
-              {asset.name}
-            </div>
-          </div>
-        </div>
-
-        <div className={`transition-transform duration-300 ${isOpen ? "rotate-90" : "rotate-0"}`}>
-          <ChevronRight size={20} className={`${isDarkMode ? "text-white/50" : "text-zinc-500"}`} />
-        </div>
-      </button>
-
-      {/* ÁREA DE CONTEÚDO (NOTÍCIAS) */}
-      <div
-        className={`grid transition-all duration-500 ease-in-out ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-        // Barreira simples: cliques aqui não fecham o card
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div
-            className={`border-t px-2 pb-2 pt-2 space-y-1 ${isDarkMode ? "border-white/10 bg-black/20" : "border-black/10 bg-white/40"}`}
-          >
-            {relatedArticles.length > 0 ? (
-              relatedArticles.map((news) => (
-                <button
-                  key={news.id || news.link}
-                  type="button"
-                  // ✅ CORREÇÃO: Apenas onClick. Removemos o PointerDown que estava bloqueando o iPad.
-                  onClick={(e) => {
-                    e.stopPropagation(); // Garante que o evento pare aqui
-                    openArticle(news);
-                  }}
-                  className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group active:scale-[0.98] cursor-pointer
-                  ${isDarkMode ? "md:hover:bg-white/10" : "md:hover:bg-black/5"}`}
-                >
-                  <img
-                    src={news.logo}
-                    className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover"
-                    alt=""
-                    onError={(e) => (e.currentTarget.style.display = "none")}
-                  />
-                  <span className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? "text-zinc-300 md:group-hover:text-white" : "text-zinc-700 md:group-hover:text-black"}`}>
-                    {news.title}
-                  </span>
-                </button>
-              ))
-            ) : (
-              <div className={`p-3 text-center text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? "text-white/40" : "text-zinc-500"}`}>
-                Sem notícias recentes.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
 
 
 // --- COMPONENTE TREND RADAR (V5 - BARRAS VIVAS + TÍTULOS LEGÍVEIS) ---
