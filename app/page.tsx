@@ -2565,50 +2565,43 @@ const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
 
 
 // --- FUNÇÃO TREND RADAR (MODELO 2.5 FLASH) ---
-const generateTrendRadar = async (news, apiKey) => {
+const generateTrendRadar = async (news) => {
+  // A função não precisa mais de 'apiKey'
   if (!news || news.length === 0) return null;
 
-  const context = news.slice(0, 40).map((n, index) => 
-    `${index}|${n.title}|${n.summary ? n.summary.slice(0, 60) : ''}`
-  ).join('\n');
-
-  const prompt = `
-  Identifique 6 Tópicos quentes. Retorne JSON:
-  [ { "topic": "Nome", "score": 1-10, "hex": "#hex", "summary": "Fato..." } ]
-  DADOS:
-  ${context}
-  `;
-
   try {
-    // ATUALIZADO PARA gemini-2.5-flash
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    // 1. Aponta para o nosso novo endpoint de backend
+    const VERCEL_URL = "https://newsos-app2.vercel.app";
+    const apiUrl = `${VERCEL_URL}/api/trend`;
+
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      // 2. Envia os dados necessários. A chave do frontend é 'null'
+      //    para forçar o backend a usar a chave de produção.
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
+        news: news.slice(0, 40), // Enviamos apenas o necessário
+        apiKeyFromFrontend: null
       })
     });
 
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Erro no servidor do Trend Radar");
+    }
+
+    // 3. O resultado já vem pronto e limpo do backend
     const data = await response.json();
     
-    if (!response.ok || data.error) return null;
+    if (Array.isArray(data)) {
+        return data;
+    }
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return null;
-    
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const json = JSON.parse(cleanText);
-
-    if (Array.isArray(json)) return json;
-    const possibleArray = Object.values(json).find(val => Array.isArray(val));
-    if (possibleArray) return possibleArray;
-
-    return []; 
+    return [];
 
   } catch (error) {
-    console.warn("Erro Trend Radar:", error);
-    return []; 
+    console.warn("Erro ao chamar backend do Trend Radar:", error);
+    return [];
   }
 };
 
@@ -3954,20 +3947,18 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode }) => {
     return { color: '#3b82f6', heightPercent: 30 };
   };
 
-  const runTrendAnalysis = async () => {
-    // ALTERAÇÃO AQUI: Chama getApiKey no momento do clique
-    const currentApiKey = getApiKey('widgets');
-    
-    if (!currentApiKey || !newsData || newsData.length === 0) {
-      alert("Aguarde o carregamento das notícias ou configure a API Key.");
+const runTrendAnalysis = async () => {
+    // A função não precisa mais de uma chave de API do frontend
+    if (!newsData || newsData.length === 0) {
+      alert("Aguarde o carregamento das notícias.");
       return;
     }
     setLoading(true);
     setActiveIndex(null);
     await new Promise((r) => setTimeout(r, 800));
 
-    // Usa a chave recém-buscada
-    const data = await generateTrendRadar(newsData, currentApiKey);
+    // A chamada agora é simples e segura
+    const data = await generateTrendRadar(newsData); // <<--- CÓDIGO CORRIGIDO
 
     if (data && Array.isArray(data) && data.length > 0) {
       const sortedData = data.sort((a, b) => b.score - a.score);
