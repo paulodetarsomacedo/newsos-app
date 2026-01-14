@@ -5804,9 +5804,7 @@ useEffect(() => {
   }, [apiKeys]); // Recria a função apenas se o usuário mudar as chaves nas configurações
 
   // Função helper para o Chat (passada como callback)
-  const getChatApiKey = useCallback(() => {
-      return getApiKey('chat');
-  }, [getApiKey]);
+
   
 const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
@@ -6852,7 +6850,7 @@ return (
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
                     apiKey={analysisApiKey} 
-                    getChatApiKey={getChatApiKey}
+             
                 />
             )}
             
@@ -7559,7 +7557,7 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
 const VERCEL_URL = "https://newsos-app2.vercel.app"; 
 
 // --- FUNÇÃO DE IA HÍBRIDA (Compatível com Web e iPad) ---
-const generateChatResponse = async (chatHistory, articleText, apiKeyFromModal) => {
+const generateChatResponse = async (chatHistory, articleText) => {
   try {
     // 2. Montamos a URL completa aqui
     const apiUrl = `${VERCEL_URL}/api/chat`;
@@ -7917,7 +7915,7 @@ return (
           {viewMode === 'chat' && (
             <WhatsappChat 
               articleText={readerContent?.textContent || article.summary}
-              getChatApiKey={getChatApiKey}
+         
               isDarkMode={isDarkMode}
             />
           )}
