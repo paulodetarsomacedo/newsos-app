@@ -4220,52 +4220,58 @@ const runTrendAnalysis = async () => {
                 </div>
               </div>
 
-              {/* 2) BALÃO DE DETALHES (MANTIDO) */}
-              <div className="relative mt-8 h-36">
-                <AnimatePresence>
-                  {activeItem && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                      className="absolute inset-0"
-                    >
-                      <div
-                        className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${
-                          isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
-                        }`}
-                        style={{
-                          border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-                          boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
-                        }}
+              {/* ========================================================== */}
+              {/* === ÁREA DO BALÃO CORRIGIDA (COM ALTURA DINÂMICA) === */}
+              {/* ========================================================== */}
+              <div className={`
+                grid transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
+                ${activeItem ? 'grid-rows-[1fr] mt-8' : 'grid-rows-[0fr] mt-0'}
+              `}>
+                <div className="overflow-hidden min-h-0">
+                  <AnimatePresence>
+                    {activeItem && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.3 }}
+                        // A altura agora é definida aqui dentro
+                        className="h-36"
                       >
-                        <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
-                          <span
-                            className="text-[10px] font-black uppercase tracking-widest"
-                            style={{ color: getTrendStyle(activeItem.score).color }}
-                          >
-                            Impacto: {activeItem.score}/10
-                          </span>
-
-                          <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${activeItem.score * 10}%`,
-                                backgroundColor: getTrendStyle(activeItem.score).color,
-                              }}
-                            />
+                        <div
+                          className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${
+                            isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
+                          }`}
+                          style={{
+                            border: `2px solid ${getTrendStyle(activeItem.score).color}`,
+                            boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
+                          }}
+                        >
+                          <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
+                            <span
+                              className="text-[10px] font-black uppercase tracking-widest"
+                              style={{ color: getTrendStyle(activeItem.score).color }}
+                            >
+                              Impacto: {activeItem.score}/10
+                            </span>
+                            <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${activeItem.score * 10}%`,
+                                  backgroundColor: getTrendStyle(activeItem.score).color,
+                                }}
+                              />
+                            </div>
                           </div>
+                          <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                            {activeItem.summary}
+                          </p>
                         </div>
-
-                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                          {activeItem.summary}
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
           ) : (
@@ -4289,7 +4295,6 @@ const runTrendAnalysis = async () => {
     </div>
   );
 };
-
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
