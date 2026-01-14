@@ -3568,60 +3568,46 @@ const generateHeuristicClusters = (news) => {
     // 2. Pega as 5 palavras-chave mais frequentes (lógica mantida)
     const topKeywords = Object.keys(keywordScores).sort((a, b) => keywordScores[b] - keywordScores[a]).slice(0, 5);
 
-    // =======================================================================
-    // === INÍCIO DA ALTERAÇÃO: Lógica de escolha inteligente ===
-    // =======================================================================
+    // Lista de fontes sem imagem para evitar como capa
+    const blockedSources = new Set(['uol', 'istoé', 'estadao', 'folha', 'investing', 'einvestidor']);
 
-    // <<-- PASSO 1: Criamos a nossa "lista de bloqueio" de fontes sem imagem.
-    const blockedSources = new Set(['uol', 'istoé', 'estadao', 'folha', 'investing']);
-
-    // 3. Monta os cards baseados nas palavras-chave
+    // 3. Monta os cards
     topKeywords.forEach(keyword => {
         
-        // <<-- PASSO 2: Em vez de usar .find(), primeiro pegamos TODOS os artigos candidatos para a palavra-chave.
+        // Esta lista já contém TODOS os artigos relevantes e NÃO USADOS para a palavra-chave.
         const allCandidatesForKeyword = news.filter(article =>
             !articlesUsed.has(article.id) && article.title.toLowerCase().includes(keyword)
         );
 
-        // Se não houver nenhum candidato disponível, pulamos para a próxima palavra-chave.
         if (allCandidatesForKeyword.length === 0) return;
 
-        // <<-- PASSO 3: Agora, tentamos encontrar o "melhor" candidato dentro dessa lista.
-        // O melhor é aquele cuja fonte NÃO está na nossa lista de bloqueio.
+        // Lógica para escolher a melhor imagem (prioriza fontes não bloqueadas)
         const bestImageCandidate = allCandidatesForKeyword.find(article =>
             !blockedSources.has((article.source || '').toLowerCase())
         );
         
-        // <<-- PASSO 4: Escolhemos o artigo representativo.
-        // Priorizamos o candidato com a melhor imagem. Se não houver nenhum, usamos o primeiro da lista como fallback.
+        // Usa o melhor candidato ou, como fallback, o primeiro da lista
         const representativeArticle = bestImageCandidate || allCandidatesForKeyword[0];
 
-        // A partir daqui, a lógica continua, mas usando nosso 'representativeArticle' que foi escolhido de forma inteligente.
         if (representativeArticle) {
-            // Pega todas as outras fontes que falam sobre o mesmo tema (para os logos)
-            const relatedArticles = news.filter(article =>
-                article.title.toLowerCase().includes(keyword)
-            );
-
+            
+            // CORREÇÃO: Usamos a lista já filtrada, garantindo consistência.
+            const relatedArticles = allCandidatesForKeyword;
+            
             // Cria o "cluster falso"
             clusters[keyword] = {
                 ai_title: representativeArticle.title,
-                representative_image: representativeArticle.img, // <<-- Agora a imagem tem alta probabilidade de ser boa!
-                related_articles: relatedArticles.slice(0, 5)
+                representative_image: representativeArticle.img,
+                related_articles: relatedArticles.slice(0, 5) // Limita a 5 logos
             };
-
-            // Marca como usadas
+            
+            // Marca todos os artigos deste cluster como usados para evitar que apareçam em outros.
             relatedArticles.forEach(a => articlesUsed.add(a.id));
         }
     });
-    
-    // =======================================================================
-    // === FIM DA ALTERAÇÃO ===
-    // =======================================================================
 
     return Object.values(clusters);
 };
-
 
 
 // --- COMPONENTE SKELETON PARA O SMARTNEWS ---
