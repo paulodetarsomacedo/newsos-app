@@ -7557,7 +7557,7 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
 const VERCEL_URL = "https://newsos-app2.vercel.app"; 
 
 // --- FUNÇÃO DE IA HÍBRIDA (Compatível com Web e iPad) ---
-const generateChatResponse = async (chatHistory, articleText) => {
+const generateChatResponse = async (chatHistory, articleText, apiKeyFromModal) => {
   try {
     // 2. Montamos a URL completa aqui
     const apiUrl = `${VERCEL_URL}/api/chat`;
