@@ -5804,9 +5804,7 @@ useEffect(() => {
   }, [apiKeys]); // Recria a função apenas se o usuário mudar as chaves nas configurações
 
   // Função helper para o Chat (passada como callback)
-  const getChatApiKey = useCallback(() => {
-      return getApiKey('chat');
-  }, [getApiKey]);
+ 
   
 const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
@@ -7592,7 +7590,7 @@ const generateChatResponse = async (chatHistory, articleText, apiKeyFromModal) =
 
 
 // --- NOVO COMPONENTE: WHATSAPP CHAT INTERFACE ---
-const WhatsappChat = ({ articleText, apiKey, getChatApiKey, isDarkMode }) => {
+const WhatsappChat = ({ articleText, apiKey, isDarkMode }) => {
   const [history, setHistory] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -7917,7 +7915,7 @@ return (
           {viewMode === 'chat' && (
             <WhatsappChat 
               articleText={readerContent?.textContent || article.summary}
-              getChatApiKey={getChatApiKey}
+              
               isDarkMode={isDarkMode}
             />
           )}
