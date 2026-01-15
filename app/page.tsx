@@ -1143,12 +1143,12 @@ const NewsCard = React.memo(({
                         alt={news.source}
                     />
                 </div>
-                <div className="-ml-5 pl-7 pr-4 h-10 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
-                    <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none mt-0.5">
+                <div className="-ml-5 pl-7 pr-4 py-2 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
+                    <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none">
                         {news.source}
                     </span>
                 </div>
-                <div className="ml-2 px-4 h-10 flex items-center bg-white rounded-full shadow-md border border-zinc-100">
+                <div className="ml-2 px-4 py-2 flex items-center bg-white rounded-full shadow-md border border-zinc-100">
                     <span className="text-xs font-bold text-zinc-600">{displayTime}</span>
                 </div>
             </div>
@@ -1179,7 +1179,7 @@ const NewsCard = React.memo(({
           
           {/* PÍLULA FLUTUANTE DE AÇÃO */}
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-            <div className="flex items-center shadow-2xl rounded-full p-1.5 bg-white/80 backdrop-blur border border-white/20">
+            <div className="flex items-center shadow-2xl rounded-full px-0.5 bg-white/80 backdrop-blur border border-white/20">
                 <button 
                   onClick={(e) => { e.stopPropagation(); onClick(news); }} 
                   className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-violet-600 bg-transparent hover:bg-white/10 transition-colors"
@@ -1188,7 +1188,7 @@ const NewsCard = React.memo(({
                 </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[15px] font-black tracking-widest text-white bg-gradient-to-r from-violet-600 to-purple-500 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30 border border-white/10"
+                  className="px-6 py-2.5 rounded-full text-[15px] font-black tracking-widest text-white bg-purple-800 hover:brightness-110 transition-all shadow-lg shadow-neutral-100/30 border border-white/10"
                 >
                   <Sparkles size={16} className="mr-2 inline text-pink-300 animate-pulse" /> Analisar
                 </button>
@@ -2566,22 +2566,46 @@ const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
 
 // --- FUNÇÃO TREND RADAR (MODELO 2.5 FLASH) ---
 // --- FUNÇÃO TREND RADAR (VOLTANDO A USAR O POOL) ---
-const generateTrendRadar = async (news, apiKey) => { // <<-- Adicione apiKey de volta
+const generateTrendRadar = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
 
   const context = news.slice(0, 40).map((n, index) => 
     `${index}|${n.title}|${n.summary ? n.summary.slice(0, 60) : ''}`
   ).join('\n');
 
+  // ==========================================================
+  // === INÍCIO DA ALTERAÇÃO: O NOVO PROMPT ===
+  // ==========================================================
   const prompt = `
-  Identifique 6 Tópicos quentes. Retorne JSON:
-  [ { "topic": "Nome", "score": 1-10, "hex": "#hex", "summary": "Fato..." } ]
-  DADOS:
+  Você é um Analista de Tendências. Analise os títulos das notícias.
+  Sua missão é identificar 8 tópicos com diferentes níveis de impacto (temperatura).
+
+  REGRAS OBRIGATÓRIAS:
+  1.  **VARIEDADE DE SCORES:** Sua resposta DEVE incluir tópicos em diferentes faixas de score. Gere:
+      - 2 tópicos "MUITO QUENTES" (score 9-10).
+      - 3 tópicos "QUENTES" (score 6-8).
+      - 2 tópicos "MÉDIOS" (score 4-5).
+      - 1 tópico "LEVE" ou "FRIO" (score 1-3).
+  2.  **JSON ESTRITO:** Retorne APENAS um array JSON com 8 objetos.
+
+  FORMATO DO JSON:
+  [
+    {
+      "topic": "Nome do Tópico",
+      "score": 1, // Número de 1 a 10
+      "hex": "#3b82f6", // Cor correspondente ao score
+      "summary": "Um fato curto e direto sobre este tópico."
+    }
+  ]
+
+  DADOS PARA ANÁLISE:
   ${context}
   `;
+  // ==========================================================
+  // === FIM DA ALTERAÇÃO ===
+  // ==========================================================
 
   try {
-    // A chamada volta a ser para a API do Google, usando a chave do pool
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2592,11 +2616,15 @@ const generateTrendRadar = async (news, apiKey) => { // <<-- Adicione apiKey de 
     });
 
     const data = await response.json();
+    
     if (!response.ok || data.error) return null;
+
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
+    
     const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const json = JSON.parse(cleanText);
+
     return Array.isArray(json) ? json : []; 
 
   } catch (error) {
@@ -5656,67 +5684,76 @@ export default function NewsOS_V12() {
 
 
   
-  // --- INICIO DO BLOCO DE RESIZE (FUNCIONAL E OTIMIZADO) ---
+  // ==============================================================================
+  // === INÍCIO DO BLOCO DE OTIMIZAÇÃO DE RESIZE (NOVO E COMPLETO) ===
+  // ==============================================================================
 
-  // 1. Estados e Referências
-  const [panelWidth, setPanelWidth] = useState(600);
-  const panelDivRef = useRef(null);
-  const isResizing = useRef(false);
-  const resizeStartX = useRef(0);
-  const initialWidth = useRef(0);
-  const rafId = useRef(null);
+  // 1. Estado para a largura "oficial" e Refs para manipulação direta
+  const [panelWidth, setPanelWidth] = useState(600); // Controla a largura final
+  const panelDivRef = useRef(null);      // Referência para o DIV do painel
+  const isResizing = useRef(false);      // Flag para saber se estamos arrastando
+  const resizeStartX = useRef(0);        // Posição X inicial do mouse/dedo
+  const initialWidth = useRef(0);        // Largura inicial do painel
+  const rafId = useRef(null);            // ID para o requestAnimationFrame para suavidade extra
 
-  // 2. Função MOVE (Direto no DOM para performance máxima no iPad)
+  // 2. Função de MOVIMENTO (manipula o DOM diretamente para performance)
   const handleResizeMove = useCallback((e) => {
     if (!isResizing.current || !panelDivRef.current) return;
     
-    // Previne comportamento padrão (scroll)
+    // Previne comportamento padrão (como scroll da página no mobile)
     if(e.cancelable) e.preventDefault();
 
-    // Pega a posição X (suporta Mouse e Touch)
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
 
-    // Cancela frame anterior se houver
+    // Cancela o frame de animação anterior para evitar sobrecarga
     if (rafId.current) cancelAnimationFrame(rafId.current);
 
+    // Usa requestAnimationFrame para garantir que a manipulação do DOM seja fluida
     rafId.current = requestAnimationFrame(() => {
         const deltaX = clientX - resizeStartX.current;
-        // Invertido pois o painel está à direita
-        // Limites: Mínimo 300px, Máximo largura da tela - 50px
         const newWidth = Math.max(300, Math.min(initialWidth.current - deltaX, window.innerWidth));
         
+        // A MÁGICA: Altera o estilo diretamente no elemento do DOM, sem re-renderizar o React
         panelDivRef.current.style.width = `${newWidth}px`;
     });
   }, []);
 
-  // 3. Função UP (Finaliza e salva no React)
+// 3. Função de FIM (soltar o mouse/dedo, sincroniza com o React e "descongela" o fundo)
   const handleResizeUp = useCallback(() => {
     isResizing.current = false;
+    
+    // Devolve o comportamento normal ao navegador
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
-    document.body.style.touchAction = ''; // Devolve o controle de touch
-    
+    document.body.style.touchAction = '';
+
+    // "Descongela" a FeedTab, trazendo-a de volta ao normal suavemente
+    if (mainRef.current) {
+        mainRef.current.style.pointerEvents = '';
+        mainRef.current.style.userSelect = '';
+        mainRef.current.style.opacity = '1';
+    }
+
     if (panelDivRef.current) {
-        // Reativa a transição suave do CSS
+        // Reativa a transição suave do CSS para o fechamento
         panelDivRef.current.style.transition = 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
         
-        // Só agora atualiza o React (evita lag durante o arraste)
+        // AGORA SIM: Atualiza o estado do React uma única vez com a largura final
         const finalWidth = parseInt(panelDivRef.current.style.width, 10);
         setPanelWidth(finalWidth);
     }
 
     if (rafId.current) cancelAnimationFrame(rafId.current);
 
-    // Remove listeners globais
+    // Remove os 'escutadores' de evento globais
     window.removeEventListener('mousemove', handleResizeMove);
     window.removeEventListener('mouseup', handleResizeUp);
     window.removeEventListener('touchmove', handleResizeMove);
     window.removeEventListener('touchend', handleResizeUp);
-  }, [handleResizeMove]);
+  }, [handleResizeMove]); // A dependência garante que a versão mais recente da função seja usada
 
-  // 4. Função DOWN (Inicia)
+  // 4. Função de INÍCIO (clicar e segurar no puxador, "congela" o fundo)
   const handleResizeStart = (e) => {
-    // Ignora clique com botão direito
     if (e.type === 'mousedown' && e.button !== 0) return;
     
     e.preventDefault(); 
@@ -5724,26 +5761,36 @@ export default function NewsOS_V12() {
 
     isResizing.current = true;
     resizeStartX.current = e.touches ? e.touches[0].clientX : e.clientX;
-    initialWidth.current = panelWidth;
+    initialWidth.current = panelDivRef.current.offsetWidth;
     
-    // DESLIGA a transição temporariamente para o arraste ser instantâneo
+    // DESLIGA a transição do CSS temporariamente para o arraste ser instantâneo
     if (panelDivRef.current) {
         panelDivRef.current.style.transition = 'none';
     }
     
-    // Trava seleções e scroll
+    // "Congela" a FeedTab para a GPU: desativa interações e a deixa semi-transparente
+    if (mainRef.current) {
+        mainRef.current.style.pointerEvents = 'none';
+        mainRef.current.style.userSelect = 'none';
+        mainRef.current.style.transition = 'opacity 0.3s ease'; // Transição suave para o "congelamento"
+        mainRef.current.style.opacity = '0.7';
+    }
+    
+    // Trava a seleção de texto e o scroll da página durante o arraste
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'ew-resize';
-    document.body.style.touchAction = 'none'; // CRÍTICO PARA IPAD
+    document.body.style.touchAction = 'none'; // Crítico para iPad
     
-    // Adiciona listeners na janela inteira
+    // Adiciona os 'escutadores' de evento na janela inteira
     window.addEventListener('mousemove', handleResizeMove, { passive: false });
     window.addEventListener('mouseup', handleResizeUp);
     window.addEventListener('touchmove', handleResizeMove, { passive: false });
     window.addEventListener('touchend', handleResizeUp);
   };
   
-  // --- FIM DO BLOCO DE RESIZE ---
+  // ==============================================================================
+  // === FIM DO BLOCO DE OTIMIZAÇÃO DE RESIZE ===
+  // ==============================================================================
 
 
 
@@ -6966,7 +7013,7 @@ return (
                 width: selectedArticle ? `${panelWidth}px` : '0px',
                 transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
                 maxWidth: '100vw',
-                // A transição é gerenciada via JS durante o resize para não travar
+                // 2. A transição agora é controlada pelo JS para ser desativada durante o arraste
                 transition: isResizing.current ? 'none' : 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
         >
@@ -7004,7 +7051,7 @@ return (
                     
                     
                     isDarkMode={isDarkMode}
-                     isResizing={isResizing.current} 
+                    isResizing={isResizing.current} 
                 />
             )}
         </div>
@@ -7703,7 +7750,7 @@ const chatApiKey = null;
 // 2. O PAINEL DE IA PRINCIPAL
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey }) => {
+const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, isResizing }) => {
   const [aiData, setAiData] = useState(null);
   const [loadingState, setLoadingState] = useState('idle'); 
   const [viewMode, setViewMode] = useState('analysis');
@@ -7823,8 +7870,14 @@ const handleNodeClick = useCallback((nodeName, position) => {
   
 // --- return do ArticlePanel ---
 return (
-  <div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} border-l-2 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
-    <style jsx="true">{`
+<div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'} border-l-2 transition-colors duration-300
+    ${isResizing 
+        // Se estiver redimensionando, usa um fundo sólido e mais opaco
+        ? (isDarkMode ? 'bg-zinc-950/95' : 'bg-white/95')
+        // Se não, usa o fundo com o efeito de desfoque pesado
+        : (isDarkMode ? 'bg-zinc-950/90 backdrop-blur-3xl' : 'bg-white/80 backdrop-blur-3xl')
+    }
+  `}>    <style jsx="true">{`
         @keyframes spin-slow { to { transform: rotate(360deg); } }
         .animate-spin-slow { animation: spin-slow 20s linear infinite; }
         @keyframes spin-reverse-slow { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
