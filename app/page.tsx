@@ -3959,6 +3959,8 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode }) => {
     return { color: '#3b82f6', heightPercent: 30 };
   };
 
+
+
 const runTrendAnalysis = async () => {
     // Pega uma chave do pool de widgets
     const currentApiKey = getApiKey('widgets');
@@ -3974,11 +3976,29 @@ const runTrendAnalysis = async () => {
     // Passa a chave para a função de IA
     const data = await generateTrendRadar(newsData, currentApiKey); 
 
-    if (data && data.length > 0) {
-      // ...
+    // ==========================================================
+    // === INÍCIO DA CORREÇÃO: Lógica preenchida ===
+    // ==========================================================
+    if (data && Array.isArray(data) && data.length > 0) {
+      // 1. Ordena os dados recebidos pelo score
+      const sortedData = data.sort((a, b) => b.score - a.score);
+      
+      // 2. Atualiza o estado 'trends' com os novos dados
+      setTrends(sortedData);
+      
+      // 3. Avisa o componente que ele já tem dados reais para mostrar
+      setHasGenerated(true);
+      
+      // 4. Salva os dados no cache do navegador para a próxima vez que o app abrir
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedData));
     } else {
-      // ...
+      // Se a IA não retornar dados, avisa o usuário
+      alert("A IA não identificou tendências claras no momento. Tente novamente mais tarde.");
     }
+    // ==========================================================
+    // === FIM DA CORREÇÃO ===
+    // ==========================================================
+    
     setLoading(false);
 };
 
