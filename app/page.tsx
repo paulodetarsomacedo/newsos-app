@@ -1028,6 +1028,7 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
+
 const NewsCard = React.memo(({ 
   news, 
   isSelected, 
@@ -1040,10 +1041,8 @@ const NewsCard = React.memo(({
   onToggleSave, 
   onToggleLike, 
   onPlay, 
-  isViewedFromStory, 
   playingAudio 
 }) => {
-  // Formatação de data segura
   const displayTime = news.rawDate 
     ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
     : '...';
@@ -1052,7 +1051,6 @@ const NewsCard = React.memo(({
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
 
-  // --- SUB-COMPONENT: InlinePlayer ---
   const InlinePlayer = () => (
     <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
         <div className="p-4 flex items-center gap-4">
@@ -1095,11 +1093,7 @@ const NewsCard = React.memo(({
       `}
     >
       
-      {/* 
-          ================================================================
-          EFEITOS DE AURA (GEMINI STYLE)
-          ================================================================
-      */}
+      {/* EFEITOS DE AURA */}
       {isSelected && (
         <>
             <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-60 blur-xl animate-pulse transition-all duration-500" />
@@ -1107,47 +1101,40 @@ const NewsCard = React.memo(({
         </>
       )}
 
-      {/* 
-         CONTAINER PRINCIPAL
-      */}
+      {/* CONTAINER PRINCIPAL */}
       <div className={`
         relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem]
         ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'}
         ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}
       `}>
       
-          {/* 1. ÁREA DE IMAGEM */}
-          <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800">
+          {/* 
+            ================================================================
+            1. ÁREA DE IMAGEM
+            ================================================================
+          */}
+          <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
             
-            {/* Componente de Imagem Inteligente */}
-            {/* Nota: SmartImage deve ser importado ou definido no seu projeto */}
+            {/* 
+              NOVA LÓGICA:
+              - A imagem agora é absoluta dentro do container.
+              - Ela é maior que o container (h-[calc(100%+1.5rem)]) e posicionada 
+                para baixo (-bottom-6) para cobrir o fundo cinza.
+            */}
             <img 
                 src={news.img} 
                 alt={news.title}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6"
             />
             
-            {/* Gradiente Inferior para legibilidade do Título (Dark Overlay) */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-90" />
+            {/* Gradiente Inferior para legibilidade do Título */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-            {/* 
-                ================================================================
-                REQ 1: CABEÇALHO BRANCO COM FADE
-                Sobreposto à imagem, no topo, para dar fundo ao logo/texto
-                ================================================================
-            */}
-            <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-white via-white/90 to-transparent opacity-95 mix-blend-normal pointer-events-none" />
+            {/* Gradiente Superior Branco */}
+            <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
-            {/* 
-                ================================================================
-                REQ 2 & 3: CABEÇALHO "LIQUID" (Logo + Fonte)
-                ================================================================
-            */}
-            <div className="absolute top-5 left-5 flex items-center z-20">
-                {/* 
-                    O LOGO (Quadrado arredondado)
-                    Z-Index maior para ficar "por cima" do container de texto
-                */}
+            {/* CABEÇALHO "LIQUID" */}
+            <div className="absolute top-6 left-5 flex items-center z-20">
                 <div className="relative z-20 shrink-0 shadow-lg">
                     <img 
                         src={news.logo} 
@@ -1156,40 +1143,23 @@ const NewsCard = React.memo(({
                         alt={news.source}
                     />
                 </div>
-
-                {/* 
-                    O NOME DA FONTE (Efeito Liquid)
-                    - Margem negativa ( -ml-5 ) para entrar embaixo do logo
-                    - Padding left grande ( pl-7 ) para empurrar o texto para fora da área do logo
-                    - Altura menor que o logo ( h-10 vs h-14 )
-                    - Rounded-r-full para a ponta direita arredondada
-                */}
-                <div className="-ml-5 pl-7 pr-4 h-10 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
-                    <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none mt-0.5">
+                <div className="-ml-5 pl-7 pr-4 py-2 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
+                    <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none">
                         {news.source}
                     </span>
                 </div>
-
-                {/* Badge de Tempo (Separado, estilo pílula escura) */}
-                <div className="ml-2 bg-black/60 backdrop-blur-md py-1.5 px-3 rounded-full border border-white/10 shadow-sm">
-                    <span className="text-[11px] font-bold text-white">{displayTime}</span>
+                <div className="ml-2 px-4 py-2 flex items-center bg-white rounded-full shadow-md border border-zinc-100">
+                    <span className="text-xs font-bold text-zinc-600">{displayTime}</span>
                 </div>
             </div>
 
-            {/* 
-                ================================================================
-                REQ 4: INDICADOR DE LIDO + BOTÕES DE AÇÃO
-                ================================================================
-            */}
+            {/* BOTÕES DE AÇÃO */}
             <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-3">
-                {/* Indicador de Lido */}
                 {isRead && (
                     <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
                         Lida
                     </div>
                 )}
-
-                {/* Botões de Ação */}
                 <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/20 backdrop-blur-md border border-white/10 shadow-lg">
                     <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/90 hover:text-white'}`}>
                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
@@ -1207,30 +1177,33 @@ const NewsCard = React.memo(({
 
           </div>
           
-          {/* 
-             PÍLULA FLUTUANTE DE AÇÃO (CENTRAL)
-          */}
+          {/* PÍLULA FLUTUANTE DE AÇÃO */}
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-            <div className="flex items-center shadow-2xl rounded-full p-1.5 bg-black/20 backdrop-blur-xl border border-white/20">
+            <div className="flex items-center shadow-2xl rounded-full px-0.5 bg-white/80 backdrop-blur border border-white/20">
                 <button 
                   onClick={(e) => { e.stopPropagation(); onClick(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-transparent hover:bg-white/10 transition-colors"
+                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-violet-600 bg-transparent hover:bg-white/10 transition-colors"
                 >
                   Ler
                 </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-violet-600 to-purple-500 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30 border border-white/10"
+                  className="px-6 py-2.5 rounded-full text-[15px] font-black tracking-widest text-white bg-purple-800 hover:brightness-110 transition-all shadow-lg shadow-neutral-100/30 border border-white/10"
                 >
                   <Sparkles size={16} className="mr-2 inline text-pink-300 animate-pulse" /> Analisar
                 </button>
             </div>
           </div>
           
-          {/* ÁREA DE TEXTO (Título e Sumário) */}
-          <div className="relative px-6 pt-12 pb-6 flex-1 flex flex-col justify-end">
+          {/* 
+            ================================================================
+            2. ÁREA DE TEXTO
+            MELHORIA: Padding vertical ainda mais reduzido para diminuir a altura.
+            ================================================================
+          */}
+          <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
-                 <h3 className={`text-xl font-black leading-tight mb-3 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                 <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
                  </h3>
                  <p className={`text-sm font-medium leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} line-clamp-2`}>
@@ -1245,42 +1218,40 @@ const NewsCard = React.memo(({
   );
 });
 
-
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
-function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onReadArticle, onGenerateAudio, apiKey, getChatApiKey }) {
+// --- TAB: FEED (VERSÃO FINAL, LIMPA E OTIMIZADA) ---
+function FeedTab({ 
+  isDarkMode, 
+  selectedArticleId, 
+  savedItems, 
+  onToggleSave, 
+  readHistory, 
+  newsData, 
+  isLoading, 
+  sourceFilter, 
+  setSourceFilter, 
+  likedItems, 
+  onToggleLike, 
+  onRefresh, 
+  onReadArticle, 
+  onGenerateAudio,
+  openArticle // Esta é a função que abre o painel de IA
+}) {
   
-  // ==========================================================
-  // 1. ESTADOS (STATES)
-  // ==========================================================
+  // Estados e lógica pertencentes APENAS ao feed
   const [category, setCategory] = useState('Tudo');
   const [stableData, setStableData] = useState([]);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [startY, setStartY] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // Estados do Player de Áudio Local
   const [localPlayingAudio, setLocalPlayingAudio] = useState(null); 
   const [audioUrl, setAudioUrl] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-
-  // Estados de Resize
-  const [panelWidth, setPanelWidth] = useState(600);
-  const [isResizingState, setIsResizingState] = useState(false); // Estado visual para otimização
   
-  // ==========================================================
-  // 2. REFERÊNCIAS (REFs)
-  // ==========================================================
   const feedContainerRef = useRef(null);
   const audioRef = useRef(null);
   const prevCategory = useRef(category);
-  
-  // Refs de Resize
-  const panelDivRef = useRef(null);
-  const isResizing = useRef(false);
-  const resizeStartX = useRef(0);
-  const initialWidth = useRef(0);
-  const rafId = useRef(null);
 
   useEffect(() => {
     if (feedContainerRef.current && prevCategory.current !== category) {
@@ -1289,22 +1260,16 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
     prevCategory.current = category;
   }, [category]);
 
-  useEffect(() => {
-      setSourceFilter('all');
-  }, [category, setSourceFilter]);
+  useEffect(() => { setSourceFilter('all'); }, [category]);
 
   useEffect(() => {
-    if (newsData && newsData.length > 0 && !hasLoaded) {
+    if (newsData && newsData.length > 0) {
         setStableData(newsData);
-        setHasLoaded(true);
+        if (!hasLoaded) setHasLoaded(true);
+    } else {
+        setStableData([]);
     }
-  }, [newsData, hasLoaded]);
-
-  useEffect(() => {
-      if (stableData.length === 0 && newsData && newsData.length > 0) {
-          setStableData(newsData);
-      }
-  }, [newsData, stableData.length]);
+  }, [newsData]);
 
   useEffect(() => {
     if (audioUrl && audioRef.current) {
@@ -1316,187 +1281,45 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
     }
   }, [audioUrl]);
 
-  // ==========================================================
-  // 4. CÁLCULOS MEMORIZADOS
-  // ==========================================================
-  const safeNews = useMemo(() => (stableData && stableData.length > 0) ? stableData : [], [stableData]);
+  const safeNews = useMemo(() => stableData || [], [stableData]);
   const filteredByCategory = useMemo(() => category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category), [safeNews, category]);
   const filteredBySource = useMemo(() => sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter), [filteredByCategory, sourceFilter]);
-
-  const sortedFeed = useMemo(() => {
-      return [...filteredBySource].sort((a, b) => {
-          const tA = new Date(a.rawDate).getTime() || 0;
-          const tB = new Date(b.rawDate).getTime() || 0;
-          return tB - tA;
-      });
-  }, [filteredBySource]);
-
+  const sortedFeed = useMemo(() => [...filteredBySource].sort((a, b) => (new Date(b.rawDate).getTime() || 0) - (new Date(a.rawDate).getTime() || 0)), [filteredBySource]);
   const uniqueNews = useMemo(() => {
       const seen = new Set();
-      const filtered = sortedFeed.filter(item => {
+      return sortedFeed.filter(item => {
           if (seen.has(item.id)) return false;
           seen.add(item.id);
           return true;
-      });
-      return filtered.slice(0, 50); 
+      }).slice(0, 50); 
   }, [sortedFeed]);
 
-  // ==========================================================
-  // 5. FUNÇÕES DE AÇÃO (PULL TO REFRESH & AUDIO)
-  // ==========================================================
-  const handleTouchStart = (e) => {
-    if (feedContainerRef.current && feedContainerRef.current.scrollTop <= 5 && !isRefreshing) {
-        setStartY(e.touches[0].clientY);
-    }
-  };
-
+  const handleTouchStart = (e) => { if (feedContainerRef.current?.scrollTop <= 5 && !isRefreshing) setStartY(e.touches[0].clientY); };
   const handleTouchMove = (e) => {
-    if (startY === 0 || isRefreshing) return;
-    // Verifica se container existe para evitar erro
-    if (feedContainerRef.current && feedContainerRef.current.scrollTop > 5) {
-        setPullDistance(0);
-        return;
-    }
-    const currentY = e.touches[0].clientY;
-    const diff = currentY - startY;
+    if (startY === 0 || isRefreshing || (feedContainerRef.current && feedContainerRef.current.scrollTop > 5)) return;
+    const diff = e.touches[0].clientY - startY;
     if (diff > 0) {
-        if (e.cancelable) e.preventDefault(); 
-        const newPull = Math.min(diff * 0.45, 140); 
-        setPullDistance(newPull);
+      if (e.cancelable) e.preventDefault();
+      setPullDistance(Math.min(diff * 0.45, 140));
     }
   };
-
   const handleTouchEnd = async () => {
-    if (pullDistance === 0) {
-        setStartY(0);
-        return;
-    }
     if (pullDistance > 70) {
-        setIsRefreshing(true);
-        setPullDistance(70); 
-        if (onRefresh) await onRefresh();
-        await new Promise(resolve => setTimeout(resolve, 500)); 
-        if (newsData && newsData.length > 0) {
-            setStableData(newsData);
-        }
-        setIsRefreshing(false);
+      setIsRefreshing(true);
+      if (onRefresh) await onRefresh();
+      setIsRefreshing(false);
     }
-    setPullDistance(0);
-    setStartY(0);
+    setPullDistance(0); setStartY(0);
   };
-
   const handleLocalPlay = useCallback(async (article) => {
-    if (!article) {
-        setLocalPlayingAudio(null);
-        setAudioUrl('');
-        return;
-    }
-    if (localPlayingAudio?.id === article.id) {
-        setLocalPlayingAudio(null);
-        setAudioUrl('');
-        return;
-    }
-    setLocalPlayingAudio(article);
-    setIsGenerating(true);
-    setAudioUrl('');
-    
-    const url = await onGenerateAudio(article); 
-
-    if (url) {
-        setIsGenerating(false);
-        setAudioUrl(url);
-    } else {
-        setLocalPlayingAudio(null);
-        setIsGenerating(false);
-    }
+    if (!article || localPlayingAudio?.id === article.id) { setLocalPlayingAudio(null); setAudioUrl(''); return; }
+    setLocalPlayingAudio(article); setIsGenerating(true); setAudioUrl('');
+    const url = await onGenerateAudio(article);
+    if (url) { setIsGenerating(false); setAudioUrl(url); } 
+    else { setLocalPlayingAudio(null); setIsGenerating(false); }
   }, [localPlayingAudio, onGenerateAudio]);
 
-
-  const handleAnalyze = useCallback((article) => {
-      openArticle(article); 
-  }, [openArticle]);
-
-  // ==========================================================
-  // 6. LÓGICA DE RESIZE OTIMIZADA (IPAD READY)
-  // ==========================================================
-  
-  const handleResizeMove = useCallback((e) => {
-    if (!isResizing.current || !panelDivRef.current) return;
-    
-    // Evita scroll da página no iPad enquanto redimensiona
-    if(e.cancelable) e.preventDefault();
-
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-
-    if (rafId.current) cancelAnimationFrame(rafId.current);
-
-    rafId.current = requestAnimationFrame(() => {
-        const deltaX = clientX - resizeStartX.current;
-        // Invertido pois painel está à direita. 
-        // Math.min limita largura máxima à largura da janela - 50px (margem de segurança)
-        const newWidth = Math.max(320, Math.min(initialWidth.current - deltaX, window.innerWidth - 50));
-        
-        panelDivRef.current.style.width = `${newWidth}px`;
-    });
-  }, []);
-
-  const handleResizeUp = useCallback(() => {
-    isResizing.current = false;
-    setIsResizingState(false); // Reativa os efeitos visuais pesados
-
-    document.body.style.userSelect = '';
-    document.body.style.cursor = '';
-    document.body.style.touchAction = '';
-    
-    if (panelDivRef.current) {
-        panelDivRef.current.style.transition = 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
-        const finalWidth = parseInt(panelDivRef.current.style.width, 10);
-        setPanelWidth(finalWidth);
-    }
-
-    if (rafId.current) cancelAnimationFrame(rafId.current);
-
-    window.removeEventListener('mousemove', handleResizeMove);
-    window.removeEventListener('mouseup', handleResizeUp);
-    window.removeEventListener('touchmove', handleResizeMove);
-    window.removeEventListener('touchend', handleResizeUp);
-  }, [handleResizeMove]);
-
-  const handleResizeStart = (e) => {
-    if (e.type === 'mousedown' && e.button !== 0) return;
-    
-    // Impede propagação para não selecionar texto ou clicar no que está embaixo
-    e.preventDefault(); 
-    e.stopPropagation();
-
-    isResizing.current = true;
-    setIsResizingState(true); // Desativa efeitos pesados no ArticlePanel
-
-    resizeStartX.current = e.touches ? e.touches[0].clientX : e.clientX;
-    initialWidth.current = panelWidth; // Pega do state ou do ref, mas o state é a fonte de verdade inicial
-    
-    // Se o painel já tiver sido renderizado, pega a largura atual computada para precisão
-    if (panelDivRef.current) {
-        initialWidth.current = panelDivRef.current.getBoundingClientRect().width;
-        // Remove transição para resposta instantânea ao dedo/mouse
-        panelDivRef.current.style.transition = 'none';
-    }
-    
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'ew-resize';
-    document.body.style.touchAction = 'none'; // CRÍTICO PARA IPAD
-    
-    window.addEventListener('mousemove', handleResizeMove, { passive: false });
-    window.addEventListener('mouseup', handleResizeUp);
-    window.addEventListener('touchmove', handleResizeMove, { passive: false });
-    window.addEventListener('touchend', handleResizeUp);
-  };
-
-  // ==========================================================
-  // 7. RENDERIZAÇÃO
-  // ==========================================================
-  
-  if (isLoading && (!stableData || stableData.length === 0)) {
+  if (isLoading && stableData.length === 0) {
      return (
        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
           <Loader2 size={40} className="animate-spin text-purple-500" />
@@ -1506,148 +1329,41 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
   }
 
   return (
-    <div className="flex w-full h-full relative overflow-hidden">
-        
-        {/* COLUNA PRINCIPAL (FEED) */}
-        <div 
-        ref={feedContainerRef} 
-        className="flex-1 min-w-0 space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 pt-2 h-screen overflow-y-auto overscroll-y-none touch-pan-y custom-scrollbar"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        >
-        
-        {/* Player de áudio invisível */}
-        <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
-        
-        {/* CABEÇALHO */}
-        <div className="sticky top-0 z-[40] w-full flex justify-center py-2 pointer-events-none">
-            <div className="pointer-events-auto">
-                <SourceSelector 
-                    news={filteredByCategory} 
-                    selectedSource={sourceFilter} 
-                    onSelect={setSourceFilter} 
-                    isDarkMode={isDarkMode} 
-                />          
-            </div>
-            <SlidingPillFilter 
-                categories={FEED_CATEGORIES} 
-                active={category} 
-                onChange={setCategory} 
-                isDarkMode={isDarkMode} 
+    <div 
+      ref={feedContainerRef} 
+      className="space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 pt-2 min-h-screen overscroll-y-none touch-pan-y custom-scrollbar"
+      onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+    >
+      <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
+      
+      <div className="sticky top-0 z-40 w-full flex justify-center py-2 pointer-events-none">
+          <div className="pointer-events-auto"><SourceSelector news={filteredByCategory} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} /></div>
+          <SlidingPillFilter categories={FEED_CATEGORIES} active={category} onChange={setCategory} isDarkMode={isDarkMode} />
+      </div>
+
+      <div style={{ height: `${pullDistance}px`, opacity: Math.min(pullDistance / 40, 1) }} className="flex items-end justify-center overflow-hidden w-full">
+         <div className={`mb-4 flex items-center gap-3 px-5 py-2 rounded-full shadow-lg border ${isDarkMode ? 'bg-zinc-800 border-purple-500/30' : 'bg-white border-purple-200'}`}>
+            {isRefreshing ? <><Loader2 size={16} className="animate-spin text-purple-500" /> <span className="text-xs font-bold text-purple-500">Atualizando...</span></> : <><RefreshCw size={16} style={{ transform: `rotate(${pullDistance * 3}deg)` }} /> <span className="text-xs">{pullDistance > 70 ? 'Solte para atualizar' : 'Puxe para atualizar'}</span></>}
+         </div>
+      </div>
+      
+      <div className="flex flex-col gap-4 px-4">
+        {uniqueNews.length === 0 && !isLoading && <div className="text-center py-10 opacity-50"><p>Nenhuma notícia encontrada.</p></div>}
+        {uniqueNews.map((news) => (
+            <NewsCard 
+              key={news.id} news={news} isSelected={selectedArticleId === news.id}
+              playingAudio={isGenerating ? {id: localPlayingAudio?.id, isGenerating: true} : localPlayingAudio}
+              onPlay={handleLocalPlay} isRead={readHistory?.includes(news.id)}
+              isSaved={savedItems?.some((item) => item.id === news.id)}
+              isDarkMode={isDarkMode} onClick={onReadArticle} onAnalyze={openArticle}
+              onToggleSave={onToggleSave} isLiked={likedItems?.includes(news.id)}
+              onToggleLike={onToggleLike}
             />
-        </div>
-
-        {/* LOADING PULL INDICATOR */}
-        <div 
-            style={{ height: `${pullDistance}px`, opacity: Math.min(pullDistance / 40, 1), transition: isRefreshing ? 'height 0.3s ease' : 'height 0s' }} 
-            className="flex items-end justify-center overflow-hidden w-full will-change-transform"
-        >
-            <div className={`mb-4 flex items-center gap-3 px-5 py-2 rounded-full shadow-lg border transition-all transform duration-200 ${isDarkMode ? 'bg-zinc-800 border-purple-500/30 text-white' : 'bg-white border-purple-200 text-zinc-800'} ${pullDistance > 70 ? 'scale-110' : 'scale-100'}`}>
-                {isRefreshing ? (
-                    <><Loader2 size={20} className="animate-spin text-purple-500" /><span className="text-xs font-bold text-purple-500 animate-pulse">Atualizando...</span></>
-                ) : (
-                    <><div style={{ transform: `rotate(${pullDistance * 3}deg)` }} className="..."><RefreshCw size={16} /></div><span className={`...`}>{pullDistance > 70 ? 'Solte para atualizar' : 'Puxe para atualizar'}</span></>
-                )}
-            </div>
-        </div>
-        
-        {/* LISTA DE CARDS */}
-        <div className="flex flex-col gap-4 px-4 sm:px-0">
-            {isLoading && stableData.length === 0 && (
-                <>
-                {[1, 2, 3, 4, 5].map((i) => (
-                    <NewsCardSkeleton key={i} isDarkMode={isDarkMode} />
-                ))}
-                </>
-            )}
-
-            {!isLoading && uniqueNews.length === 0 && stableData.length > 0 && (
-            <div className="text-center py-10 opacity-50">
-                <p>Nenhuma notícia encontrada nesta categoria.</p>
-            </div>
-            )}
-            
-            {uniqueNews.map((news) => (
-                <NewsCard 
-                key={news.id}
-                news={news}
-                isSelected={selectedArticleId === news.id}
-                playingAudio={isGenerating ? {id: localPlayingAudio?.id, isGenerating: true} : localPlayingAudio}
-                onPlay={handleLocalPlay} 
-                isRead={readHistory?.includes(news.id)}
-                isSaved={savedItems?.some((item) => item.id === news.id)}
-                isDarkMode={isDarkMode}
-                onClick={onReadArticle}
-                onAnalyze={handleAnalyze}
-                onToggleSave={onToggleSave}
-                isLiked={likedItems?.includes(news.id)}
-                onToggleLike={onToggleLike}
-                isViewedFromStory={viewedInStoryId}
-                />
-            ))}
-        </div>
-        </div>
-
-        {/* 
-            ================================================================
-            PAINEL LATERAL (ARTICLE PANEL)
-            Renderizado condicionalmente ou sempre presente mas hidden
-            ================================================================
-        */}
-        {selectedArticleId && (
-            <>
-                {/* RESIZE HANDLE (A alça invisível mas com área de toque aumentada) */}
-                <div 
-                    onMouseDown={handleResizeStart}
-                    onTouchStart={handleResizeStart}
-                    className="absolute z-[100] top-0 bottom-0 cursor-ew-resize flex items-center justify-center hover:bg-purple-500/10 transition-colors group"
-                    style={{ 
-                        right: `${panelWidth - 14}px`, // Posicionado na borda do painel
-                        width: '28px', // Largura generosa para o dedo no iPad
-                        touchAction: 'none' // Essencial
-                    }}
-                >
-                    {/* Indicador visual fino no centro da alça */}
-                    <div className={`w-1 h-12 rounded-full transition-colors ${isResizingState ? 'bg-purple-500' : 'bg-zinc-300 dark:bg-zinc-700 group-hover:bg-purple-400'}`} />
-                </div>
-
-                {/* CONTAINER DO PAINEL */}
-                <div 
-                    ref={panelDivRef}
-                    className="h-full shadow-2xl z-50 flex-shrink-0 relative"
-                    style={{ 
-                        width: panelWidth,
-                        willChange: isResizingState ? 'width' : 'auto' // Dica para o browser preparar a GPU
-                    }}
-                >
-                    {/* Passamos safeNews para encontrar o artigo completo, ou o próprio objeto se já disponível */}
-                    {(() => {
-                        const activeArticle = uniqueNews.find(n => n.id === selectedArticleId);
-                        if (!activeArticle) return null;
-                        
-                        return (
-                            <ArticlePanel 
-                                article={activeArticle}
-                                isOpen={!!selectedArticleId}
-                                onClose={() => openArticle(null)} // Assumindo que null fecha
-                                onToggleSave={onToggleSave}
-                                isSaved={savedItems?.some(i => i.id === activeArticle.id)}
-                                isDarkMode={isDarkMode}
-                                apiKey={apiKey}
-                                getChatApiKey={getChatApiKey}
-                                isResizing={isResizingState} // << PROPRIEDADE CRÍTICA DE PERFORMANCE
-                            />
-                        );
-                    })()}
-                </div>
-            </>
-        )}
-
+        ))}
+      </div>
     </div>
   );
 }
-
 // --- OUTROS COMPONENTES E FILTROS ---
 
 function YouTubeVerticalFilter({ categories, active, onChange, isDarkMode }) {
@@ -2199,16 +1915,38 @@ const generateFullAnalysis = async (text, apiKey) => {
     const data = await response.json();
     if (!response.ok || data.error) return null;
 
-    const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text
-        .replace(/```json/g, '').replace(/```/g, '').trim();
+       const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
-    return JSON.parse(jsonString);
+    // ==========================================================
+    // === INÍCIO DA CORREÇÃO: Lógica de Limpeza do JSON ===
+    // ==========================================================
+    if (!jsonString) {
+        console.error("Erro Full Analysis: A IA não retornou nenhum texto.");
+        return null;
+    }
+    
+    // 1. Remove os blocos de código markdown (como já fazia)
+    let cleanedString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    // 2. Tenta remover vírgulas finais traiçoeiras antes de fechar chaves ou colchetes.
+    // Esta expressão regular busca por ",}" e substitui por "}" e busca por ",]" e substitui por "]".
+    cleanedString = cleanedString.replace(/,\s*([}\]])/g, "$1");
+
+    // 3. Tenta fazer o parse do JSON limpo.
+    return JSON.parse(cleanedString);
+    // ==========================================================
+    // === FIM DA CORREÇÃO ===
+    // ==========================================================
 
   } catch (error) {
+    // Agora o log de erro será mais útil, mostrando o JSON problemático
     console.error("Erro Full Analysis:", error);
+    // Se quiser ver o que a IA retornou de errado, adicione este log:
+    // console.log("JSON problemático recebido da IA:", jsonString);
     return null;
   }
 };
+
 
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODELO 2.5 FLASH) ---
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V3 - 4 CARDS + TEXTO FLUÍDO) ---
@@ -2298,6 +2036,254 @@ RETORNE APENAS JSON:
     console.error("Erro Smart Clustering:", error);
     return null;
   }
+};
+
+// --- NOVO SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO (COM ACORDEÃO) ---
+const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    // Encontra as notícias relacionadas a este ativo para mostrar no acordeão
+    const relatedArticles = useMemo(() => {
+        if (!allNews || !asset.keywords) return [];
+        // Filtra todas as notícias que contenham alguma das palavras-chave no título
+        return allNews.filter(n => {
+            const title = n.title.toLowerCase();
+            return asset.keywords.some(k => title.includes(k));
+        }).slice(0, 4); // Limita a 4 notícias para não sobrecarregar
+    }, [asset.keywords, allNews]);
+
+    // Escolhe o ícone com base no nome do ativo
+    const getIcon = (assetName) => {
+        const name = assetName.toUpperCase();
+        if (name.includes('BTC') || name.includes('BITCOIN')) return <Bitcoin size={20} />;
+        if (name.includes('USD') || name.includes('DÓLAR')) return <DollarSign size={20} />;
+        if (name.includes('EUR') || name.includes('EURO')) return <Euro size={20} />;
+        if (name.includes('IBOV') || name.includes('BOLSA')) return <Activity size={20} />;
+        return <TrendingUp size={20} />;
+    };
+
+    return (
+        <div className={`rounded-2xl transition-all duration-300 overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-zinc-200 shadow-sm'}`}>
+            {/* ÁREA CLICÁVEL (CABEÇALHO) */}
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="p-4 w-full text-left outline-none flex justify-between items-center group"
+            >
+                <div className="flex items-center gap-4">
+                    <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-black/20' : 'bg-zinc-100'} text-purple-400`}>
+                        {getIcon(asset.name)}
+                    </div>
+                    <span className={`text-base font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
+                        {asset.name}
+                    </span>
+                </div>
+                
+                <div className={`transition-transform duration-300 ${isOpen ? 'rotate-90' : 'rotate-0'}`}>
+                    <ChevronRight size={20} className="text-zinc-500" />
+                </div>
+            </button>
+
+            {/* ÁREA DO ACORDEÃO (NOTÍCIAS) */}
+            <div 
+                className={`grid transition-all duration-500 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+            >
+                <div className="min-h-0 overflow-hidden">
+                    <div className={`border-t px-2 pb-2 space-y-1 ${isDarkMode ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
+                        {relatedArticles.length > 0 ? (
+                            relatedArticles.map((news) => (
+                                <button 
+                                    key={news.id}
+                                    onClick={(e) => { e.stopPropagation(); openArticle(news); }}
+                                    className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+                                >
+                                    <img src={news.logo} className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover" alt="Logo" onError={(e) => e.target.style.display='none'} />
+                                    <span className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300 group-hover:text-white' : 'text-zinc-700 group-hover:text-black'}`}>
+                                        {news.title}
+                                    </span>
+                                </button>
+                            ))
+                        ) : (
+                            <div className="p-3 text-center text-[10px] opacity-50">
+                                Sem notícias recentes para este ativo.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+
+
+// --- WIDGET: MARKET PULSE (V6 - DESIGN PREMIUM E IA INTEGRADA) ---
+const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
+  const [analysisData, setAnalysisData] = useState(null);
+  const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'success'
+
+  // Lógica para verificar se o mercado está aberto (simplificado para o horário)
+  const isMarketOpen = useMemo(() => {
+    const currentHour = new Date().getHours();
+    // Considera o mercado aberto entre 9h e 18h
+    return currentHour >= 9 && currentHour < 18;
+  }, []);
+
+  // A lógica heurística permanece a mesma, como fallback e estado inicial
+  const heuristicData = useMemo(() => {
+    if (!newsData || newsData.length === 0) return { topMovers: [], allAssets: [] };
+    const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico'];
+    const marketNews = newsData.filter(n => financialSources.includes(n.source));
+    const assets = [
+        { name: 'Dólar', keywords: ['dólar', 'dolar', 'usd', 'câmbio'] },
+        { name: 'Ibovespa', keywords: ['ibovespa', 'b3', 'ações', 'bolsa', 'índice'] },
+        { name: 'Bitcoin', keywords: ['bitcoin', 'btc', 'cripto'] },
+        { name: 'Euro', keywords: ['euro', 'eur'] },
+        { name: 'Juros', keywords: ['juros', 'selic', 'copom', 'inflação'] },
+    ];
+    const topicScores = new Map();
+    assets.forEach(asset => topicScores.set(asset.name, { count: 0, latestArticle: null }));
+    marketNews.forEach(article => {
+        const title = article.title.toLowerCase();
+        for (const asset of assets) {
+            if (asset.keywords.some(k => title.includes(k))) {
+                const score = topicScores.get(asset.name);
+                score.count++;
+                if (!score.latestArticle || new Date(article.rawDate) > new Date(score.latestArticle.rawDate)) {
+                    score.latestArticle = article;
+                }
+                break; 
+            }
+        }
+    });
+    const topMovers = Array.from(topicScores.entries())
+      .filter(([name, data]) => data.count > 0 && data.latestArticle)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 2)
+      .map(([name, data]) => ({ name, article: data.latestArticle }));
+    return { topMovers, allAssets: assets };
+  }, [newsData]);
+
+  // Função para chamar a IA
+  const runAI = async () => {
+      setStatus('loading');
+      const result = await generateMarketAnalysis(newsData, apiKey);
+      if (result) {
+          setAnalysisData(result);
+          setStatus('success');
+      } else {
+          setStatus('idle');
+      }
+  };
+
+  // Helper para classes de borda da IA
+  const getTrendBorder = (trend) => {
+    if (trend === 'up') return 'border-emerald-500';
+    if (trend === 'down') return 'border-rose-500';
+    return 'border-blue-500'; // Azul para estável/neutro
+  };
+  
+  // RENDERIZAÇÃO
+  
+  if (status === 'loading') {
+      return (
+          <div className={`h-[400px] flex flex-col items-center justify-center text-center p-6 space-y-4 rounded-[1.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
+              <div className="relative"><div className="absolute inset-0 bg-purple-500 blur-2xl animate-pulse"></div><div className={`relative w-16 h-16 rounded-2xl flex items-center justify-center border ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-white/50 border-white'}`}><BrainCircuit size={32} className="text-purple-400" /></div></div>
+              <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Analisando o Mercado...</h3>
+              <p className={`text-sm max-w-xs ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>A IA está correlacionando dados e notícias para gerar seu briefing financeiro.</p>
+          </div>
+      );
+  }
+
+  if (status === 'success' && analysisData) {
+      return (
+          <div className={`p-4 rounded-[1.5rem] space-y-4 animate-in fade-in ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
+              {/* CABEÇALHO DA ANÁLISE IA */}
+              <div className={`p-4 rounded-xl text-center relative overflow-hidden ${isDarkMode ? 'bg-gradient-to-br from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-white border border-purple-100'}`}>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                    <BrainCircuit size={14} className="text-purple-400"/>
+                    <span className="text-xs font-bold uppercase tracking-widest text-purple-400">Análise do Dia</span>
+                </div>
+                <p className="text-sm font-bold text-purple-400">{analysisData.market_status}</p>
+                <h3 className={`font-semibold mt-1 text-base ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{analysisData.summary}</h3>
+              </div>
+
+              {/* MOVERS DA IA - AGORA COM NOVO DESIGN E BORDAS */}
+              <div className="space-y-3">
+                  {analysisData.movers.map((mover, idx) => (
+                      <div key={idx} className={`p-3 rounded-lg border-2 ${isDarkMode ? 'bg-black/20' : 'bg-zinc-100'} ${getTrendBorder(mover.trend)}`}>
+                          <div className="flex justify-between items-center mb-2">
+                              <div className="flex items-center gap-2">
+                                  <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>{mover.asset}</span>
+                              </div>
+                              {mover.article && (
+                                <button onClick={() => openArticle(mover.article)} className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-500 hover:text-purple-400 transition-colors">
+                                    Ver fonte <img src={mover.article.logo} className="w-4 h-4 rounded-full" />
+                                </button>
+                              )}
+                          </div>
+                          <p className={`text-xs ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                              {mover.reason}
+                          </p>
+                      </div>
+                  ))}
+              </div>
+              
+              <div className="flex justify-between items-center pt-2">
+                  <span className="text-[9px] font-mono opacity-40">Análise via Gemini 1.5 Flash</span>
+                  <button onClick={() => setStatus('idle')} className="text-xs font-bold text-zinc-500 hover:text-white transition-colors">Voltar</button>
+              </div>
+          </div>
+      );
+  }
+
+  // ESTADO PADRÃO (HEURÍSTICO)
+  return (
+    <div className="space-y-4">
+        {/*
+          NOVO: Se a IA já rodou uma vez, o resumo dela continua visível aqui!
+          Isso cria uma sensação de persistência e inteligência.
+        */}
+        {analysisData && (
+          <div className={`p-4 rounded-xl text-center relative overflow-hidden animate-in fade-in ${isDarkMode ? 'bg-gradient-to-br from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-white border border-purple-100'}`}>
+            <div className="flex items-center justify-center gap-2 mb-2">
+                <BrainCircuit size={14} className="text-purple-400"/>
+                <span className="text-xs font-bold uppercase tracking-widest text-purple-400">Última Análise IA</span>
+            </div>
+            <h3 className={`font-semibold text-base ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{analysisData.summary}</h3>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40">Destaques do Dia</h4>
+              {/* NOVO: INDICADOR DE MERCADO ABERTO/FECHADO */}
+              {isMarketOpen ? (
+                <div className="flex items-center gap-1.5 text-emerald-400 text-[9px] font-bold uppercase"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>Aberto</div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-zinc-500 text-[9px] font-bold uppercase"><span className="w-1.5 h-1.5 bg-zinc-500 rounded-full"></span>Fechado</div>
+              )}
+            </div>
+            <button onClick={runAI} className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold bg-purple-600 text-white shadow-lg shadow-purple-500/30 hover:bg-purple-500 transition">
+                <Sparkles size={12} /> Análise IA
+            </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {heuristicData?.topMovers?.map(({ name, article }, idx) => (
+                <div key={idx} className={`p-4 rounded-2xl flex flex-col justify-between h-36 ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white border-zinc-200 shadow-sm'}`}>
+                    <div><span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>{name}</span><h4 className={`font-bold text-sm leading-tight line-clamp-2 mt-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{article.title}</h4></div>
+                    <button onClick={() => openArticle(article)} className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-white transition-colors self-start"><img src={article.logo} className="w-4 h-4 rounded-full" />Ler na fonte</button>
+                </div>
+            ))}
+        </div>
+        <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40 pt-2">Explorar Ativos</h4>
+        <div className="space-y-2">
+            {heuristicData?.allAssets?.map((asset) => (
+                <AssetCard key={asset.name} asset={asset} allNews={newsData} openArticle={openArticle} isDarkMode={isDarkMode} />
+            ))}
+        </div>
+    </div>
+  );
 };
 
 
@@ -2483,6 +2469,7 @@ const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
 
 
 // --- FUNÇÃO TREND RADAR (MODELO 2.5 FLASH) ---
+// --- FUNÇÃO TREND RADAR (VOLTANDO A USAR O POOL) ---
 const generateTrendRadar = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
 
@@ -2490,15 +2477,39 @@ const generateTrendRadar = async (news, apiKey) => {
     `${index}|${n.title}|${n.summary ? n.summary.slice(0, 60) : ''}`
   ).join('\n');
 
+  // ==========================================================
+  // === INÍCIO DA ALTERAÇÃO: O NOVO PROMPT ===
+  // ==========================================================
   const prompt = `
-  Identifique 6 Tópicos quentes. Retorne JSON:
-  [ { "topic": "Nome", "score": 1-10, "hex": "#hex", "summary": "Fato..." } ]
-  DADOS:
+  Você é um Analista de Tendências. Analise os títulos das notícias.
+  Sua missão é identificar 8 tópicos com diferentes níveis de impacto (temperatura).
+
+  REGRAS OBRIGATÓRIAS:
+  1.  **VARIEDADE DE SCORES:** Sua resposta DEVE incluir tópicos em diferentes faixas de score. Gere:
+      - 2 tópicos "MUITO QUENTES" (score 9-10).
+      - 3 tópicos "QUENTES" (score 6-8).
+      - 2 tópicos "MÉDIOS" (score 4-5).
+      - 1 tópico "LEVE" ou "FRIO" (score 1-3).
+  2.  **JSON ESTRITO:** Retorne APENAS um array JSON com 8 objetos.
+
+  FORMATO DO JSON:
+  [
+    {
+      "topic": "Nome do Tópico",
+      "score": 1, // Número de 1 a 10
+      "hex": "#3b82f6", // Cor correspondente ao score
+      "summary": "Um fato curto e direto sobre este tópico."
+    }
+  ]
+
+  DADOS PARA ANÁLISE:
   ${context}
   `;
+  // ==========================================================
+  // === FIM DA ALTERAÇÃO ===
+  // ==========================================================
 
   try {
-    // ATUALIZADO PARA gemini-2.5-flash
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2518,11 +2529,7 @@ const generateTrendRadar = async (news, apiKey) => {
     const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const json = JSON.parse(cleanText);
 
-    if (Array.isArray(json)) return json;
-    const possibleArray = Object.values(json).find(val => Array.isArray(val));
-    if (possibleArray) return possibleArray;
-
-    return []; 
+    return Array.isArray(json) ? json : []; 
 
   } catch (error) {
     console.warn("Erro Trend Radar:", error);
@@ -2891,7 +2898,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
 
 
 
-const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => {
+const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) => {
   const [digest, setDigest] = useState(null);
   const [status, setStatus] = useState('idle');
   const [expandedIndex, setExpandedIndex] = useState(null);
@@ -2966,7 +2973,10 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
   };
 
   const handleGenerate = async () => {
-    if (!apiKey) {
+    // ALTERAÇÃO AQUI: Chama getApiKey no momento do clique
+    const currentApiKey = getApiKey('widgets');
+
+    if (!currentApiKey) {
       alert("Configure sua API Key nas configurações primeiro.");
       return;
     }
@@ -2977,7 +2987,7 @@ const SmartDigestWidget = ({ newsData, apiKey, isDarkMode, refreshTrigger }) => 
 
     await new Promise((r) => setTimeout(r, 800));
 
-    const result = await generateBriefing(newsData, apiKey);
+    const result = await generateBriefing(newsData, currentApiKey);
 
     if (result) {
       setDigest(result);
@@ -3474,7 +3484,7 @@ const generateHeuristicClusters = (news) => {
     const clusters = {};
     const articlesUsed = new Set();
 
-    // 1. Encontra palavras-chave importantes (substantivos) nos primeiros 30 títulos
+    // 1. Encontra palavras-chave importantes (lógica mantida)
     const keywordScores = {};
     const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em']);
     
@@ -3487,37 +3497,49 @@ const generateHeuristicClusters = (news) => {
         });
     });
 
-    // 2. Pega as 5 palavras-chave mais frequentes
+    // 2. Pega as 5 palavras-chave mais frequentes (lógica mantida)
     const topKeywords = Object.keys(keywordScores).sort((a, b) => keywordScores[b] - keywordScores[a]).slice(0, 5);
 
-    // 3. Monta os cards baseados nessas palavras-chave
+    // Lista de fontes sem imagem para evitar como capa
+    const blockedSources = new Set(['uol', 'istoé', 'estadao', 'folha', 'investing', 'einvestidor', 'folha', 'moneytimes']);
+
+    // 3. Monta os cards
     topKeywords.forEach(keyword => {
-        // Encontra a primeira notícia sobre esse tema que ainda não foi usada
-        const representativeArticle = news.find(article => 
+        
+        // Esta lista já contém TODOS os artigos relevantes e NÃO USADOS para a palavra-chave.
+        const allCandidatesForKeyword = news.filter(article =>
             !articlesUsed.has(article.id) && article.title.toLowerCase().includes(keyword)
         );
 
+        if (allCandidatesForKeyword.length === 0) return;
+
+        // Lógica para escolher a melhor imagem (prioriza fontes não bloqueadas)
+        const bestImageCandidate = allCandidatesForKeyword.find(article =>
+            !blockedSources.has((article.source || '').toLowerCase())
+        );
+        
+        // Usa o melhor candidato ou, como fallback, o primeiro da lista
+        const representativeArticle = bestImageCandidate || allCandidatesForKeyword[0];
+
         if (representativeArticle) {
-            // Pega todas as outras fontes que falam sobre o mesmo tema
-            const relatedArticles = news.filter(article => 
-                article.title.toLowerCase().includes(keyword)
-            );
+            
+            // CORREÇÃO: Usamos a lista já filtrada, garantindo consistência.
+            const relatedArticles = allCandidatesForKeyword;
             
             // Cria o "cluster falso"
             clusters[keyword] = {
                 ai_title: representativeArticle.title,
                 representative_image: representativeArticle.img,
-                related_articles: relatedArticles.slice(0, 5) // Limita a 4 logos
+                related_articles: relatedArticles.slice(0, 5) // Limita a 5 logos
             };
             
-            // Marca como usadas
+            // Marca todos os artigos deste cluster como usados para evitar que apareçam em outros.
             relatedArticles.forEach(a => articlesUsed.add(a.id));
         }
     });
 
     return Object.values(clusters);
 };
-
 
 
 // --- COMPONENTE SKELETON PARA O SMARTNEWS ---
@@ -3585,7 +3607,7 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
 
 
 // --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
-const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, clusters, setClusters, onContextReady }) => {
+const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
@@ -3601,19 +3623,26 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
     }));
   }, [news, clusters]);
 
-  const runAI = async () => {
-    if (!apiKey) {
-      alert("Configure sua API Key nas configurações primeiro.");
+const runAI = async () => {
+    // 1. CHAMA A FUNÇÃO PARA PEGAR UMA NOVA CHAVE NO MOMENTO DO CLIQUE
+    const currentApiKey = getApiKey('widgets'); // Especifica o pool de widgets
+    
+    if (!currentApiKey) {
+      alert("Configure sua API Key de Widgets nas configurações primeiro.");
       return;
     }
     if (!news || news.length < 10) {
       alert("Aguarde o carregamento de mais notícias para uma análise completa.");
       return;
     }
+
     setLoading(true);
     setClusters(null);
     await new Promise(r => setTimeout(r, 800));
-    const result = await generateSmartClustering(news, apiKey, 300);
+    
+    // 2. USA A CHAVE RECÉM-BUSCADA PARA CHAMAR A IA
+    const result = await generateSmartClustering(news, currentApiKey, 300);
+    
     if (result) {
       setClusters(result);
     } else {
@@ -3765,426 +3794,63 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, apiKey, cluster
 // ==========================================================
 // FUNÇÃO DE IA: ANÁLISE DE MERCADO (VERSÃO CORRIGIDA)
 // ==========================================================
-const generateMarketAnalysis = async (news, apiKey) => {
-  if (!apiKey) {
-      alert("A chave de API para Análise de Mercado não está configurada.");
+// --- FUNÇÃO 1: ANÁLISE DE MERCADO (Backend Seguro Vercel) ---
+const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
+  // 1. Filtragem
+  const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico', 'CNN Economia', 'InfoMoney'];
+  const keywords = ['bolsa', 'dólar', 'ibovespa', 'selic', 'juros', 'inflação', 'mercado', 'ações'];
+  
+  const marketNews = news.filter(n => {
+      const isSource = financialSources.some(s => n.source && n.source.includes(s));
+      const isKeyword = keywords.some(k => n.title && n.title.toLowerCase().includes(k));
+      return isSource || isKeyword;
+  }).slice(0, 40);
+
+  if (marketNews.length < 2) {
+      console.log("Poucas notícias financeiras para análise.");
       return null;
   }
-  
-  // Reutilizamos a mesma lógica de filtro da heurística para dar à IA o melhor contexto
-  const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico'];
-  const marketNews = news.filter(n => financialSources.includes(n.source)).slice(0, 40); // Limita a 40 notícias para a IA
-
-  if (marketNews.length < 3) {
-      alert("Não há notícias financeiras suficientes para uma análise de IA no momento.");
-      return null;
-  }
-
-  const context = marketNews.map(n => `ID: ${n.id} | TÍTULO: ${n.title}`).join('\n');
-  
-  const prompt = `
-  Aja como um Analista Financeiro Sênior da Bloomberg. Analise as manchetes de mercado fornecidas.
-
-  MANCHETES:
-  ${context}
-
-  SUAS TAREFAS:
-  1.  **Sentimento Geral:** Determine o humor do mercado (Ex: "Otimista", "Pessimista", "Neutro com Viés de Alta", "Cauteloso").
-  2.  **Resumo Executivo:** Escreva uma única frase, curta e impactante, que resuma a principal narrativa do mercado hoje.
-  3.  **Principais Movimentos (Movers):** Identifique os 2 ou 3 ativos mais importantes mencionados. Para cada um:
-      - Determine a tendência (up, down, neutral).
-      - Explique o **motivo** do movimento em uma frase curta, baseando-se nas notícias.
-      - Associe o ID da notícia mais relevante para aquele movimento.
-
-  RETORNE APENAS O OBJETO JSON VÁLIDO COM ESTA ESTRUTURA ESTRITA:
-  {
-    "market_status": "Otimismo Cauteloso",
-    "summary": "Juros futuros impulsionam otimismo na bolsa, mas dólar volátil gera cautela nos investidores.",
-    "movers": [
-      { 
-        "asset": "Ibovespa", 
-        "trend": "up", 
-        "reason": "Reage positivamente à expectativa de corte na taxa Selic.",
-        "news_id": "id_da_noticia_exato_sobre_ibov"
-      },
-      { 
-        "asset": "Dólar", 
-        "trend": "neutral", 
-        "reason": "Opera com instabilidade aguardando dados de inflação dos EUA.",
-        "news_id": "id_da_noticia_exato_sobre_dolar"
-      }
-    ]
-  }
-  `;
 
   try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
+    // 2. Chamada ao Backend Seguro
+    const response = await fetch("https://newsos-app2.vercel.app/api/market", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+            marketNews: marketNews,
+            apiKeyFromFrontend: apiKey || null
+        })
     });
 
-    const data = await response.json();
+    if (!response.ok) throw new Error("Erro no servidor de análise");
 
+    const json = await response.json();
 
-
-    // --- FUNÇÃO DE IA: ANÁLISE COMPLETA 360º (1 Chamada = Tudo) ---
-const generateFullAnalysis = async (text, apiKey) => {
-  if (!text || text.length < 100 || !apiKey) return null;
-
-  // Limpa e corta para não estourar tokens desnecessariamente
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 12000);
-
-  const prompt = `
-  Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
-  
-  GERE UM JSON ESTRITO COM ESTA ESTRUTURA EXATA (Tudo em PT-BR):
-  {
-    "summaries": {
-      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos e bem explicados).",
-      "tldr": "Resumo em 1 única frase de impacto (Too Long Didn't Read).",
-      "eli5": "Explicação didática como se fosse para uma criança de 5 anos (analogias).",
-      "bullets": ["Ponto chave 1", "Ponto chave 2", "Ponto chave 3", "Ponto chave 4"]
-    },
-    "mindmap": {
-    "center": "Tema Central (Max 3 palavras)",
-    "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"]
-},
-"contextualTerms": [
-    {
-        "term": "Nó A (Nome exato do nó do mindmap)",
-        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. SEJA DENSO E DETALHADO. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
-        "sentiment": "neutral", 
-        "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
-    },
-    { "term": "Nó B", "context": "...", "sentiment": "positive", "evidence_quotes": ["..."] },
-    { "term": "Nó C", "context": "...", "sentiment": "negative", "evidence_quotes": ["..."] },
-    { "term": "Nó D", "context": "...", "sentiment": "neutral", "evidence_quotes": ["..."] }
-],
-    "timeline": [
-                      { "time": "Passado (Causa Raiz)", "event": "O que causou o contexto geral desta notícia?" },
-                      { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
-                      { "time": "Hoje (Fato Principal)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
-                  ],
-    "future": {
-      "optimistic": "Melhor cenário possível a longo prazo.",
-      "pessimistic": "Pior cenário/Riscos envolvidos.",
-      "probable": "O que realmente deve acontecer (análise realista)."
-    }
-  }
-
-  TEXTO:
-  ${cleanText}
-  `;
-
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
-    });
-
-    const data = await response.json();
-    if (!response.ok || data.error) throw new Error(data.error?.message || "Erro API");
-
-    const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text
-        .replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    return JSON.parse(jsonString);
-
-  } catch (error) {
-    console.error("Erro Full Analysis:", error);
-    return null;
-  }
-};
-
-
-
-
-    // ==========================================================
-    // CORREÇÃO FINAL: Sintaxe correta para acessar os arrays
-    // ==========================================================
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) {
-      throw new Error("Resposta da IA de mercado vazia.");
-    }
-    
-    // A limpeza do JSON já estava correta
-    const json = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-    
-    // Hidratação: Adiciona o objeto de notícia completo aos movers
+    // 3. Hidratação (Recuperando essa lógica que estava perdida no final)
+    // O backend devolve os IDs, aqui nós reconectamos com o objeto de notícia completo
     if (json.movers) {
-        json.movers = json.movers.map(mover => {
+        json.movers = json.movers.map((mover: any) => {
             const article = news.find(n => n.id === mover.news_id);
             return { ...mover, article }; 
-        }).filter(mover => mover.article);
+        }).filter((mover: any) => mover.article);
     }
 
     return json;
 
   } catch (error) {
-    console.error("Erro na Análise de Mercado IA:", error);
+    console.error("Erro ao gerar análise de mercado:", error);
     return null;
   }
 };
 
 
 
-// --- NOVO SUB-COMPONENTE: CARD DE ATIVO FINANCEIRO (COM ACORDEÃO) ---
-const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
-    const [isOpen, setIsOpen] = useState(false);
-
-    // Encontra as notícias relacionadas a este ativo para mostrar no acordeão
-    const relatedArticles = useMemo(() => {
-        if (!allNews || !asset.keywords) return [];
-        // Filtra todas as notícias que contenham alguma das palavras-chave no título
-        return allNews.filter(n => {
-            const title = n.title.toLowerCase();
-            return asset.keywords.some(k => title.includes(k));
-        }).slice(0, 4); // Limita a 4 notícias para não sobrecarregar
-    }, [asset.keywords, allNews]);
-
-    // Escolhe o ícone com base no nome do ativo
-    const getIcon = (assetName) => {
-        const name = assetName.toUpperCase();
-        if (name.includes('BTC') || name.includes('BITCOIN')) return <Bitcoin size={20} />;
-        if (name.includes('USD') || name.includes('DÓLAR')) return <DollarSign size={20} />;
-        if (name.includes('EUR') || name.includes('EURO')) return <Euro size={20} />;
-        if (name.includes('IBOV') || name.includes('BOLSA')) return <Activity size={20} />;
-        return <TrendingUp size={20} />;
-    };
-
-    return (
-        <div className={`rounded-2xl transition-all duration-300 overflow-hidden ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white border border-zinc-200 shadow-sm'}`}>
-            {/* ÁREA CLICÁVEL (CABEÇALHO) */}
-            <button 
-                onClick={() => setIsOpen(!isOpen)}
-                className="p-4 w-full text-left outline-none flex justify-between items-center group"
-            >
-                <div className="flex items-center gap-4">
-                    <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-black/20' : 'bg-zinc-100'} text-purple-400`}>
-                        {getIcon(asset.name)}
-                    </div>
-                    <span className={`text-base font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>
-                        {asset.name}
-                    </span>
-                </div>
-                
-                <div className={`transition-transform duration-300 ${isOpen ? 'rotate-90' : 'rotate-0'}`}>
-                    <ChevronRight size={20} className="text-zinc-500" />
-                </div>
-            </button>
-
-            {/* ÁREA DO ACORDEÃO (NOTÍCIAS) */}
-            <div 
-                className={`grid transition-all duration-500 ease-in-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
-            >
-                <div className="min-h-0 overflow-hidden">
-                    <div className={`border-t px-2 pb-2 space-y-1 ${isDarkMode ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
-                        {relatedArticles.length > 0 ? (
-                            relatedArticles.map((news) => (
-                                <button 
-                                    key={news.id}
-                                    onClick={(e) => { e.stopPropagation(); openArticle(news); }}
-                                    className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
-                                >
-                                    <img src={news.logo} className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover" alt="Logo" onError={(e) => e.target.style.display='none'} />
-                                    <span className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300 group-hover:text-white' : 'text-zinc-700 group-hover:text-black'}`}>
-                                        {news.title}
-                                    </span>
-                                </button>
-                            ))
-                        ) : (
-                            <div className="p-3 text-center text-[10px] opacity-50">
-                                Sem notícias recentes para este ativo.
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 
 
 
-// --- WIDGET: MARKET PULSE (V6 - DESIGN PREMIUM E IA INTEGRADA) ---
-const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
-  const [analysisData, setAnalysisData] = useState(null);
-  const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'success'
 
-  // Lógica para verificar se o mercado está aberto (simplificado para o horário)
-  const isMarketOpen = useMemo(() => {
-    const currentHour = new Date().getHours();
-    // Considera o mercado aberto entre 9h e 18h
-    return currentHour >= 9 && currentHour < 18;
-  }, []);
-
-  // A lógica heurística permanece a mesma, como fallback e estado inicial
-  const heuristicData = useMemo(() => {
-    if (!newsData || newsData.length === 0) return { topMovers: [], allAssets: [] };
-    const financialSources = ['Uol Economia', 'Investing', 'Istoé Dinheiro', 'Valor Econômico'];
-    const marketNews = newsData.filter(n => financialSources.includes(n.source));
-    const assets = [
-        { name: 'Dólar', keywords: ['dólar', 'dolar', 'usd', 'câmbio'] },
-        { name: 'Ibovespa', keywords: ['ibovespa', 'b3', 'ações', 'bolsa', 'índice'] },
-        { name: 'Bitcoin', keywords: ['bitcoin', 'btc', 'cripto'] },
-        { name: 'Euro', keywords: ['euro', 'eur'] },
-        { name: 'Juros', keywords: ['juros', 'selic', 'copom', 'inflação'] },
-    ];
-    const topicScores = new Map();
-    assets.forEach(asset => topicScores.set(asset.name, { count: 0, latestArticle: null }));
-    marketNews.forEach(article => {
-        const title = article.title.toLowerCase();
-        for (const asset of assets) {
-            if (asset.keywords.some(k => title.includes(k))) {
-                const score = topicScores.get(asset.name);
-                score.count++;
-                if (!score.latestArticle || new Date(article.rawDate) > new Date(score.latestArticle.rawDate)) {
-                    score.latestArticle = article;
-                }
-                break; 
-            }
-        }
-    });
-    const topMovers = Array.from(topicScores.entries())
-      .filter(([name, data]) => data.count > 0 && data.latestArticle)
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 2)
-      .map(([name, data]) => ({ name, article: data.latestArticle }));
-    return { topMovers, allAssets: assets };
-  }, [newsData]);
-
-  // Função para chamar a IA
-  const runAI = async () => {
-      setStatus('loading');
-      const result = await generateMarketAnalysis(newsData, apiKey);
-      if (result) {
-          setAnalysisData(result);
-          setStatus('success');
-      } else {
-          setStatus('idle');
-      }
-  };
-
-  // Helper para classes de borda da IA
-  const getTrendBorder = (trend) => {
-    if (trend === 'up') return 'border-emerald-500';
-    if (trend === 'down') return 'border-rose-500';
-    return 'border-blue-500'; // Azul para estável/neutro
-  };
-  
-  // RENDERIZAÇÃO
-  
-  if (status === 'loading') {
-      return (
-          <div className={`h-[400px] flex flex-col items-center justify-center text-center p-6 space-y-4 rounded-[1.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
-              <div className="relative"><div className="absolute inset-0 bg-purple-500 blur-2xl animate-pulse"></div><div className={`relative w-16 h-16 rounded-2xl flex items-center justify-center border ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-white/50 border-white'}`}><BrainCircuit size={32} className="text-purple-400" /></div></div>
-              <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Analisando o Mercado...</h3>
-              <p className={`text-sm max-w-xs ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>A IA está correlacionando dados e notícias para gerar seu briefing financeiro.</p>
-          </div>
-      );
-  }
-
-  if (status === 'success' && analysisData) {
-      return (
-          <div className={`p-4 rounded-[1.5rem] space-y-4 animate-in fade-in ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
-              {/* CABEÇALHO DA ANÁLISE IA */}
-              <div className={`p-4 rounded-xl text-center relative overflow-hidden ${isDarkMode ? 'bg-gradient-to-br from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-white border border-purple-100'}`}>
-                <div className="flex items-center justify-center gap-2 mb-2">
-                    <BrainCircuit size={14} className="text-purple-400"/>
-                    <span className="text-xs font-bold uppercase tracking-widest text-purple-400">Análise do Dia</span>
-                </div>
-                <p className="text-sm font-bold text-purple-400">{analysisData.market_status}</p>
-                <h3 className={`font-semibold mt-1 text-base ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{analysisData.summary}</h3>
-              </div>
-
-              {/* MOVERS DA IA - AGORA COM NOVO DESIGN E BORDAS */}
-              <div className="space-y-3">
-                  {analysisData.movers.map((mover, idx) => (
-                      <div key={idx} className={`p-3 rounded-lg border-2 ${isDarkMode ? 'bg-black/20' : 'bg-zinc-100'} ${getTrendBorder(mover.trend)}`}>
-                          <div className="flex justify-between items-center mb-2">
-                              <div className="flex items-center gap-2">
-                                  <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>{mover.asset}</span>
-                              </div>
-                              {mover.article && (
-                                <button onClick={() => openArticle(mover.article)} className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-500 hover:text-purple-400 transition-colors">
-                                    Ver fonte <img src={mover.article.logo} className="w-4 h-4 rounded-full" />
-                                </button>
-                              )}
-                          </div>
-                          <p className={`text-xs ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                              {mover.reason}
-                          </p>
-                      </div>
-                  ))}
-              </div>
-              
-              <div className="flex justify-between items-center pt-2">
-                  <span className="text-[9px] font-mono opacity-40">Análise via Gemini 1.5 Flash</span>
-                  <button onClick={() => setStatus('idle')} className="text-xs font-bold text-zinc-500 hover:text-white transition-colors">Voltar</button>
-              </div>
-          </div>
-      );
-  }
-
-  // ESTADO PADRÃO (HEURÍSTICO)
-  return (
-    <div className="space-y-4">
-        {/*
-          NOVO: Se a IA já rodou uma vez, o resumo dela continua visível aqui!
-          Isso cria uma sensação de persistência e inteligência.
-        */}
-        {analysisData && (
-          <div className={`p-4 rounded-xl text-center relative overflow-hidden animate-in fade-in ${isDarkMode ? 'bg-gradient-to-br from-purple-900/50 to-zinc-900 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-white border border-purple-100'}`}>
-            <div className="flex items-center justify-center gap-2 mb-2">
-                <BrainCircuit size={14} className="text-purple-400"/>
-                <span className="text-xs font-bold uppercase tracking-widest text-purple-400">Última Análise IA</span>
-            </div>
-            <h3 className={`font-semibold text-base ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{analysisData.summary}</h3>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40">Destaques do Dia</h4>
-              {/* NOVO: INDICADOR DE MERCADO ABERTO/FECHADO */}
-              {isMarketOpen ? (
-                <div className="flex items-center gap-1.5 text-emerald-400 text-[9px] font-bold uppercase"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>Aberto</div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-zinc-500 text-[9px] font-bold uppercase"><span className="w-1.5 h-1.5 bg-zinc-500 rounded-full"></span>Fechado</div>
-              )}
-            </div>
-            <button onClick={runAI} className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold bg-purple-600 text-white shadow-lg shadow-purple-500/30 hover:bg-purple-500 transition">
-                <Sparkles size={12} /> Análise IA
-            </button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {heuristicData?.topMovers?.map(({ name, article }, idx) => (
-                <div key={idx} className={`p-4 rounded-2xl flex flex-col justify-between h-36 ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white border-zinc-200 shadow-sm'}`}>
-                    <div><span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>{name}</span><h4 className={`font-bold text-sm leading-tight line-clamp-2 mt-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{article.title}</h4></div>
-                    <button onClick={() => openArticle(article)} className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-white transition-colors self-start"><img src={article.logo} className="w-4 h-4 rounded-full" />Ler na fonte</button>
-                </div>
-            ))}
-        </div>
-        <h4 className="text-[10px] font-bold uppercase tracking-widest opacity-40 pt-2">Explorar Ativos</h4>
-        <div className="space-y-2">
-            {heuristicData?.allAssets?.map((asset) => (
-                <AssetCard key={asset.name} asset={asset} allNews={newsData} openArticle={openArticle} isDarkMode={isDarkMode} />
-            ))}
-        </div>
-    </div>
-  );
-};
-
-
+// --- WIDGET: MARKET PULSE (V7 - DESIGN PREMIUM COM BACKDROP FINANCEIRO) ---
 
 
 // --- COMPONENTE TREND RADAR (V5 - BARRAS VIVAS + TÍTULOS LEGÍVEIS) ---
@@ -4194,7 +3860,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
 // ✅ Termômetro agora é horizontal (0–10)
 // ✅ Cards menores, agrupados horizontalmente por faixas de temperatura (colunas)
 // ✅ Texto legível: dark = branco, light = preto/cinza escuro
-const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
+const TrendRadar = ({ newsData, getApiKey, isDarkMode }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
@@ -4225,28 +3891,48 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
     return { color: '#3b82f6', heightPercent: 30 };
   };
 
-  const runTrendAnalysis = async () => {
-    if (!apiKey || !newsData || newsData.length === 0) {
-      alert("Aguarde o carregamento das notícias ou configure a API Key.");
+
+
+const runTrendAnalysis = async () => {
+    // Pega uma chave do pool de widgets
+    const currentApiKey = getApiKey('widgets');
+    
+    if (!currentApiKey || !newsData || !newsData.length === 0) {
+      alert("Aguarde o carregamento das notícias ou configure as chaves de IA do Pool 1.");
       return;
     }
     setLoading(true);
     setActiveIndex(null);
     await new Promise((r) => setTimeout(r, 800));
 
-    // ✅ NÃO ALTERADO: chama sua IA como está
-    const data = await generateTrendRadar(newsData, apiKey);
+    // Passa a chave para a função de IA
+    const data = await generateTrendRadar(newsData, currentApiKey); 
 
+    // ==========================================================
+    // === INÍCIO DA CORREÇÃO: Lógica preenchida ===
+    // ==========================================================
     if (data && Array.isArray(data) && data.length > 0) {
+      // 1. Ordena os dados recebidos pelo score
       const sortedData = data.sort((a, b) => b.score - a.score);
+      
+      // 2. Atualiza o estado 'trends' com os novos dados
       setTrends(sortedData);
+      
+      // 3. Avisa o componente que ele já tem dados reais para mostrar
       setHasGenerated(true);
+      
+      // 4. Salva os dados no cache do navegador para a próxima vez que o app abrir
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedData));
     } else {
-      alert("A IA não identificou tendências claras agora.");
+      // Se a IA não retornar dados, avisa o usuário
+      alert("A IA não identificou tendências claras no momento. Tente novamente mais tarde.");
     }
+    // ==========================================================
+    // === FIM DA CORREÇÃO ===
+    // ==========================================================
+    
     setLoading(false);
-  };
+};
 
   const handleToggle = (idx) => {
     setActiveIndex(activeIndex === idx ? null : idx);
@@ -4497,52 +4183,58 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
                 </div>
               </div>
 
-              {/* 2) BALÃO DE DETALHES (MANTIDO) */}
-              <div className="relative mt-8 h-36">
-                <AnimatePresence>
-                  {activeItem && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                      className="absolute inset-0"
-                    >
-                      <div
-                        className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${
-                          isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
-                        }`}
-                        style={{
-                          border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-                          boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
-                        }}
+              {/* ========================================================== */}
+              {/* === ÁREA DO BALÃO CORRIGIDA (COM ALTURA DINÂMICA) === */}
+              {/* ========================================================== */}
+              <div className={`
+                grid transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
+                ${activeItem ? 'grid-rows-[1fr] mt-8' : 'grid-rows-[0fr] mt-0'}
+              `}>
+                <div className="overflow-hidden min-h-0">
+                  <AnimatePresence>
+                    {activeItem && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.3 }}
+                        // A altura agora é definida aqui dentro
+                        className="h-36"
                       >
-                        <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
-                          <span
-                            className="text-[10px] font-black uppercase tracking-widest"
-                            style={{ color: getTrendStyle(activeItem.score).color }}
-                          >
-                            Impacto: {activeItem.score}/10
-                          </span>
-
-                          <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${activeItem.score * 10}%`,
-                                backgroundColor: getTrendStyle(activeItem.score).color,
-                              }}
-                            />
+                        <div
+                          className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${
+                            isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
+                          }`}
+                          style={{
+                            border: `2px solid ${getTrendStyle(activeItem.score).color}`,
+                            boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
+                          }}
+                        >
+                          <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
+                            <span
+                              className="text-[10px] font-black uppercase tracking-widest"
+                              style={{ color: getTrendStyle(activeItem.score).color }}
+                            >
+                              Impacto: {activeItem.score}/10
+                            </span>
+                            <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${activeItem.score * 10}%`,
+                                  backgroundColor: getTrendStyle(activeItem.score).color,
+                                }}
+                              />
+                            </div>
                           </div>
+                          <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                            {activeItem.summary}
+                          </p>
                         </div>
-
-                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                          {activeItem.summary}
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
           ) : (
@@ -4567,10 +4259,9 @@ const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   );
 };
 
-
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, apiKey, savedClusters, setSavedClusters, seenStoryIds }) {
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation }) {
   const [isPodcastOpen, setIsPodcastOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [startY, setStartY] = useState(0);
@@ -4704,7 +4395,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
       
-      <TrendRadar newsData={newsData} apiKey={apiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
+      <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
 
   {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA COM LAYOUT CORRIGIDO --- */}
       <div className="space-y-4">
@@ -4723,17 +4414,20 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
               news={newsData} 
               openArticle={openArticle} 
               isDarkMode={isDarkMode} 
-              apiKey={apiKey} 
+              getApiKey={getApiKey}
               clusters={savedClusters}
               setClusters={setSavedClusters}
               onContextReady={() => {}} // onContextReady pode ser ajustado se necessário
-            />
+              // A "PONTE": Repassa a função que veio do avô
+          onTriggerWidgetRotation={onTriggerWidgetRotation}
+        />
+       
           </div>
     
 
       <SmartDigestWidget 
           newsData={newsData} 
-          apiKey={apiKey} 
+         getApiKey={getApiKey}
           isDarkMode={isDarkMode} 
           refreshTrigger={refreshTrigger} 
       />
@@ -4755,7 +4449,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
               <MarketPulseWidget 
                 newsData={newsData}
-                apiKey={apiKey} 
+                getApiKey={getApiKey} // Repassa a função
                 isDarkMode={isDarkMode}
                 openArticle={openArticle}
               />
@@ -5868,7 +5562,7 @@ export default function NewsOS_V12() {
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
 // --- ESTADO DE CHAVES (ARQUITETURA DE POOLS) ---
-  const [apiKeys, setApiKeys] = useState([
+const [apiKeys, setApiKeys] = useState([
     // Pool de Widgets (Leve - Rotação Rápida)
     { id: 1, value: '', type: 'free_widget' },
     { id: 2, value: '', type: 'free_widget' },
@@ -5879,12 +5573,15 @@ export default function NewsOS_V12() {
     { id: 5, value: '', type: 'legacy_text' },
     { id: 6, value: '', type: 'legacy_audio' },
 
-    // NOVO POOL: USINA DE TEXTO & ÁUDIO (Pesado - Rotação Estratégica)
+    // POOL USINA (AGORA COM 6)
     { id: 7, value: '', type: 'heavy_rotation' },
     { id: 8, value: '', type: 'heavy_rotation' },
     { id: 9, value: '', type: 'heavy_rotation' },
     { id: 10, value: '', type: 'heavy_rotation' },
     { id: 11, value: '', type: 'heavy_rotation' },
+    { id: 15, value: '', type: 'heavy_rotation' }, // <<-- SUA 6ª CHAVE (usei ID 15)
+
+    // Pool de Chat
     { id: 12, value: '', type: 'chat_key' },
     { id: 13, value: '', type: 'chat_key' },
 ]);
@@ -5892,69 +5589,77 @@ export default function NewsOS_V12() {
 
 
 
-
   
-  // --- INICIO DO BLOCO DE RESIZE (FUNCIONAL E OTIMIZADO) ---
+  // ==============================================================================
+  // === INÍCIO DO BLOCO DE OTIMIZAÇÃO DE RESIZE (NOVO E COMPLETO) ===
+  // ==============================================================================
 
-  // 1. Estados e Referências
-  const [panelWidth, setPanelWidth] = useState(600);
-  const panelDivRef = useRef(null);
-  const isResizing = useRef(false);
-  const resizeStartX = useRef(0);
-  const initialWidth = useRef(0);
-  const rafId = useRef(null);
+  // 1. Estado para a largura "oficial" e Refs para manipulação direta
+  const [panelWidth, setPanelWidth] = useState(600); // Controla a largura final
+  const panelDivRef = useRef(null);      // Referência para o DIV do painel
+  const isResizing = useRef(false);      // Flag para saber se estamos arrastando
+  const resizeStartX = useRef(0);        // Posição X inicial do mouse/dedo
+  const initialWidth = useRef(0);        // Largura inicial do painel
+  const rafId = useRef(null);            // ID para o requestAnimationFrame para suavidade extra
 
-  // 2. Função MOVE (Direto no DOM para performance máxima no iPad)
+  // 2. Função de MOVIMENTO (manipula o DOM diretamente para performance)
   const handleResizeMove = useCallback((e) => {
     if (!isResizing.current || !panelDivRef.current) return;
     
-    // Previne comportamento padrão (scroll)
+    // Previne comportamento padrão (como scroll da página no mobile)
     if(e.cancelable) e.preventDefault();
 
-    // Pega a posição X (suporta Mouse e Touch)
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
 
-    // Cancela frame anterior se houver
+    // Cancela o frame de animação anterior para evitar sobrecarga
     if (rafId.current) cancelAnimationFrame(rafId.current);
 
+    // Usa requestAnimationFrame para garantir que a manipulação do DOM seja fluida
     rafId.current = requestAnimationFrame(() => {
         const deltaX = clientX - resizeStartX.current;
-        // Invertido pois o painel está à direita
-        // Limites: Mínimo 300px, Máximo largura da tela - 50px
         const newWidth = Math.max(300, Math.min(initialWidth.current - deltaX, window.innerWidth));
         
+        // A MÁGICA: Altera o estilo diretamente no elemento do DOM, sem re-renderizar o React
         panelDivRef.current.style.width = `${newWidth}px`;
     });
   }, []);
 
-  // 3. Função UP (Finaliza e salva no React)
+// 3. Função de FIM (soltar o mouse/dedo, sincroniza com o React e "descongela" o fundo)
   const handleResizeUp = useCallback(() => {
     isResizing.current = false;
+    
+    // Devolve o comportamento normal ao navegador
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
-    document.body.style.touchAction = ''; // Devolve o controle de touch
-    
+    document.body.style.touchAction = '';
+
+    // "Descongela" a FeedTab, trazendo-a de volta ao normal suavemente
+    if (mainRef.current) {
+        mainRef.current.style.pointerEvents = '';
+        mainRef.current.style.userSelect = '';
+        mainRef.current.style.opacity = '1';
+    }
+
     if (panelDivRef.current) {
-        // Reativa a transição suave do CSS
+        // Reativa a transição suave do CSS para o fechamento
         panelDivRef.current.style.transition = 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
         
-        // Só agora atualiza o React (evita lag durante o arraste)
+        // AGORA SIM: Atualiza o estado do React uma única vez com a largura final
         const finalWidth = parseInt(panelDivRef.current.style.width, 10);
         setPanelWidth(finalWidth);
     }
 
     if (rafId.current) cancelAnimationFrame(rafId.current);
 
-    // Remove listeners globais
+    // Remove os 'escutadores' de evento globais
     window.removeEventListener('mousemove', handleResizeMove);
     window.removeEventListener('mouseup', handleResizeUp);
     window.removeEventListener('touchmove', handleResizeMove);
     window.removeEventListener('touchend', handleResizeUp);
-  }, [handleResizeMove]);
+  }, [handleResizeMove]); // A dependência garante que a versão mais recente da função seja usada
 
-  // 4. Função DOWN (Inicia)
+  // 4. Função de INÍCIO (clicar e segurar no puxador, "congela" o fundo)
   const handleResizeStart = (e) => {
-    // Ignora clique com botão direito
     if (e.type === 'mousedown' && e.button !== 0) return;
     
     e.preventDefault(); 
@@ -5962,64 +5667,87 @@ export default function NewsOS_V12() {
 
     isResizing.current = true;
     resizeStartX.current = e.touches ? e.touches[0].clientX : e.clientX;
-    initialWidth.current = panelWidth;
+    initialWidth.current = panelDivRef.current.offsetWidth;
     
-    // DESLIGA a transição temporariamente para o arraste ser instantâneo
+    // DESLIGA a transição do CSS temporariamente para o arraste ser instantâneo
     if (panelDivRef.current) {
         panelDivRef.current.style.transition = 'none';
     }
     
-    // Trava seleções e scroll
+    // "Congela" a FeedTab para a GPU: desativa interações e a deixa semi-transparente
+    if (mainRef.current) {
+        mainRef.current.style.pointerEvents = 'none';
+        mainRef.current.style.userSelect = 'none';
+        mainRef.current.style.transition = 'opacity 0.3s ease'; // Transição suave para o "congelamento"
+        mainRef.current.style.opacity = '0.7';
+    }
+    
+    // Trava a seleção de texto e o scroll da página durante o arraste
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'ew-resize';
-    document.body.style.touchAction = 'none'; // CRÍTICO PARA IPAD
+    document.body.style.touchAction = 'none'; // Crítico para iPad
     
-    // Adiciona listeners na janela inteira
+    // Adiciona os 'escutadores' de evento na janela inteira
     window.addEventListener('mousemove', handleResizeMove, { passive: false });
     window.addEventListener('mouseup', handleResizeUp);
     window.addEventListener('touchmove', handleResizeMove, { passive: false });
     window.addEventListener('touchend', handleResizeUp);
   };
   
-  // --- FIM DO BLOCO DE RESIZE ---
+  // ==============================================================================
+  // === FIM DO BLOCO DE OTIMIZAÇÃO DE RESIZE ===
+  // ==============================================================================
 
-// --- ÍNDICES DE ROTAÇÃO (PERSISTENTES) ---
+
+
+  // --- ÍNDICES DE ROTAÇÃO (PERSISTENTES) ---
   // Usamos useRef para que o índice não resete a cada renderização
   const widgetRotationIndex = useRef(0);
-  const heavyRotationIndex = useRef(0);
+  // 1. Inicializa o ref lendo o valor salvo no localStorage. Se não houver, começa em 0.
+const heavyRotationIndex = useRef(
+  typeof window !== 'undefined' ? parseInt(localStorage.getItem('heavyRotationIndex') || '0', 10) : 0
+);
+
+// 2. Adicione este useEffect em qualquer lugar dentro do NewsOS_V12
+// Ele salva o valor atual do contador no localStorage toda vez que ele é atualizado.
+useEffect(() => {
+  const saveIndex = () => {
+    localStorage.setItem('heavyRotationIndex', heavyRotationIndex.current.toString());
+  };
+
+  // Salva quando o componente é desmontado (usuário fecha a aba/navegador)
+  window.addEventListener('beforeunload', saveIndex);
+
+  return () => {
+    // Garante que o último valor seja salvo ao sair
+    saveIndex(); 
+    window.removeEventListener('beforeunload', saveIndex);
+  };
+}, []); // Roda apenas uma vez, na montagem do componente.
   const chatRotationIndex = useRef(0);
 
   // --- O DISTRIBUIDOR DE CHAVES (ROTAÇÃO SEQUENCIAL OTIMIZADA) ---
   const getApiKey = useCallback((purpose) => {
     
-    // 1. POOL LEVE (Widgets) - IDs 1 a 4
+    // Pool de Widgets (sem alteração)
     if (purpose === 'widgets') {
-        // Filtra apenas as chaves desse pool que têm valor preenchido
-        const freeKeys = apiKeys.filter(k => k.id >= 1 && k.id <= 4 && k.value && k.value.trim() !== '');
-        
+        const freeKeys = apiKeys.filter(k => k.type === 'free_widget' && k.value && k.value.trim() !== '');
         if (freeKeys.length === 0) return null; 
-        
-        // Pega a chave baseada no contador atual
         const key = freeKeys[widgetRotationIndex.current % freeKeys.length];
-        
-        // Incrementa o contador para a próxima vez
         widgetRotationIndex.current += 1; 
-        
-        console.log(`[Rotação Widgets] Usando chave ID: ${key.id}`);
         return key.value;
     }
 
-    // 2. POOL PESADO (Análise, Texto, Áudio) - IDs 7 a 11
+    // >> POOL PESADO (ALTERAÇÃO AQUI) <<
     if (purpose === 'analysis' || purpose === 'script' || purpose === 'audio') {
-        const heavyKeys = apiKeys.filter(k => k.id >= 7 && k.id <= 11 && k.value && k.value.trim() !== '');
+        // Agora o filtro usa o 'type' em vez de IDs fixos, se adaptando automaticamente
+        const heavyKeys = apiKeys.filter(k => k.type === 'heavy_rotation' && k.value && k.value.trim() !== '');
         
-        // Fallback para chaves antigas (5 e 6) se o pool novo estiver vazio
         if (heavyKeys.length === 0) {
              const legacyKey = apiKeys.find(k => (purpose === 'audio' ? k.id === 6 : k.id === 5))?.value;
              return legacyKey || null;
         }
         
-        // Rotação Sequencial
         const key = heavyKeys[heavyRotationIndex.current % heavyKeys.length];
         heavyRotationIndex.current += 1;
         
@@ -6050,7 +5778,6 @@ export default function NewsOS_V12() {
   const getChatApiKey = useCallback(() => {
       return getApiKey('chat');
   }, [getApiKey]);
-
   
 const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
@@ -6529,7 +6256,9 @@ const handleStoryNavigation = (direction) => {
             else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) {
                 finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
             }
-            
+            else if (lowerName.includes('extra') || lowerUrl.includes('extra.globo.com')) {
+                finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSHwU53hYcTA87KGMdvumyIbxKsOi-OflNnIw&s';
+            }
             
             // 2. Lógica para YouTube (Cores Dinâmicas + Foto Real)
             else if (isFeedYoutube) {
@@ -6951,29 +6680,23 @@ const storiesForHappeningTab = useMemo(() => {
 
   }, [realNews]); // REMOVIDO 'seenStoryIds' DAS DEPENDÊNCIAS
 
-
-// =====================================================================================
-  // LÓGICA DE CONTROLE DE ROTAÇÃO (MEMOIZAÇÃO)
-  // =====================================================================================
+// ==========================================================
+  // ALTERAÇÃO 1: LÓGICA DE "CONGELAMENTO" E GATILHO
+  // ==========================================================
   
-  // 1. CHAVE DE ANÁLISE (Congelada por Artigo)
-  // A chave só vai mudar (rotacionar) quando o ID do artigo selecionado mudar.
-  // Isso impede que re-renderizações da interface troquem a chave no meio da leitura.
+  // A chave de análise para o painel lateral. Esta lógica está CORRETA e deve ser mantida.
   const analysisApiKey = useMemo(() => {
+      // Se não houver artigo selecionado, não faz sentido pegar uma chave.
       if (!selectedArticle) return null;
+
+      // A função é chamada aqui dentro, mas não está no array de dependências.
+      // Isso é seguro porque a lógica de pegar a chave só precisa rodar
+      // quando o artigo MUDA, e isso é garantido pela dependência [selectedArticle?.id].
+      console.log(`useMemo: EXECUTANDO ROTAÇÃO para o artigo ID: ${selectedArticle.id}`);
       return getApiKey('analysis');
-  }, [selectedArticle?.id, getApiKey]);
-
-  // 2. CHAVE DE WIDGETS (Congelada por Atualização)
-  // Criamos um gatilho manual. A chave dos widgets só muda quando você puxar para atualizar
-  // ou quando trocar de aba, não a cada milissegundo.
-  const [refreshTrigger, setRefreshTrigger] = useState(0); 
   
-  const widgetApiKey = useMemo(() => {
-      return getApiKey('widgets');
-  }, [refreshTrigger, activeTab, getApiKey]);
-
-
+  // A ÚNICA DEPENDÊNCIA AGORA É O ID DO ARTIGO.
+  }, [selectedArticle?.id]);
 // 2. Esta lista é para a NAVEGAÇÃO. Ela contém TODOS os stories, sem filtro.
 const allAvailableStories = useMemo(() => {
     if (!realNews || realNews.length === 0) return [];
@@ -7033,7 +6756,7 @@ return (
 
           <main ref={mainRef} className="flex-1 overflow-y-auto pb-40 px-4 md:px-6 scrollbar-hide pt-2">
             
-            {activeTab === 'happening' && (
+       {activeTab === 'happening' && (
                 <HappeningTab 
                    openArticle={handleReadNative}
                    openStory={(story) => {
@@ -7042,18 +6765,25 @@ return (
                    }}
                     isDarkMode={isDarkMode} 
                     newsData={realNews}
+                    // AÇÃO 1: Pull-to-Refresh
                     onRefresh={async () => {
                         await handleHappeningRefresh();
-                        setRefreshTrigger(prev => prev + 1); 
+                        // Aciona o gatilho para pegar uma nova chave de widget
+                        setWidgetTrigger(prev => prev + 1); 
                     }}
                     seenStoryIds={seenStoryIds} 
                     onMarkAsSeen={markStoryAsSeen}
-                    apiKey={widgetApiKey} 
+                    
                     storiesToDisplay={storiesForHappeningTab}
                     savedClusters={globalClusters}
+                    // AÇÃO 2: Botão de Análise de Clusters (se ele existir dentro do HappeningTab)
+                    // Você precisaria passar essa função para o WhileYouWereAwayWidget
                     setSavedClusters={setGlobalClusters}
+                    getApiKey={getApiKey}
+                  
                 />
             )}
+        
 
             {activeTab === 'podcast' && (
                 <PodcastTab 
@@ -7102,7 +6832,8 @@ return (
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
                     apiKey={analysisApiKey} 
-                    getChatApiKey={getChatApiKey}
+                     getChatApiKey={getChatApiKey}
+             
                 />
             )}
             
@@ -7191,7 +6922,7 @@ return (
                 width: selectedArticle ? `${panelWidth}px` : '0px',
                 transform: selectedArticle ? 'translateX(0)' : 'translateX(100%)',
                 maxWidth: '100vw',
-                // A transição é gerenciada via JS durante o resize para não travar
+                // 2. A transição agora é controlada pelo JS para ser desativada durante o arraste
                 transition: isResizing.current ? 'none' : 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
         >
@@ -7226,9 +6957,10 @@ return (
                     onClose={closeArticle}
                     onToggleSave={handleToggleSave}
                     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-                    apiKey={analysisApiKey} 
+                     apiKey={analysisApiKey} 
                     getChatApiKey={getChatApiKey}
                     isDarkMode={isDarkMode}
+                    isResizing={isResizing.current} 
                 />
             )}
         </div>
@@ -7802,21 +7534,18 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
 
 
 
-// --- FUNÇÃO DE IA: CHAT CONTEXTUAL DINÂMICO ---
+// --- FUNÇÃO DE IA HÍBRIDA E FINAL ---
+// 1. Defina o endereço do seu site (IMPORTANTE: Sem a barra '/' no final)
+// Troque pelo seu link real se for diferente deste
+const VERCEL_URL = "https://newsos-app2.vercel.app"; 
+
+// --- FUNÇÃO DE IA HÍBRIDA (Compatível com Web e iPad) ---
 const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   if (!apiKey) return "Desculpe, a conexão com a IA não está configurada.";
 
-  // 1. Extrai a última pergunta do usuário
   const userQuestion = chatHistory.findLast(m => m.from === 'user')?.text;
   if (!userQuestion) return "Não entendi sua pergunta.";
 
-  // 2. Busca contexto na web baseado na pergunta E no artigo
-  const articleKeywords = articleText.split(' ').slice(0, 5).join(' '); // Pega palavras-chave do início do artigo
-  const searchQuery = `${articleKeywords} ${userQuestion}`;
-  const webResults = await searchWeb(searchQuery);
-  const webContext = webResults.map(r => r.snippet).join('\n');
-
-  // 3. Monta o histórico para a IA (importante para manter o contexto da conversa)
   const formattedHistory = chatHistory.map(m => `${m.from === 'user' ? 'Usuário' : 'Assistente'}: ${m.text}`).join('\n');
 
   const prompt = `
@@ -7826,11 +7555,6 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   ---
   ${articleText.slice(0, 4000)}
   ---
-
-  INFORMAÇÕES ADICIONAIS DA WEB (Buscadas agora com base na última pergunta):
-  ---
-  ${webContext || "Nenhum resultado web encontrado para esta pergunta."}
-  ---
   
   HISTÓRICO DA CONVERSA ATÉ AGORA:
   ---
@@ -7838,11 +7562,10 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   ---
 
   SUA TAREFA:
-  Continue a conversa respondendo à última pergunta do "Usuário" de forma natural e conversacional, como se estivesse em um chat.
+  Continue a conversa respondendo à última pergunta do "Usuário" de forma natural e conversacional.
   - Utilize o CONTEXTO PRINCIPAL para responder sobre fatos da notícia.
-  - Utilize as INFORMAÇÕES DA WEB para responder perguntas que vão além da notícia (eventos atuais, definições, etc).
   - Mantenha as respostas curtas e diretas (1-3 frases).
-  - AJA COMO UMA PESSOA, NÃO COMO UM ROBÔ. Seja prestativo.
+  - AJA COMO UMA PESSOA, NÃO COMO UM ROBÔ.
   - Não repita a pergunta. Apenas dê a resposta.
   `;
 
@@ -7861,9 +7584,8 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
 
 
 
-
 // --- NOVO COMPONENTE: WHATSAPP CHAT INTERFACE ---
-const WhatsappChat = ({ articleText, apiKey, getChatApiKey, isDarkMode }) => {
+const WhatsappChat = ({ articleText, apiKey, isDarkMode, getChatApiKey }) => {
   const [history, setHistory] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -7890,7 +7612,7 @@ const WhatsappChat = ({ articleText, apiKey, getChatApiKey, isDarkMode }) => {
     setInputValue('');
     setIsAiTyping(true);
 
-    const chatApiKey = getChatApiKey(); // Pega uma chave rotacionada
+        const chatApiKey = getChatApiKey(); // Pega uma chave rotacionada
     if (!chatApiKey) {
       setHistory(prev => [...prev, { from: 'ai', text: 'Erro: Nenhuma chave de API para o chat está configurada.' }]);
       setIsAiTyping(false);
@@ -7954,7 +7676,7 @@ const WhatsappChat = ({ articleText, apiKey, getChatApiKey, isDarkMode }) => {
 // 2. O PAINEL DE IA PRINCIPAL
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, getChatApiKey, isResizing }) => {
+const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, isResizing, getChatApiKey }) => {
   const [aiData, setAiData] = useState(null);
   const [loadingState, setLoadingState] = useState('idle'); 
   const [viewMode, setViewMode] = useState('analysis');
@@ -7964,14 +7686,14 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [highlightRequest, setHighlightRequest] = useState(null); 
   const [readerContent, setReaderContent] = useState(null); 
   const [showCenterModal, setShowCenterModal] = useState(false);
+
+
+// 1. Estado de Etapas (Começa em -1 para 'nenhum')
   const [loadingStep, setLoadingStep] = useState(0);
 
-  // EFEITO DE LIMPEZA
+  // EFEITO DE LIMPEZA (Reseta tudo ao abrir)
   useEffect(() => {
       if (isOpen && article) {
-          // Só reseta se for um artigo NOVO.
-          // Se o painel já tiver dados, não queremos flashar o loading à toa.
-          // Mas como a key muda no pai, aqui o reset é seguro.
           setAiData(null);
           setReaderContent(null);
           setLoadingState('extracting');
@@ -7979,71 +7701,62 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setFocusedNode(null);
           setHighlightRequest(null);
           setShowCenterModal(false);
+          
+          // Zera os passos visuais
           setLoadingStep(0);
           
           runSuperPrompt();
       }
-  }, [article?.id, isOpen]); // Dependências corrigidas
+  }, [article?.id, isOpen]);
 
-  const runSuperPrompt = useCallback(async () => {
+  // A NOVA FUNÇÃO SINCRONIZADA COM A REALIDADE
+const runSuperPrompt = useCallback(async () => {
+      // apiKey agora vem das props, fornecida pelo pool 'analysis'
       if (!apiKey || !article.link) {
           setLoadingState('error');
           return;
       }
       
       try {
-          setLoadingStep(0); 
-          await new Promise(r => setTimeout(r, 600));
-
-          setLoadingStep(1);
-          // Simulação da chamada (substitua pela sua lógica real do Supabase)
-          // const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-          // MOCK TEMPORÁRIO PARA NÃO QUEBRAR O COMPILADOR SEM SUPABASE
-          const proxyData = { reader: { textContent: article.summary + " Texto completo simulado..." } }; 
+          setLoadingStep(1); // Extraindo...
+          const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
           
-          if (!proxyData?.reader?.textContent) throw new Error("Falha na extração");
+          if (proxyError || !proxyData?.reader?.content) throw new Error("Falha na extração de texto");
           
           const fullText = proxyData.reader.textContent;
           setReaderContent(proxyData.reader); 
 
-          setLoadingStep(2); 
+          setLoadingStep(2); // Analisando...
           setLoadingState('analyzing'); 
 
-          const prompt = `
-            Aja como um Analista de Inteligência Sênior... (SEU PROMPT ORIGINAL) ...
-            TEXTO: ${fullText.slice(0, 25000)}`;
+          // A MÁGICA: Chama a função local generateFullAnalysis com a chave do pool
+          const result = await generateFullAnalysis(fullText, apiKey);
           
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-              method: "POST", 
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
-          });
-          
-          const jsonRes = await response.json();
-          if (!response.ok) throw new Error(jsonRes.error?.message || "Erro na API Gemini");
+          if (!result) throw new Error("A análise da IA retornou vazia.");
 
-          setLoadingStep(3); 
-          await new Promise(r => setTimeout(r, 400));
-
-          const textRes = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text;
-          const finalData = JSON.parse(textRes.replace(/```json/g, '').replace(/```/g, '').trim());
+          setLoadingStep(3); // Sintetizando...
+          setAiData(result);
           
-          setAiData(finalData);
-          setLoadingStep(4); 
-          await new Promise(r => setTimeout(r, 800)); 
+          setLoadingStep(4); // Finalizando...
           setLoadingState('complete');
 
       } catch (err) { 
-          console.error(err);
+          console.error("Erro no runSuperPrompt:", err);
           setLoadingState('error'); 
       }
-  }, [apiKey, article]);
+  }, [apiKey, article]); // Depende da chave e do artigo
 
-  const handleNodeClick = useCallback((nodeName, position) => {
+  
+const handleNodeClick = useCallback((nodeName, position) => {
       if (!aiData?.contextualTerms) return;
+      
       const nodeData = aiData.contextualTerms.find(t => t.term.toLowerCase().includes(nodeName.toLowerCase()) || nodeName.toLowerCase().includes(t.term.toLowerCase()));
+      
       const dataToSet = nodeData || { name: nodeName, context: "Contexto geral.", sentiment: "neutral", evidence_quotes: [] };
+      
+      // Salva a posição para o CSS usar
       setFocusedNode({ ...dataToSet, position }); 
+      
       setViewMode('drilldown');
   }, [aiData]);
   
@@ -8052,28 +7765,50 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       setViewMode('magic'); 
   }, []);
 
-  // --- OTIMIZAÇÃO DE RESIZE ---
-  // Quando estiver redimensionando, aplicamos classes que removem filtros pesados
-  const resizeOptimizationClass = isResizing ? 'pointer-events-none select-none !transition-none' : '';
-  const heavyEffectsClass = isResizing ? '!backdrop-blur-none !bg-zinc-900 !shadow-none' : 'backdrop-blur-md';
-
-return (
-  <div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} border-l-2 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'} ${resizeOptimizationClass}`}>
     
-    <style jsx="true">{`
+
+
+  
+// --- return do ArticlePanel ---
+return (
+<div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'} border-l-2 transition-colors duration-300
+    ${isResizing 
+        // Se estiver redimensionando, usa um fundo sólido e mais opaco
+        ? (isDarkMode ? 'bg-zinc-950/95' : 'bg-white/95')
+        // Se não, usa o fundo com o efeito de desfoque pesado
+        : (isDarkMode ? 'bg-zinc-950/90 backdrop-blur-3xl' : 'bg-white/80 backdrop-blur-3xl')
+    }
+  `}>    <style jsx="true">{`
         @keyframes spin-slow { to { transform: rotate(360deg); } }
         .animate-spin-slow { animation: spin-slow 20s linear infinite; }
         @keyframes spin-reverse-slow { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
         .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
     `}</style>
   
-    {/* --- Telas de Loading e Erro (Mantidas iguais) --- */}
+    {/* --- Telas de Loading e Erro --- */}
     {(loadingState === 'extracting' || loadingState === 'analyzing') && (
       <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black p-8">
-         {/* ... Conteúdo do loading ... */}
-         <Loader2 className="animate-spin text-white mb-4" size={40}/>
-         <p className="text-white text-sm">Processando...</p>
-         <button onClick={onClose} className="absolute bottom-8 text-zinc-600 text-xs">Cancelar</button>
+        {/* ... (código do loading, que não precisa ser alterado) ... */}
+        <div className="flex flex-col items-center mb-12 text-center">
+          <div className="relative w-24 h-24 mb-6">
+            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full blur-2xl opacity-50 animate-pulse"></div>
+            <div className="absolute inset-[-10px] border-t-2 border-white/20 rounded-full animate-spin-slow"></div>
+            <div className="absolute inset-[-20px] border-b-2 border-blue-400/20 rounded-full animate-spin-reverse-slow"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <BrainCircuit size={40} className="text-white animate-pulse" style={{ animationDuration: '2s' }}/>
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
+            NEWS OS <span className="text-white">INTELLIGENCE</span>
+          </h3>
+        </div>
+        <div className="w-full max-w-sm space-y-6">
+          <LoadingStep title="Estabelecendo conexão neural segura..." isActive={loadingStep === 0} isComplete={loadingStep > 0} />
+          <LoadingStep title="Extraindo e sanitizando dados-fonte..." isActive={loadingStep === 1} isComplete={loadingStep > 1} />
+          <LoadingStep title="Processando dados com IA..." isActive={loadingStep === 2} isComplete={loadingStep > 2} />
+          <LoadingStep title="Sintetizando briefing de inteligência..." isActive={loadingStep === 3} isComplete={loadingStep > 3} />
+        </div>
+        <button onClick={onClose} className="absolute bottom-8 text-zinc-600 text-xs hover:text-white transition-colors">Cancelar Análise</button>
       </div>
     )}
     
@@ -8081,23 +7816,19 @@ return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
         <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
-        <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia.</p>
+        <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia. O site pode estar bloqueando a extração ou a API de IA está offline.</p>
         <button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button>
       </div>
     )}
 
     {/* --- TELA DE CONTEÚDO (APÓS SUCESSO) --- */}
     {loadingState === 'complete' && aiData && (
-      <> 
+      <> {/* FRAGMENTO ABERTO AQUI */}
+        
         {/* CABEÇALHO DO PAINEL */}
-        {/* Usamos 'transform: translateZ(0)' para forçar aceleração de hardware no header */}
-        <div className="relative h-72 w-full flex-shrink-0 sticky top-0 z-20" style={{ transform: 'translateZ(0)' }}>
-          {/* Imagem: Desativa renderização de alta qualidade no resize se necessário, mas object-cover geralmente é ok se o container não mudar de aspect ratio drasticamente. 
-              Porém, vamos otimizar removendo a opacidade gradual se estiver pesado. */}
-          <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" loading="eager" />
-          
+        <div className="relative h-72 w-full flex-shrink-0 sticky top-0 z-20">
+          <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" />
           <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
-          
           <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">
             {viewMode === 'chat' ? (
               <button onClick={() => setViewMode('analysis')} className="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold border border-white/20 shadow-lg hover:bg-indigo-500 transition flex items-center gap-2">
@@ -8105,11 +7836,10 @@ return (
               </button>
             ) : <div />}
             <div className="flex gap-2">
-              <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full border ${heavyEffectsClass} ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}><Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/></button>
-              <button onClick={onClose} className={`p-3 rounded-full bg-white/10 border border-white/20 text-white hover:bg-white/20 ${heavyEffectsClass}`}><X size={20}/></button>
+              <button onClick={() => onToggleSave(article)} className={`p-3 rounded-full backdrop-blur-md border ${isSaved ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-white/20 text-white'}`}><Bookmark size={20} fill={isSaved ? "currentColor" : "none"}/></button>
+              <button onClick={onClose} className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20"><X size={20}/></button>
             </div>
           </div>
-          
           <div className="absolute bottom-8 left-6 right-6 z-10 flex justify-between items-end gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-3 mb-3">
@@ -8120,9 +7850,7 @@ return (
               </div>
               <h1 className="text-2xl md:text-3xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
             </div>
-            
-            {/* Esconde botão de chat durante resize para menos elementos pintados */}
-            {viewMode !== 'chat' && !isResizing && (
+            {viewMode !== 'chat' && (
               <button 
                 onClick={() => setViewMode('chat')}
                 className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
@@ -8135,18 +7863,13 @@ return (
         </div>
         
         {/* CONTAINER DE CONTEÚDO DINÂMICO */}
-        {/* content-visibility: auto melhora muito a performance de scroll e resize de listas longas */}
-        <div className="flex-1 min-h-0 relative" style={{ contentVisibility: 'auto' }}>
-            
-          {/* Se estiver em resize, podemos até mostrar um overlay leve para evitar repaints de texto complexo, 
-              mas apenas remover os efeitos (backdrop) já deve bastar. */}
-          
+        <div className="flex-1 min-h-0">
           {viewMode === 'analysis' && (
-            <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20">
+            <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20 animate-in fade-in">
               <div className="mb-10">
-                <div className={`flex p-1 rounded-xl mb-4 ${isDarkMode ? 'bg-white/5' : 'bg-zinc-100'}`}>
+                <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
                   {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
-                    <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? (isDarkMode ? 'bg-zinc-800 text-white' : 'bg-white text-indigo-600 shadow-md') : 'text-zinc-400'}`}>
+                    <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>
                       {mode === 'executive' ? 'Executivo' : (mode === 'tldr' ? 'Curto' : (mode === 'eli5' ? 'Simples' : 'Tópicos'))}
                     </button>
                   ))}
@@ -8163,8 +7886,6 @@ return (
                   )}
                 </div>
               </div>
-
-              {/* Componentes pesados: Se estiver redimensionando, podemos pausar animações internas passando a prop isResizing para eles se necessário */}
               <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
               <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
               <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
@@ -8175,17 +7896,16 @@ return (
           {viewMode === 'chat' && (
             <WhatsappChat 
               articleText={readerContent?.textContent || article.summary}
-              getChatApiKey={getChatApiKey}
+         getChatApiKey={getChatApiKey}
               isDarkMode={isDarkMode}
             />
           )}
         </div>
 
-        {/* MODAIS */}
+        {/* MODAIS (Renderizados por cima de tudo, mas dentro da condição 'complete') */}
         {showCenterModal && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
-        
         {viewMode === 'drilldown' && focusedNode && (
-          <div className={`fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 ${heavyEffectsClass} animate-in fade-in`} onClick={() => setViewMode('analysis')}>
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
             <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-lg p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2 opacity-70">
@@ -8203,10 +7923,17 @@ return (
               ) : (
                 <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{focusedNode.context}</p>
               )}
+              <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
+                <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Evidências</h4>
+                {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
+                  focusedNode.evidence_quotes.map((quote, i) => (
+                    <div key={i} onClick={() => handleQuoteClick(quote)} className={`p-3 rounded-xl border cursor-pointer text-xs italic ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>"{quote}"</div>
+                  ))
+                ) : <p className="text-xs opacity-50 italic">Nenhuma citação direta encontrada.</p>}
+              </div>
             </div>
           </div>
         )}
-        
         {viewMode === 'magic' && (
           <div className="absolute inset-0 overflow-y-auto bg-zinc-950 z-30">
             <MagicPremiumView article={article} readerContent={readerContent} highlightText={highlightRequest} isDarkMode={isDarkMode} fontSize={fontSize} />
@@ -8722,19 +8449,20 @@ const handleKeyChange = (targetId, newValue) => {
                     </div>
                 </div>
             )}
-            
-       {/* ABA API (GERENCIADOR DE CHAVES) */}
+ 
+   {/* ABA API (GERENCIADOR DE CHAVES) */}
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                      
-                     {/* POOL 1: WIDGETS (1-4) */}
+                     {/* POOL 1: WIDGETS (Leve) */}
                      <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
                         <div className="flex items-center gap-2 mb-2">
                             <Activity size={14} className="text-blue-500"/>
                             <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
                         </div>
                         <div className="space-y-2">
-                            {apiKeys.filter(k => k.id >= 1 && k.id <= 4).map((key) => (
+                            {/* CORREÇÃO PARA O POOL 1: Filtrar por 'type' */}
+                            {apiKeys.filter(k => k.type === 'free_widget').map((key) => (
                                 <input 
                                     key={key.id}
                                     type="text" 
@@ -8747,25 +8475,29 @@ const handleKeyChange = (targetId, newValue) => {
                         </div>
                      </div>
 
-                     {/* POOL 2: USINA DE TEXTO (7-11) */}
+                     {/* POOL 2: USINA DE IA (Pesado) */}
                      <div className={`p-4 rounded-xl border border-purple-500/30 ${isDarkMode ? 'bg-purple-900/10' : 'bg-purple-50'}`}>
                         <div className="flex items-center gap-2 mb-2">
                             <BrainCircuit size={14} className="text-purple-500"/>
                             <h3 className="text-sm font-bold">Pool 2: Usina de IA (Pesado)</h3>
                         </div>
                         <p className="text-[10px] opacity-60 mb-3 leading-relaxed">
-                            Crie 5 projetos <strong>sem cartão</strong> no AI Studio. O app fará o rodízio automático para análises pesadas e geração de áudio sem custo.
+                            Crie até 6 projetos <strong>sem cartão</strong> no AI Studio. O app fará o rodízio automático para análises pesadas.
                         </p>
                         
                         <div className="space-y-2">
-                            {apiKeys.filter(k => k.id >= 7 && k.id <= 11).map((key) => (
+                            {/* ========================================================== */}
+                            {/* === AQUI ESTÁ A CORREÇÃO === */}
+                            {/* ========================================================== */}
+                            {/* Trocamos o filtro de ID fixo por um filtro de 'type' */}
+                            {apiKeys.filter(k => k.type === 'heavy_rotation').map((key, index) => (
                                 <div key={key.id} className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-bold opacity-50">#{key.id}</span>
                                     <input 
                                         type="text" 
                                         value={key.value} 
                                         onChange={(e) => handleKeyChange(key.id, e.target.value)} 
-                                        placeholder={`Cole a Chave do Projeto ${key.id - 6} aqui...`} 
+                                        placeholder={`Cole a Chave do Projeto ${index + 1} aqui...`} 
                                         className={`w-full pl-8 pr-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-purple-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
                                     />
                                 </div>
@@ -8774,24 +8506,25 @@ const handleKeyChange = (targetId, newValue) => {
                      </div>
 
                      {/* POOL 3: CHAT */}
- <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-    <div className="flex items-center gap-2 mb-2">
-        <MessageCircle size={14} className="text-green-500"/> {/* Use um ícone de chat, se tiver 'lucide-react' */}
-        <h3 className="text-sm font-bold">Pool 3: Chat com IA</h3>
-    </div>
-    <div className="space-y-2">
-        {apiKeys.filter(k => k.type === 'chat_key').map((key) => (
-            <input 
-                key={key.id}
-                type="text" 
-                value={key.value} 
-                onChange={(e) => handleKeyChange(key.id, e.target.value)} 
-                placeholder={`Chave de Chat #${key.id}`} 
-                className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-green-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
-            />
-        ))}
-    </div>
- </div>
+                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <MessageCircle size={14} className="text-green-500"/>
+                            <h3 className="text-sm font-bold">Pool 3: Chat com IA</h3>
+                        </div>
+                        <div className="space-y-2">
+                            {/* CORREÇÃO PARA O POOL 3: Filtrar por 'type' */}
+                            {apiKeys.filter(k => k.type === 'chat_key').map((key) => (
+                                <input 
+                                    key={key.id}
+                                    type="text" 
+                                    value={key.value} 
+                                    onChange={(e) => handleKeyChange(key.id, e.target.value)} 
+                                    placeholder={`Chave de Chat #${key.id}`} 
+                                    className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-green-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+                                />
+                            ))}
+                        </div>
+                     </div>
 
                      {/* LEGADO (5-6) - Opcional, esconde num accordion ou deixa no fim */}
                      <div className="opacity-50 hover:opacity-100 transition-opacity">
