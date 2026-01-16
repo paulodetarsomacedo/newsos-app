@@ -3483,83 +3483,66 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) 
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
 
-    // SUGESTÃO 3: Ranking de fontes para melhor imagem de capa
-    const preferredSources = new Set(['G1', 'CNN Brasil', 'The Verge', 'Globo', 'BBC']);
-    const SIMILARITY_THRESHOLD = 0.60; // 60% de similaridade para agrupar
-    const CLUSTER_LIMIT = 4; // Limita a no máximo 4 clusters
-
-    const articles = [...news.slice(0, 100)]; // Trabalha com uma cópia das 100 notícias mais recentes
-    let clusters = [];
+    const clusters = {};
     const articlesUsed = new Set();
 
-    // SUGESTÃO 1: Lógica de cluster por similaridade
-    for (let i = 0; i < articles.length; i++) {
-        if (articlesUsed.has(articles[i].id)) continue;
-
-        let currentCluster = {
-            related_articles: [articles[i]]
-        };
-        articlesUsed.add(articles[i].id);
-
-        for (let j = i + 1; j < articles.length; j++) {
-            if (articlesUsed.has(articles[j].id)) continue;
-
-            const similarity = stringSimilarity.compareTwoStrings(
-                articles[i].title,
-                articles[j].title
-            );
-
-            if (similarity >= SIMILARITY_THRESHOLD) {
-                currentCluster.related_articles.push(articles[j]);
-                articlesUsed.add(articles[j].id);
-            }
-        }
-
-        if (currentCluster.related_articles.length > 1) {
-            clusters.push(currentCluster);
-        }
-    }
+    // 1. Encontra palavras-chave importantes (lógica mantida)
+    const keywordScores = {};
+    const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em']);
     
-    // Filtra e ordena os clusters por tamanho (mais relevantes primeiro)
-    clusters = clusters.sort((a, b) => b.related_articles.length - a.related_articles.length).slice(0, CLUSTER_LIMIT);
-    
-    // SUGESTÃO 2 e 3: Hidratação final dos clusters (título, imagem, ordem)
-    const finalClusters = clusters.map(cluster => {
-        // --- Lógica para encontrar o melhor título ---
-        let bestArticleForTitle = cluster.related_articles[0];
-        let maxCentrality = 0;
-
-        cluster.related_articles.forEach(articleA => {
-            let currentCentrality = 0;
-            cluster.related_articles.forEach(articleB => {
-                if (articleA.id !== articleB.id) {
-                    currentCentrality += stringSimilarity.compareTwoStrings(articleA.title, articleB.title);
-                }
-            });
-            if (currentCentrality > maxCentrality) {
-                maxCentrality = currentCentrality;
-                bestArticleForTitle = articleA;
+    news.slice(0, 30).forEach(article => {
+        const words = article.title.toLowerCase().replace(/[^a-zà-ú\s]/g, '').split(/\s+/);
+        words.forEach(word => {
+            if (word.length > 4 && !stopWords.has(word)) {
+                keywordScores[word] = (keywordScores[word] || 0) + 1;
             }
         });
-
-        // --- Lógica para encontrar a melhor imagem ---
-        let representativeArticleForImage = 
-            cluster.related_articles.find(a => preferredSources.has(a.source)) || // Tenta achar uma fonte preferencial
-            bestArticleForTitle; // Se não, usa a do artigo mais central
-
-        // --- Ordenar artigos por data ---
-        const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
-        
-        return {
-            ai_title: bestArticleForTitle.title, // O título mais "central" do grupo
-            ai_summary: `Este assunto foi abordado em ${cluster.related_articles.length} notícias recentes. Clique em "Analisar" para um resumo detalhado via IA.`,
-            representative_image: representativeArticleForImage.img,
-            related_articles: sortedArticles,
-        };
     });
 
-    return finalClusters;
+    // 2. Pega as 5 palavras-chave mais frequentes (lógica mantida)
+    const topKeywords = Object.keys(keywordScores).sort((a, b) => keywordScores[b] - keywordScores[a]).slice(0, 5);
+
+    // Lista de fontes sem imagem para evitar como capa
+    const blockedSources = new Set(['uol', 'istoé', 'estadao', 'folha', 'investing', 'einvestidor', 'folha', 'moneytimes']);
+
+    // 3. Monta os cards
+    topKeywords.forEach(keyword => {
+        
+        // Esta lista já contém TODOS os artigos relevantes e NÃO USADOS para a palavra-chave.
+        const allCandidatesForKeyword = news.filter(article =>
+            !articlesUsed.has(article.id) && article.title.toLowerCase().includes(keyword)
+        );
+
+        if (allCandidatesForKeyword.length === 0) return;
+
+        // Lógica para escolher a melhor imagem (prioriza fontes não bloqueadas)
+        const bestImageCandidate = allCandidatesForKeyword.find(article =>
+            !blockedSources.has((article.source || '').toLowerCase())
+        );
+        
+        // Usa o melhor candidato ou, como fallback, o primeiro da lista
+        const representativeArticle = bestImageCandidate || allCandidatesForKeyword[0];
+
+        if (representativeArticle) {
+            
+            // CORREÇÃO: Usamos a lista já filtrada, garantindo consistência.
+            const relatedArticles = allCandidatesForKeyword;
+            
+            // Cria o "cluster falso"
+            clusters[keyword] = {
+                ai_title: representativeArticle.title,
+                representative_image: representativeArticle.img,
+                related_articles: relatedArticles.slice(0, 5) // Limita a 5 logos
+            };
+            
+            // Marca todos os artigos deste cluster como usados para evitar que apareçam em outros.
+            relatedArticles.forEach(a => articlesUsed.add(a.id));
+        }
+    });
+
+    return Object.values(clusters);
 };
+
 
 // --- COMPONENTE SKELETON PARA O SMARTNEWS ---
 const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
