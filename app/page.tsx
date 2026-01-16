@@ -7053,7 +7053,7 @@ return (
                     onClose={closeArticle}
                     onToggleSave={handleToggleSave}
                     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-                      apiKey={apiKey}
+                     apiKey={analysisApiKey} 
                     getChatApiKey={getChatApiKey}
                     isDarkMode={isDarkMode}
                     isResizing={isResizing.current} 
@@ -8545,19 +8545,20 @@ const handleKeyChange = (targetId, newValue) => {
                     </div>
                 </div>
             )}
-            
-       {/* ABA API (GERENCIADOR DE CHAVES) */}
+ 
+   {/* ABA API (GERENCIADOR DE CHAVES) */}
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                      
-                     {/* POOL 1: WIDGETS (1-4) */}
+                     {/* POOL 1: WIDGETS (Leve) */}
                      <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
                         <div className="flex items-center gap-2 mb-2">
                             <Activity size={14} className="text-blue-500"/>
                             <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
                         </div>
                         <div className="space-y-2">
-                            {apiKeys.filter(k => k.id >= 1 && k.id <= 4).map((key) => (
+                            {/* CORREÇÃO PARA O POOL 1: Filtrar por 'type' */}
+                            {apiKeys.filter(k => k.type === 'free_widget').map((key) => (
                                 <input 
                                     key={key.id}
                                     type="text" 
@@ -8570,25 +8571,29 @@ const handleKeyChange = (targetId, newValue) => {
                         </div>
                      </div>
 
-                     {/* POOL 2: USINA DE TEXTO (7-11) */}
+                     {/* POOL 2: USINA DE IA (Pesado) */}
                      <div className={`p-4 rounded-xl border border-purple-500/30 ${isDarkMode ? 'bg-purple-900/10' : 'bg-purple-50'}`}>
                         <div className="flex items-center gap-2 mb-2">
                             <BrainCircuit size={14} className="text-purple-500"/>
                             <h3 className="text-sm font-bold">Pool 2: Usina de IA (Pesado)</h3>
                         </div>
                         <p className="text-[10px] opacity-60 mb-3 leading-relaxed">
-                            Crie 5 projetos <strong>sem cartão</strong> no AI Studio. O app fará o rodízio automático para análises pesadas e geração de áudio sem custo.
+                            Crie até 6 projetos <strong>sem cartão</strong> no AI Studio. O app fará o rodízio automático para análises pesadas.
                         </p>
                         
                         <div className="space-y-2">
-                            {apiKeys.filter(k => k.id >= 7 && k.id <= 11).map((key) => (
+                            {/* ========================================================== */}
+                            {/* === AQUI ESTÁ A CORREÇÃO === */}
+                            {/* ========================================================== */}
+                            {/* Trocamos o filtro de ID fixo por um filtro de 'type' */}
+                            {apiKeys.filter(k => k.type === 'heavy_rotation').map((key, index) => (
                                 <div key={key.id} className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-bold opacity-50">#{key.id}</span>
                                     <input 
                                         type="text" 
                                         value={key.value} 
                                         onChange={(e) => handleKeyChange(key.id, e.target.value)} 
-                                        placeholder={`Cole a Chave do Projeto ${key.id - 6} aqui...`} 
+                                        placeholder={`Cole a Chave do Projeto ${index + 1} aqui...`} 
                                         className={`w-full pl-8 pr-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-purple-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
                                     />
                                 </div>
@@ -8597,24 +8602,25 @@ const handleKeyChange = (targetId, newValue) => {
                      </div>
 
                      {/* POOL 3: CHAT */}
- <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-    <div className="flex items-center gap-2 mb-2">
-        <MessageCircle size={14} className="text-green-500"/> {/* Use um ícone de chat, se tiver 'lucide-react' */}
-        <h3 className="text-sm font-bold">Pool 3: Chat com IA</h3>
-    </div>
-    <div className="space-y-2">
-        {apiKeys.filter(k => k.type === 'chat_key').map((key) => (
-            <input 
-                key={key.id}
-                type="text" 
-                value={key.value} 
-                onChange={(e) => handleKeyChange(key.id, e.target.value)} 
-                placeholder={`Chave de Chat #${key.id}`} 
-                className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-green-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
-            />
-        ))}
-    </div>
- </div>
+                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <MessageCircle size={14} className="text-green-500"/>
+                            <h3 className="text-sm font-bold">Pool 3: Chat com IA</h3>
+                        </div>
+                        <div className="space-y-2">
+                            {/* CORREÇÃO PARA O POOL 3: Filtrar por 'type' */}
+                            {apiKeys.filter(k => k.type === 'chat_key').map((key) => (
+                                <input 
+                                    key={key.id}
+                                    type="text" 
+                                    value={key.value} 
+                                    onChange={(e) => handleKeyChange(key.id, e.target.value)} 
+                                    placeholder={`Chave de Chat #${key.id}`} 
+                                    className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-green-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+                                />
+                            ))}
+                        </div>
+                     </div>
 
                      {/* LEGADO (5-6) - Opcional, esconde num accordion ou deixa no fim */}
                      <div className="opacity-50 hover:opacity-100 transition-opacity">
