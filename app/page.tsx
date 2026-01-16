@@ -1336,7 +1336,7 @@ function FeedTab({
     >
       <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
       
-      <div className="sticky top-0 z-40 w-full flex justify-center py-2 pointer-events-none">
+      <div className="sticky top-3 z-40 w-full flex justify-center py-2 pointer-events-none">
           <div className="pointer-events-auto"><SourceSelector news={filteredByCategory} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} /></div>
           <SlidingPillFilter categories={FEED_CATEGORIES} active={category} onChange={setCategory} isDarkMode={isDarkMode} />
       </div>
@@ -2483,24 +2483,24 @@ const generateTrendRadar = async (news, apiKey) => {
   // === INÍCIO DA ALTERAÇÃO: O NOVO PROMPT ===
   // ==========================================================
   const prompt = `
-  Você é um Analista de Tendências. Analise os títulos das notícias.
-  Sua missão é identificar 8 tópicos com diferentes níveis de impacto (temperatura).
+Você é um Editor de Primeira Página. Analise as notícias e identifique 8 tendências com diferentes níveis de impacto.
 
   REGRAS OBRIGATÓRIAS:
-  1.  **VARIEDADE DE SCORES:** Sua resposta DEVE incluir tópicos em diferentes faixas de score. Gere:
-      - 2 tópicos "MUITO QUENTES" (score 9-10).
-      - 3 tópicos "QUENTES" (score 6-8).
-      - 2 tópicos "MÉDIOS" (score 4-5).
-      - 1 tópico "LEVE" ou "FRIO" (score 1-3).
-  2.  **JSON ESTRITO:** Retorne APENAS um array JSON com 8 objetos.
+  1.  **TÓPICO COMO MANCHETE:** O campo "topic" DEVE ser uma micro-manchete curta e dinâmica (máx. 5 palavras) que explique a tendência.
+      - NÃO FAÇA: "Inflação"
+      - FAÇA: "Inflação Preocupa Mercados Globais"
+      - FAÇA: "Avanço da IA na Saúde"
+  2.  **VARIEDADE DE SCORES:** Sua resposta DEVE incluir tópicos em diferentes faixas de score (quente, médio, frio).
+  3.  **JSON ESTRITO:** Retorne APENAS um array JSON com 8 objetos.
 
   FORMATO DO JSON:
   [
     {
-      "topic": "Nome do Tópico",
+      "topic": "Micro-Manchete da Tendência", // <<-- A GRANDE MUDANÇA
       "score": 1, // Número de 1 a 10
-      "hex": "#3b82f6", // Cor correspondente ao score
+      "hex": "#3b82f6", // Cor correspondente
       "summary": "Um fato curto e direto sobre este tópico."
+      "source_indices": [0, 5, 12]
     }
   ]
 
@@ -3915,8 +3915,20 @@ const runTrendAnalysis = async () => {
     // ==========================================================
     if (data && Array.isArray(data) && data.length > 0) {
       // 1. Ordena os dados recebidos pelo score
-      const sortedData = data.sort((a, b) => b.score - a.score);
+
+
+       const hydratedData = data.map(trend => {
+        const relatedArticles = trend.source_indices
+            ? trend.source_indices.map(index => newsData[index]).filter(Boolean)
+            : [];
+        return { ...trend, related_articles: relatedArticles };
+    });
+
+    const sortedData = hydratedData.sort((a, b) => b.score - a.score);
       
+
+
+
       // 2. Atualiza o estado 'trends' com os novos dados
       setTrends(sortedData);
       
@@ -4185,59 +4197,85 @@ const runTrendAnalysis = async () => {
                 </div>
               </div>
 
-              {/* ========================================================== */}
-              {/* === ÁREA DO BALÃO CORRIGIDA (COM ALTURA DINÂMICA) === */}
-              {/* ========================================================== */}
-              <div className={`
-                grid transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
-                ${activeItem ? 'grid-rows-[1fr] mt-8' : 'grid-rows-[0fr] mt-0'}
-              `}>
-                <div className="overflow-hidden min-h-0">
-                  <AnimatePresence>
-                    {activeItem && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.3 }}
-                        // A altura agora é definida aqui dentro
-                        className="h-36"
-                      >
-                        <div
-                          className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${
-                            isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
-                          }`}
-                          style={{
-                            border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-                            boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
-                          }}
-                        >
-                          <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
-                            <span
-                              className="text-[10px] font-black uppercase tracking-widest"
-                              style={{ color: getTrendStyle(activeItem.score).color }}
-                            >
-                              Impacto: {activeItem.score}/10
-                            </span>
-                            <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
-                              <div
-                                className="h-full rounded-full"
-                                style={{
-                                  width: `${activeItem.score * 10}%`,
-                                  backgroundColor: getTrendStyle(activeItem.score).color,
-                                }}
-                              />
-                            </div>
-                          </div>
-                          <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                            {activeItem.summary}
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+              {/* ÁREA DO BALÃO CORRIGIDA (COM ALTURA DINÂMICA) */}
+<div className={`
+  grid transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
+  ${activeItem ? 'grid-rows-[1fr] mt-8' : 'grid-rows-[0fr] mt-0'}
+`}>
+  <div className="overflow-hidden min-h-0">
+    <AnimatePresence>
+      {activeItem && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.3 }}
+          // ==========================================================
+          // === REMOVA a altura fixa 'h-36' daqui, se ela existir ===
+          // ==========================================================
+        >
+          <div
+            className={`w-full p-5 rounded-2xl flex flex-col gap-4 ${ // Aumentei o gap
+              isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
+            }`}
+            style={{
+              border: `2px solid ${getTrendStyle(activeItem.score).color}`,
+              boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
+            }}
+          >
+            {/* --- CABEÇALHO DO BALÃO (Mantido) --- */}
+            <div className="border-b border-dashed border-zinc-700/50 pb-2">
+              <span className="text-[10px] ...">
+                Impacto: {activeItem.score}/10
+              </span>
+            </div>
+
+            {/* --- RESUMO (Mantido) --- */}
+            <p className={`text-sm leading-relaxed ...`}>
+              {activeItem.summary}
+            </p>
+
+            {/* ========================================================== */}
+            {/* === NOVO: SEÇÃO DE NOTÍCIAS RELACIONADAS === */}
+            {/* ========================================================== */}
+            {activeItem.related_articles && activeItem.related_articles.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">
+                  Fontes Analisadas
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {activeItem.related_articles.slice(0, 5).map(article => ( // Limita a 5 logos
+                    <button
+                      key={article.id}
+                      onClick={() => alert(`Abrir artigo: ${article.title}`)} // AQUI você chama sua função de abrir artigo
+                      className="transition-transform hover:scale-110"
+                      title={article.title}
+                    >
+                      <img src={article.logo} className="w-6 h-6 rounded-full border border-black/10" />
+                    </button>
+                  ))}
                 </div>
               </div>
+            )}
+            
+            {/* ========================================================== */}
+            {/* === NOVO: BOTÕES DE AÇÃO "APROFUNDAR" === */}
+            {/* ========================================================== */}
+            <div className="flex gap-2 pt-2 border-t border-dashed border-zinc-700/50">
+                <a href={`https://pt.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(activeItem.topic)}`} target="_blank" className={`flex-1 text-center py-2 rounded-lg text-[10px] font-bold ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
+                    Ver na Wikipedia
+                </a>
+                <a href={`https://www.google.com/search?q=${encodeURIComponent(activeItem.topic)}`} target="_blank" className={`flex-1 text-center py-2 rounded-lg text-[10px] font-bold ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
+                    Buscar no Google
+                </a>
+            </div>
+
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+</div>
             </div>
           ) : (
             <div className="h-48 flex flex-col items-center justify-center text-center">
