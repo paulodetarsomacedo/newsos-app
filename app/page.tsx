@@ -667,6 +667,7 @@ const triggerSearch = () => {
       </div>
     </div>
   );
+}
 
 // --- LIQUID FILTER ---
 
@@ -4372,11 +4373,6 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [startY, setStartY] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-
-
-  // --- NOVO ESTADO ---
-  // Este estado será atualizado pelo componente filho (WhileYouWereAwayWidget)
   const [isContextLoading, setIsContextLoading] = useState(true);
 
   const handleTouchStart = (e) => {
@@ -4408,41 +4404,14 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     setStartY(0);
   };
 
-  const trending = [
-    { id: 1, title: 'IA Generativa: O novo marco regulatório começa a valer hoje na Europa', source: 'Politico', time: '15m', img: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&q=80' },
-    { id: 2, title: 'Final da Champions: Real Madrid e City se enfrentam em jogo histórico', source: 'ESPN', time: '45m', img: 'https://images.unsplash.com/photo-1522778119026-d647f0565c6a?w=600&q=80' },
-    { id: 3, title: 'Bitcoin atinge nova máxima histórica com aprovação de ETF', source: 'Bloomberg', time: '2h', img: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=600&q=80' }
-  ];
-
-<style jsx="true">{`
-  @keyframes bar-shimmer {
-    0% {
-      background-position: 0% 0;
-    }
-    100% {
-      background-position: 200% 0;
-    }
-  }
-`}</style>
-
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       
+      {/* AS TAGS <STYLE> FORAM MOVIDAS PARA DENTRO DO RETURN, ONDE PERTENCEM */}
       <style jsx="true">{`
-        @keyframes gradient-flow {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        /* Animação de texto cintilante */
-        @keyframes shimmer-text {
-            0% { background-position: 200% center; }
-            100% { background-position: -200% center; }
-        }
-        .animate-shimmer-text {
-            background-size: 200% auto;
-            animation: shimmer-text 3s linear infinite;
-        }
+        @keyframes gradient-flow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes shimmer-text { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
+        .animate-shimmer-text { background-size: 200% auto; animation: shimmer-text 3s linear infinite; }
       `}</style>
       
       {/* Indicador de Loading (Pull to refresh) */}
@@ -4457,8 +4426,6 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
        <div className="flex items-center gap-4 px-2 pt-2 relative z-10">
         <div className="flex-1 min-w-0"> 
             <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
-                
-                {/* LÓGICA DE FILTRO VISUAL: Filtra os vistos SÓ aqui no visual */}
                 {storiesToDisplay && storiesToDisplay
                     .filter(story => !seenStoryIds?.includes(story.id))
                     .map((story) => (
@@ -4473,33 +4440,25 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                         </span>
                     </div>
                 ))}
-
-                {/* MENSAGEM SE TUDO FOI VISTO */}
                 {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).length === 0 && (
                     <div className="flex flex-col justify-center h-full pl-2 opacity-50">
                         <span className="text-[10px] font-bold uppercase tracking-widest">Tudo visto por aqui</span>
                         <span className="text-[9px]">Puxe para atualizar</span>
                     </div>
                 )}
-
             </div>
         </div>
-
-    
+      </div>
       
-<TrendRadar 
-    newsData={newsData} 
-    getApiKey={getApiKey} 
-    isDarkMode={isDarkMode} 
-    refreshTrigger={refreshTrigger} 
-    // ===================================
-    // === ADICIONE ESTA LINHA ABAIXO ===
-    // ===================================
-    openArticle={openArticle} 
-/>
-  {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA COM LAYOUT CORRIGIDO --- */}
+      <TrendRadar 
+        newsData={newsData} 
+        getApiKey={getApiKey} 
+        isDarkMode={isDarkMode} 
+        refreshTrigger={refreshTrigger} 
+        openArticle={openArticle} 
+      />
+      
       <div className="space-y-4">
-        {/* TÍTULO PRINCIPAL DA SEÇÃO */}
         <div className="flex items-center gap-3 px-4">
             <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
                 <Sparkles size={18} />
@@ -4508,33 +4467,26 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                 As principais notícias de agora, em múltiplos ângulos.
             </h3>
         </div>
-
-     
-            <WhileYouWereAwayWidget 
-              news={newsData} 
-              openArticle={openArticle} 
-              isDarkMode={isDarkMode} 
-              getApiKey={getApiKey}
-              clusters={savedClusters}
-              setClusters={setSavedClusters}
-              onContextReady={() => {}} // onContextReady pode ser ajustado se necessário
-              // A "PONTE": Repassa a função que veio do avô
-          onTriggerWidgetRotation={onTriggerWidgetRotation}
+        <WhileYouWereAwayWidget 
+            news={newsData} 
+            openArticle={openArticle} 
+            isDarkMode={isDarkMode} 
+            getApiKey={getApiKey}
+            clusters={savedClusters}
+            setClusters={setSavedClusters}
+            onContextReady={() => {}}
+            onTriggerWidgetRotation={onTriggerWidgetRotation}
         />
-       
-          </div>
+      </div>
     
-
       <SmartDigestWidget 
           newsData={newsData} 
-         getApiKey={getApiKey}
+          getApiKey={getApiKey}
           isDarkMode={isDarkMode} 
           refreshTrigger={refreshTrigger} 
       />
       
-     {/* --- NOVA SEÇÃO DE MERCADOS --- */}
       <div className="space-y-4 px-2">
-          {/* TÍTULO DA SEÇÃO */}
           <div className="flex items-center gap-3 px-4">
               <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
                   <TrendingUp size={18} />
@@ -4543,21 +4495,17 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                   Mercados Hoje
               </h3>
           </div>
-
-          {/* CONTORNO ROXO ENVOLVENDO O WIDGET */}
           <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
             <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
               <MarketPulseWidget 
                 newsData={newsData}
-                getApiKey={getApiKey} // Repassa a função
+                getApiKey={getApiKey}
                 isDarkMode={isDarkMode}
                 openArticle={openArticle}
               />
             </div>
           </div>
       </div>
-
-      
     </div>
   );
 }
