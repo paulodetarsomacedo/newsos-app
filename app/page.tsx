@@ -8013,7 +8013,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
             Aja como um Analista de Inteligência Sênior... (SEU PROMPT ORIGINAL) ...
             TEXTO: ${fullText.slice(0, 25000)}`;
           
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
               method: "POST", 
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
