@@ -3516,54 +3516,52 @@ return {
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
 
+    // SUGESTÃO 3: Ranking de fontes para melhor imagem de capa
     const preferredSources = new Set(['G1', 'CNN Brasil', 'The Verge', 'Globo', 'BBC']);
-    const SIMILARITY_THRESHOLD = 0.60;
-    const CLUSTER_LIMIT = 4;
+    const SIMILARITY_THRESHOLD = 0.60; // 60% de similaridade para agrupar
+    const CLUSTER_LIMIT = 4; // Limita a no máximo 4 clusters
 
-    const articles = [...news.slice(0, 100)];
+    const articles = [...news.slice(0, 100)]; // Trabalha com uma cópia das 100 notícias mais recentes
     let clusters = [];
     const articlesUsed = new Set();
 
+    // SUGESTÃO 1: Lógica de cluster por similaridade
     for (let i = 0; i < articles.length; i++) {
         if (articlesUsed.has(articles[i].id)) continue;
-        let currentCluster = { related_articles: [articles[i]] };
+
+        let currentCluster = {
+            related_articles: [articles[i]]
+        };
         articlesUsed.add(articles[i].id);
 
         for (let j = i + 1; j < articles.length; j++) {
             if (articlesUsed.has(articles[j].id)) continue;
-            const similarity = stringSimilarity.compareTwoStrings(articles[i].title, articles[j].title);
+
+            const similarity = stringSimilarity.compareTwoStrings(
+                articles[i].title,
+                articles[j].title
+            );
+
             if (similarity >= SIMILARITY_THRESHOLD) {
                 currentCluster.related_articles.push(articles[j]);
                 articlesUsed.add(articles[j].id);
             }
         }
+
         if (currentCluster.related_articles.length > 1) {
             clusters.push(currentCluster);
         }
     }
     
+    // Filtra e ordena os clusters por tamanho (mais relevantes primeiro)
     clusters = clusters.sort((a, b) => b.related_articles.length - a.related_articles.length).slice(0, CLUSTER_LIMIT);
     
-    // FUNÇÃO HELPER DE EXTRAÇÃO DE ENTIDADES (AGORA DENTRO DA FUNÇÃO PRINCIPAL)
-    const extractKeyEntities = (articles) => {
-        const wordFrequency = {};
-        const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em', 'no', 'na', 'dos', 'das', 'seu', 'sua']);
-
-        articles.forEach(article => {
-            const words = article.title.match(/\b[A-Z][a-zà-úA-Z]+\b/g) || [];
-            words.forEach(word => {
-                const cleanWord = word.toLowerCase();
-                if (!stopWords.has(cleanWord) && cleanWord.length > 3) {
-                    wordFrequency[word] = (wordFrequency[word] || 0) + 1;
-                }
-            });
-        });
-        return Object.keys(wordFrequency).sort((a, b) => wordFrequency[b] - wordFrequency[a]).slice(0, 3);
-    };
-
+    // SUGESTÃO 2 e 3: Hidratação final dos clusters (título, imagem, ordem)
     const finalClusters = clusters.map(cluster => {
+        // --- Lógica para encontrar o melhor título ---
         let bestArticleForTitle = cluster.related_articles[0];
         let maxCentrality = 0;
+
         cluster.related_articles.forEach(articleA => {
             let currentCentrality = 0;
             cluster.related_articles.forEach(articleB => {
@@ -3577,31 +3575,28 @@ const generateHeuristicClusters = (news) => {
             }
         });
 
-        let representativeArticleForImage = cluster.related_articles.find(a => preferredSources.has(a.source)) || bestArticleForTitle;
+        // --- Lógica para encontrar a melhor imagem ---
+        let representativeArticleForImage = 
+            cluster.related_articles.find(a => preferredSources.has(a.source)) || // Tenta achar uma fonte preferencial
+            bestArticleForTitle; // Se não, usa a do artigo mais central
+
+        // --- Ordenar artigos por data ---
         const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
         
-        // ==========================================================
-        // === LÓGICA DAS TAGS APLICADA DIRETAMENTE NO RESUMO ===
-        // ==========================================================
-        const keyEntities = extractKeyEntities(cluster.related_articles);
-        let summaryText = `Este assunto foi abordado em ${cluster.related_articles.length} notícias recentes.`;
-        
-        if (keyEntities.length > 0) {
-            summaryText += ` Principais entidades envolvidas: ${keyEntities.join(', ')}.`;
-        }
-
-        return {
-            ai_title: bestArticleForTitle.title,
-            ai_summary: summaryText, // O resumo agora contém as entidades
-            representative_image: representativeArticleForImage.img,
-            related_articles: sortedArticles,
-            storyline: {
-                originArticle: sortedArticles[sortedArticles.length - 1],
-                latestArticle: sortedArticles[0],
-            },
-            // A propriedade keyEntities separada não é mais necessária na UI, mas pode ser mantida para uso futuro se quiser
-            keyEntities: keyEntities, 
-        };
+      return {
+    ai_title: bestArticleForTitle.title,
+    ai_summary: `Este assunto foi abordado em ${cluster.related_articles.length} notícias recentes. Clique em "Analisar" para um resumo detalhado via IA.`,
+    representative_image: representativeArticleForImage.img,
+    related_articles: sortedArticles, // Já está ordenado por data
+    
+    // ==========================================================
+    // === NOVA INFORMAÇÃO NARRATIVA ADICIONADA AQUI ===
+    // ==========================================================
+    storyline: {
+        originArticle: sortedArticles[sortedArticles.length - 1], // O mais antigo
+        latestArticle: sortedArticles[0], // O mais recente
+    }
+};
     });
 
     return finalClusters;
@@ -3809,6 +3804,15 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
                       {cluster.ai_summary}
                     </p>
                   </div>
+                  {cluster.keyEntities && cluster.keyEntities.length > 0 && (
+    <div className="flex flex-wrap items-center gap-2 mt-4">
+        {cluster.keyEntities.map(entity => (
+            <div key={entity} className={`px-3 py-1 rounded-full text-xs font-bold ${isDarkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}>
+                {entity}
+            </div>
+        ))}
+    </div>
+)}
                 </div>
               </div>
 
