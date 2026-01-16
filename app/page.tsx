@@ -3502,15 +3502,7 @@ const extractKeyEntities = (articles) => {
         .slice(0, 3);
 };
 
-// ... dentro do map final de generateHeuristicClusters ...
-return {
-    // ... (propriedades antigas)
-    storyline: { ... },
-    // ===================================
-    // === NOVA INFORMAÇÃO ADICIONADA ===
-    // ===================================
-    keyEntities: extractKeyEntities(cluster.related_articles),
-};
+
 
 
 const generateHeuristicClusters = (news) => {
