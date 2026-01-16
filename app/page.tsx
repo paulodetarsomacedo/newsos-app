@@ -5906,21 +5906,23 @@ const handleStoryNavigation = (direction) => {
         if (Array.isArray(parsedFromDB)) {
             // Cria uma cópia do estado inicial para usar como base
             const defaultKeysStructure = [
-                { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
-                { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
-                { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
-                { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
-                { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
-                { id: 11, value: '', type: 'heavy_rotation' },
-                { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
-            ];
+               { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
+    { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
+    { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
+    { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
+    { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
+    { id: 11, value: '', type: 'heavy_rotation' },
+    { id: 15, value: '', type: 'heavy_rotation' }, // <<-- ADICIONADO AQUI
+    { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
+];
 
             // Mapeia a estrutura padrão e preenche com os valores do banco, se existirem
-            const mergedKeys = defaultKeysStructure.map(defaultKey => {
-                const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
-                // Se a chave existe no banco, usa o valor dela. Senão, usa o valor padrão (vazio).
-                return keyFromDB ? keyFromDB : defaultKey;
-            });
+         const mergedKeys = defaultKeysStructure.map(defaultKey => {
+    const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
+    // CORREÇÃO: Mescla os objetos, garantindo que 'type' e 'id' do padrão
+    // sejam mantidos, enquanto 'value' é atualizado pelo banco.
+    return { ...defaultKey, ...keyFromDB };
+});
             
             // Garante que não haja duplicatas e que todas as 13 chaves estejam presentes
             const finalKeys = Array.from(new Map(mergedKeys.map(key => [key.id, key])).values());
@@ -7587,7 +7589,7 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
 
 
 // --- NOVO COMPONENTE: WHATSAPP CHAT INTERFACE ---
-const WhatsappChat = ({ articleText, apiKey, isDarkMode, getChatApiKey }) => {
+const WhatsappChat = ({ articleText, apiKey, isDarkMode }) => {
   const [history, setHistory] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -7614,14 +7616,19 @@ const WhatsappChat = ({ articleText, apiKey, isDarkMode, getChatApiKey }) => {
     setInputValue('');
     setIsAiTyping(true);
 
-        const chatApiKey = getChatApiKey(); // Pega uma chave rotacionada
-    if (!chatApiKey) {
+   // O CÓDIGO ANTIGO BUSCAVA UMA NOVA CHAVE:
+    // const chatApiKey = getChatApiKey(); 
+    // if (!chatApiKey) { ... }
+    // const aiResponse = await generateChatResponse(newHistory, articleText, chatApiKey);
+
+    // O NOVO CÓDIGO APENAS USA A CHAVE RECEBIDA:
+    if (!apiKey) {
       setHistory(prev => [...prev, { from: 'ai', text: 'Erro: Nenhuma chave de API para o chat está configurada.' }]);
       setIsAiTyping(false);
       return;
     }
 
-    const aiResponse = await generateChatResponse(newHistory, articleText, chatApiKey);
+    const aiResponse = await generateChatResponse(newHistory, articleText, apiKey);
 
     setHistory(prev => [...prev, { from: 'ai', text: aiResponse }]);
     setIsAiTyping(false);
@@ -7688,6 +7695,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [highlightRequest, setHighlightRequest] = useState(null); 
   const [readerContent, setReaderContent] = useState(null); 
   const [showCenterModal, setShowCenterModal] = useState(false);
+  const [currentChatApiKey, setCurrentChatApiKey] = useState(null);
 
 
 // 1. Estado de Etapas (Começa em -1 para 'nenhum')
@@ -7854,12 +7862,21 @@ return (
             </div>
             {viewMode !== 'chat' && (
               <button 
-                onClick={() => setViewMode('chat')}
-                className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
-              >
-                <MessageCircle size={20} />
-                <span className="text-sm font-bold">Chat</span>
-              </button>
+               
+    onClick={() => {
+        // 1. Pega uma chave rotacionada da pool de chat
+        const newKey = getChatApiKey(); 
+        // 2. Armazena essa chave no novo estado
+        setCurrentChatApiKey(newKey);   
+        // 3. Abre a interface de chat
+        setViewMode('chat');             
+    }}
+    className="..."
+>
+    <MessageCircle size={28} />
+    <span className="text-sm font-bold">Chat com a Notícia</span>
+</button>
+
             )}
           </div>
         </div>
@@ -7896,12 +7913,12 @@ return (
           )}
           
           {viewMode === 'chat' && (
-            <WhatsappChat 
-              articleText={readerContent?.textContent || article.summary}
-         getChatApiKey={getChatApiKey}
-              isDarkMode={isDarkMode}
-            />
-          )}
+    <WhatsappChat 
+        articleText={readerContent?.textContent || article.summary}
+        apiKey={currentChatApiKey} // Agora passa a CHAVE que foi armazenada
+        isDarkMode={isDarkMode}
+    />
+)}
         </div>
 
         {/* MODAIS (Renderizados por cima de tudo, mas dentro da condição 'complete') */}
