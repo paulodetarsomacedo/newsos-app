@@ -5060,26 +5060,21 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 
   // --- HANDLER DE FECHAR (FORÇA BRUTA) ---
   const handleClose = (e) => {
-      // 1. Para propagação imediatamente
-      if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      
-      // 2. Tenta limpar o áudio, mas se falhar, ignora e fecha mesmo assim
-      try {
-          if (audioRef.current) {
-              audioRef.current.pause();
-              audioRef.current.currentTime = 0;
-              audioRef.current.src = ""; // Mata o download
-          }
-      } catch (err) {
-          console.warn("Erro ao limpar áudio no fechamento (ignorado):", err);
-      }
-      
-      // 3. FECHA O COMPONENTE PAI (Isso é o mais importante)
-      if (onClose) onClose();
-  };
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    // Apenas para o áudio e chama o pai para desmontar o componente.
+    // Não precisa mais mexer no src.
+    try {
+        if (audioRef.current) {
+            audioRef.current.pause();
+        }
+    } catch (err) {
+        console.warn("Erro ao pausar áudio no fechamento (ignorado):", err);
+    }
+    if (onClose) onClose();
+};
 
   // --- RENDERIZAÇÃO ---
   if (!track) return null;
@@ -7042,8 +7037,7 @@ return (
       {isSettingsOpen && (<SettingsModal onClose={() => setIsSettingsOpen(false)} isDarkMode={isDarkMode} feeds={userFeeds} setFeeds={setUserFeeds} apiKeys={apiKeys} setApiKeys={setApiKeys} user={user} />)}
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleReadNative} isDarkMode={isDarkMode} />}
       {selectedStory && (<StoryOverlay story={selectedStory} onClose={closeStory} onRead={handleReadNative} onMarkAsSeen={markStoryAsSeen} allStories={storiesForHappeningTab} onNavigate={handleStoryNavigation} />)}
-      {playingAudio && (<GlobalAudioPlayer track={playingAudio} onClose={() => handlePlayAudio(null)} isDarkMode={isDarkMode} />)}
-      {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
+{playingAudio && (<GlobalAudioPlayer track={playingAudio} onClose={() => setPlayingAudio(null)} isDarkMode={isDarkMode} />)}      {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
   );
 }
