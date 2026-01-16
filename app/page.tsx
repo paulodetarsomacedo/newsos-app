@@ -5886,7 +5886,7 @@ const handleStoryNavigation = (direction) => {
   }, []);
 
   // 2. Função para Carregar Dados do Banco
-  const loadUserData = async (userId) => {
+const loadUserData = async (userId) => {
       setIsSyncing(true);
       const { data, error } = await supabase
           .from('user_preferences')
@@ -5899,51 +5899,44 @@ const handleStoryNavigation = (direction) => {
           if (data.saved_items) setSavedItems(data.saved_items);
           if (data.read_history) setReadHistory(data.read_history);
           if (data.liked_items) setLikedItems(data.liked_items);
-       if (data.api_key) {
-    try {
-        const parsedFromDB = JSON.parse(data.api_key);
+          
+          if (data.api_key) {
+              try {
+                  const parsedFromDB = JSON.parse(data.api_key);
 
-        if (Array.isArray(parsedFromDB)) {
-            // Cria uma cópia do estado inicial para usar como base
-            const defaultKeysStructure = [
-               { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
-    { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
-    { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
-    { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
-    { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
-    { id: 11, value: '', type: 'heavy_rotation' },
-    { id: 15, value: '', type: 'heavy_rotation' }, // <<-- ADICIONADO AQUI
-    { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
-];
+                  if (Array.isArray(parsedFromDB)) {
+                      // ESTRUTURA PADRÃO COMPLETA E ATUALIZADA
+                      const defaultKeysStructure = [
+                          { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
+                          { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
+                          { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
+                          { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
+                          { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
+                          { id: 11, value: '', type: 'heavy_rotation' }, { id: 15, value: '', type: 'heavy_rotation' },
+                          { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
+                      ];
 
-            // Mapeia a estrutura padrão e preenche com os valores do banco, se existirem
-         const mergedKeys = defaultKeysStructure.map(defaultKey => {
-    const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
-    // CORREÇÃO: Mescla os objetos, garantindo que 'type' e 'id' do padrão
-    // sejam mantidos, enquanto 'value' é atualizado pelo banco.
-    return { ...defaultKey, ...keyFromDB };
-});
-            
-            // Garante que não haja duplicatas e que todas as 13 chaves estejam presentes
-            const finalKeys = Array.from(new Map(mergedKeys.map(key => [key.id, key])).values());
-            
-            setApiKeys(finalKeys);
+                      // LÓGICA DE FUSÃO CORRIGIDA
+                      const mergedKeys = defaultKeysStructure.map(defaultKey => {
+                          const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
+                          // A MÁGICA: Mescla os objetos, garantindo que 'type' e 'id' do padrão
+                          // sejam mantidos, enquanto 'value' é atualizado pelo banco (se existir).
+                          return { ...defaultKey, ...(keyFromDB || {}) };
+                      });
+                      
+                      setApiKeys(mergedKeys);
 
-        } else {
-            // Se o dado do banco não for uma array, ignora e mantém o estado padrão
-            console.warn("Formato de chaves antigo no banco. Mantendo estado padrão.");
-        }
-    } catch (e) {
-        console.error("Erro ao fazer parse das chaves do banco:", e);
-    }
-}
+                  } else {
+                      console.warn("Formato de chaves antigo no banco. Mantendo estado padrão.");
+                  }
+              } catch (e) {
+                  console.error("Erro ao fazer parse das chaves do banco:", e);
+              }
+          }
           if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
           if (data.seen_story_ids) setSeenStoryIds(data.seen_story_ids);
-          
-          // --- NOVO: Carrega o histórico de horários corrigidos ---
           if (data.article_history) setArticleHistory(data.article_history);
       } else if (!error) {
-          // Se não tem dados, cria a primeira entrada
           await supabase.from('user_preferences').insert([{ user_id: userId }]);
       }
       setIsSyncing(false);
@@ -8474,25 +8467,25 @@ const handleKeyChange = (targetId, newValue) => {
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                      
-   {/* POOL 1: WIDGETS (1-4) */}
-                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Activity size={14} className="text-blue-500"/>
-                            <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
-                        </div>
-                        <div className="space-y-2">
-                            {apiKeys.filter(k => k.id >= 1 && k.id <= 4).map((key) => (
-                                <input 
-                                    key={key.id}
-                                    type="text" 
-                                    value={key.value} 
-                                    onChange={(e) => handleKeyChange(key.id, e.target.value)} 
-                                    placeholder={`Chave Gratuita #${key.id}`} 
-                                    className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-blue-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
-                                />
-                            ))}
-                        </div>
-                     </div>
+               {/* POOL 1: WIDGETS (Leve) - VERSÃO FINAL, SEM ACORDEÃO */}
+<div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+   <div className="flex items-center gap-2 mb-3">
+       <Activity size={14} className="text-blue-500"/>
+       <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
+   </div>
+   <div className="space-y-2">
+       {apiKeys.filter(k => k.type === 'free_widget').map((key) => (
+           <input 
+               key={key.id}
+               type="text" 
+               value={key.value} 
+               onChange={(e) => handleKeyChange(key.id, e.target.value)} 
+               placeholder={`Chave Gratuita #${key.id}`} 
+               className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-blue-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+           />
+       ))}
+   </div>
+</div>
 
                      {/* POOL 2: USINA DE IA (Pesado) */}
                      <div className={`p-4 rounded-xl border border-purple-500/30 ${isDarkMode ? 'bg-purple-900/10' : 'bg-purple-50'}`}>
