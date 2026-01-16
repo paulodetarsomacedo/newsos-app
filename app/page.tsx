@@ -8100,8 +8100,8 @@ function PodNewsModal({ onClose, isDarkMode }) {
 // --- MODAL DE CONFIGURAÇÕES (V3 - FINAL - COM LOGIN VIA CÓDIGO/OTP) ---
 function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKeys, setApiKeys, user }) {
 const [activeTab, setActiveTab] = useState(user ? 'sources' : 'account'); 
-const [isWidgetPoolOpen, setIsWidgetPoolOpen] = useState(true); // Começa aberto para facilitar
-  
+const [isWidgetPoolOpen, setIsWidgetPoolOpen] = useState(true); // Começa aberto por padrão
+
   // Auth States
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState(''); // O código de 6 dígitos
@@ -8474,9 +8474,10 @@ const handleKeyChange = (targetId, newValue) => {
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                      
-                     {/* POOL 1: WIDGETS (Leve) - AGORA EXPANSÍVEL */}
+                  {/* POOL 1: WIDGETS (Leve) - AGORA INTERATIVO E EXPANSÍVEL */}
 <div className={`rounded-xl border transition-all duration-300 ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-    {/* Botão que controla a visibilidade */}
+    
+    {/* O Título agora é um BOTÃO que abre e fecha o painel */}
     <button 
         onClick={() => setIsWidgetPoolOpen(!isWidgetPoolOpen)}
         className="flex w-full items-center justify-between p-4 text-left"
@@ -8485,10 +8486,11 @@ const handleKeyChange = (targetId, newValue) => {
             <Activity size={14} className="text-blue-500"/>
             <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
         </div>
+        {/* A seta agora gira para indicar o estado */}
         <ChevronDown size={16} className={`transform transition-transform duration-300 ${isWidgetPoolOpen ? 'rotate-180' : ''}`} />
     </button>
     
-    {/* Conteúdo que será exibido/ocultado */}
+    {/* O conteúdo (campos de input) que será exibido/ocultado */}
     <div 
         className={`grid transition-all duration-500 ease-in-out ${isWidgetPoolOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
     >
