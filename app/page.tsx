@@ -3480,33 +3480,26 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) 
 };
 
 
+// ==========================================================
+// === COLE A PARTIR DAQUI, SUBSTITUINDO TUDO ATÉ O FIM DO WIDGET ===
+// ==========================================================
+
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
 
     // --- CONFIGURAÇÕES DE QUALIDADE PERCEBIDA ---
-
-    // 1. FONTES PONDERADAS: Damos mais peso para fontes de alta credibilidade.
-    const SOURCE_WEIGHTS = {
-        'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 
-        'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, 
-        // Fontes com peso padrão
-    };
+    const SOURCE_WEIGHTS = { 'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, };
     const DEFAULT_WEIGHT = 1;
-
-    // 2. FONTES PARA IMAGEM: Apenas fontes que consistentemente têm boas imagens.
     const IMAGE_PREFERRED_SOURCES = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT', 'Fox News', '180graus']);
-    
-    // 3. FONTES BLOQUEADAS PARA IMAGEM: Fontes que NUNCA devem ser usadas para imagem de capa.
     const IMAGE_BLOCKED_SOURCES = new Set(['Istoé', 'UOL Economia', 'UOL', 'Folha de S.Paulo', 'Investing', 'Estadão', 'E-Investidor', 'UOL Notícias', 'Money Times']);
-
     const SIMILARITY_THRESHOLD = 0.58;
     const CLUSTER_LIMIT = 5;
 
-    const articles = [...news.slice(0, 200)]; // Aumenta a base de análise
+    const articles = [...news.slice(0, 200)];
     let potentialClusters = [];
     const articlesUsed = new Set();
 
-    // --- ETAPA 1: GERAÇÃO DE CLUSTERS (Mantida a lógica robusta) ---
+    // --- ETAPA 1: GERAÇÃO DE CLUSTERS ---
     for (let i = 0; i < articles.length; i++) {
         if (articlesUsed.has(articles[i].id)) continue;
         let currentCluster = { related_articles: [articles[i]], sourcesInCluster: new Set([articles[i].source]) };
@@ -3517,7 +3510,7 @@ const generateHeuristicClusters = (news) => {
             const similarity = stringSimilarity.compareTwoStrings(articles[i].title, articles[j].title);
             let threshold = SIMILARITY_THRESHOLD;
             if (currentCluster.sourcesInCluster.has(articles[j].source)) {
-                threshold = 0.85; 
+                threshold = 0.85;
             }
             if (similarity >= threshold) {
                 currentCluster.related_articles.push(articles[j]);
@@ -3529,44 +3522,41 @@ const generateHeuristicClusters = (news) => {
             potentialClusters.push(currentCluster);
         }
     }
-    
-    // --- ETAPA 2: NOVO "IMPACT SCORE" E FILTRAGEM ---
+
+    // --- ETAPA 2: "IMPACT SCORE" E FILTRAGEM ---
     const scoredClusters = potentialClusters.map(cluster => {
         const uniqueSources = new Set(cluster.related_articles.map(a => a.source));
-        
-        // Calcula o peso total das fontes no cluster
         let sourceImpact = 0;
         uniqueSources.forEach(sourceName => {
             sourceImpact += (SOURCE_WEIGHTS[sourceName] || DEFAULT_WEIGHT);
         });
-
-        // A NOVA FÓRMULA DE RELEVÂNCIA
         const impactScore = cluster.related_articles.length * sourceImpact * uniqueSources.size;
-
         return { ...cluster, impactScore };
     });
-    
+
     const topClusters = scoredClusters.sort((a, b) => b.impactScore - a.impactScore).slice(0, CLUSTER_LIMIT);
-    
-    // --- ETAPA 3: HIDRATAÇÃO FINAL (COM FOCO NARRATIVO E VISUAL) ---
+
+    // --- ETAPA 3: HIDRATAÇÃO FINAL ---
     const finalClusters = topClusters.map(cluster => {
-        // Lógica para o melhor título (mantida)
         let bestArticleForTitle = cluster.related_articles[0];
-        // ... (código de centralidade do título que já funciona bem) ...
+        let maxCentrality = 0;
+        cluster.related_articles.forEach(articleA => {
+            let currentCentrality = 0;
+            cluster.related_articles.forEach(articleB => {
+                if (articleA.id !== articleB.id) {
+                    currentCentrality += stringSimilarity.compareTwoStrings(articleA.title, articleB.title);
+                }
+            });
+            if (currentCentrality > maxCentrality) {
+                maxCentrality = currentCentrality;
+                bestArticleForTitle = articleA;
+            }
+        });
 
-        // LÓGICA REFINADA PARA A MELHOR IMAGEM (SEPARAÇÃO TOTAL)
         const hasRealImageUrl = (url) => url && /\.(jpg|jpeg|png|webp)/i.test(url) && !url.includes('ui-avatars.com');
-        
-        const imageCandidates = cluster.related_articles.filter(a => 
-            !IMAGE_BLOCKED_SOURCES.has(a.source) && hasRealImageUrl(a.img)
-        );
+        const imageCandidates = cluster.related_articles.filter(a => !IMAGE_BLOCKED_SOURCES.has(a.source) && hasRealImageUrl(a.img));
+        let representativeArticleForImage = imageCandidates.find(a => IMAGE_PREFERRED_SOURCES.has(a.source)) || imageCandidates[0] || bestArticleForTitle;
 
-        let representativeArticleForImage = 
-            imageCandidates.find(a => IMAGE_PREFERRED_SOURCES.has(a.source)) || // 1. Tenta achar uma fonte preferencial com imagem real
-            imageCandidates[0] || // 2. Se não, pega a primeira da lista de candidatos com imagem real
-            bestArticleForTitle; // 3. Em último caso, usa a do artigo com melhor título (pode não ter imagem)
-        
-        // LÓGICA PARA EXTRAIR ENTIDADES E CRIAR O RESUMO NARRATIVO
         const extractKeyEntities = (articles) => {
             const wordFrequency = {};
             const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em', 'no', 'na', 'dos', 'das', 'seu', 'sua']);
@@ -3581,7 +3571,7 @@ const generateHeuristicClusters = (news) => {
             });
             return Object.keys(wordFrequency).sort((a, b) => wordFrequency[b] - wordFrequency[a]).slice(0, 3);
         };
-        
+
         const keyEntities = extractKeyEntities(cluster.related_articles);
         const uniqueSourcesCount = new Set(cluster.related_articles.map(a => a.source)).size;
         let summaryText = `Um evento de alta repercussão, coberto por ${uniqueSourcesCount} fontes diferentes.`;
@@ -3590,114 +3580,63 @@ const generateHeuristicClusters = (news) => {
         }
 
         const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
-        
+
         return {
             ai_title: bestArticleForTitle.title,
             ai_summary: summaryText,
             representative_image: representativeArticleForImage.img,
             related_articles: sortedArticles,
+            keyEntities: keyEntities,
         };
     });
 
     return finalClusters;
 };
 
-// --- COMPONENTE SKELETON PARA O SMARTNEWS ---
-const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
-  return (
-    <div className="relative p-2">
-      <style jsx="true">{`
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
-        }
-        .animate-shimmer::after {
-          content: '';
-          position: absolute;
-          top: 0;
-          right: 0;
-          bottom: 0;
-          left: 0;
-          transform: translateX(-100%);
-          background-image: linear-gradient(90deg, 
-            rgba(255, 255, 255, 0) 0, 
-            rgba(255, 255, 255, 0.05) 20%, 
-            rgba(255, 255, 255, 0.2) 60%, 
-            rgba(255, 255, 255, 0) 100%
-          );
-          animation: shimmer 2s infinite;
-        }
-      `}</style>
-      <div className={`
-        w-full h-[535px] rounded-2xl overflow-hidden flex flex-col p-6
-        relative animate-shimmer
-        ${isDarkMode 
-          ? 'bg-zinc-900 border border-zinc-800' 
-          : 'bg-zinc-200'}
-      `}>
-        {/* Placeholder para a Imagem */}
-        <div className={`absolute top-0 left-0 right-0 h-52 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+// --- COMPONENTES AUXILIARES (DEFINIDOS FORA DO WIDGET PRINCIPAL) ---
 
-        {/* Placeholder para o Conteúdo */}
-        <div className="relative z-10 mt-56">
-          {/* Placeholder para o Título */}
-          <div className={`h-8 w-3/4 rounded-lg mb-4 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-          <div className={`h-8 w-1/2 rounded-lg mb-6 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-          
-          {/* Placeholder para o Resumo */}
-          <div className="flex items-start gap-3">
-            <div className={`w-1 h-12 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-            <div className="space-y-2 flex-1">
-              <div className={`h-4 w-full rounded-lg ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-              <div className={`h-4 w-5/6 rounded-lg ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-            </div>
-          </div>
-
-          {/* Placeholder para os Logos */}
-          <div className="flex items-center gap-3 mt-auto pt-6">
-            <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-            <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-            <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
+    if (!keywords || keywords.length === 0) {
+        return <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">{text}</p>;
+    }
+    const regex = new RegExp(`(${keywords.join('|')})`, 'gi');
+    const parts = text.split(regex);
+    return (
+        <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">
+            {parts.map((part, index) => {
+                const isKeyword = keywords.some(kw => part.toLowerCase() === kw.toLowerCase());
+                if (isKeyword) {
+                    return (
+                        <button key={index} onClick={() => onKeywordClick(part)}
+                            className={`mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDarkMode ? 'bg-purple-500/30 hover:bg-purple-500/50 text-purple-300' : 'bg-purple-200/50 hover:bg-purple-200/90 text-purple-800'}`}>
+                            {part}
+                        </button>
+                    );
+                }
+                return part;
+            })}
+        </p>
+    );
 };
 
-// ==========================================================
-// === SUBSTITUA SEU COMPONENTE INTEIRO POR ESTE ===
-// ==========================================================
 const KeywordFocusModal = ({ data, onClose, openArticle, isDarkMode }) => {
     if (!data) return null;
-
     const { keyword, articles } = data;
-
     return (
         <div className="fixed inset-0 z-[8000] flex items-center justify-center p-4 animate-in fade-in duration-300">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-            
             <div className={`relative w-full max-w-md h-[70vh] flex flex-col rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white'}`}>
-                {/* Cabeçalho do Modal */}
-                {/* A CORREÇÃO ESTÁ NA LINHA ABAIXO */}
                 <div className={`p-4 border-b flex items-center justify-between shrink-0 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
                     <div className="flex items-center gap-2">
-                        <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'}`}>
-                            <Search size={16} className="text-purple-500" />
-                        </div>
+                        <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'}`}><Search size={16} className="text-purple-500" /></div>
                         <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Foco em: {keyword}</h3>
                     </div>
                     <button onClick={onClose} className={`p-2 rounded-full ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-zinc-100'}`}><X size={20}/></button>
                 </div>
-
-                {/* Lista de Notícias */}
                 <div className="flex-1 overflow-y-auto p-2 space-y-2">
                     {articles.map(article => (
-                        <button 
-                            key={article.id}
-                            onClick={() => openArticle(article)}
-                            className={`w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-colors ${isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'}`}
-                        >
-                            <img src={article.logo} className="w-8 h-8 rounded-full border border-black/10 shrink-0" />
+                        <button key={article.id} onClick={() => openArticle(article)} className={`w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-colors ${isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'}`}>
+                            <img src={article.logo} className="w-8 h-8 rounded-full border border-black/10 shrink-0" onError={(e) => e.target.style.display = 'none'} />
                             <div className="min-w-0">
                                 <p className={`text-sm font-bold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{article.title}</p>
                                 <span className="text-xs text-zinc-500">{article.source}</span>
@@ -3710,69 +3649,61 @@ const KeywordFocusModal = ({ data, onClose, openArticle, isDarkMode }) => {
     );
 };
 
-// ==========================================================
-// === NOVO COMPONENTE: HIGHLIGHTED SUMMARY ===
-// ==========================================================
-const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
-    if (!keywords || keywords.length === 0) {
-        return <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">{text}</p>;
-    }
-
-    // Cria uma expressão regular para encontrar qualquer uma das palavras-chave
-    const regex = new RegExp(`(${keywords.join('|')})`, 'gi');
-    const parts = text.split(regex);
-
-    return (
-        <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">
-            {parts.map((part, index) => {
-                const isKeyword = keywords.some(kw => part.toLowerCase() === kw.toLowerCase());
-                if (isKeyword) {
-                    return (
-                        <button 
-                            key={index}
-                            onClick={() => onKeywordClick(part)}
-                            className={`
-                                mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300
-                                hover:scale-105 hover:shadow-lg
-                                ${isDarkMode 
-                                    ? 'bg-purple-500/30 hover:bg-purple-500/50 text-purple-300' 
-                                    : 'bg-purple-200/50 hover:bg-purple-200/90 text-purple-800'}
-                            `}
-                        >
-                            {part}
-                        </button>
-                    );
-                }
-                return part;
-            })}
-        </p>
-    );
+const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
+  return (
+    <div className="relative p-2">
+      <style jsx="true">{` @keyframes shimmer { 100% { transform: translateX(100%); } } .animate-shimmer::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; transform: translateX(-100%); background-image: linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, 0.05) 20%, rgba(255, 255, 255, 0.2) 60%, rgba(255, 255, 255, 0) 100%); animation: shimmer 2s infinite; } `}</style>
+      <div className={`w-full h-[535px] rounded-2xl overflow-hidden flex flex-col p-6 relative animate-shimmer ${isDarkMode ? 'bg-zinc-900 border border-zinc-800' : 'bg-zinc-200'}`}>
+        <div className={`absolute top-0 left-0 right-0 h-52 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+        <div className="relative z-10 mt-56">
+          <div className={`h-8 w-3/4 rounded-lg mb-4 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+          <div className={`h-8 w-1/2 rounded-lg mb-6 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+          <div className="flex items-start gap-3">
+            <div className={`w-1 h-12 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+            <div className="space-y-2 flex-1">
+              <div className={`h-4 w-full rounded-lg ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+              <div className={`h-4 w-5/6 rounded-lg ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-auto pt-6">
+            <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+            <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+            <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
-// --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
+
+// --- WIDGET PRINCIPAL ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
   const [focusModalData, setFocusModalData] = useState(null);
 
-  // Garante que o fallback heurístico tenha a mesma estrutura de dados que a IA
+  useEffect(() => {
+    setFocusModalData(null);
+  }, [activeIndex]);
+
+  const handleKeywordClick = (keyword, allArticles) => {
+    const related = allArticles.filter(article => article.title.toLowerCase().includes(keyword.toLowerCase()));
+    setFocusModalData({ keyword, articles: related });
+  };
+
   const heuristicClusters = useMemo(() => {
     if (clusters && clusters.length > 0) return [];
     const generated = generateHeuristicClusters(news);
-    // Adiciona o campo ai_summary para consistência de design
     return generated.map(cluster => ({
       ...cluster,
       ai_summary: cluster.ai_summary || 'Clique em "Analisar" para obter um resumo detalhado gerado por IA sobre este tópico.'
     }));
   }, [news, clusters]);
 
-
-
-const runAI = async () => {
-    // 1. CHAMA A FUNÇÃO PARA PEGAR UMA NOVA CHAVE NO MOMENTO DO CLIQUE
-    const currentApiKey = getApiKey('widgets'); // Especifica o pool de widgets
-    
+  const runAI = async () => {
+    const currentApiKey = getApiKey('widgets');
     if (!currentApiKey) {
       alert("Configure sua API Key de Widgets nas configurações primeiro.");
       return;
@@ -3781,14 +3712,10 @@ const runAI = async () => {
       alert("Aguarde o carregamento de mais notícias para uma análise completa.");
       return;
     }
-
     setLoading(true);
     setClusters(null);
     await new Promise(r => setTimeout(r, 800));
-    
-    // 2. USA A CHAVE RECÉM-BUSCADA PARA CHAMAR A IA
     const result = await generateSmartClustering(news, currentApiKey, 300);
-    
     if (result) {
       setClusters(result);
     } else {
@@ -3825,11 +3752,9 @@ const runAI = async () => {
     );
   }
 
-// Renderização de Fallback (sem notícias) ou Skeleton inicial
   if (!displayClusters || displayClusters.length === 0) {
       return (
         <div>
-            {/* Texto inteligente que aparece sobre o skeleton */}
             <div className="px-6 pb-2 text-center">
                 <p className={`text-xl font-medium animate-pulse ${isDarkMode ? 'text-purple-500' : 'text-purple-400'}`}>
                     Analisando as últimas notícias para você...
@@ -3839,15 +3764,6 @@ const runAI = async () => {
         </div>
       );
   }
-
-  // Função para abrir o modal
-  const handleKeywordClick = (keyword, allArticles) => {
-    const related = allArticles.filter(article => 
-        article.title.toLowerCase().includes(keyword.toLowerCase())
-    );
-    setFocusModalData({ keyword, articles: related });
-  };
-  
 
   return (
     <div className="relative">
@@ -3870,23 +3786,10 @@ const runAI = async () => {
       >
         {displayClusters.map((cluster, idx) => (
           <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
-            <div className={`
-              w-full rounded-2xl overflow-hidden flex flex-col
-              ${isDarkMode 
-                ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' 
-                : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
-            `}>
-
-              {/* === BLOCO 1: IMAGEM E TEXTO SOBREPOSTO (ALTURA DOMINANTE) === */}
-              <div className="relative w-full flex-grow h-[535px] bg-zinc-800"> {/* h-80 para uma altura bem maior */}
-                <img
-                  src={cluster.representative_image}
-                  className="w-full h-full object-cover"
-                  alt={cluster.ai_title}
-                  onError={(e) => e.target.style.display = 'none'}
-                />
+            <div className={`w-full rounded-2xl overflow-hidden flex flex-col ${isDarkMode ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}`}>
+              <div className="relative w-full flex-grow h-[535px] bg-zinc-800">
+                <img src={cluster.representative_image} className="w-full h-full object-cover" alt={cluster.ai_title} onError={(e) => e.target.style.display = 'none'} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                
                 <div className="absolute top-4 left-4 z-10">
                   <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
                     <Globe size={12} />
@@ -3895,26 +3798,21 @@ const runAI = async () => {
                     </span>
                   </div>
                 </div>
-
-                {/* Container do texto sobreposto, posicionado na parte inferior */}
                 <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                   <h2 className="text-3xl lg:text-4xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-3">
                     {cluster.ai_title}
                   </h2>
                   <div className="flex items-start gap-3">
                     <div className="w-1 h-auto self-stretch bg-purple-400 rounded-full flex-shrink-0" />
-                   <HighlightedSummary 
+                    <HighlightedSummary 
                       text={cluster.ai_summary}
                       keywords={cluster.keyEntities}
                       onKeywordClick={(keyword) => handleKeywordClick(keyword, cluster.related_articles)}
                       isDarkMode={isDarkMode}
-                  />
-
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-
-              {/* === BLOCO 2: LOGOS DAS FONTES (ÁREA BRANCA/CLARA) === */}
               <div className="px-6 py-4">
                 <div className="flex flex-wrap items-center gap-3">
                   {cluster.related_articles.map(article => (
@@ -3934,18 +3832,14 @@ const runAI = async () => {
         ))}
       </div>
 
-      {/* INDICADOR DO CARROSSEL */}
       {displayClusters.length > 1 && (
         <div className="flex justify-center gap-2 mt-4 pb-4">
           {displayClusters.map((_, idx) => (
-            <div key={idx} className={`h-1.5 rounded-full ...`} />
+            <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-6' : 'bg-zinc-400 dark:bg-zinc-700 w-1.5'}`} />
           ))}
         </div>
       )}
 
-      {/* ========================================================== */}
-      {/* === O CÓDIGO DO MODAL VEM AQUI, NO FINAL DO COMPONENTE === */}
-      {/* ========================================================== */}
       {focusModalData && (
           <KeywordFocusModal 
               data={focusModalData}
