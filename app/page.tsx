@@ -1863,43 +1863,45 @@ const generateFullAnalysis = async (text, apiKey) => {
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 12000);
 
   const prompt = `
-  Aja como um Analista de Inteligência. Analise o texto:
-  GERE UM JSON ESTRITO (PT-BR):
+  Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
+  
+  GERE UM JSON ESTRITO COM ESTA ESTRUTURA EXATA (Tudo em PT-BR):
   {
     "summaries": {
-      "executive": "Resumo formal (3 parágrafos).",
-      "tldr": "Resumo em 1 frase.",
-      "eli5": "Explicação para criança de 5 anos.",
-      "bullets": ["Ponto 1", "Ponto 2", "Ponto 3"]
+      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos e bem explicados).",
+      "tldr": "Resumo em 1 única frase de impacto (Too Long Didn't Read).",
+      "eli5": "Explicação didática como se fosse para uma criança de 5 anos (analogias).",
+      "bullets": ["Ponto chave 1", "Ponto chave 2", "Ponto chave 3", "Ponto chave 4"]
     },
     "mindmap": {
-      "center": "Tema Central",
-      "nodes": ["A", "B", "C", "D"]
+    "center": "Tema Central (Max 3 palavras)",
+    "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"]
+},
+"contextualTerms": [
+    {
+        "term": "Nó A (Nome exato do nó do mindmap)",
+        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. SEJA DENSO E DETALHADO. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
+        "sentiment": "neutral", 
+        "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
     },
-    "timeline": [
-    { 
-        "label": "Passado (Causa)", 
-        "date": "A data, dia, ou referência temporal EXATA (ex: 'Ontem', '8 de julho') encontrada no texto para este evento.",
-        "event": "O que causou o contexto geral desta notícia?" 
-    },
-    { 
-        "label": "Recente (Gatilho)", 
-        "date": "A data ou referência temporal EXATA do evento que serviu de gatilho.",
-        "event": "Qual foi o evento específico que levou diretamente a esta matéria?" 
-    },
-    { 
-        "label": "Hoje (Fato Principal)", 
-        "date": "A data ou referência temporal EXATA do fato principal de hoje.",
-        "event": "Qual é o fato central e mais importante reportado neste artigo?" 
-    }
+    { "term": "Nó B", "context": "...", "sentiment": "positive", "evidence_quotes": ["..."] },
+    { "term": "Nó C", "context": "...", "sentiment": "negative", "evidence_quotes": ["..."] },
+    { "term": "Nó D", "context": "...", "sentiment": "neutral", "evidence_quotes": ["..."] }
 ],
+    "timeline": [
+                      { "time": "Passado (Causa Raiz)", "event": "O que causou o contexto geral desta notícia?" },
+                      { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
+                      { "time": "Hoje (Fato Principal)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
+                  ],
     "future": {
-      "optimistic": "Melhor caso",
-      "pessimistic": "Pior caso",
-      "probable": "Realista"
+      "optimistic": "Melhor cenário possível a longo prazo.",
+      "pessimistic": "Pior cenário/Riscos envolvidos.",
+      "probable": "O que realmente deve acontecer (análise realista)."
     }
   }
-  TEXTO: ${cleanText}
+
+  TEXTO:
+  ${cleanText}
   `;
 
   try {
