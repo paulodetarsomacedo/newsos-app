@@ -8474,41 +8474,24 @@ const handleKeyChange = (targetId, newValue) => {
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                      
-                  {/* POOL 1: WIDGETS (Leve) - AGORA INTERATIVO E EXPANSÍVEL */}
-<div className={`rounded-xl border transition-all duration-300 ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-    
-    {/* O Título agora é um BOTÃO que abre e fecha o painel */}
-    <button 
-        onClick={() => setIsWidgetPoolOpen(!isWidgetPoolOpen)}
-        className="flex w-full items-center justify-between p-4 text-left"
-    >
-        <div className="flex items-center gap-2">
-            <Activity size={14} className="text-blue-500"/>
-            <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
-        </div>
-        {/* A seta agora gira para indicar o estado */}
-        <ChevronDown size={16} className={`transform transition-transform duration-300 ${isWidgetPoolOpen ? 'rotate-180' : ''}`} />
-    </button>
-    
-    {/* O conteúdo (campos de input) que será exibido/ocultado */}
-    <div 
-        className={`grid transition-all duration-500 ease-in-out ${isWidgetPoolOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
-    >
-        <div className="min-h-0 overflow-hidden">
-            <div className="space-y-2 p-4 pt-0">
-                {apiKeys.filter(k => k.type === 'free_widget').map((key) => (
-                    <input 
-                        key={key.id}
-                        type="text" 
-                        value={key.value} 
-                        onChange={(e) => handleKeyChange(key.id, e.target.value)} 
-                        placeholder={`Chave Gratuita #${key.id}`} 
-                        className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-blue-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
-                    />
-                ))}
-            </div>
-        </div>
-    </div>
+               {/* POOL 1: WIDGETS (Leve) - VERSÃO FINAL, SEM ACORDEÃO */}
+<div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+   <div className="flex items-center gap-2 mb-3">
+       <Activity size={14} className="text-blue-500"/>
+       <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
+   </div>
+   <div className="space-y-2">
+       {apiKeys.filter(k => k.type === 'free_widget').map((key) => (
+           <input 
+               key={key.id}
+               type="text" 
+               value={key.value} 
+               onChange={(e) => handleKeyChange(key.id, e.target.value)} 
+               placeholder={`Chave Gratuita #${key.id}`} 
+               className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-blue-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+           />
+       ))}
+   </div>
 </div>
 
                      {/* POOL 2: USINA DE IA (Pesado) */}
