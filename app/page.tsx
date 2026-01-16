@@ -1219,7 +1219,7 @@ const NewsCard = React.memo(({
 });
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
-function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onReadArticle, onGenerateAudio }) {
+function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onReadArticle, onGenerateAudio, getChatApiKey }) {
   
   // ==========================================================
   // 1. ESTADOS (STATES)
@@ -5658,7 +5658,7 @@ export default function NewsOS_V12() {
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
 // --- ESTADO DE CHAVES (ARQUITETURA DE POOLS) ---
-  const [apiKeys, setApiKeys] = useState([
+const [apiKeys, setApiKeys] = useState([
     // Pool de Widgets (Leve - Rotação Rápida)
     { id: 1, value: '', type: 'free_widget' },
     { id: 2, value: '', type: 'free_widget' },
@@ -5669,16 +5669,18 @@ export default function NewsOS_V12() {
     { id: 5, value: '', type: 'legacy_text' },
     { id: 6, value: '', type: 'legacy_audio' },
 
-    // NOVO POOL: USINA DE TEXTO & ÁUDIO (Pesado - Rotação Estratégica)
+    // POOL USINA (AGORA COM 6)
     { id: 7, value: '', type: 'heavy_rotation' },
     { id: 8, value: '', type: 'heavy_rotation' },
     { id: 9, value: '', type: 'heavy_rotation' },
     { id: 10, value: '', type: 'heavy_rotation' },
     { id: 11, value: '', type: 'heavy_rotation' },
+    { id: 15, value: '', type: 'heavy_rotation' }, // <<-- SUA 6ª CHAVE (usei ID 15)
+
+    // Pool de Chat
     { id: 12, value: '', type: 'chat_key' },
     { id: 13, value: '', type: 'chat_key' },
 ]);
-
 
 
 
@@ -5823,34 +5825,25 @@ useEffect(() => {
   // --- O DISTRIBUIDOR DE CHAVES (ROTAÇÃO SEQUENCIAL OTIMIZADA) ---
   const getApiKey = useCallback((purpose) => {
     
-    // 1. POOL LEVE (Widgets) - IDs 1 a 4
+    // Pool de Widgets (sem alteração)
     if (purpose === 'widgets') {
-        // Filtra apenas as chaves desse pool que têm valor preenchido
-        const freeKeys = apiKeys.filter(k => k.id >= 1 && k.id <= 4 && k.value && k.value.trim() !== '');
-        
+        const freeKeys = apiKeys.filter(k => k.type === 'free_widget' && k.value && k.value.trim() !== '');
         if (freeKeys.length === 0) return null; 
-        
-        // Pega a chave baseada no contador atual
         const key = freeKeys[widgetRotationIndex.current % freeKeys.length];
-        
-        // Incrementa o contador para a próxima vez
         widgetRotationIndex.current += 1; 
-        
-        console.log(`[Rotação Widgets] Usando chave ID: ${key.id}`);
         return key.value;
     }
 
-    // 2. POOL PESADO (Análise, Texto, Áudio) - IDs 7 a 11
+    // >> POOL PESADO (ALTERAÇÃO AQUI) <<
     if (purpose === 'analysis' || purpose === 'script' || purpose === 'audio') {
-        const heavyKeys = apiKeys.filter(k => k.id >= 7 && k.id <= 11 && k.value && k.value.trim() !== '');
+        // Agora o filtro usa o 'type' em vez de IDs fixos, se adaptando automaticamente
+        const heavyKeys = apiKeys.filter(k => k.type === 'heavy_rotation' && k.value && k.value.trim() !== '');
         
-        // Fallback para chaves antigas (5 e 6) se o pool novo estiver vazio
         if (heavyKeys.length === 0) {
              const legacyKey = apiKeys.find(k => (purpose === 'audio' ? k.id === 6 : k.id === 5))?.value;
              return legacyKey || null;
         }
         
-        // Rotação Sequencial
         const key = heavyKeys[heavyRotationIndex.current % heavyKeys.length];
         heavyRotationIndex.current += 1;
         
@@ -5878,7 +5871,9 @@ useEffect(() => {
   }, [apiKeys]); // Recria a função apenas se o usuário mudar as chaves nas configurações
 
   // Função helper para o Chat (passada como callback)
-
+  const getChatApiKey = useCallback(() => {
+      return getApiKey('chat');
+  }, [getApiKey]);
   
 const [userFeeds, setUserFeeds] = useState([]);
   const [savedItems, setSavedItems] = useState(SAVED_ITEMS);
@@ -6787,11 +6782,17 @@ const storiesForHappeningTab = useMemo(() => {
   
   // A chave de análise para o painel lateral. Esta lógica está CORRETA e deve ser mantida.
   const analysisApiKey = useMemo(() => {
+      // Se não houver artigo selecionado, não faz sentido pegar uma chave.
       if (!selectedArticle) return null;
+
+      // A função é chamada aqui dentro, mas não está no array de dependências.
+      // Isso é seguro porque a lógica de pegar a chave só precisa rodar
+      // quando o artigo MUDA, e isso é garantido pela dependência [selectedArticle?.id].
+      console.log(`useMemo: EXECUTANDO ROTAÇÃO para o artigo ID: ${selectedArticle.id}`);
       return getApiKey('analysis');
-  }, [selectedArticle?.id, getApiKey]);
-
-
+  
+  // A ÚNICA DEPENDÊNCIA AGORA É O ID DO ARTIGO.
+  }, [selectedArticle?.id]);
 // 2. Esta lista é para a NAVEGAÇÃO. Ela contém TODOS os stories, sem filtro.
 const allAvailableStories = useMemo(() => {
     if (!realNews || realNews.length === 0) return [];
@@ -6927,6 +6928,7 @@ return (
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
                     apiKey={analysisApiKey} 
+                     getChatApiKey={getChatApiKey}
              
                 />
             )}
@@ -7051,8 +7053,8 @@ return (
                     onClose={closeArticle}
                     onToggleSave={handleToggleSave}
                     isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-                    
-                    
+                      apiKey={apiKey}
+                    getChatApiKey={getChatApiKey}
                     isDarkMode={isDarkMode}
                     isResizing={isResizing.current} 
                 />
@@ -7634,40 +7636,52 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
 const VERCEL_URL = "https://newsos-app2.vercel.app"; 
 
 // --- FUNÇÃO DE IA HÍBRIDA (Compatível com Web e iPad) ---
-const generateChatResponse = async (chatHistory, articleText, apiKeyFromModal) => {
-  try {
-    // 2. Montamos a URL completa aqui
-    const apiUrl = `${VERCEL_URL}/api/chat`;
+const generateChatResponse = async (chatHistory, articleText, apiKey) => {
+  if (!apiKey) return "Desculpe, a conexão com a IA não está configurada.";
 
-    const response = await fetch("https://newsos-app2.vercel.app/api/chat", {
+  const userQuestion = chatHistory.findLast(m => m.from === 'user')?.text;
+  if (!userQuestion) return "Não entendi sua pergunta.";
+
+  const formattedHistory = chatHistory.map(m => `${m.from === 'user' ? 'Usuário' : 'Assistente'}: ${m.text}`).join('\n');
+
+  const prompt = `
+  Você é um Assistente de Pesquisa especialista e amigável, conversando dentro de uma interface de chat.
+
+  CONTEXTO PRINCIPAL (A notícia que o usuário está lendo):
+  ---
+  ${articleText.slice(0, 4000)}
+  ---
+  
+  HISTÓRICO DA CONVERSA ATÉ AGORA:
+  ---
+  ${formattedHistory}
+  ---
+
+  SUA TAREFA:
+  Continue a conversa respondendo à última pergunta do "Usuário" de forma natural e conversacional.
+  - Utilize o CONTEXTO PRINCIPAL para responder sobre fatos da notícia.
+  - Mantenha as respostas curtas e diretas (1-3 frases).
+  - AJA COMO UMA PESSOA, NÃO COMO UM ROBÔ.
+  - Não repita a pergunta. Apenas dê a resposta.
+  `;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-          chatHistory, 
-          articleText, 
-          apiKeyFromFrontend: apiKeyFromModal 
-      })
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
-
     const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.error || "Erro desconhecido no servidor.");
-    }
-
-    return data.text;
-
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Não consegui processar a resposta. Tente novamente.";
   } catch (e) {
-    console.error("Erro ao chamar o backend:", e);
-    return `Houve um problema de conexão: ${e.message}`;
+    return "Houve um problema ao conectar com a IA.";
   }
 };
 
 
 
-
 // --- NOVO COMPONENTE: WHATSAPP CHAT INTERFACE ---
-const WhatsappChat = ({ articleText, apiKey, isDarkMode }) => {
+const WhatsappChat = ({ articleText, apiKey, isDarkMode, getChatApiKey }) => {
   const [history, setHistory] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -7694,7 +7708,12 @@ const WhatsappChat = ({ articleText, apiKey, isDarkMode }) => {
     setInputValue('');
     setIsAiTyping(true);
 
-const chatApiKey = null;
+        const chatApiKey = getChatApiKey(); // Pega uma chave rotacionada
+    if (!chatApiKey) {
+      setHistory(prev => [...prev, { from: 'ai', text: 'Erro: Nenhuma chave de API para o chat está configurada.' }]);
+      setIsAiTyping(false);
+      return;
+    }
 
     const aiResponse = await generateChatResponse(newHistory, articleText, chatApiKey);
 
@@ -7753,7 +7772,7 @@ const chatApiKey = null;
 // 2. O PAINEL DE IA PRINCIPAL
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, isResizing }) => {
+const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, isResizing, getChatApiKey }) => {
   const [aiData, setAiData] = useState(null);
   const [loadingState, setLoadingState] = useState('idle'); 
   const [viewMode, setViewMode] = useState('analysis');
@@ -7788,19 +7807,14 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
 
   // A NOVA FUNÇÃO SINCRONIZADA COM A REALIDADE
 const runSuperPrompt = useCallback(async () => {
-      if (!article.link) {
+      // apiKey agora vem das props, fornecida pelo pool 'analysis'
+      if (!apiKey || !article.link) {
           setLoadingState('error');
           return;
       }
       
       try {
-          // --- ETAPA 0: CONEXÃO ---
-          setLoadingStep(0); 
-          await new Promise(r => setTimeout(r, 600));
-
-          // --- ETAPA 1: EXTRAÇÃO ---
-          setLoadingStep(1);
-          
+          setLoadingStep(1); // Extraindo...
           const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
           
           if (proxyError || !proxyData?.reader?.content) throw new Error("Falha na extração de texto");
@@ -7808,45 +7822,25 @@ const runSuperPrompt = useCallback(async () => {
           const fullText = proxyData.reader.textContent;
           setReaderContent(proxyData.reader); 
 
-          // --- ETAPA 2: ANÁLISE (VIA VERCEL BACKEND) ---
-          setLoadingStep(2); 
+          setLoadingStep(2); // Analisando...
           setLoadingState('analyzing'); 
 
-          // --- AQUI ESTÁ A CORREÇÃO ---
-          // Removemos a rotação automática. 
-          // Se o usuário não digitou chave no modal (apiKey), enviamos null.
-          // Isso força o backend (api/analyze.js) a usar a Conta de Serviço (Produção).
-          const fallbackKey = apiKey || null; 
-
-          // URL EXPLICITA PARA O IPAD
-          const response = await fetch("https://newsos-app2.vercel.app/api/analyze", {
-              method: "POST", 
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ 
-                  fullText: fullText,
-                  apiKeyFromFrontend: null
-              })
-          });
+          // A MÁGICA: Chama a função local generateFullAnalysis com a chave do pool
+          const result = await generateFullAnalysis(fullText, apiKey);
           
-          const jsonRes = await response.json();
-          if (!response.ok) throw new Error(jsonRes.error || "Erro na análise");
+          if (!result) throw new Error("A análise da IA retornou vazia.");
 
-          // --- ETAPA 3: SÍNTESE ---
-          setLoadingStep(3);
-          await new Promise(r => setTimeout(r, 400));
-
-          setAiData(jsonRes);
+          setLoadingStep(3); // Sintetizando...
+          setAiData(result);
           
-          // --- FINALIZAÇÃO ---
-          setLoadingStep(4); 
-          await new Promise(r => setTimeout(r, 800)); 
+          setLoadingStep(4); // Finalizando...
           setLoadingState('complete');
 
       } catch (err) { 
           console.error("Erro no runSuperPrompt:", err);
           setLoadingState('error'); 
       }
-  }, [apiKey, article]); // Removi getChatApiKey das dependências pois não usamos mais
+  }, [apiKey, article]); // Depende da chave e do artigo
 
   
 const handleNodeClick = useCallback((nodeName, position) => {
@@ -7998,7 +7992,7 @@ return (
           {viewMode === 'chat' && (
             <WhatsappChat 
               articleText={readerContent?.textContent || article.summary}
-         
+         getChatApiKey={getChatApiKey}
               isDarkMode={isDarkMode}
             />
           )}
