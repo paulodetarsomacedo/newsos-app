@@ -3480,69 +3480,132 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) 
 };
 
 
-const generateHeuristicClusters = (news) => {
-    if (!news || news.length < 5) return [];
+// Adicione esta função helper ANTES da sua função generateHeuristicClusters
+const extractKeyEntities = (articles) => {
+    const wordFrequency = {};
+    const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em', 'no', 'na', 'dos', 'das']);
 
-    const clusters = {};
-    const articlesUsed = new Set();
-
-    // 1. Encontra palavras-chave importantes (lógica mantida)
-    const keywordScores = {};
-    const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em']);
-    
-    news.slice(0, 30).forEach(article => {
-        const words = article.title.toLowerCase().replace(/[^a-zà-ú\s]/g, '').split(/\s+/);
+    articles.forEach(article => {
+        // Pega palavras que começam com letra maiúscula e não são stop words
+        const words = article.title.match(/\b[A-Z][a-zà-ú]+\b/g) || [];
         words.forEach(word => {
-            if (word.length > 4 && !stopWords.has(word)) {
-                keywordScores[word] = (keywordScores[word] || 0) + 1;
+            const cleanWord = word.toLowerCase();
+            if (!stopWords.has(cleanWord) && cleanWord.length > 3) {
+                wordFrequency[word] = (wordFrequency[word] || 0) + 1;
             }
         });
     });
 
-    // 2. Pega as 5 palavras-chave mais frequentes (lógica mantida)
-    const topKeywords = Object.keys(keywordScores).sort((a, b) => keywordScores[b] - keywordScores[a]).slice(0, 5);
-
-    // Lista de fontes sem imagem para evitar como capa
-    const blockedSources = new Set(['uol', 'istoé', 'estadao', 'folha', 'investing', 'einvestidor', 'folha', 'moneytimes']);
-
-    // 3. Monta os cards
-    topKeywords.forEach(keyword => {
-        
-        // Esta lista já contém TODOS os artigos relevantes e NÃO USADOS para a palavra-chave.
-        const allCandidatesForKeyword = news.filter(article =>
-            !articlesUsed.has(article.id) && article.title.toLowerCase().includes(keyword)
-        );
-
-        if (allCandidatesForKeyword.length === 0) return;
-
-        // Lógica para escolher a melhor imagem (prioriza fontes não bloqueadas)
-        const bestImageCandidate = allCandidatesForKeyword.find(article =>
-            !blockedSources.has((article.source || '').toLowerCase())
-        );
-        
-        // Usa o melhor candidato ou, como fallback, o primeiro da lista
-        const representativeArticle = bestImageCandidate || allCandidatesForKeyword[0];
-
-        if (representativeArticle) {
-            
-            // CORREÇÃO: Usamos a lista já filtrada, garantindo consistência.
-            const relatedArticles = allCandidatesForKeyword;
-            
-            // Cria o "cluster falso"
-            clusters[keyword] = {
-                ai_title: representativeArticle.title,
-                representative_image: representativeArticle.img,
-                related_articles: relatedArticles.slice(0, 5) // Limita a 5 logos
-            };
-            
-            // Marca todos os artigos deste cluster como usados para evitar que apareçam em outros.
-            relatedArticles.forEach(a => articlesUsed.add(a.id));
-        }
-    });
-
-    return Object.values(clusters);
+    // Retorna as 3 palavras mais frequentes
+    return Object.keys(wordFrequency)
+        .sort((a, b) => wordFrequency[b] - wordFrequency[a])
+        .slice(0, 3);
 };
 
+// ... dentro do map final de generateHeuristicClusters ...
+return {
+    // ... (propriedades antigas)
+    storyline: { ... },
+    // ===================================
+    // === NOVA INFORMAÇÃO ADICIONADA ===
+    // ===================================
+    keyEntities: extractKeyEntities(cluster.related_articles),
+};
+
+
+const generateHeuristicClusters = (news) => {
+    if (!news || news.length < 5) return [];
+
+    const preferredSources = new Set(['G1', 'CNN Brasil', 'The Verge', 'Globo', 'BBC']);
+    const SIMILARITY_THRESHOLD = 0.60;
+    const CLUSTER_LIMIT = 4;
+
+    const articles = [...news.slice(0, 100)];
+    let clusters = [];
+    const articlesUsed = new Set();
+
+    for (let i = 0; i < articles.length; i++) {
+        if (articlesUsed.has(articles[i].id)) continue;
+        let currentCluster = { related_articles: [articles[i]] };
+        articlesUsed.add(articles[i].id);
+
+        for (let j = i + 1; j < articles.length; j++) {
+            if (articlesUsed.has(articles[j].id)) continue;
+            const similarity = stringSimilarity.compareTwoStrings(articles[i].title, articles[j].title);
+            if (similarity >= SIMILARITY_THRESHOLD) {
+                currentCluster.related_articles.push(articles[j]);
+                articlesUsed.add(articles[j].id);
+            }
+        }
+        if (currentCluster.related_articles.length > 1) {
+            clusters.push(currentCluster);
+        }
+    }
+    
+    clusters = clusters.sort((a, b) => b.related_articles.length - a.related_articles.length).slice(0, CLUSTER_LIMIT);
+    
+    // FUNÇÃO HELPER DE EXTRAÇÃO DE ENTIDADES (AGORA DENTRO DA FUNÇÃO PRINCIPAL)
+    const extractKeyEntities = (articles) => {
+        const wordFrequency = {};
+        const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em', 'no', 'na', 'dos', 'das', 'seu', 'sua']);
+
+        articles.forEach(article => {
+            const words = article.title.match(/\b[A-Z][a-zà-úA-Z]+\b/g) || [];
+            words.forEach(word => {
+                const cleanWord = word.toLowerCase();
+                if (!stopWords.has(cleanWord) && cleanWord.length > 3) {
+                    wordFrequency[word] = (wordFrequency[word] || 0) + 1;
+                }
+            });
+        });
+        return Object.keys(wordFrequency).sort((a, b) => wordFrequency[b] - wordFrequency[a]).slice(0, 3);
+    };
+
+    const finalClusters = clusters.map(cluster => {
+        let bestArticleForTitle = cluster.related_articles[0];
+        let maxCentrality = 0;
+        cluster.related_articles.forEach(articleA => {
+            let currentCentrality = 0;
+            cluster.related_articles.forEach(articleB => {
+                if (articleA.id !== articleB.id) {
+                    currentCentrality += stringSimilarity.compareTwoStrings(articleA.title, articleB.title);
+                }
+            });
+            if (currentCentrality > maxCentrality) {
+                maxCentrality = currentCentrality;
+                bestArticleForTitle = articleA;
+            }
+        });
+
+        let representativeArticleForImage = cluster.related_articles.find(a => preferredSources.has(a.source)) || bestArticleForTitle;
+        const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+        
+        // ==========================================================
+        // === LÓGICA DAS TAGS APLICADA DIRETAMENTE NO RESUMO ===
+        // ==========================================================
+        const keyEntities = extractKeyEntities(cluster.related_articles);
+        let summaryText = `Este assunto foi abordado em ${cluster.related_articles.length} notícias recentes.`;
+        
+        if (keyEntities.length > 0) {
+            summaryText += ` Principais entidades envolvidas: ${keyEntities.join(', ')}.`;
+        }
+
+        return {
+            ai_title: bestArticleForTitle.title,
+            ai_summary: summaryText, // O resumo agora contém as entidades
+            representative_image: representativeArticleForImage.img,
+            related_articles: sortedArticles,
+            storyline: {
+                originArticle: sortedArticles[sortedArticles.length - 1],
+                latestArticle: sortedArticles[0],
+            },
+            // A propriedade keyEntities separada não é mais necessária na UI, mas pode ser mantida para uso futuro se quiser
+            keyEntities: keyEntities, 
+        };
+    });
+
+    return finalClusters;
+};
 
 // --- COMPONENTE SKELETON PARA O SMARTNEWS ---
 const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
@@ -3608,27 +3671,26 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
 
 
 
-// --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
+// =================================================================
+// === SUBSTITUA TODO O SEU COMPONENTE "WhileYouWereAwayWidget" POR ESTE ===
+// =================================================================
+
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
 
-  // Garante que o fallback heurístico tenha a mesma estrutura de dados que a IA
   const heuristicClusters = useMemo(() => {
     if (clusters && clusters.length > 0) return [];
     const generated = generateHeuristicClusters(news);
-    // Adiciona o campo ai_summary para consistência de design
     return generated.map(cluster => ({
       ...cluster,
       ai_summary: cluster.ai_summary || 'Clique em "Analisar" para obter um resumo detalhado gerado por IA sobre este tópico.'
     }));
   }, [news, clusters]);
 
-const runAI = async () => {
-    // 1. CHAMA A FUNÇÃO PARA PEGAR UMA NOVA CHAVE NO MOMENTO DO CLIQUE
-    const currentApiKey = getApiKey('widgets'); // Especifica o pool de widgets
-    
+  const runAI = async () => {
+    const currentApiKey = getApiKey('widgets');
     if (!currentApiKey) {
       alert("Configure sua API Key de Widgets nas configurações primeiro.");
       return;
@@ -3637,14 +3699,10 @@ const runAI = async () => {
       alert("Aguarde o carregamento de mais notícias para uma análise completa.");
       return;
     }
-
     setLoading(true);
     setClusters(null);
     await new Promise(r => setTimeout(r, 800));
-    
-    // 2. USA A CHAVE RECÉM-BUSCADA PARA CHAMAR A IA
     const result = await generateSmartClustering(news, currentApiKey, 300);
-    
     if (result) {
       setClusters(result);
     } else {
@@ -3681,11 +3739,9 @@ const runAI = async () => {
     );
   }
 
-// Renderização de Fallback (sem notícias) ou Skeleton inicial
   if (!displayClusters || displayClusters.length === 0) {
       return (
         <div>
-            {/* Texto inteligente que aparece sobre o skeleton */}
             <div className="px-6 pb-2 text-center">
                 <p className={`text-xl font-medium animate-pulse ${isDarkMode ? 'text-purple-500' : 'text-purple-400'}`}>
                     Analisando as últimas notícias para você...
@@ -3724,8 +3780,8 @@ const runAI = async () => {
                 : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
             `}>
 
-              {/* === BLOCO 1: IMAGEM E TEXTO SOBREPOSTO (ALTURA DOMINANTE) === */}
-              <div className="relative w-full flex-grow h-[535px] bg-zinc-800"> {/* h-80 para uma altura bem maior */}
+              {/* === BLOCO 1: IMAGEM E TEXTO SOBREPOSTO (Mantido) === */}
+              <div className="relative w-full flex-grow h-[535px] bg-zinc-800">
                 <img
                   src={cluster.representative_image}
                   className="w-full h-full object-cover"
@@ -3743,7 +3799,6 @@ const runAI = async () => {
                   </div>
                 </div>
 
-                {/* Container do texto sobreposto, posicionado na parte inferior */}
                 <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                   <h2 className="text-3xl lg:text-4xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-3">
                     {cluster.ai_title}
@@ -3757,27 +3812,68 @@ const runAI = async () => {
                 </div>
               </div>
 
-              {/* === BLOCO 2: LOGOS DAS FONTES (ÁREA BRANCA/CLARA) === */}
+              {/* ========================================================== */}
+              {/* === BLOCO 2: ÁREA DE LINHA DO TEMPO (NO LUGAR CERTO) === */}
+              {/* ========================================================== */}
               <div className="px-6 py-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  {cluster.related_articles.map(article => (
-                    <button
-                      key={article.id}
-                      onClick={() => openArticle(article)}
-                      className="relative w-8 h-8 rounded-full transition-all duration-300 hover:scale-125 hover:z-10"
-                      title={`${article.source}: ${article.title}`}
-                    >
-                      <img src={article.logo} className="w-full h-full object-cover rounded-full border border-black/10" onError={(e) => e.target.style.display = 'none'} />
-                    </button>
-                  ))}
-                </div>
+                {cluster.storyline ? (
+                  <div className="space-y-3 pt-2">
+                      {/* Ponto de Partida */}
+                      <div className="flex items-center gap-3">
+                          <div className="flex flex-col items-center">
+                              <div className={`w-8 h-8 rounded-full border-2 p-0.5 ${isDarkMode ? 'border-zinc-700' : 'border-zinc-200'}`}>
+                                  <img src={cluster.storyline.originArticle.logo} className="w-full h-full rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                              </div>
+                              <div className={`w-0.5 flex-grow h-4 mt-1 ${isDarkMode ? 'bg-zinc-700' : 'bg-zinc-200'}`}></div>
+                          </div>
+                          <div>
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Ponto de Partida</span>
+                              <p className={`text-xs font-semibold ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                                  {cluster.storyline.originArticle.source} • {new Date(cluster.storyline.originArticle.rawDate).toLocaleDateString()}
+                              </p>
+                          </div>
+                      </div>
+
+                      {/* Última Atualização */}
+                      <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full border-2 p-0.5 animate-pulse ${isDarkMode ? 'border-purple-500' : 'border-purple-400'}`}>
+                              <img src={cluster.storyline.latestArticle.logo} className="w-full h-full rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                          </div>
+                          <div>
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-purple-500">Última Atualização</span>
+                              <p className={`text-xs font-semibold ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                                  {cluster.storyline.latestArticle.source} • {new Date(cluster.storyline.latestArticle.rawDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </p>
+                          </div>
+                      </div>
+
+                      {/* Outras fontes */}
+                      <p className="text-[10px] text-zinc-500 pt-2">
+                          ...e coberto por mais {cluster.related_articles.length - 2 > 0 ? cluster.related_articles.length - 2 : 0} outras fontes.
+                      </p>
+                  </div>
+                ) : (
+                  // Fallback para o modo antigo, caso 'storyline' não exista
+                  <div className="flex flex-wrap items-center gap-3">
+                    {cluster.related_articles.map(article => (
+                      <button
+                        key={article.id}
+                        onClick={() => openArticle(article)}
+                        className="relative w-8 h-8 rounded-full transition-all duration-300 hover:scale-125 hover:z-10"
+                        title={`${article.source}: ${article.title}`}
+                      >
+                        <img src={article.logo} className="w-full h-full object-cover rounded-full border border-black/10" onError={(e) => e.target.style.display = 'none'} />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* INDICADOR DO CARROSSEL */}
+      {/* INDICADOR DO CARROSSEL (Mantido) */}
       {displayClusters.length > 1 && (
         <div className="flex justify-center gap-2 mt-4 pb-4">
           {displayClusters.map((_, idx) => (
@@ -3788,7 +3884,6 @@ const runAI = async () => {
     </div>
   );
 };
-
 
 
 
