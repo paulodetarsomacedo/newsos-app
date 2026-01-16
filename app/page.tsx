@@ -1103,24 +1103,29 @@ const NewsCard = React.memo(({
             <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
             {/* CABEÇALHO "LIQUID" */}
-            <div className="absolute top-6 left-5 flex items-center z-20">
-                <div className="relative z-20 shrink-0 shadow-lg">
-                    <img 
-                        src={news.logo} 
-                        className="w-14 h-14 rounded-2xl bg-white object-contain p-0.5 border-2 border-white shadow-sm" 
-                        onError={(e) => e.target.style.display = 'none'} 
-                        alt={news.source}
-                    />
-                </div>
-                <div className="-ml-5 pl-7 pr-4 py-2 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
-                    <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none">
-                        {news.source}
-                    </span>
-                </div>
-                <div className="ml-2 px-4 py-2 flex items-center bg-white rounded-full shadow-md border border-zinc-100">
-                    <span className="text-xs font-bold text-zinc-600">{displayTime}</span>
-                </div>
-            </div>
+            <div className="absolute top-0 left-0 w-1/3 h-12 bg-gradient-to-r from-white/90 via-white/80 to-white/60 backdrop-blur-md rounded-br-3xl shadow-lg border-b border-r border-white/50 z-20 flex items-center pl-6 pr-2 py-1 gap-2">
+    
+    {/* 1. Logo Quadrado */}
+    <div className="w-10 h-10 rounded-lg bg-white p-0.5 shadow-md flex-shrink-0 border border-black/5">
+        <img 
+            src={news.logo} 
+            className="w-full h-full object-contain rounded-[6px]" 
+            onError={(e) => e.target.style.display = 'none'} 
+            alt={news.source}
+        />
+    </div>
+    
+    {/* 2. Nome da Fonte e Hora */}
+    <div className="flex flex-col min-w-0">
+        <span className="text-[15px] font-black text-zinc-800 uppercase tracking-widest truncate">
+            {news.source}
+        </span>
+        {/* 3. Hora com fonte de relógio digital */}
+        <span className="text-sm font-mono font-bold text-gray-800 tracking-wider">
+            {displayTime}
+        </span>
+    </div>
+</div>
 
             {/* BOTÕES DE AÇÃO */}
             <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-3">
@@ -3459,8 +3464,8 @@ const generateHeuristicClusters = (news) => {
     // --- CONFIGURAÇÕES DE QUALIDADE PERCEBIDA ---
     const SOURCE_WEIGHTS = { 'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, };
     const DEFAULT_WEIGHT = 1;
-    const IMAGE_PREFERRED_SOURCES = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT', 'Fox News', '180graus']);
-    const IMAGE_BLOCKED_SOURCES = new Set(['Istoé', 'UOL Economia', 'UOL', 'Folha de S.Paulo', 'Investing', 'Estadão', 'E-Investidor', 'UOL Notícias', 'Money Times']);
+    const IMAGE_PREFERRED_SOURCES = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT News', 'Times Brasil', 'Estadao', 'Fox News', '180graus']);
+    const IMAGE_BLOCKED_SOURCES = new Set(['Istoé', 'UOL Economia', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Notícias', 'Money Times']);
     const SIMILARITY_THRESHOLD = 0.58;
     const CLUSTER_LIMIT = 5;
 
@@ -3543,7 +3548,7 @@ const generateHeuristicClusters = (news) => {
 
         const keyEntities = extractKeyEntities(cluster.related_articles);
         const uniqueSourcesCount = new Set(cluster.related_articles.map(a => a.source)).size;
-        let summaryText = `Um evento de alta repercussão, coberto por ${uniqueSourcesCount} fontes diferentes.`;
+        let summaryText = ` ${uniqueSourcesCount} Fontes noticiando.`;
         if (keyEntities.length > 0) {
             summaryText += ` A pauta envolve principalmente: ${keyEntities.join(', ')}.`;
         }
@@ -3583,8 +3588,8 @@ const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
                                 mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300
                                 hover:scale-105 hover:shadow-lg
                                 ${isDarkMode 
-                                    ? 'bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300' 
-                                    : 'bg-yellow-200/60 hover:bg-yellow-200 text-yellow-800'}
+                                    ? 'bg-blue-600/20 hover:bg-blue-500/40 text-amber-500' 
+                                    : 'bg-blue-600/60 hover:bg-blue-500 text-amber-500'}
                             `}>
                             {part}
                         </button>
