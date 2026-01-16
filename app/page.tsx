@@ -3480,31 +3480,6 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) 
 };
 
 
-// Adicione esta função helper ANTES da sua função generateHeuristicClusters
-const extractKeyEntities = (articles) => {
-    const wordFrequency = {};
-    const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em', 'no', 'na', 'dos', 'das']);
-
-    articles.forEach(article => {
-        // Pega palavras que começam com letra maiúscula e não são stop words
-        const words = article.title.match(/\b[A-Z][a-zà-ú]+\b/g) || [];
-        words.forEach(word => {
-            const cleanWord = word.toLowerCase();
-            if (!stopWords.has(cleanWord) && cleanWord.length > 3) {
-                wordFrequency[word] = (wordFrequency[word] || 0) + 1;
-            }
-        });
-    });
-
-    // Retorna as 3 palavras mais frequentes
-    return Object.keys(wordFrequency)
-        .sort((a, b) => wordFrequency[b] - wordFrequency[a])
-        .slice(0, 3);
-};
-
-
-
-
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
 
@@ -3574,20 +3549,12 @@ const generateHeuristicClusters = (news) => {
 
         // --- Ordenar artigos por data ---
         const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
-return {
-            ai_title: bestArticleForTitle.title,
+        
+        return {
+            ai_title: bestArticleForTitle.title, // O título mais "central" do grupo
             ai_summary: `Este assunto foi abordado em ${cluster.related_articles.length} notícias recentes. Clique em "Analisar" para um resumo detalhado via IA.`,
             representative_image: representativeArticleForImage.img,
             related_articles: sortedArticles,
-            
-            // A propriedade storyline que você já tem (com a vírgula que agora está correta)
-            storyline: {
-                originArticle: sortedArticles[sortedArticles.length - 1],
-                latestArticle: sortedArticles[0],
-            },
-
-            // A PROPRIEDADE QUE FALTAVA, E QUE CAUSOU O ERRO
-            keyEntities: extractKeyEntities(cluster.related_articles) // SEM VÍRGULA NO FINAL, pois é a última
         };
     });
 
@@ -3658,26 +3625,27 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
 
 
 
-// =================================================================
-// === SUBSTITUA TODO O SEU COMPONENTE "WhileYouWereAwayWidget" POR ESTE ===
-// =================================================================
-
+// --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
 
+  // Garante que o fallback heurístico tenha a mesma estrutura de dados que a IA
   const heuristicClusters = useMemo(() => {
     if (clusters && clusters.length > 0) return [];
     const generated = generateHeuristicClusters(news);
+    // Adiciona o campo ai_summary para consistência de design
     return generated.map(cluster => ({
       ...cluster,
       ai_summary: cluster.ai_summary || 'Clique em "Analisar" para obter um resumo detalhado gerado por IA sobre este tópico.'
     }));
   }, [news, clusters]);
 
-  const runAI = async () => {
-    const currentApiKey = getApiKey('widgets');
+const runAI = async () => {
+    // 1. CHAMA A FUNÇÃO PARA PEGAR UMA NOVA CHAVE NO MOMENTO DO CLIQUE
+    const currentApiKey = getApiKey('widgets'); // Especifica o pool de widgets
+    
     if (!currentApiKey) {
       alert("Configure sua API Key de Widgets nas configurações primeiro.");
       return;
@@ -3686,10 +3654,14 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
       alert("Aguarde o carregamento de mais notícias para uma análise completa.");
       return;
     }
+
     setLoading(true);
     setClusters(null);
     await new Promise(r => setTimeout(r, 800));
+    
+    // 2. USA A CHAVE RECÉM-BUSCADA PARA CHAMAR A IA
     const result = await generateSmartClustering(news, currentApiKey, 300);
+    
     if (result) {
       setClusters(result);
     } else {
@@ -3726,9 +3698,11 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
     );
   }
 
+// Renderização de Fallback (sem notícias) ou Skeleton inicial
   if (!displayClusters || displayClusters.length === 0) {
       return (
         <div>
+            {/* Texto inteligente que aparece sobre o skeleton */}
             <div className="px-6 pb-2 text-center">
                 <p className={`text-xl font-medium animate-pulse ${isDarkMode ? 'text-purple-500' : 'text-purple-400'}`}>
                     Analisando as últimas notícias para você...
@@ -3767,8 +3741,8 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
                 : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
             `}>
 
-              {/* === BLOCO 1: IMAGEM E TEXTO SOBREPOSTO (Mantido) === */}
-              <div className="relative w-full flex-grow h-[535px] bg-zinc-800">
+              {/* === BLOCO 1: IMAGEM E TEXTO SOBREPOSTO (ALTURA DOMINANTE) === */}
+              <div className="relative w-full flex-grow h-[535px] bg-zinc-800"> {/* h-80 para uma altura bem maior */}
                 <img
                   src={cluster.representative_image}
                   className="w-full h-full object-cover"
@@ -3786,6 +3760,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
                   </div>
                 </div>
 
+                {/* Container do texto sobreposto, posicionado na parte inferior */}
                 <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                   <h2 className="text-3xl lg:text-4xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-3">
                     {cluster.ai_title}
@@ -3796,80 +3771,30 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
                       {cluster.ai_summary}
                     </p>
                   </div>
-                  {cluster.keyEntities && cluster.keyEntities.length > 0 && (
-    <div className="flex flex-wrap items-center gap-2 mt-4">
-        {cluster.keyEntities.map(entity => (
-            <div key={entity} className={`px-3 py-1 rounded-full text-xs font-bold ${isDarkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}>
-                {entity}
-            </div>
-        ))}
-    </div>
-)}
                 </div>
               </div>
 
-              {/* ========================================================== */}
-              {/* === BLOCO 2: ÁREA DE LINHA DO TEMPO (NO LUGAR CERTO) === */}
-              {/* ========================================================== */}
+              {/* === BLOCO 2: LOGOS DAS FONTES (ÁREA BRANCA/CLARA) === */}
               <div className="px-6 py-4">
-                {cluster.storyline ? (
-                  <div className="space-y-3 pt-2">
-                      {/* Ponto de Partida */}
-                      <div className="flex items-center gap-3">
-                          <div className="flex flex-col items-center">
-                              <div className={`w-8 h-8 rounded-full border-2 p-0.5 ${isDarkMode ? 'border-zinc-700' : 'border-zinc-200'}`}>
-                                  <img src={cluster.storyline.originArticle.logo} className="w-full h-full rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
-                              </div>
-                              <div className={`w-0.5 flex-grow h-4 mt-1 ${isDarkMode ? 'bg-zinc-700' : 'bg-zinc-200'}`}></div>
-                          </div>
-                          <div>
-                              <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Ponto de Partida</span>
-                              <p className={`text-xs font-semibold ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                                  {cluster.storyline.originArticle.source} • {new Date(cluster.storyline.originArticle.rawDate).toLocaleDateString()}
-                              </p>
-                          </div>
-                      </div>
-
-                      {/* Última Atualização */}
-                      <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full border-2 p-0.5 animate-pulse ${isDarkMode ? 'border-purple-500' : 'border-purple-400'}`}>
-                              <img src={cluster.storyline.latestArticle.logo} className="w-full h-full rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
-                          </div>
-                          <div>
-                              <span className="text-[9px] font-bold uppercase tracking-widest text-purple-500">Última Atualização</span>
-                              <p className={`text-xs font-semibold ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                                  {cluster.storyline.latestArticle.source} • {new Date(cluster.storyline.latestArticle.rawDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                              </p>
-                          </div>
-                      </div>
-
-                      {/* Outras fontes */}
-                      <p className="text-[10px] text-zinc-500 pt-2">
-                          ...e coberto por mais {cluster.related_articles.length - 2 > 0 ? cluster.related_articles.length - 2 : 0} outras fontes.
-                      </p>
-                  </div>
-                ) : (
-                  // Fallback para o modo antigo, caso 'storyline' não exista
-                  <div className="flex flex-wrap items-center gap-3">
-                    {cluster.related_articles.map(article => (
-                      <button
-                        key={article.id}
-                        onClick={() => openArticle(article)}
-                        className="relative w-8 h-8 rounded-full transition-all duration-300 hover:scale-125 hover:z-10"
-                        title={`${article.source}: ${article.title}`}
-                      >
-                        <img src={article.logo} className="w-full h-full object-cover rounded-full border border-black/10" onError={(e) => e.target.style.display = 'none'} />
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  {cluster.related_articles.map(article => (
+                    <button
+                      key={article.id}
+                      onClick={() => openArticle(article)}
+                      className="relative w-8 h-8 rounded-full transition-all duration-300 hover:scale-125 hover:z-10"
+                      title={`${article.source}: ${article.title}`}
+                    >
+                      <img src={article.logo} className="w-full h-full object-cover rounded-full border border-black/10" onError={(e) => e.target.style.display = 'none'} />
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* INDICADOR DO CARROSSEL (Mantido) */}
+      {/* INDICADOR DO CARROSSEL */}
       {displayClusters.length > 1 && (
         <div className="flex justify-center gap-2 mt-4 pb-4">
           {displayClusters.map((_, idx) => (
@@ -3880,6 +3805,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
     </div>
   );
 };
+
 
 
 
