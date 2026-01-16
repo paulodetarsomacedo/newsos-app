@@ -3597,7 +3597,7 @@ const generateHeuristicClusters = (news) => {
     const topKeywords = Object.keys(keywordScores).sort((a, b) => keywordScores[b] - keywordScores[a]).slice(0, 5);
 
     // Lista de fontes sem imagem para evitar como capa
-    const blockedSources = new Set(['uol', 'istoé', 'estadao', 'folha', 'investing', 'einvestidor']);
+    const blockedSources = new Set(['uol', 'istoé', 'estadao', 'folha', 'investing', 'einvestidor', 'folha', 'moneytimes']);
 
     // 3. Monta os cards
     topKeywords.forEach(keyword => {
@@ -6356,6 +6356,9 @@ const handleStoryNavigation = (direction) => {
             }
             else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) {
                 finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
+            }
+            else if (lowerName.includes('extra') || lowerUrl.includes('extra.globo.com')) {
+                finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSHwU53hYcTA87KGMdvumyIbxKsOi-OflNnIw&s';
             }
             
             // 2. Lógica para YouTube (Cores Dinâmicas + Foto Real)
