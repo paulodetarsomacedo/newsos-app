@@ -6530,6 +6530,7 @@ const handleStoryNavigation = (direction) => {
                 finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
             }
             
+            
             // 2. Lógica para YouTube (Cores Dinâmicas + Foto Real)
             else if (isFeedYoutube) {
                 // CORREÇÃO 1: Mudei '&background=ff0000' para '&background=random'

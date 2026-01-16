@@ -1219,178 +1219,107 @@ const NewsCard = React.memo(({
 });
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
-function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onCategoryChange, viewedInStoryId, onReadArticle, onGenerateAudio, getChatApiKey, apiKey }) {
+// --- TAB: FEED (VERSÃO FINAL, LIMPA E OTIMIZADA) ---
+function FeedTab({ 
+  isDarkMode, 
+  selectedArticleId, 
+  savedItems, 
+  onToggleSave, 
+  readHistory, 
+  newsData, 
+  isLoading, 
+  sourceFilter, 
+  setSourceFilter, 
+  likedItems, 
+  onToggleLike, 
+  onRefresh, 
+  onReadArticle, 
+  onGenerateAudio,
+  openArticle // Esta é a função que abre o painel de IA
+}) {
   
-  // ==========================================================
-  // 1. ESTADOS (STATES)
-  // ==========================================================
+  // Estados e lógica pertencentes APENAS ao feed
   const [category, setCategory] = useState('Tudo');
   const [stableData, setStableData] = useState([]);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [startY, setStartY] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // Estados do Player de Áudio Local
   const [localPlayingAudio, setLocalPlayingAudio] = useState(null); 
   const [audioUrl, setAudioUrl] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   
-  // ==========================================================
-  // 2. REFERÊNCIAS (REFs)
-  // ==========================================================
   const feedContainerRef = useRef(null);
   const audioRef = useRef(null);
-  const prevCategory = useRef(category); // <<<<<< ADICIONE ESTE REF
+  const prevCategory = useRef(category);
 
   useEffect(() => {
-    // Só rola para o topo SE a categoria mudou
     if (feedContainerRef.current && prevCategory.current !== category) {
       feedContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    // Sempre atualiza a "memória" da categoria para a próxima renderização
     prevCategory.current = category;
-  }, [category]); // Depende APENAS de 'category'
+  }, [category]);
+
+  useEffect(() => { setSourceFilter('all'); }, [category]);
 
   useEffect(() => {
-      setSourceFilter('all');
-  }, [category, setSourceFilter]);
-
-  useEffect(() => {
-    if (newsData && newsData.length > 0 && !hasLoaded) {
+    if (newsData && newsData.length > 0) {
         setStableData(newsData);
-        setHasLoaded(true);
+        if (!hasLoaded) setHasLoaded(true);
+    } else {
+        setStableData([]);
     }
-  }, [newsData, hasLoaded]);
+  }, [newsData]);
 
-  useEffect(() => {
-      if (stableData.length === 0 && newsData && newsData.length > 0) {
-          setStableData(newsData);
-      }
-  }, [newsData, stableData.length]);
-
-  // Efeito que TOCA o áudio
   useEffect(() => {
     if (audioUrl && audioRef.current) {
         audioRef.current.src = audioUrl;
         audioRef.current.play().catch(e => console.error("Erro ao tocar áudio:", e));
     } else if (audioRef.current) {
-        // Pausa e limpa se a URL for removida
         audioRef.current.pause();
         audioRef.current.src = '';
     }
   }, [audioUrl]);
 
-  // ==========================================================
-  // 4. CÁLCULOS MEMORIZADOS (useMemo)
-  // ==========================================================
-  const safeNews = useMemo(() => (stableData && stableData.length > 0) ? stableData : [], [stableData]);
-
+  const safeNews = useMemo(() => stableData || [], [stableData]);
   const filteredByCategory = useMemo(() => category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category), [safeNews, category]);
-  
   const filteredBySource = useMemo(() => sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter), [filteredByCategory, sourceFilter]);
-
-  const sortedFeed = useMemo(() => {
-      return [...filteredBySource].sort((a, b) => {
-          const tA = new Date(a.rawDate).getTime() || 0;
-          const tB = new Date(b.rawDate).getTime() || 0;
-          return tB - tA;
-      });
-  }, [filteredBySource]);
-
+  const sortedFeed = useMemo(() => [...filteredBySource].sort((a, b) => (new Date(b.rawDate).getTime() || 0) - (new Date(a.rawDate).getTime() || 0)), [filteredBySource]);
   const uniqueNews = useMemo(() => {
       const seen = new Set();
-      const filtered = sortedFeed.filter(item => {
+      return sortedFeed.filter(item => {
           if (seen.has(item.id)) return false;
           seen.add(item.id);
           return true;
-      });
-      return filtered.slice(0, 50); 
+      }).slice(0, 50); 
   }, [sortedFeed]);
 
-  // ==========================================================
-  // 5. FUNÇÕES DE AÇÃO (HANDLERS)
-  // ==========================================================
-  const handleTouchStart = (e) => {
-    if (window.scrollY <= 5 && !isRefreshing) {
-        setStartY(e.touches[0].clientY);
-    }
-  };
-
+  const handleTouchStart = (e) => { if (feedContainerRef.current?.scrollTop <= 5 && !isRefreshing) setStartY(e.touches[0].clientY); };
   const handleTouchMove = (e) => {
-    if (startY === 0 || isRefreshing) return;
-    if (window.scrollY > 5) {
-        setPullDistance(0);
-        return;
-    }
-    const currentY = e.touches[0].clientY;
-    const diff = currentY - startY;
+    if (startY === 0 || isRefreshing || (feedContainerRef.current && feedContainerRef.current.scrollTop > 5)) return;
+    const diff = e.touches[0].clientY - startY;
     if (diff > 0) {
-        if (e.cancelable) e.preventDefault(); 
-        const newPull = Math.min(diff * 0.45, 140); 
-        setPullDistance(newPull);
+      if (e.cancelable) e.preventDefault();
+      setPullDistance(Math.min(diff * 0.45, 140));
     }
   };
-
   const handleTouchEnd = async () => {
-    if (pullDistance === 0) {
-        setStartY(0);
-        return;
-    }
     if (pullDistance > 70) {
-        setIsRefreshing(true);
-        setPullDistance(70); 
-        if (onRefresh) await onRefresh();
-        await new Promise(resolve => setTimeout(resolve, 500)); 
-        if (newsData && newsData.length > 0) {
-            setStableData(newsData);
-        }
-        setIsRefreshing(false);
+      setIsRefreshing(true);
+      if (onRefresh) await onRefresh();
+      setIsRefreshing(false);
     }
-    setPullDistance(0);
-    setStartY(0);
+    setPullDistance(0); setStartY(0);
   };
-
-const handleLocalPlay = useCallback(async (article) => {
-    // 1. CORREÇÃO ANTI-CRASH: Se receber null, simplesmente para tudo.
-    if (!article) {
-        setLocalPlayingAudio(null);
-        setAudioUrl('');
-        return;
-    }
-    
-    // 2. CORREÇÃO DE PAUSA: Se clicar no mesmo que já toca, para
-    if (localPlayingAudio?.id === article.id) {
-        setLocalPlayingAudio(null);
-        setAudioUrl(''); // Limpa a URL para o useEffect pausar
-        return;
-    }
-    
-    // Lógica normal de play
-    setLocalPlayingAudio(article);
-    setIsGenerating(true);
-    setAudioUrl('');
-    
-    const url = await onGenerateAudio(article); 
-
-    if (url) {
-        setIsGenerating(false);
-        setAudioUrl(url);
-    } else {
-        setLocalPlayingAudio(null);
-        setIsGenerating(false);
-    }
+  const handleLocalPlay = useCallback(async (article) => {
+    if (!article || localPlayingAudio?.id === article.id) { setLocalPlayingAudio(null); setAudioUrl(''); return; }
+    setLocalPlayingAudio(article); setIsGenerating(true); setAudioUrl('');
+    const url = await onGenerateAudio(article);
+    if (url) { setIsGenerating(false); setAudioUrl(url); } 
+    else { setLocalPlayingAudio(null); setIsGenerating(false); }
   }, [localPlayingAudio, onGenerateAudio]);
 
-
-  const handleAnalyze = useCallback((article) => {
-      openArticle(article); 
-  }, [openArticle]);
-
-  // ==========================================================
-  // 6. LÓGICA DE RENDERIZAÇÃO
-  // ==========================================================
-  if (isLoading && (!stableData || stableData.length === 0)) {
+  if (isLoading && stableData.length === 0) {
      return (
        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
           <Loader2 size={40} className="animate-spin text-purple-500" />
@@ -1402,86 +1331,39 @@ const handleLocalPlay = useCallback(async (article) => {
   return (
     <div 
       ref={feedContainerRef} 
-      className="space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 pt-2 min-h-screen overscroll-y-none touch-pan-y"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      className="space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 pt-2 min-h-screen overscroll-y-none touch-pan-y custom-scrollbar"
+      onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
     >
-      {/* Player de áudio invisível, controlado pelo estado local */}
       <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
       
-      {/* CABEÇALHO */}
-      <div className="sticky top-0 z-[1000] w-full flex justify-center py-2 pointer-events-none">
-          <div className="pointer-events-auto">
-            <SourceSelector 
-                news={filteredByCategory} 
-                selectedSource={sourceFilter} 
-                onSelect={setSourceFilter} 
-                isDarkMode={isDarkMode} 
-            />          
-          </div>
-         <SlidingPillFilter 
-            categories={FEED_CATEGORIES} 
-            active={category} 
-            onChange={setCategory} 
-            isDarkMode={isDarkMode} 
-         />
+      <div className="sticky top-0 z-40 w-full flex justify-center py-2 pointer-events-none">
+          <div className="pointer-events-auto"><SourceSelector news={filteredByCategory} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} /></div>
+          <SlidingPillFilter categories={FEED_CATEGORIES} active={category} onChange={setCategory} isDarkMode={isDarkMode} />
       </div>
 
-      {/* LOADING PULL TO REFRESH */}
-      <div 
-        style={{ height: `${pullDistance}px`, opacity: Math.min(pullDistance / 40, 1), transition: isRefreshing ? 'height 0.3s ease' : 'height 0s' }} 
-        className="flex items-end justify-center overflow-hidden w-full will-change-transform"
-      >
-         <div className={`mb-4 flex items-center gap-3 px-5 py-2 rounded-full shadow-lg border transition-all transform duration-200 ${isDarkMode ? 'bg-zinc-800 border-purple-500/30 text-white' : 'bg-white border-purple-200 text-zinc-800'} ${pullDistance > 70 ? 'scale-110' : 'scale-100'}`}>
-            {isRefreshing ? (
-                <><Loader2 size={20} className="animate-spin text-purple-500" /><span className="text-xs font-bold text-purple-500 animate-pulse">Atualizando...</span></>
-            ) : (
-                <><div style={{ transform: `rotate(${pullDistance * 3}deg)` }} className="..."><RefreshCw size={16} /></div><span className={`...`}>{pullDistance > 70 ? 'Solte para atualizar' : 'Puxe para atualizar'}</span></>
-            )}
+      <div style={{ height: `${pullDistance}px`, opacity: Math.min(pullDistance / 40, 1) }} className="flex items-end justify-center overflow-hidden w-full">
+         <div className={`mb-4 flex items-center gap-3 px-5 py-2 rounded-full shadow-lg border ${isDarkMode ? 'bg-zinc-800 border-purple-500/30' : 'bg-white border-purple-200'}`}>
+            {isRefreshing ? <><Loader2 size={16} className="animate-spin text-purple-500" /> <span className="text-xs font-bold text-purple-500">Atualizando...</span></> : <><RefreshCw size={16} style={{ transform: `rotate(${pullDistance * 3}deg)` }} /> <span className="text-xs">{pullDistance > 70 ? 'Solte para atualizar' : 'Puxe para atualizar'}</span></>}
          </div>
       </div>
       
-     {/* LISTA DE CARDS */}
-      <div className="flex flex-col gap-4">
-        
-        {isLoading && stableData.length === 0 && (
-            <>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <NewsCardSkeleton key={i} isDarkMode={isDarkMode} />
-              ))}
-            </>
-        )}
-
-        {!isLoading && uniqueNews.length === 0 && stableData.length > 0 && (
-           <div className="text-center py-10 opacity-50">
-             <p>Nenhuma notícia encontrada nesta categoria.</p>
-           </div>
-        )}
-        
+      <div className="flex flex-col gap-4 px-4">
+        {uniqueNews.length === 0 && !isLoading && <div className="text-center py-10 opacity-50"><p>Nenhuma notícia encontrada.</p></div>}
         {uniqueNews.map((news) => (
             <NewsCard 
-              key={news.id}
-              news={news}
-              isSelected={selectedArticleId === news.id}
+              key={news.id} news={news} isSelected={selectedArticleId === news.id}
               playingAudio={isGenerating ? {id: localPlayingAudio?.id, isGenerating: true} : localPlayingAudio}
-              onPlay={handleLocalPlay} 
-              isRead={readHistory?.includes(news.id)}
+              onPlay={handleLocalPlay} isRead={readHistory?.includes(news.id)}
               isSaved={savedItems?.some((item) => item.id === news.id)}
-              isDarkMode={isDarkMode}
-              onClick={onReadArticle}
-              onAnalyze={handleAnalyze}
-              onToggleSave={onToggleSave}
-              isLiked={likedItems?.includes(news.id)}
+              isDarkMode={isDarkMode} onClick={onReadArticle} onAnalyze={openArticle}
+              onToggleSave={onToggleSave} isLiked={likedItems?.includes(news.id)}
               onToggleLike={onToggleLike}
-              isViewedFromStory={viewedInStoryId}
             />
         ))}
       </div>
     </div>
   );
 }
-
 // --- OUTROS COMPONENTES E FILTROS ---
 
 function YouTubeVerticalFilter({ categories, active, onChange, isDarkMode }) {
