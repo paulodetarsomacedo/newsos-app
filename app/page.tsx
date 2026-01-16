@@ -3497,7 +3497,7 @@ const generateHeuristicClusters = (news) => {
     const IMAGE_PREFERRED_SOURCES = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT', 'Fox News', '180graus']);
     
     // 3. FONTES BLOQUEADAS PARA IMAGEM: Fontes que NUNCA devem ser usadas para imagem de capa.
-    const IMAGE_BLOCKED_SOURCES = new Set(['Istoé Dinheiro', 'UOL Economia', 'UOL', 'Folha de S.Paulo', 'Investing', 'Estadão', 'E-Investidor', 'UOL Notícias', 'Money Times']);
+    const IMAGE_BLOCKED_SOURCES = new Set(['Istoé', 'UOL Economia', 'UOL', 'Folha de S.Paulo', 'Investing', 'Estadão', 'E-Investidor', 'UOL Notícias', 'Money Times']);
 
     const SIMILARITY_THRESHOLD = 0.58;
     const CLUSTER_LIMIT = 5;
