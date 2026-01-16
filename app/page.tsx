@@ -1040,8 +1040,10 @@ const NewsCard = React.memo(({
   onToggleSave, 
   onToggleLike, 
   onPlay, 
+  isViewedFromStory, 
   playingAudio 
 }) => {
+  // Formatação de data segura
   const displayTime = news.rawDate 
     ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
     : '...';
@@ -1050,6 +1052,7 @@ const NewsCard = React.memo(({
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
 
+  // --- SUB-COMPONENT: InlinePlayer ---
   const InlinePlayer = () => (
     <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
         <div className="p-4 flex items-center gap-4">
@@ -1092,7 +1095,11 @@ const NewsCard = React.memo(({
       `}
     >
       
-      {/* EFEITOS DE AURA */}
+      {/* 
+          ================================================================
+          EFEITOS DE AURA (GEMINI STYLE)
+          ================================================================
+      */}
       {isSelected && (
         <>
             <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-60 blur-xl animate-pulse transition-all duration-500" />
@@ -1100,40 +1107,47 @@ const NewsCard = React.memo(({
         </>
       )}
 
-      {/* CONTAINER PRINCIPAL */}
+      {/* 
+         CONTAINER PRINCIPAL
+      */}
       <div className={`
         relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem]
         ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'}
         ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}
       `}>
       
-          {/* 
-            ================================================================
-            1. ÁREA DE IMAGEM
-            ================================================================
-          */}
-          <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
+          {/* 1. ÁREA DE IMAGEM */}
+          <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800">
             
-            {/* 
-              NOVA LÓGICA:
-              - A imagem agora é absoluta dentro do container.
-              - Ela é maior que o container (h-[calc(100%+1.5rem)]) e posicionada 
-                para baixo (-bottom-6) para cobrir o fundo cinza.
-            */}
+            {/* Componente de Imagem Inteligente */}
+            {/* Nota: SmartImage deve ser importado ou definido no seu projeto */}
             <img 
                 src={news.img} 
                 alt={news.title}
-                className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6"
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
             
-            {/* Gradiente Inferior para legibilidade do Título */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            {/* Gradiente Inferior para legibilidade do Título (Dark Overlay) */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-90" />
 
-            {/* Gradiente Superior Branco */}
-            <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
+            {/* 
+                ================================================================
+                REQ 1: CABEÇALHO BRANCO COM FADE
+                Sobreposto à imagem, no topo, para dar fundo ao logo/texto
+                ================================================================
+            */}
+            <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-white via-white/90 to-transparent opacity-95 mix-blend-normal pointer-events-none" />
 
-            {/* CABEÇALHO "LIQUID" */}
-            <div className="absolute top-6 left-5 flex items-center z-20">
+            {/* 
+                ================================================================
+                REQ 2 & 3: CABEÇALHO "LIQUID" (Logo + Fonte)
+                ================================================================
+            */}
+            <div className="absolute top-5 left-5 flex items-center z-20">
+                {/* 
+                    O LOGO (Quadrado arredondado)
+                    Z-Index maior para ficar "por cima" do container de texto
+                */}
                 <div className="relative z-20 shrink-0 shadow-lg">
                     <img 
                         src={news.logo} 
@@ -1142,23 +1156,40 @@ const NewsCard = React.memo(({
                         alt={news.source}
                     />
                 </div>
-                <div className="-ml-5 pl-7 pr-4 py-2 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
-                    <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none">
+
+                {/* 
+                    O NOME DA FONTE (Efeito Liquid)
+                    - Margem negativa ( -ml-5 ) para entrar embaixo do logo
+                    - Padding left grande ( pl-7 ) para empurrar o texto para fora da área do logo
+                    - Altura menor que o logo ( h-10 vs h-14 )
+                    - Rounded-r-full para a ponta direita arredondada
+                */}
+                <div className="-ml-5 pl-7 pr-4 h-10 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
+                    <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none mt-0.5">
                         {news.source}
                     </span>
                 </div>
-                <div className="ml-2 px-4 py-2 flex items-center bg-white rounded-full shadow-md border border-zinc-100">
-                    <span className="text-xs font-bold text-zinc-600">{displayTime}</span>
+
+                {/* Badge de Tempo (Separado, estilo pílula escura) */}
+                <div className="ml-2 bg-black/60 backdrop-blur-md py-1.5 px-3 rounded-full border border-white/10 shadow-sm">
+                    <span className="text-[11px] font-bold text-white">{displayTime}</span>
                 </div>
             </div>
 
-            {/* BOTÕES DE AÇÃO */}
+            {/* 
+                ================================================================
+                REQ 4: INDICADOR DE LIDO + BOTÕES DE AÇÃO
+                ================================================================
+            */}
             <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-3">
+                {/* Indicador de Lido */}
                 {isRead && (
                     <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
                         Lida
                     </div>
                 )}
+
+                {/* Botões de Ação */}
                 <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/20 backdrop-blur-md border border-white/10 shadow-lg">
                     <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/90 hover:text-white'}`}>
                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
@@ -1176,33 +1207,30 @@ const NewsCard = React.memo(({
 
           </div>
           
-          {/* PÍLULA FLUTUANTE DE AÇÃO */}
+          {/* 
+             PÍLULA FLUTUANTE DE AÇÃO (CENTRAL)
+          */}
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-            <div className="flex items-center shadow-2xl rounded-full px-0.5 bg-white/80 backdrop-blur border border-white/20">
+            <div className="flex items-center shadow-2xl rounded-full p-1.5 bg-black/20 backdrop-blur-xl border border-white/20">
                 <button 
                   onClick={(e) => { e.stopPropagation(); onClick(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-violet-600 bg-transparent hover:bg-white/10 transition-colors"
+                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-transparent hover:bg-white/10 transition-colors"
                 >
                   Ler
                 </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[15px] font-black tracking-widest text-white bg-purple-800 hover:brightness-110 transition-all shadow-lg shadow-neutral-100/30 border border-white/10"
+                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-violet-600 to-purple-500 hover:brightness-110 transition-all shadow-lg shadow-purple-500/30 border border-white/10"
                 >
                   <Sparkles size={16} className="mr-2 inline text-pink-300 animate-pulse" /> Analisar
                 </button>
             </div>
           </div>
           
-          {/* 
-            ================================================================
-            2. ÁREA DE TEXTO
-            MELHORIA: Padding vertical ainda mais reduzido para diminuir a altura.
-            ================================================================
-          */}
-          <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
+          {/* ÁREA DE TEXTO (Título e Sumário) */}
+          <div className="relative px-6 pt-12 pb-6 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
-                 <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                 <h3 className={`text-xl font-black leading-tight mb-3 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
                  </h3>
                  <p className={`text-sm font-medium leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} line-clamp-2`}>
@@ -1414,73 +1442,55 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
 
   const handleResizeUp = useCallback(() => {
     isResizing.current = false;
-    
-    // Devolve o comportamento normal ao navegador
+    setIsResizingState(false); // Reativa os efeitos visuais pesados
+
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
     document.body.style.touchAction = '';
-
-    // "Descongela" a FeedTab, trazendo-a de volta ao normal suavemente
-    if (mainRef.current) {
-        mainRef.current.style.pointerEvents = '';
-        mainRef.current.style.userSelect = '';
-        mainRef.current.style.opacity = '1';
-    }
-
+    
     if (panelDivRef.current) {
-        // Reativa a transição suave do CSS para o fechamento
-        panelDivRef.current.style.transition = 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
-        
-        // AGORA SIM: Atualiza o estado do React uma única vez com a largura final
+        panelDivRef.current.style.transition = 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
         const finalWidth = parseInt(panelDivRef.current.style.width, 10);
         setPanelWidth(finalWidth);
     }
 
     if (rafId.current) cancelAnimationFrame(rafId.current);
 
-    // Remove os 'escutadores' de evento globais
     window.removeEventListener('mousemove', handleResizeMove);
     window.removeEventListener('mouseup', handleResizeUp);
     window.removeEventListener('touchmove', handleResizeMove);
     window.removeEventListener('touchend', handleResizeUp);
-  }, [handleResizeMove]); // A dependência garante que a versão mais recente da função seja usada
+  }, [handleResizeMove]);
 
-  // 4. Função de INÍCIO (clicar e segurar no puxador, "congela" o fundo)
   const handleResizeStart = (e) => {
     if (e.type === 'mousedown' && e.button !== 0) return;
     
+    // Impede propagação para não selecionar texto ou clicar no que está embaixo
     e.preventDefault(); 
     e.stopPropagation();
 
     isResizing.current = true;
+    setIsResizingState(true); // Desativa efeitos pesados no ArticlePanel
+
     resizeStartX.current = e.touches ? e.touches[0].clientX : e.clientX;
-    initialWidth.current = panelDivRef.current.offsetWidth;
+    initialWidth.current = panelWidth; // Pega do state ou do ref, mas o state é a fonte de verdade inicial
     
-    // DESLIGA a transição do CSS temporariamente para o arraste ser instantâneo
+    // Se o painel já tiver sido renderizado, pega a largura atual computada para precisão
     if (panelDivRef.current) {
+        initialWidth.current = panelDivRef.current.getBoundingClientRect().width;
+        // Remove transição para resposta instantânea ao dedo/mouse
         panelDivRef.current.style.transition = 'none';
     }
     
-    // "Congela" a FeedTab para a GPU: desativa interações e a deixa semi-transparente
-    if (mainRef.current) {
-        mainRef.current.style.pointerEvents = 'none';
-        mainRef.current.style.userSelect = 'none';
-        mainRef.current.style.transition = 'opacity 0.3s ease'; // Transição suave para o "congelamento"
-        mainRef.current.style.opacity = '0.7';
-    }
-    
-    // Trava a seleção de texto e o scroll da página durante o arraste
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'ew-resize';
-    document.body.style.touchAction = 'none'; // Crítico para iPad
+    document.body.style.touchAction = 'none'; // CRÍTICO PARA IPAD
     
-    // Adiciona os 'escutadores' de evento na janela inteira
     window.addEventListener('mousemove', handleResizeMove, { passive: false });
     window.addEventListener('mouseup', handleResizeUp);
     window.addEventListener('touchmove', handleResizeMove, { passive: false });
     window.addEventListener('touchend', handleResizeUp);
   };
-
 
   // ==========================================================
   // 7. RENDERIZAÇÃO
@@ -1626,7 +1636,7 @@ function FeedTab({ openArticle, isDarkMode, selectedArticleId, savedItems, onTog
                                 isDarkMode={isDarkMode}
                                 apiKey={apiKey}
                                 getChatApiKey={getChatApiKey}
-                                isResizing={isResizing.current}
+                                isResizing={isResizingState} // << PROPRIEDADE CRÍTICA DE PERFORMANCE
                             />
                         );
                     })()}
@@ -4184,7 +4194,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
 // ✅ Termômetro agora é horizontal (0–10)
 // ✅ Cards menores, agrupados horizontalmente por faixas de temperatura (colunas)
 // ✅ Texto legível: dark = branco, light = preto/cinza escuro
-const TrendRadar = ({ newsData, getApiKey, isDarkMode }) => {
+const TrendRadar = ({ newsData, apiKey, isDarkMode }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
@@ -4215,48 +4225,28 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode }) => {
     return { color: '#3b82f6', heightPercent: 30 };
   };
 
-
-
-const runTrendAnalysis = async () => {
-    // Pega uma chave do pool de widgets
-    const currentApiKey = getApiKey('widgets');
-    
-    if (!currentApiKey || !newsData || !newsData.length === 0) {
-      alert("Aguarde o carregamento das notícias ou configure as chaves de IA do Pool 1.");
+  const runTrendAnalysis = async () => {
+    if (!apiKey || !newsData || newsData.length === 0) {
+      alert("Aguarde o carregamento das notícias ou configure a API Key.");
       return;
     }
     setLoading(true);
     setActiveIndex(null);
     await new Promise((r) => setTimeout(r, 800));
 
-    // Passa a chave para a função de IA
-    const data = await generateTrendRadar(newsData, currentApiKey); 
+    // ✅ NÃO ALTERADO: chama sua IA como está
+    const data = await generateTrendRadar(newsData, apiKey);
 
-    // ==========================================================
-    // === INÍCIO DA CORREÇÃO: Lógica preenchida ===
-    // ==========================================================
     if (data && Array.isArray(data) && data.length > 0) {
-      // 1. Ordena os dados recebidos pelo score
       const sortedData = data.sort((a, b) => b.score - a.score);
-      
-      // 2. Atualiza o estado 'trends' com os novos dados
       setTrends(sortedData);
-      
-      // 3. Avisa o componente que ele já tem dados reais para mostrar
       setHasGenerated(true);
-      
-      // 4. Salva os dados no cache do navegador para a próxima vez que o app abrir
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedData));
     } else {
-      // Se a IA não retornar dados, avisa o usuário
-      alert("A IA não identificou tendências claras no momento. Tente novamente mais tarde.");
+      alert("A IA não identificou tendências claras agora.");
     }
-    // ==========================================================
-    // === FIM DA CORREÇÃO ===
-    // ==========================================================
-    
     setLoading(false);
-};
+  };
 
   const handleToggle = (idx) => {
     setActiveIndex(activeIndex === idx ? null : idx);
@@ -4507,58 +4497,52 @@ const runTrendAnalysis = async () => {
                 </div>
               </div>
 
-              {/* ========================================================== */}
-              {/* === ÁREA DO BALÃO CORRIGIDA (COM ALTURA DINÂMICA) === */}
-              {/* ========================================================== */}
-              <div className={`
-                grid transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
-                ${activeItem ? 'grid-rows-[1fr] mt-8' : 'grid-rows-[0fr] mt-0'}
-              `}>
-                <div className="overflow-hidden min-h-0">
-                  <AnimatePresence>
-                    {activeItem && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.3 }}
-                        // A altura agora é definida aqui dentro
-                        className="h-36"
+              {/* 2) BALÃO DE DETALHES (MANTIDO) */}
+              <div className="relative mt-8 h-36">
+                <AnimatePresence>
+                  {activeItem && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                      className="absolute inset-0"
+                    >
+                      <div
+                        className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${
+                          isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
+                        }`}
+                        style={{
+                          border: `2px solid ${getTrendStyle(activeItem.score).color}`,
+                          boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
+                        }}
                       >
-                        <div
-                          className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${
-                            isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
-                          }`}
-                          style={{
-                            border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-                            boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
-                          }}
-                        >
-                          <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
-                            <span
-                              className="text-[10px] font-black uppercase tracking-widest"
-                              style={{ color: getTrendStyle(activeItem.score).color }}
-                            >
-                              Impacto: {activeItem.score}/10
-                            </span>
-                            <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
-                              <div
-                                className="h-full rounded-full"
-                                style={{
-                                  width: `${activeItem.score * 10}%`,
-                                  backgroundColor: getTrendStyle(activeItem.score).color,
-                                }}
-                              />
-                            </div>
+                        <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
+                          <span
+                            className="text-[10px] font-black uppercase tracking-widest"
+                            style={{ color: getTrendStyle(activeItem.score).color }}
+                          >
+                            Impacto: {activeItem.score}/10
+                          </span>
+
+                          <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${activeItem.score * 10}%`,
+                                backgroundColor: getTrendStyle(activeItem.score).color,
+                              }}
+                            />
                           </div>
-                          <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                            {activeItem.summary}
-                          </p>
                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+
+                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                          {activeItem.summary}
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           ) : (
@@ -8029,7 +8013,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
             Aja como um Analista de Inteligência Sênior... (SEU PROMPT ORIGINAL) ...
             TEXTO: ${fullText.slice(0, 25000)}`;
           
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
               method: "POST", 
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
@@ -8074,14 +8058,8 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const heavyEffectsClass = isResizing ? '!backdrop-blur-none !bg-zinc-900 !shadow-none' : 'backdrop-blur-md';
 
 return (
-<div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'} border-l-2 transition-colors duration-300
-    ${isResizing 
-        // Se estiver redimensionando, usa um fundo sólido e mais opaco
-        ? (isDarkMode ? 'bg-zinc-950/95' : 'bg-white/95')
-        // Se não, usa o fundo com o efeito de desfoque pesado
-        : (isDarkMode ? 'bg-zinc-950/90 backdrop-blur-3xl' : 'bg-white/80 backdrop-blur-3xl')
-    }
-  `}>    
+  <div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'bg-zinc-950' : 'bg-white'} border-l-2 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'} ${resizeOptimizationClass}`}>
+    
     <style jsx="true">{`
         @keyframes spin-slow { to { transform: rotate(360deg); } }
         .animate-spin-slow { animation: spin-slow 20s linear infinite; }
