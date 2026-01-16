@@ -3862,7 +3862,7 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // ✅ Termômetro agora é horizontal (0–10)
 // ✅ Cards menores, agrupados horizontalmente por faixas de temperatura (colunas)
 // ✅ Texto legível: dark = branco, light = preto/cinza escuro
-const TrendRadar = ({ newsData, getApiKey, isDarkMode }) => {
+const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
@@ -4124,8 +4124,11 @@ const runTrendAnalysis = async () => {
                                 <button
                                   key={item.__originalIndex}
                                   onClick={() => handleToggle(item.__originalIndex)}
-                                  className="w-full text-left transition-transform active:scale-[0.99]"
-                                  style={{ outline: 'none' }}
+                                  className="w-full text-left transition-transform active:scale-[0.99] animate-in fade-in" // Adicione 'animate-in fade-in'
+  // ===================================
+  // === ADICIONE O ESTILO ABAIXO ===
+  // ===================================
+  style={{ animationDelay: `${item.__originalIndex * 50}ms` }}
                                 >
                                   <div
                                     className="rounded-xl px-3 py-2"
@@ -4224,11 +4227,31 @@ const runTrendAnalysis = async () => {
             }}
           >
             {/* --- CABEÇALHO DO BALÃO (Mantido) --- */}
-            <div className="border-b border-dashed border-zinc-700/50 pb-2">
-              <span className="text-[10px] ...">
-                Impacto: {activeItem.score}/10
-              </span>
-            </div>
+            <div className="border-b border-dashed border-zinc-700/50 pb-2 mb-2">
+    {/* O CÓDIGO ANTIGO TINHA UM <span> AQUI. VAMOS SUBSTITUIR. */}
+
+    {/* ========================================================== */}
+    {/* === NOVO: BARRA DE TEMPERATURA E TEXTO ALINHADOS === */}
+    {/* ========================================================== */}
+    <div className="flex items-center justify-between">
+        <span
+            className="text-[10px] font-black uppercase tracking-widest"
+            style={{ color: getTrendStyle(activeItem.score).color }}
+        >
+            NÍVEL DE IMPACTO
+        </span>
+        <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
+            <div
+                className="h-full rounded-full"
+                style={{
+                    width: `${activeItem.score * 10}%`,
+                    backgroundColor: getTrendStyle(activeItem.score).color,
+                    transition: 'width 0.5s ease-out'
+                }}
+            />
+        </div>
+    </div>
+</div>
 
             {/* --- RESUMO (Mantido) --- */}
             <p className={`text-sm leading-relaxed ...`}>
@@ -4244,16 +4267,19 @@ const runTrendAnalysis = async () => {
                   Fontes Analisadas
                 </h4>
                 <div className="flex flex-wrap gap-2">
-                  {activeItem.related_articles.slice(0, 5).map(article => ( // Limita a 5 logos
-                    <button
-                      key={article.id}
-                      onClick={() => alert(`Abrir artigo: ${article.title}`)} // AQUI você chama sua função de abrir artigo
-                      className="transition-transform hover:scale-110"
-                      title={article.title}
-                    >
-                      <img src={article.logo} className="w-6 h-6 rounded-full border border-black/10" />
-                    </button>
-                  ))}
+                  {activeItem.related_articles.slice(0, 5).map(article => (
+        <button
+          key={article.id}
+          // ============================================
+          // === AQUI ESTÁ A MUDANÇA NO ONCLICK ===
+          // ============================================
+          onClick={() => openArticle(article)} 
+          className="transition-transform hover:scale-110"
+          title={article.title}
+        >
+          <img src={article.logo} className="w-6 h-6 rounded-full border border-black/10" />
+        </button>
+      ))}
                 </div>
               </div>
             )}
@@ -4435,8 +4461,16 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
       
-      <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
-
+<TrendRadar 
+    newsData={newsData} 
+    getApiKey={getApiKey} 
+    isDarkMode={isDarkMode} 
+    refreshTrigger={refreshTrigger} 
+    // ===================================
+    // === ADICIONE ESTA LINHA ABAIXO ===
+    // ===================================
+    openArticle={openArticle} 
+/>
   {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA COM LAYOUT CORRIGIDO --- */}
       <div className="space-y-4">
         {/* TÍTULO PRINCIPAL DA SEÇÃO */}
