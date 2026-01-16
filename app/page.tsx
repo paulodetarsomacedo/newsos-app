@@ -2033,16 +2033,38 @@ const generateFullAnalysis = async (text, apiKey) => {
     const data = await response.json();
     if (!response.ok || data.error) return null;
 
-    const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text
-        .replace(/```json/g, '').replace(/```/g, '').trim();
+       const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
-    return JSON.parse(jsonString);
+    // ==========================================================
+    // === INÍCIO DA CORREÇÃO: Lógica de Limpeza do JSON ===
+    // ==========================================================
+    if (!jsonString) {
+        console.error("Erro Full Analysis: A IA não retornou nenhum texto.");
+        return null;
+    }
+    
+    // 1. Remove os blocos de código markdown (como já fazia)
+    let cleanedString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    // 2. Tenta remover vírgulas finais traiçoeiras antes de fechar chaves ou colchetes.
+    // Esta expressão regular busca por ",}" e substitui por "}" e busca por ",]" e substitui por "]".
+    cleanedString = cleanedString.replace(/,\s*([}\]])/g, "$1");
+
+    // 3. Tenta fazer o parse do JSON limpo.
+    return JSON.parse(cleanedString);
+    // ==========================================================
+    // === FIM DA CORREÇÃO ===
+    // ==========================================================
 
   } catch (error) {
+    // Agora o log de erro será mais útil, mostrando o JSON problemático
     console.error("Erro Full Analysis:", error);
+    // Se quiser ver o que a IA retornou de errado, adicione este log:
+    // console.log("JSON problemático recebido da IA:", jsonString);
     return null;
   }
 };
+
 
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODELO 2.5 FLASH) ---
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V3 - 4 CARDS + TEXTO FLUÍDO) ---
