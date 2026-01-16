@@ -3593,6 +3593,8 @@ const generateHeuristicClusters = (news) => {
     return finalClusters;
 };
 
+
+
 // --- COMPONENTES AUXILIARES (DEFINIDOS FORA DO WIDGET PRINCIPAL) ---
 
 const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
@@ -3608,7 +3610,13 @@ const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
                 if (isKeyword) {
                     return (
                         <button key={index} onClick={() => onKeywordClick(part)}
-                            className={`mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDarkMode ? 'bg-purple-500/30 hover:bg-purple-500/50 text-purple-300' : 'bg-purple-200/50 hover:bg-purple-200/90 text-purple-800'}`}>
+                            className={`
+                                mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300
+                                hover:scale-105 hover:shadow-lg
+                                ${isDarkMode 
+                                    ? 'bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300' 
+                                    : 'bg-yellow-200/60 hover:bg-yellow-200 text-yellow-800'}
+                            `}>
                             {part}
                         </button>
                     );
@@ -3628,7 +3636,7 @@ const KeywordFocusModal = ({ data, onClose, openArticle, isDarkMode }) => {
             <div className={`relative w-full max-w-md h-[70vh] flex flex-col rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white'}`}>
                 <div className={`p-4 border-b flex items-center justify-between shrink-0 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
                     <div className="flex items-center gap-2">
-                        <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'}`}><Search size={16} className="text-purple-500" /></div>
+                        <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-yellow-500/20' : 'bg-yellow-100'}`}><Search size={16} className="text-yellow-500" /></div>
                         <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Foco em: {keyword}</h3>
                     </div>
                     <button onClick={onClose} className={`p-2 rounded-full ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-zinc-100'}`}><X size={20}/></button>
@@ -3676,7 +3684,6 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
   );
 };
 
-
 // --- WIDGET PRINCIPAL ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
   const [loading, setLoading] = useState(false);
@@ -3688,8 +3695,10 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
     setFocusModalData(null);
   }, [activeIndex]);
 
-  const handleKeywordClick = (keyword, allArticles) => {
-    const related = allArticles.filter(article => article.title.toLowerCase().includes(keyword.toLowerCase()));
+  const handleKeywordClick = (keyword) => {
+    const related = news.filter(article => 
+        article.title.toLowerCase().includes(keyword.toLowerCase())
+    );
     setFocusModalData({ keyword, articles: related });
   };
 
@@ -3807,7 +3816,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
                     <HighlightedSummary 
                       text={cluster.ai_summary}
                       keywords={cluster.keyEntities}
-                      onKeywordClick={(keyword) => handleKeywordClick(keyword, cluster.related_articles)}
+                      onKeywordClick={handleKeywordClick}
                       isDarkMode={isDarkMode}
                     />
                   </div>
@@ -3835,7 +3844,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
       {displayClusters.length > 1 && (
         <div className="flex justify-center gap-2 mt-4 pb-4">
           {displayClusters.map((_, idx) => (
-            <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-6' : 'bg-zinc-400 dark:bg-zinc-700 w-1.5'}`} />
+            <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-6' : 'bg-zinc-400 dark:bg-zinc-700 w-1.e5'}`} />
           ))}
         </div>
       )}
@@ -3851,7 +3860,6 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
     </div>
   );
 };
-
 
 
 
