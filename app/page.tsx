@@ -5886,7 +5886,7 @@ const handleStoryNavigation = (direction) => {
   }, []);
 
   // 2. Função para Carregar Dados do Banco
-const loadUserData = async (userId) => {
+  const loadUserData = async (userId) => {
       setIsSyncing(true);
       const { data, error } = await supabase
           .from('user_preferences')
@@ -5905,7 +5905,6 @@ const loadUserData = async (userId) => {
                   const parsedFromDB = JSON.parse(data.api_key);
 
                   if (Array.isArray(parsedFromDB)) {
-                      // ESTRUTURA PADRÃO COMPLETA E ATUALIZADA
                       const defaultKeysStructure = [
                           { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
                           { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
@@ -5916,12 +5915,18 @@ const loadUserData = async (userId) => {
                           { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
                       ];
 
-                      // LÓGICA DE FUSÃO CORRIGIDA
+                      // ==========================================================
+                      // === A MUDANÇA CRÍTICA ESTÁ AQUI ===
+                      // ==========================================================
                       const mergedKeys = defaultKeysStructure.map(defaultKey => {
                           const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
-                          // A MÁGICA: Mescla os objetos, garantindo que 'type' e 'id' do padrão
-                          // sejam mantidos, enquanto 'value' é atualizado pelo banco (se existir).
-                          return { ...defaultKey, ...(keyFromDB || {}) };
+                          
+                          // LÓGICA DE FUSÃO SEGURA E EXPLÍCITA
+                          return {
+                              id: defaultKey.id,           // Usa o ID do padrão, sempre.
+                              type: defaultKey.type,         // Usa o TYPE do padrão, sempre.
+                              value: keyFromDB?.value || ''  // Pega o VALUE do banco, ou retorna '' se não existir.
+                          };
                       });
                       
                       setApiKeys(mergedKeys);
