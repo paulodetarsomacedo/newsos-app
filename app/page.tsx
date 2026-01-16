@@ -8474,25 +8474,25 @@ const handleKeyChange = (targetId, newValue) => {
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                      
-               {/* POOL 1: WIDGETS (Leve) - VERSÃO FINAL, SEM ACORDEÃO */}
-<div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-   <div className="flex items-center gap-2 mb-3">
-       <Activity size={14} className="text-blue-500"/>
-       <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
-   </div>
-   <div className="space-y-2">
-       {apiKeys.filter(k => k.type === 'free_widget').map((key) => (
-           <input 
-               key={key.id}
-               type="text" 
-               value={key.value} 
-               onChange={(e) => handleKeyChange(key.id, e.target.value)} 
-               placeholder={`Chave Gratuita #${key.id}`} 
-               className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-blue-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
-           />
-       ))}
-   </div>
-</div>
+   {/* POOL 1: WIDGETS (1-4) */}
+                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Activity size={14} className="text-blue-500"/>
+                            <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
+                        </div>
+                        <div className="space-y-2">
+                            {apiKeys.filter(k => k.id >= 1 && k.id <= 4).map((key) => (
+                                <input 
+                                    key={key.id}
+                                    type="text" 
+                                    value={key.value} 
+                                    onChange={(e) => handleKeyChange(key.id, e.target.value)} 
+                                    placeholder={`Chave Gratuita #${key.id}`} 
+                                    className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-blue-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+                                />
+                            ))}
+                        </div>
+                     </div>
 
                      {/* POOL 2: USINA DE IA (Pesado) */}
                      <div className={`p-4 rounded-xl border border-purple-500/30 ${isDarkMode ? 'bg-purple-900/10' : 'bg-purple-50'}`}>
