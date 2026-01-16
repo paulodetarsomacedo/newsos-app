@@ -5704,7 +5704,9 @@ const [apiKeys, setApiKeys] = useState([
 
   // --- ÍNDICES DE ROTAÇÃO (PERSISTENTES) ---
   // Usamos useRef para que o índice não resete a cada renderização
-  const widgetRotationIndex = useRef(0);
+  const widgetRotationIndex = useRef(
+  typeof window !== 'undefined' ? parseInt(localStorage.getItem('widgetRotationIndex') || '0', 10) : 0
+);
   // 1. Inicializa o ref lendo o valor salvo no localStorage. Se não houver, começa em 0.
 const heavyRotationIndex = useRef(
   typeof window !== 'undefined' ? parseInt(localStorage.getItem('heavyRotationIndex') || '0', 10) : 0
@@ -5726,6 +5728,20 @@ useEffect(() => {
     window.removeEventListener('beforeunload', saveIndex);
   };
 }, []); // Roda apenas uma vez, na montagem do componente.
+
+
+useEffect(() => {
+  const saveWidgetIndex = () => {
+    localStorage.setItem('widgetRotationIndex', widgetRotationIndex.current.toString());
+  };
+
+  window.addEventListener('beforeunload', saveWidgetIndex);
+
+  return () => {
+    saveWidgetIndex(); 
+    window.removeEventListener('beforeunload', saveWidgetIndex);
+  };
+}, []);
   const chatRotationIndex = useRef(0);
 
   // --- O DISTRIBUIDOR DE CHAVES (ROTAÇÃO SEQUENCIAL OTIMIZADA) ---
@@ -5737,6 +5753,7 @@ useEffect(() => {
         if (freeKeys.length === 0) return null; 
         const key = freeKeys[widgetRotationIndex.current % freeKeys.length];
         widgetRotationIndex.current += 1; 
+        console.log(`[Rotação Widgets] Usando chave ID: ${key.id}`);
         return key.value;
     }
 
@@ -7859,20 +7876,17 @@ return (
               <h1 className="text-2xl md:text-3xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
             </div>
             {viewMode !== 'chat' && (
-              <button 
-               
+   <button 
     onClick={() => {
-        // 1. Pega uma chave rotacionada da pool de chat
         const newKey = getChatApiKey(); 
-        // 2. Armazena essa chave no novo estado
         setCurrentChatApiKey(newKey);   
-        // 3. Abre a interface de chat
         setViewMode('chat');             
     }}
-    className="..."
+    // AS CLASSES DE ESTILO FORAM RESTAURADAS AQUI
+    className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
 >
-    <MessageCircle size={28} />
-    <span className="text-sm font-bold">Chat com a Notícia</span>
+    <MessageCircle size={26} />
+    <span className="text-sm font-bold">Chat</span>
 </button>
 
             )}
