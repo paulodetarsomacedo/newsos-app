@@ -3710,24 +3710,6 @@ const KeywordFocusModal = ({ data, onClose, openArticle, isDarkMode }) => {
     );
 };
 
-// --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
-const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
-  const [loading, setLoading] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const scrollRef = useRef(null);
-  const [focusModalData, setFocusModalData] = useState(null);
-
-  // Garante que o fallback heurístico tenha a mesma estrutura de dados que a IA
-  const heuristicClusters = useMemo(() => {
-    if (clusters && clusters.length > 0) return [];
-    const generated = generateHeuristicClusters(news);
-    // Adiciona o campo ai_summary para consistência de design
-    return generated.map(cluster => ({
-      ...cluster,
-      ai_summary: cluster.ai_summary || 'Clique em "Analisar" para obter um resumo detalhado gerado por IA sobre este tópico.'
-    }));
-  }, [news, clusters]);
-
 // ==========================================================
 // === NOVO COMPONENTE: HIGHLIGHTED SUMMARY ===
 // ==========================================================
@@ -3766,6 +3748,26 @@ const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
         </p>
     );
 };
+
+// --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
+const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
+  const [loading, setLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef(null);
+  const [focusModalData, setFocusModalData] = useState(null);
+
+  // Garante que o fallback heurístico tenha a mesma estrutura de dados que a IA
+  const heuristicClusters = useMemo(() => {
+    if (clusters && clusters.length > 0) return [];
+    const generated = generateHeuristicClusters(news);
+    // Adiciona o campo ai_summary para consistência de design
+    return generated.map(cluster => ({
+      ...cluster,
+      ai_summary: cluster.ai_summary || 'Clique em "Analisar" para obter um resumo detalhado gerado por IA sobre este tópico.'
+    }));
+  }, [news, clusters]);
+
+
 
 const runAI = async () => {
     // 1. CHAMA A FUNÇÃO PARA PEGAR UMA NOVA CHAVE NO MOMENTO DO CLIQUE
