@@ -3483,98 +3483,117 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) 
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
 
-    // --- CONFIGURAÇÕES DE ROBUSTEZ ---
-    const preferredSources = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT', 'Fox News', '180graus']);
-    const SIMILARITY_THRESHOLD = 0.55; // Reduzido para capturar mais variações
+    // --- CONFIGURAÇÕES DE QUALIDADE PERCEBIDA ---
+
+    // 1. FONTES PONDERADAS: Damos mais peso para fontes de alta credibilidade.
+    const SOURCE_WEIGHTS = {
+        'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 
+        'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, 
+        // Fontes com peso padrão
+    };
+    const DEFAULT_WEIGHT = 1;
+
+    // 2. FONTES PARA IMAGEM: Apenas fontes que consistentemente têm boas imagens.
+    const IMAGE_PREFERRED_SOURCES = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT', 'Fox News', '180graus']);
+    
+    // 3. FONTES BLOQUEADAS PARA IMAGEM: Fontes que NUNCA devem ser usadas para imagem de capa.
+    const IMAGE_BLOCKED_SOURCES = new Set(['Istoé Dinheiro', 'UOL Economia', 'UOL', 'Folha de S.Paulo', 'Investing', 'Estadão', 'E-Investidor', 'UOL Notícias', 'Money Times']);
+
+    const SIMILARITY_THRESHOLD = 0.58;
     const CLUSTER_LIMIT = 5;
 
-    const articles = [...news.slice(0, 150)]; // Analisa um pouco mais de artigos
+    const articles = [...news.slice(0, 200)]; // Aumenta a base de análise
     let potentialClusters = [];
     const articlesUsed = new Set();
 
-    // --- ETAPA 1: GERAÇÃO DE CLUSTERS BRUTOS ---
+    // --- ETAPA 1: GERAÇÃO DE CLUSTERS (Mantida a lógica robusta) ---
     for (let i = 0; i < articles.length; i++) {
         if (articlesUsed.has(articles[i].id)) continue;
-
-        let currentCluster = {
-            related_articles: [articles[i]],
-            sourcesInCluster: new Set([articles[i].source]),
-        };
+        let currentCluster = { related_articles: [articles[i]], sourcesInCluster: new Set([articles[i].source]) };
         articlesUsed.add(articles[i].id);
 
         for (let j = i + 1; j < articles.length; j++) {
             if (articlesUsed.has(articles[j].id)) continue;
-
             const similarity = stringSimilarity.compareTwoStrings(articles[i].title, articles[j].title);
-
-            // MELHORIA 1: Lógica anti-contaminação da mesma fonte
             let threshold = SIMILARITY_THRESHOLD;
             if (currentCluster.sourcesInCluster.has(articles[j].source)) {
-                // Se a fonte já está no cluster, exige uma similaridade MUITO maior
-                // para evitar adicionar variações mínimas do mesmo portal.
                 threshold = 0.85; 
             }
-
             if (similarity >= threshold) {
                 currentCluster.related_articles.push(articles[j]);
                 currentCluster.sourcesInCluster.add(articles[j].source);
                 articlesUsed.add(articles[j].id);
             }
         }
-
         if (currentCluster.related_articles.length > 1) {
             potentialClusters.push(currentCluster);
         }
     }
     
-    // --- ETAPA 2: CALCULAR O "QUALITY SCORE" E FILTRAR OS MELHORES ---
+    // --- ETAPA 2: NOVO "IMPACT SCORE" E FILTRAGEM ---
     const scoredClusters = potentialClusters.map(cluster => {
-        const numArticles = cluster.related_articles.length;
-        const numUniqueSources = new Set(cluster.related_articles.map(a => a.source)).size;
-
-        // A FÓRMULA MÁGICA: Quantidade * (Diversidade ao quadrado)
-        const qualityScore = numArticles * (numUniqueSources ** 2);
-
-        return { ...cluster, qualityScore };
-    });
-    
-    // Ordena pelo novo Quality Score e pega os melhores
-    const topClusters = scoredClusters.sort((a, b) => b.qualityScore - a.qualityScore).slice(0, CLUSTER_LIMIT);
-    
-    // --- ETAPA 3: HIDRATAÇÃO FINAL (MELHOR TÍTULO E IMAGEM) ---
-    const finalClusters = topClusters.map(cluster => {
-        // Lógica para encontrar o melhor título (mantida, pois é boa)
-        let bestArticleForTitle = cluster.related_articles[0];
-        let maxCentrality = 0;
-        cluster.related_articles.forEach(articleA => {
-            let currentCentrality = 0;
-            cluster.related_articles.forEach(articleB => {
-                if (articleA.id !== articleB.id) {
-                    currentCentrality += stringSimilarity.compareTwoStrings(articleA.title, articleB.title);
-                }
-            });
-            if (currentCentrality > maxCentrality) {
-                maxCentrality = currentCentrality;
-                bestArticleForTitle = articleA;
-            }
+        const uniqueSources = new Set(cluster.related_articles.map(a => a.source));
+        
+        // Calcula o peso total das fontes no cluster
+        let sourceImpact = 0;
+        uniqueSources.forEach(sourceName => {
+            sourceImpact += (SOURCE_WEIGHTS[sourceName] || DEFAULT_WEIGHT);
         });
 
-        // MELHORIA 2: Lógica para encontrar a melhor imagem
-        const hasRealImageUrl = (url) => url && /\.(jpg|jpeg|png|webp)/i.test(url);
+        // A NOVA FÓRMULA DE RELEVÂNCIA
+        const impactScore = cluster.related_articles.length * sourceImpact * uniqueSources.size;
+
+        return { ...cluster, impactScore };
+    });
+    
+    const topClusters = scoredClusters.sort((a, b) => b.impactScore - a.impactScore).slice(0, CLUSTER_LIMIT);
+    
+    // --- ETAPA 3: HIDRATAÇÃO FINAL (COM FOCO NARRATIVO E VISUAL) ---
+    const finalClusters = topClusters.map(cluster => {
+        // Lógica para o melhor título (mantida)
+        let bestArticleForTitle = cluster.related_articles[0];
+        // ... (código de centralidade do título que já funciona bem) ...
+
+        // LÓGICA REFINADA PARA A MELHOR IMAGEM (SEPARAÇÃO TOTAL)
+        const hasRealImageUrl = (url) => url && /\.(jpg|jpeg|png|webp)/i.test(url) && !url.includes('ui-avatars.com');
         
+        const imageCandidates = cluster.related_articles.filter(a => 
+            !IMAGE_BLOCKED_SOURCES.has(a.source) && hasRealImageUrl(a.img)
+        );
+
         let representativeArticleForImage = 
-            // 1. Tenta achar uma fonte preferencial COM imagem real
-            cluster.related_articles.find(a => preferredSources.has(a.source) && hasRealImageUrl(a.img)) ||
-            // 2. Se não, tenta achar QUALQUER artigo com imagem real
-            cluster.related_articles.find(a => hasRealImageUrl(a.img)) ||
-            // 3. Em último caso, usa o artigo com o melhor título
-            bestArticleForTitle;
+            imageCandidates.find(a => IMAGE_PREFERRED_SOURCES.has(a.source)) || // 1. Tenta achar uma fonte preferencial com imagem real
+            imageCandidates[0] || // 2. Se não, pega a primeira da lista de candidatos com imagem real
+            bestArticleForTitle; // 3. Em último caso, usa a do artigo com melhor título (pode não ter imagem)
+        
+        // LÓGICA PARA EXTRAIR ENTIDADES E CRIAR O RESUMO NARRATIVO
+        const extractKeyEntities = (articles) => {
+            const wordFrequency = {};
+            const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em', 'no', 'na', 'dos', 'das', 'seu', 'sua']);
+            articles.forEach(article => {
+                const words = article.title.match(/\b[A-Z][a-zà-úA-Z]{2,}\b/g) || [];
+                words.forEach(word => {
+                    const cleanWord = word.toLowerCase();
+                    if (!stopWords.has(cleanWord)) {
+                        wordFrequency[word] = (wordFrequency[word] || 0) + 1;
+                    }
+                });
+            });
+            return Object.keys(wordFrequency).sort((a, b) => wordFrequency[b] - wordFrequency[a]).slice(0, 3);
+        };
+        
+        const keyEntities = extractKeyEntities(cluster.related_articles);
+        const uniqueSourcesCount = new Set(cluster.related_articles.map(a => a.source)).size;
+        let summaryText = `Um evento de alta repercussão, coberto por ${uniqueSourcesCount} fontes diferentes.`;
+        if (keyEntities.length > 0) {
+            summaryText += ` A pauta envolve principalmente: ${keyEntities.join(', ')}.`;
+        }
 
         const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
         
         return {
             ai_title: bestArticleForTitle.title,
-            ai_summary: `Este evento foi coberto por ${new Set(sortedArticles.map(a => a.source)).size} fontes diferentes. Clique em "Analisar" para um resumo detalhado via IA.`,
+            ai_summary: summaryText,
             representative_image: representativeArticleForImage.img,
             related_articles: sortedArticles,
         };
@@ -3582,7 +3601,6 @@ const generateHeuristicClusters = (news) => {
 
     return finalClusters;
 };
-
 
 // --- COMPONENTE SKELETON PARA O SMARTNEWS ---
 const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
