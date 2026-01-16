@@ -3483,52 +3483,69 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) 
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
 
-    // SUGESTÃO 3: Ranking de fontes para melhor imagem de capa
-    const preferredSources = new Set(['G1', 'CNN Brasil', 'Band', 'OGlobo', 'Portal Band', 'Portal Band', 'Veja', 'Jovem Pan', 'Notícias ao minuto', 'Metropoles', 'SBT', 'Fox News']);
-    const SIMILARITY_THRESHOLD = 0.60; // 60% de similaridade para agrupar
-    const CLUSTER_LIMIT = 5; // Limita a no máximo 4 clusters
+    // --- CONFIGURAÇÕES DE ROBUSTEZ ---
+    const preferredSources = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT', 'Fox News', '180graus']);
+    const SIMILARITY_THRESHOLD = 0.55; // Reduzido para capturar mais variações
+    const CLUSTER_LIMIT = 5;
 
-    const articles = [...news.slice(0, 100)]; // Trabalha com uma cópia das 100 notícias mais recentes
-    let clusters = [];
+    const articles = [...news.slice(0, 150)]; // Analisa um pouco mais de artigos
+    let potentialClusters = [];
     const articlesUsed = new Set();
 
-    // SUGESTÃO 1: Lógica de cluster por similaridade
+    // --- ETAPA 1: GERAÇÃO DE CLUSTERS BRUTOS ---
     for (let i = 0; i < articles.length; i++) {
         if (articlesUsed.has(articles[i].id)) continue;
 
         let currentCluster = {
-            related_articles: [articles[i]]
+            related_articles: [articles[i]],
+            sourcesInCluster: new Set([articles[i].source]),
         };
         articlesUsed.add(articles[i].id);
 
         for (let j = i + 1; j < articles.length; j++) {
             if (articlesUsed.has(articles[j].id)) continue;
 
-            const similarity = stringSimilarity.compareTwoStrings(
-                articles[i].title,
-                articles[j].title
-            );
+            const similarity = stringSimilarity.compareTwoStrings(articles[i].title, articles[j].title);
 
-            if (similarity >= SIMILARITY_THRESHOLD) {
+            // MELHORIA 1: Lógica anti-contaminação da mesma fonte
+            let threshold = SIMILARITY_THRESHOLD;
+            if (currentCluster.sourcesInCluster.has(articles[j].source)) {
+                // Se a fonte já está no cluster, exige uma similaridade MUITO maior
+                // para evitar adicionar variações mínimas do mesmo portal.
+                threshold = 0.85; 
+            }
+
+            if (similarity >= threshold) {
                 currentCluster.related_articles.push(articles[j]);
+                currentCluster.sourcesInCluster.add(articles[j].source);
                 articlesUsed.add(articles[j].id);
             }
         }
 
         if (currentCluster.related_articles.length > 1) {
-            clusters.push(currentCluster);
+            potentialClusters.push(currentCluster);
         }
     }
     
-    // Filtra e ordena os clusters por tamanho (mais relevantes primeiro)
-    clusters = clusters.sort((a, b) => b.related_articles.length - a.related_articles.length).slice(0, CLUSTER_LIMIT);
+    // --- ETAPA 2: CALCULAR O "QUALITY SCORE" E FILTRAR OS MELHORES ---
+    const scoredClusters = potentialClusters.map(cluster => {
+        const numArticles = cluster.related_articles.length;
+        const numUniqueSources = new Set(cluster.related_articles.map(a => a.source)).size;
+
+        // A FÓRMULA MÁGICA: Quantidade * (Diversidade ao quadrado)
+        const qualityScore = numArticles * (numUniqueSources ** 2);
+
+        return { ...cluster, qualityScore };
+    });
     
-    // SUGESTÃO 2 e 3: Hidratação final dos clusters (título, imagem, ordem)
-    const finalClusters = clusters.map(cluster => {
-        // --- Lógica para encontrar o melhor título ---
+    // Ordena pelo novo Quality Score e pega os melhores
+    const topClusters = scoredClusters.sort((a, b) => b.qualityScore - a.qualityScore).slice(0, CLUSTER_LIMIT);
+    
+    // --- ETAPA 3: HIDRATAÇÃO FINAL (MELHOR TÍTULO E IMAGEM) ---
+    const finalClusters = topClusters.map(cluster => {
+        // Lógica para encontrar o melhor título (mantida, pois é boa)
         let bestArticleForTitle = cluster.related_articles[0];
         let maxCentrality = 0;
-
         cluster.related_articles.forEach(articleA => {
             let currentCentrality = 0;
             cluster.related_articles.forEach(articleB => {
@@ -3542,17 +3559,22 @@ const generateHeuristicClusters = (news) => {
             }
         });
 
-        // --- Lógica para encontrar a melhor imagem ---
+        // MELHORIA 2: Lógica para encontrar a melhor imagem
+        const hasRealImageUrl = (url) => url && /\.(jpg|jpeg|png|webp)/i.test(url);
+        
         let representativeArticleForImage = 
-            cluster.related_articles.find(a => preferredSources.has(a.source)) || // Tenta achar uma fonte preferencial
-            bestArticleForTitle; // Se não, usa a do artigo mais central
+            // 1. Tenta achar uma fonte preferencial COM imagem real
+            cluster.related_articles.find(a => preferredSources.has(a.source) && hasRealImageUrl(a.img)) ||
+            // 2. Se não, tenta achar QUALQUER artigo com imagem real
+            cluster.related_articles.find(a => hasRealImageUrl(a.img)) ||
+            // 3. Em último caso, usa o artigo com o melhor título
+            bestArticleForTitle;
 
-        // --- Ordenar artigos por data ---
         const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
         
         return {
-            ai_title: bestArticleForTitle.title, // O título mais "central" do grupo
-            ai_summary: `Este assunto foi abordado em ${cluster.related_articles.length} notícias recentes. Clique em "Analisar" para um resumo detalhado via IA.`,
+            ai_title: bestArticleForTitle.title,
+            ai_summary: `Este evento foi coberto por ${new Set(sortedArticles.map(a => a.source)).size} fontes diferentes. Clique em "Analisar" para um resumo detalhado via IA.`,
             representative_image: representativeArticleForImage.img,
             related_articles: sortedArticles,
         };
