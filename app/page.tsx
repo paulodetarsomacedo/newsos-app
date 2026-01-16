@@ -3664,13 +3664,58 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
   );
 };
 
+// ==========================================================
+// === SUBSTITUA SEU COMPONENTE INTEIRO POR ESTE ===
+// ==========================================================
+const KeywordFocusModal = ({ data, onClose, openArticle, isDarkMode }) => {
+    if (!data) return null;
 
+    const { keyword, articles } = data;
+
+    return (
+        <div className="fixed inset-0 z-[8000] flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+            
+            <div className={`relative w-full max-w-md h-[70vh] flex flex-col rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white'}`}>
+                {/* Cabeçalho do Modal */}
+                {/* A CORREÇÃO ESTÁ NA LINHA ABAIXO */}
+                <div className={`p-4 border-b flex items-center justify-between shrink-0 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                    <div className="flex items-center gap-2">
+                        <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'}`}>
+                            <Search size={16} className="text-purple-500" />
+                        </div>
+                        <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Foco em: {keyword}</h3>
+                    </div>
+                    <button onClick={onClose} className={`p-2 rounded-full ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-zinc-100'}`}><X size={20}/></button>
+                </div>
+
+                {/* Lista de Notícias */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                    {articles.map(article => (
+                        <button 
+                            key={article.id}
+                            onClick={() => openArticle(article)}
+                            className={`w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-colors ${isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'}`}
+                        >
+                            <img src={article.logo} className="w-8 h-8 rounded-full border border-black/10 shrink-0" />
+                            <div className="min-w-0">
+                                <p className={`text-sm font-bold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{article.title}</p>
+                                <span className="text-xs text-zinc-500">{article.source}</span>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
 const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
+  const [focusModalData, setFocusModalData] = useState(null);
 
   // Garante que o fallback heurístico tenha a mesma estrutura de dados que a IA
   const heuristicClusters = useMemo(() => {
@@ -3682,6 +3727,45 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
       ai_summary: cluster.ai_summary || 'Clique em "Analisar" para obter um resumo detalhado gerado por IA sobre este tópico.'
     }));
   }, [news, clusters]);
+
+// ==========================================================
+// === NOVO COMPONENTE: HIGHLIGHTED SUMMARY ===
+// ==========================================================
+const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
+    if (!keywords || keywords.length === 0) {
+        return <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">{text}</p>;
+    }
+
+    // Cria uma expressão regular para encontrar qualquer uma das palavras-chave
+    const regex = new RegExp(`(${keywords.join('|')})`, 'gi');
+    const parts = text.split(regex);
+
+    return (
+        <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">
+            {parts.map((part, index) => {
+                const isKeyword = keywords.some(kw => part.toLowerCase() === kw.toLowerCase());
+                if (isKeyword) {
+                    return (
+                        <button 
+                            key={index}
+                            onClick={() => onKeywordClick(part)}
+                            className={`
+                                mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300
+                                hover:scale-105 hover:shadow-lg
+                                ${isDarkMode 
+                                    ? 'bg-purple-500/30 hover:bg-purple-500/50 text-purple-300' 
+                                    : 'bg-purple-200/50 hover:bg-purple-200/90 text-purple-800'}
+                            `}
+                        >
+                            {part}
+                        </button>
+                    );
+                }
+                return part;
+            })}
+        </p>
+    );
+};
 
 const runAI = async () => {
     // 1. CHAMA A FUNÇÃO PARA PEGAR UMA NOVA CHAVE NO MOMENTO DO CLIQUE
@@ -3754,6 +3838,15 @@ const runAI = async () => {
       );
   }
 
+  // Função para abrir o modal
+  const handleKeywordClick = (keyword, allArticles) => {
+    const related = allArticles.filter(article => 
+        article.title.toLowerCase().includes(keyword.toLowerCase())
+    );
+    setFocusModalData({ keyword, articles: related });
+  };
+  
+
   return (
     <div className="relative">
       
@@ -3808,12 +3901,16 @@ const runAI = async () => {
                   </h2>
                   <div className="flex items-start gap-3">
                     <div className="w-1 h-auto self-stretch bg-purple-400 rounded-full flex-shrink-0" />
-                    <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">
-                      {cluster.ai_summary}
-                    </p>
-                  </div>
+                   <HighlightedSummary 
+                      text={cluster.ai_summary}
+                      keywords={cluster.keyEntities}
+                      onKeywordClick={(keyword) => handleKeywordClick(keyword, cluster.related_articles)}
+                      isDarkMode={isDarkMode}
+                  />
+
                 </div>
               </div>
+            </div>
 
               {/* === BLOCO 2: LOGOS DAS FONTES (ÁREA BRANCA/CLARA) === */}
               <div className="px-6 py-4">
@@ -3839,9 +3936,21 @@ const runAI = async () => {
       {displayClusters.length > 1 && (
         <div className="flex justify-center gap-2 mt-4 pb-4">
           {displayClusters.map((_, idx) => (
-            <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-6' : 'bg-zinc-400 dark:bg-zinc-700 w-1.5'}`} />
+            <div key={idx} className={`h-1.5 rounded-full ...`} />
           ))}
         </div>
+      )}
+
+      {/* ========================================================== */}
+      {/* === O CÓDIGO DO MODAL VEM AQUI, NO FINAL DO COMPONENTE === */}
+      {/* ========================================================== */}
+      {focusModalData && (
+          <KeywordFocusModal 
+              data={focusModalData}
+              onClose={() => setFocusModalData(null)}
+              openArticle={openArticle}
+              isDarkMode={isDarkMode}
+          />
       )}
     </div>
   );
