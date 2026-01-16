@@ -3582,23 +3582,20 @@ const generateHeuristicClusters = (news) => {
 
         // --- Ordenar artigos por data ---
         const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
-        
 return {
             ai_title: bestArticleForTitle.title,
             ai_summary: `Este assunto foi abordado em ${cluster.related_articles.length} notícias recentes. Clique em "Analisar" para um resumo detalhado via IA.`,
             representative_image: representativeArticleForImage.img,
             related_articles: sortedArticles,
             
-            // A propriedade storyline que você já tem (com vírgula no final, que agora está correta)
+            // A propriedade storyline que você já tem (com a vírgula que agora está correta)
             storyline: {
                 originArticle: sortedArticles[sortedArticles.length - 1],
                 latestArticle: sortedArticles[0],
             },
 
-            // ==========================================================
-            // === A PROPRIEDADE QUE FALTAVA, E QUE CAUSOU O ERRO ===
-            // ==========================================================
-            keyEntities: extractKeyEntities(cluster.related_articles) // SEM VÍRGULA NO FINAL, pois é a última propriedade
+            // A PROPRIEDADE QUE FALTAVA, E QUE CAUSOU O ERRO
+            keyEntities: extractKeyEntities(cluster.related_articles) // SEM VÍRGULA NO FINAL, pois é a última
         };
     });
 
