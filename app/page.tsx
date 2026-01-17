@@ -21,6 +21,13 @@ import {
 } from 'lucide-react';
 
 
+const stripTags = (html = "") => {
+    if (!html) return "";
+    return html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+};
+
+
+
 const stringToHash = (str) => {
   let hash = 0;
   if (str.length === 0) return hash;
@@ -7196,37 +7203,37 @@ return (
 
 
 
-function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) { // <<-- 1. RECEBE 'realNews'
+function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
 
-  // 2. FILTRA AS NOTÍCIAS RELEVANTES PARA ESTA FONTE
   const outletNews = useMemo(() => {
     if (!realNews || !outlet) return [];
-    return realNews.filter(news => news.source === outlet.name).slice(0, 10); // Pega as 10 mais recentes
+    return realNews.filter(news => news.source === outlet.name).slice(0, 10);
   }, [realNews, outlet]);
+
+  const mainArticle = outletNews[0];
+  const secondaryArticles = outletNews.slice(1);
 
   const renderLayout = () => {
     const layout = outlet.layoutType;
     
-    // Pega a notícia mais recente como manchete principal
-    const mainArticle = outletNews[0];
-    // Pega as próximas notícias para as seções secundárias
-    const secondaryArticles = outletNews.slice(1);
+    if (!mainArticle) {
+        return (
+            <div className="text-center py-20 opacity-60">
+                <h3 className="font-bold">Nenhuma notícia recente encontrada para esta fonte.</h3>
+            </div>
+        );
+    }
 
     if (layout === 'standard') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          {/* Manchete Principal */}
-          {mainArticle && (
-            <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle(mainArticle)}>
-              <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-                <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} />
-              </div>
-              <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
-              <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{mainArticle.summary}</p>
+          <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle(mainArticle)}>
+            <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+              <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} />
             </div>
-          )}
-          
-          {/* Notícias Secundárias */}
+            <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
+            <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
+          </div>
           <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`}>
             {secondaryArticles.slice(0, 4).map((article) => (
               <div key={article.id} className="cursor-pointer" onClick={() => openArticle(article)}>
@@ -7238,10 +7245,6 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) { 
         </div>
       );
     }
-    
-    // Os outros layouts seguiriam uma lógica similar de substituição.
-    // Para manter o foco, vou deixar os mocks neles, mas a implementação seria a mesma:
-    // pegar 'mainArticle' e 'secondaryArticles' e usá-los no lugar dos dados estáticos.
     
     if (layout === 'magazine') {
       return (
@@ -7265,7 +7268,7 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) { 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {outletNews.map((article, i) => (
             <div key={article.id} onClick={() => openArticle(article)} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square ${i === 0 ? 'md:col-span-2 md:row-span-2' : ''}`}>
-              <img src={article.img} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt={article.title} />
+              <img src={article.img} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt={article.title} onError={(e) => e.target.style.display='none'} />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition" />
               <div className="absolute bottom-0 left-0 p-4">
                 <h3 className="text-white font-bold text-lg leading-tight">{article.title}</h3>
@@ -7282,7 +7285,7 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) { 
           {outletNews.map((article) => (
             <div key={article.id} className="flex gap-4 cursor-pointer group" onClick={() => openArticle(article)}>
               <div className={`w-16 h-16 rounded flex-shrink-0 overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-                <img src={article.img} className="w-full h-full object-cover" />
+                <img src={article.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
               </div>
               <div>
                 <h4 className={`font-bold text-lg mb-1 group-hover:underline decoration-blue-500 underline-offset-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>{article.title}</h4>
@@ -7306,13 +7309,16 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) { 
         <div className="w-6" />
       </div>
 
-      <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl`}>
-        <div className={`absolute inset-0 ${outlet.color}`} />
-        <div className="absolute inset-0 bg-black/20" />
+      {/* Hero Section (Capa de Revista Rica) */}
+      <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl bg-zinc-800`}>
+        {/* Imagem de fundo da notícia principal */}
+        {mainArticle && <img src={mainArticle.img} className="absolute inset-0 w-full h-full object-cover opacity-80" />}
+        {/* Gradiente para legibilidade */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
         <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-end justify-between">
           <div>
-             {/* USA A IMAGEM DO LOGO EM VEZ DO TEXTO */}
-             <img src={outlet.logo} alt={outlet.name} className="max-h-20 max-w-xs object-contain mb-2" />
+            {/* Logo em alta resolução sobreposto */}
+            <img src={outlet.logo} alt={outlet.name} className="max-h-20 max-w-xs object-contain mb-2 drop-shadow-lg" />
             <p className="text-white/90 uppercase tracking-widest text-sm font-bold">Edição de Hoje • Exclusivo NewsOS</p>
           </div>
           <div className="hidden md:block">
@@ -7327,7 +7333,6 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) { 
     </div>
   );
 }
-
 
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
