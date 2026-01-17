@@ -4615,19 +4615,24 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
           </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
-        {displayedItems.map((item) => (
-          <div key={item.id} onClick={() => openOutlet(item)} 
-               className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group ${isDarkMode ? 'bg-zinc-800' : 'bg-white'}`}>
-            
-            <div className={`h-1/3 flex items-center justify-center p-4 ${item.color}`}>
-                <img 
-                    src={item.logo} 
-                    alt={item.name} 
-                    className="max-h-full max-w-full object-contain drop-shadow-lg p-2"
-                    style={{ filter: item.color.includes('text-black') ? '' : 'brightness(0) invert(1)' }}
-                />
-            </div>
+     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
+  {displayedItems.map((item) => (
+    <div key={item.id} onClick={() => openOutlet(item)} 
+         className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group ${isDarkMode ? 'bg-zinc-800' : 'bg-white'}`}>
+      
+      {/* ========================================================== */}
+      {/* === AS MUDANÇAS ESTÃO AQUI === */}
+      {/* ========================================================== */}
+      
+      {/* 1. FAIXA SUPERIOR COM FUNDO PADRÃO NEUTRO */}
+      <div className={`h-1/3 flex items-center justify-center p-4 ${isDarkMode ? 'bg-zinc-700' : 'bg-gray-100'}`}>
+          <img 
+              src={item.logo} 
+              alt={item.name} 
+              className="max-h-full max-w-full object-contain drop-shadow-lg p-2"
+              // 2. A PROPRIEDADE 'style' FOI REMOVIDA
+          />
+      </div>
             
             <div className="flex-1 flex flex-col justify-center p-3 space-y-2">
               {item.latestHeadlines?.length > 0 ? (
@@ -7252,10 +7257,14 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
     return html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
   };
   
-  const renderLayout = () => {
+const renderLayout = () => {
     const layout = outlet.layoutType;
-    
-    if (!mainArticle) {
+    const articles = outletNews; // Usa as notícias reais da fonte
+
+    const mainArticle = articles[0];
+    const secondaryArticles = articles.slice(1);
+
+    if (articles.length === 0) {
         return (
             <div className="text-center py-20 opacity-60">
                 <h3 className="font-bold">Nenhuma notícia recente encontrada para esta fonte.</h3>
@@ -7266,14 +7275,11 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
     if (layout === 'standard') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="md:col-span-8 group">
-            <div 
-              className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm cursor-pointer ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}
-              onClick={() => openArticle(mainArticle)}
-            >
-              <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} onError={(e) => e.target.style.display='none'} />
+          <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle(mainArticle)}>
+            <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+              <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} onError={(e) => e.target.style.display='none'}/>
             </div>
-            <h2 onClick={() => openArticle(mainArticle)} className={`text-4xl font-serif font-black mb-3 leading-tight cursor-pointer ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
+            <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
             <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
           </div>
           <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
@@ -7291,9 +7297,9 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
     if (layout === 'magazine') {
       return (
         <div className={`space-y-12 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {outletNews.slice(0, 3).map((article, i) => (
+          {articles.slice(0, 3).map((article, i) => (
             <div key={article.id} className={`flex gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`} onClick={() => openArticle(article)}>
-              <span className={`text-8xl font-black transition-colors ${isDarkMode ? 'text-zinc-800 group-hover:text-blue-500/20' : 'text-zinc-100 group-hover:text-blue-500/20'}`}>0{i+1}</span>
+              <span className={`text-8xl font-black transition-colors ${isDarkMode ? 'text-zinc-800 group-hover:text-blue-500/20' : 'text-zinc-100 group-hover:text-blue-500/20'}`}>0{i + 1}</span>
               <div className="w-full">
                 <span className="text-blue-500 font-bold tracking-widest uppercase text-xs mb-2 block">{article.category || 'Destaque'}</span>
                 <h3 className={`text-4xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white group-hover:text-blue-400' : 'text-zinc-900 group-hover:text-blue-600'}`}>{article.title}</h3>
@@ -7308,9 +7314,9 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
     if (layout === 'visual') {
       return (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {outletNews.map((article, i) => (
+          {articles.map((article, i) => (
             <div key={article.id} onClick={() => openArticle(article)} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square ${i === 0 ? 'md:col-span-2 md:row-span-2' : ''}`}>
-              <img src={article.img} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt={article.title} onError={(e) => e.target.style.display='none'} />
+              <img src={article.img} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt={article.title} onError={(e) => e.target.style.display='none'}/>
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition" />
               <div className="absolute bottom-0 left-0 p-4">
                 <h3 className="text-white font-bold text-lg leading-tight">{article.title}</h3>
@@ -7324,7 +7330,7 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
     if (layout === 'minimal') {
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {outletNews.map((article) => (
+          {articles.map((article) => (
             <div key={article.id} className="flex gap-4 cursor-pointer group" onClick={() => openArticle(article)}>
               <div className={`w-16 h-16 rounded flex-shrink-0 overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
                 <img src={article.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
@@ -7351,21 +7357,27 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
         <div className="w-16" />
       </div>
 
-      <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl ${outlet.color}`}>
-        <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10"></div>
-        <div className="w-full h-full flex items-center justify-center p-8">
-            <img 
-                src={outlet.logo} 
-                className="max-h-full max-w-full object-contain" 
-                style={{ filter: outlet.color.includes('text-black') ? '' : 'brightness(0) invert(1)' }}
-            />
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 p-8 pt-16 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent">
-            <span className={`font-serif font-extrabold text-6xl md:text-8xl tracking-tighter ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                {outlet.name}
-            </span>
-        </div>
-      </div>
+   <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl ${isDarkMode ? 'bg-zinc-800' : 'bg-gray-200'}`}>
+  
+  {/* Camada de Gradiente sutil para textura */}
+  <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10"></div>
+  
+  {/* Logo em alta resolução, centralizado */}
+  <div className="w-full h-full flex items-center justify-center p-8">
+      <img 
+          src={outlet.logo} 
+          className="max-h-full max-w-full object-contain" 
+          // A PROPRIEDADE 'style' FOI REMOVIDA
+      />
+  </div>
+  
+  {/* Faixa com Nome da Fonte */}
+  <div className="absolute bottom-0 left-0 right-0 p-8 pt-16 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent">
+      <span className={`font-serif font-extrabold text-6xl md:text-8xl tracking-tighter ${isDarkMode ? 'text-white' : 'text-black'}`}>
+          {outlet.name}
+      </span>
+  </div>
+</div>
 
       <div className={`max-w-5xl mx-auto p-4 md:p-8 min-h-screen ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
         {renderLayout()}

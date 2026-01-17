@@ -7247,25 +7247,36 @@ return (
 
 
 function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
-  const renderLayout = () => {
+const renderLayout = () => {
     const layout = outlet.layoutType;
-    const articles = [1, 2, 3, 4, 5, 6];
+    const articles = outletNews; // Usa as notícias reais da fonte
+
+    const mainArticle = articles[0];
+    const secondaryArticles = articles.slice(1);
+
+    if (articles.length === 0) {
+        return (
+            <div className="text-center py-20 opacity-60">
+                <h3 className="font-bold">Nenhuma notícia recente encontrada para esta fonte.</h3>
+            </div>
+        );
+    }
 
     if (layout === 'standard') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle({ title: 'Manchete do Jornal', source: outlet.name, category: 'Capa', img: `https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80` })}>
+          <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle(mainArticle)}>
             <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-              <img src={`https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200&q=80`} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="Cover" />
+              <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} onError={(e) => e.target.style.display='none'}/>
             </div>
-            <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>A Manchete Principal do Dia</h2>
-            <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>Um resumo detalhado sobre o principal acontecimento do mercado global e político.</p>
+            <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
+            <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
           </div>
-          <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`}>
-            {articles.slice(0, 4).map((i) => (
-              <div key={i} className="cursor-pointer" onClick={() => openArticle({ title: `Notícia Secundária ${i}`, source: outlet.name, category: 'Geral', img: null })}>
-                <span className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Política</span>
-                <h4 className={`font-serif font-bold text-xl leading-tight ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Notícia secundária de grande impacto no cenário nacional.</h4>
+          <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+            {secondaryArticles.slice(0, 4).map((article) => (
+              <div key={article.id} className="cursor-pointer" onClick={() => openArticle(article)}>
+                <span className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">{article.category || 'Geral'}</span>
+                <h4 className={`font-serif font-bold text-xl leading-tight ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{article.title}</h4>
               </div>
             ))}
           </div>
@@ -7276,13 +7287,13 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
     if (layout === 'magazine') {
       return (
         <div className={`space-y-12 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {articles.slice(0, 3).map((i) => (
-            <div key={i} className={`flex gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`} onClick={() => openArticle({ title: 'Artigo da Revista', source: outlet.name, category: 'Feature', img: `https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=800&q=80` })}>
-              <span className={`text-8xl font-black transition-colors ${isDarkMode ? 'text-zinc-800 group-hover:text-blue-500/20' : 'text-zinc-100 group-hover:text-blue-500/20'}`}>0{i}</span>
+          {articles.slice(0, 3).map((article, i) => (
+            <div key={article.id} className={`flex gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`} onClick={() => openArticle(article)}>
+              <span className={`text-8xl font-black transition-colors ${isDarkMode ? 'text-zinc-800 group-hover:text-blue-500/20' : 'text-zinc-100 group-hover:text-blue-500/20'}`}>0{i + 1}</span>
               <div className="w-full">
-                <span className="text-blue-500 font-bold tracking-widest uppercase text-xs mb-2 block">Destaque da Semana</span>
-                <h3 className={`text-4xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white group-hover:text-blue-400' : 'text-zinc-900 group-hover:text-blue-600'}`}>O Futuro da Tecnologia e da Humanidade.</h3>
-                <p className="opacity-70 text-lg line-clamp-2 font-serif">Uma análise profunda, visual e detalhada sobre os próximos passos da IA.</p>
+                <span className="text-blue-500 font-bold tracking-widest uppercase text-xs mb-2 block">{article.category || 'Destaque'}</span>
+                <h3 className={`text-4xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white group-hover:text-blue-400' : 'text-zinc-900 group-hover:text-blue-600'}`}>{article.title}</h3>
+                <p className="opacity-70 text-lg line-clamp-2 font-serif">{stripTags(article.summary)}</p>
               </div>
             </div>
           ))}
@@ -7293,12 +7304,12 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
     if (layout === 'visual') {
       return (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {articles.map((i) => (
-            <div key={i} onClick={() => openArticle({ title: 'Visual Story', source: outlet.name, category: 'Photo', img: `https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80` })} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square ${i === 1 ? 'md:col-span-2 md:row-span-2' : ''}`}>
-              <img src={`https://images.unsplash.com/photo-${1500000000000 + i}?w=800&q=80`} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt="Visual" />
+          {articles.map((article, i) => (
+            <div key={article.id} onClick={() => openArticle(article)} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square ${i === 0 ? 'md:col-span-2 md:row-span-2' : ''}`}>
+              <img src={article.img} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt={article.title} onError={(e) => e.target.style.display='none'}/>
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition" />
               <div className="absolute bottom-0 left-0 p-4">
-                <h3 className="text-white font-bold text-lg leading-tight">Uma história contada através de imagens impactantes.</h3>
+                <h3 className="text-white font-bold text-lg leading-tight">{article.title}</h3>
               </div>
             </div>
           ))}
@@ -7309,12 +7320,14 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
     if (layout === 'minimal') {
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {articles.map((i) => (
-            <div key={i} className="flex gap-4 cursor-pointer group" onClick={() => openArticle({ title: 'Quick Read', source: outlet.name, category: 'Brief', img: null })}>
-              <div className={`w-16 h-16 rounded bg-zinc-200 flex-shrink-0 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`} />
+          {articles.map((article) => (
+            <div key={article.id} className="flex gap-4 cursor-pointer group" onClick={() => openArticle(article)}>
+              <div className={`w-16 h-16 rounded flex-shrink-0 overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+                <img src={article.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
+              </div>
               <div>
-                <h4 className={`font-bold text-lg mb-1 group-hover:underline decoration-blue-500 underline-offset-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>Manchete rápida e direta número {i}</h4>
-                <p className="text-sm opacity-60 line-clamp-2">Um breve resumo do que aconteceu, sem imagens grandes para leitura rápida.</p>
+                <h4 className={`font-bold text-lg mb-1 group-hover:underline decoration-blue-500 underline-offset-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>{article.title}</h4>
+                <p className="text-sm opacity-60 line-clamp-2">{stripTags(article.summary)}</p>
               </div>
             </div>
           ))}
