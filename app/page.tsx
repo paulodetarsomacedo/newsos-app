@@ -7185,7 +7185,7 @@ return (
       {/* --- MODAIS GLOBAIS (FORA DAS COLUNAS) --- */}
       {askQuestion && (<AskAIModal question={askQuestion} answer={askAnswer} sources={askSources} isLoading={isAskLoading} onClose={() => setAskQuestion(null)} isDarkMode={isDarkMode} />)}
       {isSettingsOpen && (<SettingsModal onClose={() => setIsSettingsOpen(false)} isDarkMode={isDarkMode} feeds={userFeeds} setFeeds={setUserFeeds} apiKeys={apiKeys} setApiKeys={setApiKeys} user={user} />)}
-      {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleReadNative} isDarkMode={isDarkMode} />}
+      {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleReadNative} isDarkMode={isDarkMode} realNews={realNews} />}
       {selectedStory && (<StoryOverlay key={selectedStory.id} story={selectedStory} onClose={closeStory} onRead={handleReadNative} onMarkAsSeen={markStoryAsSeen} allStories={storiesForHappeningTab} onNavigate={handleStoryNavigation} />)}
 {playingAudio && (<GlobalAudioPlayer track={playingAudio} onClose={() => setPlayingAudio(null)} isDarkMode={isDarkMode} />)}      {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
@@ -7195,26 +7195,43 @@ return (
 
 
 
-function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
+
+function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) { // <<-- 1. RECEBE 'realNews'
+
+  // 2. FILTRA AS NOTÍCIAS RELEVANTES PARA ESTA FONTE
+  const outletNews = useMemo(() => {
+    if (!realNews || !outlet) return [];
+    return realNews.filter(news => news.source === outlet.name).slice(0, 10); // Pega as 10 mais recentes
+  }, [realNews, outlet]);
+
   const renderLayout = () => {
     const layout = outlet.layoutType;
-    const articles = [1, 2, 3, 4, 5, 6];
+    
+    // Pega a notícia mais recente como manchete principal
+    const mainArticle = outletNews[0];
+    // Pega as próximas notícias para as seções secundárias
+    const secondaryArticles = outletNews.slice(1);
 
     if (layout === 'standard') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle({ title: 'Manchete do Jornal', source: outlet.name, category: 'Capa', img: `https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80` })}>
-            <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-              <img src={`https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200&q=80`} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="Cover" />
+          {/* Manchete Principal */}
+          {mainArticle && (
+            <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle(mainArticle)}>
+              <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+                <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} />
+              </div>
+              <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
+              <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{mainArticle.summary}</p>
             </div>
-            <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>A Manchete Principal do Dia</h2>
-            <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>Um resumo detalhado sobre o principal acontecimento do mercado global e político.</p>
-          </div>
+          )}
+          
+          {/* Notícias Secundárias */}
           <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`}>
-            {articles.slice(0, 4).map((i) => (
-              <div key={i} className="cursor-pointer" onClick={() => openArticle({ title: `Notícia Secundária ${i}`, source: outlet.name, category: 'Geral', img: null })}>
-                <span className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Política</span>
-                <h4 className={`font-serif font-bold text-xl leading-tight ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Notícia secundária de grande impacto no cenário nacional.</h4>
+            {secondaryArticles.slice(0, 4).map((article) => (
+              <div key={article.id} className="cursor-pointer" onClick={() => openArticle(article)}>
+                <span className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">{article.category || 'Geral'}</span>
+                <h4 className={`font-serif font-bold text-xl leading-tight ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{article.title}</h4>
               </div>
             ))}
           </div>
@@ -7222,16 +7239,20 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
       );
     }
     
+    // Os outros layouts seguiriam uma lógica similar de substituição.
+    // Para manter o foco, vou deixar os mocks neles, mas a implementação seria a mesma:
+    // pegar 'mainArticle' e 'secondaryArticles' e usá-los no lugar dos dados estáticos.
+    
     if (layout === 'magazine') {
       return (
         <div className={`space-y-12 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {articles.slice(0, 3).map((i) => (
-            <div key={i} className={`flex gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`} onClick={() => openArticle({ title: 'Artigo da Revista', source: outlet.name, category: 'Feature', img: `https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=800&q=80` })}>
-              <span className={`text-8xl font-black transition-colors ${isDarkMode ? 'text-zinc-800 group-hover:text-blue-500/20' : 'text-zinc-100 group-hover:text-blue-500/20'}`}>0{i}</span>
+          {outletNews.slice(0, 3).map((article, i) => (
+            <div key={article.id} className={`flex gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`} onClick={() => openArticle(article)}>
+              <span className={`text-8xl font-black transition-colors ${isDarkMode ? 'text-zinc-800 group-hover:text-blue-500/20' : 'text-zinc-100 group-hover:text-blue-500/20'}`}>0{i+1}</span>
               <div className="w-full">
-                <span className="text-blue-500 font-bold tracking-widest uppercase text-xs mb-2 block">Destaque da Semana</span>
-                <h3 className={`text-4xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white group-hover:text-blue-400' : 'text-zinc-900 group-hover:text-blue-600'}`}>O Futuro da Tecnologia e da Humanidade.</h3>
-                <p className="opacity-70 text-lg line-clamp-2 font-serif">Uma análise profunda, visual e detalhada sobre os próximos passos da IA.</p>
+                <span className="text-blue-500 font-bold tracking-widest uppercase text-xs mb-2 block">{article.category || 'Destaque'}</span>
+                <h3 className={`text-4xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white group-hover:text-blue-400' : 'text-zinc-900 group-hover:text-blue-600'}`}>{article.title}</h3>
+                <p className="opacity-70 text-lg line-clamp-2 font-serif">{stripTags(article.summary)}</p>
               </div>
             </div>
           ))}
@@ -7242,12 +7263,12 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
     if (layout === 'visual') {
       return (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {articles.map((i) => (
-            <div key={i} onClick={() => openArticle({ title: 'Visual Story', source: outlet.name, category: 'Photo', img: `https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80` })} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square ${i === 1 ? 'md:col-span-2 md:row-span-2' : ''}`}>
-              <img src={`https://images.unsplash.com/photo-${1500000000000 + i}?w=800&q=80`} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt="Visual" />
+          {outletNews.map((article, i) => (
+            <div key={article.id} onClick={() => openArticle(article)} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square ${i === 0 ? 'md:col-span-2 md:row-span-2' : ''}`}>
+              <img src={article.img} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt={article.title} />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition" />
               <div className="absolute bottom-0 left-0 p-4">
-                <h3 className="text-white font-bold text-lg leading-tight">Uma história contada através de imagens impactantes.</h3>
+                <h3 className="text-white font-bold text-lg leading-tight">{article.title}</h3>
               </div>
             </div>
           ))}
@@ -7258,12 +7279,14 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
     if (layout === 'minimal') {
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {articles.map((i) => (
-            <div key={i} className="flex gap-4 cursor-pointer group" onClick={() => openArticle({ title: 'Quick Read', source: outlet.name, category: 'Brief', img: null })}>
-              <div className={`w-16 h-16 rounded bg-zinc-200 flex-shrink-0 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`} />
+          {outletNews.map((article) => (
+            <div key={article.id} className="flex gap-4 cursor-pointer group" onClick={() => openArticle(article)}>
+              <div className={`w-16 h-16 rounded flex-shrink-0 overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+                <img src={article.img} className="w-full h-full object-cover" />
+              </div>
               <div>
-                <h4 className={`font-bold text-lg mb-1 group-hover:underline decoration-blue-500 underline-offset-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>Manchete rápida e direta número {i}</h4>
-                <p className="text-sm opacity-60 line-clamp-2">Um breve resumo do que aconteceu, sem imagens grandes para leitura rápida.</p>
+                <h4 className={`font-bold text-lg mb-1 group-hover:underline decoration-blue-500 underline-offset-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>{article.title}</h4>
+                <p className="text-sm opacity-60 line-clamp-2">{stripTags(article.summary)}</p>
               </div>
             </div>
           ))}
@@ -7275,7 +7298,6 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
   return (
     <div className={`fixed inset-0 z-[65] overflow-y-auto animate-in slide-in-from-bottom-10 duration-500 ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
       
-      {/* Header Sticky */}
       <div className={`sticky top-0 z-10 px-6 py-4 flex items-center justify-between backdrop-blur-md border-b ${isDarkMode ? 'bg-zinc-950/80 border-white/10' : 'bg-white/80 border-zinc-200'}`}>
         <button onClick={onClose} className={`flex items-center gap-1 text-sm font-bold transition ${isDarkMode ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-black'}`}>
           <ChevronLeft size={20} /> Voltar
@@ -7284,13 +7306,13 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
         <div className="w-6" />
       </div>
 
-      {/* Hero Section (Capa) */}
       <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl`}>
         <div className={`absolute inset-0 ${outlet.color}`} />
         <div className="absolute inset-0 bg-black/20" />
         <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-end justify-between">
           <div>
-            <h1 className="text-6xl md:text-8xl font-black text-white tracking-tighter mb-2 drop-shadow-lg">{outlet.logo}</h1>
+             {/* USA A IMAGEM DO LOGO EM VEZ DO TEXTO */}
+             <img src={outlet.logo} alt={outlet.name} className="max-h-20 max-w-xs object-contain mb-2" />
             <p className="text-white/90 uppercase tracking-widest text-sm font-bold">Edição de Hoje • Exclusivo NewsOS</p>
           </div>
           <div className="hidden md:block">
@@ -7299,13 +7321,13 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
         </div>
       </div>
 
-      {/* Conteúdo Dinâmico */}
       <div className={`max-w-5xl mx-auto p-4 md:p-8 min-h-screen ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
         {renderLayout()}
       </div>
     </div>
   );
 }
+
 
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
