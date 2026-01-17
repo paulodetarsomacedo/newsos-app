@@ -3584,7 +3584,7 @@ const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
                 if (isKeyword) {
                     return (
                         <button key={index} onClick={() => onKeywordClick(part)}
-                            className={`mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDarkMode ? 'bg-blue-700 hover:bg-yellow-500/40 text-pink-500' : 'bg-blue-700/50 hover:bg-yellow-200 text-amber-500'}`}>
+                            className={`mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDarkMode ? 'bg-blue-700 hover:bg-yellow-500/40 text-pink-500' : 'bg-blue-700/50 hover:bg-yellow-200 text-amber-400'}`}>
                             {part}
                         </button>
                     );
@@ -4194,9 +4194,9 @@ const runTrendAnalysis = async () => {
   style={{
     color: titleColor,
     fontSize: '12px',
-    lineHeight: '1.15',
+    lineHeight: '1.2',
     display: '-webkit-box',
-    WebkitLineClamp: 2,          // até 2 linhas
+    wordBreak: 'break-word',        // até 2 linhas
     WebkitBoxOrient: 'vertical',
     overflow: 'hidden',
   }}
