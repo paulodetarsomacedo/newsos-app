@@ -4551,11 +4551,11 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   const layoutStyles = [
     { layoutType: 'standard', color: 'bg-blue-800' },
     { layoutType: 'magazine', color: 'bg-black' },
-    { layoutType: 'standard', color: 'bg-yellow-500' },
+    { layoutType: 'visual', color: 'bg-yellow-500 text-black' }, // Restaurado
+    { layoutType: 'impact', color: 'bg-red-700' },             // Novo
     { layoutType: 'minimal', color: 'bg-gray-200 text-black' },
-    { layoutType: 'standard', color: 'bg-black' },
-    { layoutType: 'magazine', color: 'bg-blue-600' },
-  ];
+    { layoutType: 'grid', color: 'bg-zinc-900' },               // Novo
+];
 
   const bancaFeeds = useMemo(() => {
     if (!userFeeds || !realNews) return [];
@@ -7242,6 +7242,10 @@ return (
 // === SUBSTITUA SUA FUNÇÃO "OutletDetail" INTEIRA POR ESTA ===
 // ==========================================================
 
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "OutletDetail" INTEIRA POR ESTA ===
+// ==========================================================
+
 function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
 
   const outletNews = useMemo(() => {
@@ -7257,14 +7261,10 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
     return html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
   };
   
-const renderLayout = () => {
+  const renderLayout = () => {
     const layout = outlet.layoutType;
-    const articles = outletNews; // Usa as notícias reais da fonte
-
-    const mainArticle = articles[0];
-    const secondaryArticles = articles.slice(1);
-
-    if (articles.length === 0) {
+    
+    if (!mainArticle) {
         return (
             <div className="text-center py-20 opacity-60">
                 <h3 className="font-bold">Nenhuma notícia recente encontrada para esta fonte.</h3>
@@ -7275,17 +7275,17 @@ const renderLayout = () => {
     if (layout === 'standard') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle(mainArticle)}>
-            <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-              <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} onError={(e) => e.target.style.display='none'}/>
+          <div className="md:col-span-8 group">
+            <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm cursor-pointer ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`} onClick={() => openArticle(mainArticle)}>
+              <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} onError={(e) => e.target.style.display='none'} />
             </div>
-            <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
+            <h2 onClick={() => openArticle(mainArticle)} className={`text-4xl font-serif font-black mb-3 leading-tight cursor-pointer ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
             <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
           </div>
           <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
             {secondaryArticles.slice(0, 4).map((article) => (
-              <div key={article.id} className="cursor-pointer" onClick={() => openArticle(article)}>
-                <span className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">{article.category || 'Geral'}</span>
+              <div key={article.id} className="cursor-pointer group" onClick={() => openArticle(article)}>
+                <span className="text-[10px] font-bold text-blue-500 uppercase mb-1 block group-hover:underline">{article.category || 'Geral'}</span>
                 <h4 className={`font-serif font-bold text-xl leading-tight ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{article.title}</h4>
               </div>
             ))}
@@ -7297,12 +7297,12 @@ const renderLayout = () => {
     if (layout === 'magazine') {
       return (
         <div className={`space-y-12 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {articles.slice(0, 3).map((article, i) => (
-            <div key={article.id} className={`flex gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`} onClick={() => openArticle(article)}>
-              <span className={`text-8xl font-black transition-colors ${isDarkMode ? 'text-zinc-800 group-hover:text-blue-500/20' : 'text-zinc-100 group-hover:text-blue-500/20'}`}>0{i + 1}</span>
+          {outletNews.slice(0, 3).map((article, i) => (
+            <div key={article.id} className={`flex flex-col md:flex-row gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`} onClick={() => openArticle(article)}>
+              <span className={`text-8xl font-black transition-colors opacity-25 md:opacity-100 ${isDarkMode ? 'text-zinc-700 group-hover:text-purple-500/20' : 'text-zinc-200 group-hover:text-purple-500/20'}`}>0{i+1}</span>
               <div className="w-full">
-                <span className="text-blue-500 font-bold tracking-widest uppercase text-xs mb-2 block">{article.category || 'Destaque'}</span>
-                <h3 className={`text-4xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white group-hover:text-blue-400' : 'text-zinc-900 group-hover:text-blue-600'}`}>{article.title}</h3>
+                <span className="text-purple-500 font-bold tracking-widest uppercase text-xs mb-2 block">{article.category || 'Destaque'}</span>
+                <h3 className={`text-4xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white group-hover:text-purple-400' : 'text-zinc-900 group-hover:text-purple-600'}`}>{article.title}</h3>
                 <p className="opacity-70 text-lg line-clamp-2 font-serif">{stripTags(article.summary)}</p>
               </div>
             </div>
@@ -7313,13 +7313,16 @@ const renderLayout = () => {
     
     if (layout === 'visual') {
       return (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {articles.map((article, i) => (
-            <div key={article.id} onClick={() => openArticle(article)} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square ${i === 0 ? 'md:col-span-2 md:row-span-2' : ''}`}>
-              <img src={article.img} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt={article.title} onError={(e) => e.target.style.display='none'}/>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {outletNews.map((article, i) => (
+            <div key={article.id} onClick={() => openArticle(article)} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square
+              ${i === 0 ? 'md:col-span-2 md:row-span-2 aspect-video md:aspect-square' : ''}
+              ${i === 3 ? 'md:col-span-2' : ''}
+            `}>
+              <img src={article.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-700 bg-zinc-200" alt={article.title} onError={(e) => e.target.style.display='none'} />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
               <div className="absolute bottom-0 left-0 p-4">
-                <h3 className="text-white font-bold text-lg leading-tight">{article.title}</h3>
+                <h3 className="text-white font-bold text-base leading-tight drop-shadow-lg line-clamp-2">{article.title}</h3>
               </div>
             </div>
           ))}
@@ -7330,13 +7333,13 @@ const renderLayout = () => {
     if (layout === 'minimal') {
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {articles.map((article) => (
+          {outletNews.map((article) => (
             <div key={article.id} className="flex gap-4 cursor-pointer group" onClick={() => openArticle(article)}>
-              <div className={`w-16 h-16 rounded flex-shrink-0 overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+              <div className={`w-20 h-20 rounded-lg flex-shrink-0 overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
                 <img src={article.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
               </div>
               <div>
-                <h4 className={`font-bold text-lg mb-1 group-hover:underline decoration-blue-500 underline-offset-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>{article.title}</h4>
+                <h4 className={`font-bold text-lg mb-1 group-hover:underline decoration-purple-500 underline-offset-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>{article.title}</h4>
                 <p className="text-sm opacity-60 line-clamp-2">{stripTags(article.summary)}</p>
               </div>
             </div>
@@ -7344,6 +7347,49 @@ const renderLayout = () => {
         </div>
       );
     }
+    
+    if (layout === 'impact') {
+        return (
+            <div className="space-y-4">
+                {mainArticle && (
+                    <div className="relative rounded-2xl overflow-hidden cursor-pointer group" onClick={() => openArticle(mainArticle)}>
+                        <img src={mainArticle.img} className="w-full h-96 object-cover" alt={mainArticle.title} onError={(e) => e.target.style.display='none'} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                        <div className="absolute bottom-0 left-0 p-8">
+                            <span className="px-3 py-1 rounded-full bg-red-600 text-white text-xs font-bold uppercase tracking-wider mb-2 inline-block">Manchete</span>
+                            <h2 className="text-5xl font-black text-white leading-none drop-shadow-xl">{mainArticle.title}</h2>
+                        </div>
+                    </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {secondaryArticles.slice(0, 3).map(article => (
+                        <div key={article.id} className={`p-4 rounded-xl cursor-pointer group ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`} onClick={() => openArticle(article)}>
+                             <h3 className={`font-bold text-lg leading-tight mb-2 group-hover:underline ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{article.title}</h3>
+                             <p className={`text-sm opacity-60 line-clamp-3 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(article.summary)}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+    
+    if (layout === 'grid') {
+        return (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {outletNews.map((article, i) => (
+                    <div key={article.id} onClick={() => openArticle(article)} 
+                        className={`relative group cursor-pointer rounded-xl overflow-hidden ${i === 0 ? 'col-span-2 row-span-2' : ''}`}>
+                         <img src={article.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500 bg-zinc-200" alt={article.title} onError={(e) => e.target.style.display='none'} />
+                         <div className="absolute inset-0 bg-black/40"></div>
+                         <div className="absolute bottom-0 left-0 p-4">
+                            <h3 className={`font-bold leading-tight text-white drop-shadow-lg ${i === 0 ? 'text-2xl' : 'text-base'}`}>{article.title}</h3>
+                         </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
   };
 
   return (
@@ -7357,27 +7403,15 @@ const renderLayout = () => {
         <div className="w-16" />
       </div>
 
-   <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl ${isDarkMode ? 'bg-zinc-800' : 'bg-gray-200'}`}>
-  
-  {/* Camada de Gradiente sutil para textura */}
-  <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10"></div>
-  
-  {/* Logo em alta resolução, centralizado */}
-  <div className="w-full h-full flex items-center justify-center p-8">
-      <img 
-          src={outlet.logo} 
-          className="max-h-full max-w-full object-contain" 
-          // A PROPRIEDADE 'style' FOI REMOVIDA
-      />
-  </div>
-  
-  {/* Faixa com Nome da Fonte */}
-  <div className="absolute bottom-0 left-0 right-0 p-8 pt-16 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent">
-      <span className={`font-serif font-extrabold text-6xl md:text-8xl tracking-tighter ${isDarkMode ? 'text-white' : 'text-black'}`}>
-          {outlet.name}
-      </span>
-  </div>
-</div>
+      <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl ${outlet.color}`}>
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10"></div>
+        <img 
+            src={outlet.logo} 
+            className="absolute inset-0 w-full h-full object-contain p-12 md:p-20 opacity-60" 
+            style={{ filter: outlet.color.includes('text-black') ? 'invert(100%)' : 'brightness(0) invert(1)' }}
+        />
+        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent"></div>
+      </div>
 
       <div className={`max-w-5xl mx-auto p-4 md:p-8 min-h-screen ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
         {renderLayout()}
@@ -7385,7 +7419,6 @@ const renderLayout = () => {
     </div>
   );
 }
-
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
 // Usa a API 'gtx' do Google (gratuita/pública) para traduzir textos mantendo estrutura
