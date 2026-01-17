@@ -4541,11 +4541,11 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
     'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
     'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
-    '9to5mac': 'https://filipeesposito.com/wp-content/uploads/2024/04/9to5Mac.png',
+    '9to5mac': 'https://getlogovector.com/wp-content/uploads/2019/10/9to5mac-logo-vector.png',
     'times brasil': 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Times_Brasil_CNBC_logo_2025.svg',
-    'quatro rodas': 'https://logodownload.org/wp-content/uploads/2018/10/quatro-rodas-logo.png',
+    'quatro rodas': 'https://pioneer.com.br/wp-content/uploads/2025/07/Quatro-Rodas.svg',
     'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
-    'fox news': 'https://upload.wikimedia.org/wikipedia/commons/6/67/Fox_News_Channel_logo.svg'
+    'fox news': 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Fox_News_Media_Logo.svg/960px-Fox_News_Media_Logo.svg.png'
   };
 
   const layoutStyles = [
