@@ -5603,84 +5603,106 @@ const generateSmartStories = (news, allClusters) => {
     // --- CONFIGURAÇÕES DA LÓGICA ---
     const BREAKING_NEWS_SOURCES = new Set(['Terra', 'Extra', 'Veja', 'CNN Brasil', 'Times Brasil', 'UOL', 'Jovem Pan', 'Istoé', 'G1 Mundo', 'G1 Nacional', 'Metropoles', 'Leo Dias', 'Fox News']);
     const BREAKING_NEWS_KEYWORDS = ['urgente', 'agora', 'ao vivo', 'última hora', 'alerta', 'plantão', 'acontece', 'acaba de', 'últimas informações', 'exclusivo', 'bomba', 'morre', 'desastre', 'acabou de', 'breaking news', 'ultimos acontecimentos', 'operação', 'deflagra', 'deflagrada', 'crise', 'explosão'];
-    const BREAKING_NEWS_TIMESPAN_MS = 45 * 60 * 1000;
+    const BREAKING_NEWS_TIMESPAN_MS = 15 * 60 * 1000;
     const ANCHOR_CACHE_TTL_MS = 40 * 60 * 1000;
     const ANCHOR_CACHE_KEY = 'newsos_anchor_story_cache';
 
-    const latestBySource = new Map();
-    news.forEach(item => {
-        if (item && !latestBySource.has(item.source)) { // <--- Verificação de segurança
-            latestBySource.set(item.source, item);
-        }
-    });
-    let storyCandidates = Array.from(latestBySource.values());
+    const now = Date.now();
     let breakingNewsArticle = null;
     let anchorArticle = null;
-    const now = Date.now();
 
+    // --- ETAPA 1: TENTAR RESTAURAR A ÂNCORA DO CACHE ---
     try {
         const cachedAnchorRaw = localStorage.getItem(ANCHOR_CACHE_KEY);
         if (cachedAnchorRaw) {
             const cachedAnchor = JSON.parse(cachedAnchorRaw);
-            if ((now - cachedAnchor.timestamp < ANCHOR_CACHE_TTL_MS) && news.find(n => n && n.id === cachedAnchor.article.id)) { // <--- Verificação de segurança
-                anchorArticle = cachedAnchor.article;
+            // Verifica se o cache ainda é válido (tempo não expirou)
+            if (now - cachedAnchor.timestamp < ANCHOR_CACHE_TTL_MS) {
+                // Procura o artigo exato do cache na lista de notícias ATUAIS.
+                // Isso garante que a âncora só persiste se ainda for relevante no feed.
+                const foundArticle = news.find(n => n && n.id === cachedAnchor.article.id);
+                if (foundArticle) {
+                    anchorArticle = foundArticle; // Usa a versão "fresca" do artigo
+                }
             } else {
-                localStorage.removeItem(ANCHOR_CACHE_KEY);
+                localStorage.removeItem(ANCHOR_CACHE_KEY); // Limpa o cache se expirou
             }
         }
-    } catch (e) { localStorage.removeItem(ANCHOR_CACHE_KEY); }
+    } catch (e) {
+        localStorage.removeItem(ANCHOR_CACHE_KEY); // Limpa se o cache estiver corrompido
+    }
 
+    // --- ETAPA 2: SE NÃO HÁ ÂNCORA NO CACHE, CALCULA UMA NOVA ---
     if (!anchorArticle) {
-        // CORREÇÃO CRÍTICA: Garante que o cluster e os artigos dentro dele existem
         if (allClusters && allClusters.length > 0 && allClusters[0].related_articles && allClusters[0].related_articles.length > 0) {
             anchorArticle = allClusters[0].related_articles[0];
-        } else if (storyCandidates.length > 0) {
-            anchorArticle = storyCandidates.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())[0];
+        } else if (news.length > 0) {
+            // Fallback: A âncora é a notícia mais recente de todas se não houver clusters
+            anchorArticle = news.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())[0];
         }
+        
+        // Salva a nova âncora no cache, se encontrada
         if (anchorArticle) {
             try {
                 localStorage.setItem(ANCHOR_CACHE_KEY, JSON.stringify({ article: anchorArticle, timestamp: now }));
-            } catch (e) { console.warn("Falha ao salvar âncora no cache:", e); }
+            } catch (e) {
+                console.warn("Falha ao salvar âncora no cache:", e);
+            }
         }
     }
 
-    const potentialBreaking = [];
-    for (const article of news) {
-        if (!article) continue; // <--- Verificação de segurança
+    // --- ETAPA 3: IDENTIFICA A BREAKING NEWS ---
+    const potentialBreaking = news.filter(article => {
+        if (!article) return false;
         const articleTime = new Date(article.rawDate).getTime();
-        if (now - articleTime > BREAKING_NEWS_TIMESPAN_MS) continue;
-        if (!BREAKING_NEWS_SOURCES.has(article.source)) continue;
+        if (now - articleTime > BREAKING_NEWS_TIMESPAN_MS) return false;
+        if (!BREAKING_NEWS_SOURCES.has(article.source)) return false;
         const titleLower = article.title.toLowerCase();
-        if (BREAKING_NEWS_KEYWORDS.some(keyword => titleLower.includes(keyword))) {
-            potentialBreaking.push(article);
-        }
-    }
+        return BREAKING_NEWS_KEYWORDS.some(keyword => titleLower.includes(keyword));
+    });
+
     if (potentialBreaking.length > 0) {
         breakingNewsArticle = potentialBreaking.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())[0];
     }
-    
-    let finalStoryList = [];
+
+    // --- ETAPA 4: MONTAGEM DA LISTA FINAL COM RECONCILIAÇÃO ---
+    const finalStoryList = [];
     const usedIds = new Set();
-    
-    // CORREÇÃO CRÍTICA: Verifica se os artigos existem antes de usá-los
+    const usedSources = new Set(); // <<< NOVO: Para garantir que a fonte da âncora não se repita
+
     if (breakingNewsArticle) {
         finalStoryList.push({ ...breakingNewsArticle, isBreaking: true });
         usedIds.add(breakingNewsArticle.id);
+        usedSources.add(breakingNewsArticle.source);
     }
     if (anchorArticle && !usedIds.has(anchorArticle.id)) {
         finalStoryList.push({ ...anchorArticle, isAnchor: true });
         usedIds.add(anchorArticle.id);
+        usedSources.add(anchorArticle.source);
     }
     
-    let remainingCandidates = storyCandidates.filter(article => article && !usedIds.has(article.id)); // <--- Verificação de segurança
+    // --- ETAPA 5: GERAÇÃO DOS STORIES RESTANTES (EMBARALHADOS) ---
+    const latestBySource = new Map();
+    news.forEach(item => {
+        if (item && !latestBySource.has(item.source)) {
+            latestBySource.set(item.source, item);
+        }
+    });
+
+    let remainingCandidates = Array.from(latestBySource.values()).filter(article => {
+        if (!article) return false;
+        // Garante que não vamos adicionar um story de uma fonte que já é Âncora ou Breaking News
+        return !usedIds.has(article.id) && !usedSources.has(article.source);
+    });
 
     const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
     remainingCandidates.sort(() => (Math.sin(dayOfYear + remainingCandidates.length) - 0.5));
+    
     finalStoryList.push(...remainingCandidates);
 
-    // FORMATAÇÃO FINAL COM GARANTIA DE INTEGRIDADE
+    // --- ETAPA 6: FORMATAÇÃO FINAL PARA A UI ---
     return finalStoryList
-        .filter(Boolean) // <--- ETAPA FINAL DE LIMPEZA, REMOVE QUALQUER UNDEFINED
+        .filter(Boolean)
         .map(item => {
             const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
             const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
