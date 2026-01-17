@@ -790,7 +790,7 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
         {selectedSource === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
-           <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
+           <div className="w-6 h-6 rounded-md overflow-hidden border border-white/20">
               <img 
                 src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
                 className="w-full h-full object-cover"
@@ -4591,7 +4591,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
 
   const displayedItems = category === 'Tudo' ? bancaFeeds : bancaFeeds.filter(i => (i.category || 'Geral') === category);
 
-  return (
+return (
     <div className="pt-2 pb-24 pr-16 animate-in zoom-in-95 duration-500 min-h-screen">
       <div className="fixed right-0 top-[25%] z-30 flex flex-col gap-1 items-end pointer-events-none">
           {bancaCategories.map((cat) => (
@@ -4616,36 +4616,52 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
       )}
 
      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
-  {displayedItems.map((item) => (
-    <div key={item.id} onClick={() => openOutlet(item)} 
-         className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group ${isDarkMode ? 'bg-zinc-800' : 'bg-white'}`}>
-      
-      {/* ========================================================== */}
-      {/* === AS MUDANÇAS ESTÃO AQUI === */}
-      {/* ========================================================== */}
-      
-      {/* 1. FAIXA SUPERIOR COM FUNDO PADRÃO NEUTRO */}
-      <div className={`h-1/3 flex items-center justify-center p-4 ${isDarkMode ? 'bg-zinc-700' : 'bg-gray-100'}`}>
-          <img 
-              src={item.logo} 
-              alt={item.name} 
-              className="max-h-full max-w-full object-contain drop-shadow-lg p-2"
-              // 2. A PROPRIEDADE 'style' FOI REMOVIDA
-          />
-      </div>
-            
-            <div className="flex-1 flex flex-col justify-center p-3 space-y-2">
-              {item.latestHeadlines?.length > 0 ? (
-                  item.latestHeadlines.map(headline => (
-                      <div key={headline.id} className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>{headline.title}</div>
-                  ))
-              ) : ( <p className="text-xs text-zinc-500">Buscando destaques...</p> )}
+        {displayedItems.map((item) => {
+          // A variável é definida aqui, de forma segura
+          const mainHeadline = item.latestHeadlines?.[0];
+
+          return (
+            <div key={item.id} onClick={() => openOutlet(item)} 
+                 className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group`}>
+              
+              {/* SEU CABEÇALHO (INTOCADO) */}
+              <div className={`h-1/3 flex items-center justify-center p-4 ${isDarkMode ? 'bg-zinc-700' : 'bg-gray-100'}`}>
+                  <img 
+                      src={item.logo} 
+                      alt={item.name} 
+                      className="max-h-full max-w-full object-contain drop-shadow-lg p-2"
+                  />
+              </div>
+              
+              {/* O NOVO "TEASER VISUAL" SUBSTITUINDO A LISTA DE TEXTO */}
+              <div className="flex-1 flex flex-col justify-end relative bg-white dark:bg-zinc-800">
+                {mainHeadline?.img ? (
+                    <>
+                        <img src={mainHeadline.img} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" onError={(e) => {e.target.style.display='none'}} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent"></div>
+                    </>
+                ) : (
+                    <div className={`absolute inset-0 ${isDarkMode ? 'bg-zinc-800' : 'bg-white'}`}></div>
+                )}
+                
+                <div className="relative p-3">
+                    <h3 className={`font-serif font-bold leading-tight text-lg line-clamp-3 ${mainHeadline?.img ? 'text-white drop-shadow-lg' : (isDarkMode ? 'text-zinc-200' : 'text-zinc-800')}`}>
+                        {mainHeadline ? mainHeadline.title : `Destaques de ${item.name}`}
+                    </h3>
+                    <p className={`text-xs mt-1 opacity-80 ${mainHeadline?.img ? 'text-white/80' : 'text-zinc-500'}`}>
+                        {item.latestHeadlines && item.latestHeadlines.length > 1 
+                            ? `Leia a matéria principal e +${item.latestHeadlines.length - 1} destaques` 
+                            : 'Leia a matéria principal'
+                        }
+                    </p>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
-  ); 
+  );
 }
 
 // --- NOVO FILTRO MODERNO E MINIMALISTA (PARA A ABA SALVOS) ---
