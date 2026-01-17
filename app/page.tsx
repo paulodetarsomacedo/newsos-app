@@ -4546,9 +4546,8 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     'quatro rodas': 'https://fcdesigner.art.br/wp-content/uploads/2018/05/Gps-e-som-Quatro-rodas_GPS-automotivo-quatro-rodas-logo.jpg',
     'g1': 'https://s2-g1.glbimg.com/CKKzaYNQ0DDudV5dxhseyl-YQPY=/0x0:1200x630/984x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_59edd422c0c84a879bd37670ae4f538a/internal_photos/bs/2022/K/M/n9NxFJQ0WnYH4pFapiGw/logo-g1.png',
     'fox news': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png'
+  };
 
-    // Adicione outros logos de alta qualidade aqui
-};
   const layoutStyles = [
     { layoutType: 'standard', color: 'bg-[#004990]' },
     { layoutType: 'magazine', color: 'bg-black' },
@@ -4624,14 +4623,16 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
         {displayedItems.map((item) => (
           <div key={item.id} onClick={() => openOutlet(item)} 
                className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group ${isDarkMode ? 'bg-zinc-800' : 'bg-white'}`}>
+            
             <div className={`h-1/3 flex items-center justify-center p-4 ${item.color}`}>
                 <img 
                     src={item.logo} 
                     alt={item.name} 
-                    className="max-h-12 w-3/4 object-contain drop-shadow-lg"
-                    style={{ filter: item.color === 'bg-black' || item.color === 'bg-zinc-900' ? 'brightness(0) invert(1)' : '' }}
+                    className="max-h-full max-w-full object-contain drop-shadow-lg"
+                    style={{ filter: item.color.includes('text-black') ? '' : 'brightness(0) invert(1)' }}
                 />
             </div>
+            
             <div className="flex-1 flex flex-col justify-center p-3 space-y-2">
               {(item.latestHeadlines && item.latestHeadlines.length > 0) ? (
                   item.latestHeadlines.map(headline => (
@@ -7269,11 +7270,7 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
     if (layout === 'standard') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          {/* Coluna Principal (Manchete com Imagem) */}
           <div className="md:col-span-8 group">
-            {/* ========================================================== */}
-            {/* === O BLOCO DA IMAGEM FOI REINSERIDO AQUI === */}
-            {/* ========================================================== */}
             <div 
               className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm cursor-pointer ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}
               onClick={() => openArticle(mainArticle)}
@@ -7283,8 +7280,6 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
             <h2 onClick={() => openArticle(mainArticle)} className={`text-4xl font-serif font-black mb-3 leading-tight cursor-pointer ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
             <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
           </div>
-          
-          {/* Coluna Secundária */}
           <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
             {secondaryArticles.slice(0, 4).map((article) => (
               <div key={article.id} className="cursor-pointer" onClick={() => openArticle(article)}>
@@ -7296,7 +7291,7 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
         </div>
       );
     }
-
+    
     if (layout === 'magazine') {
       return (
         <div className={`space-y-12 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
@@ -7360,24 +7355,22 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
         <div className="w-16" />
       </div>
 
-{/* Hero Section: O LOGO GIGANTE COMO FUNDO */}
-      {/* ========================================================== */}
-      {/* === CORREÇÃO DO "LOGO FANTASMA" ESTÁ AQUI === */}
-      {/* ========================================================== */}
       <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl ${outlet.color}`}>
-        {/* Camada de Gradiente para dar textura */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10"></div>
-        
-        {/* Imagem do LOGO */}
-        <img 
-            src={outlet.logo} 
-            className="absolute inset-0 w-full h-full object-contain p-12 md:p-20 opacity-90" 
-            // Lógica de filtro para inverter logos escuros em fundos escuros
-            style={{ filter: outlet.color.includes('text-black') ? '' : 'brightness(0) invert(1)' }}
-        />
-        
+        <div 
+          className="absolute inset-0 w-full h-full bg-gradient-to-t from-black/50 to-white/50"
+          style={{
+            maskImage: `url(${outlet.logo})`,
+            maskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskImage: `url(${outlet.logo})`,
+            WebkitMaskSize: 'contain',
+            WebkitMaskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center',
+          }}
+        ></div>
         <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-950 dark:via-zinc-950/95 dark:to-transparent"></div>
-        
         <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-end justify-between">
           <div>
             <span className={`font-serif font-extrabold text-6xl md:text-8xl tracking-tighter ${isDarkMode ? 'text-white' : 'text-black'}`}>
