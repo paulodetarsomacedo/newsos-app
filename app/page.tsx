@@ -6871,11 +6871,7 @@ return (
                     isDarkMode={isDarkMode} 
                     newsData={realNews}
                     // AÇÃO 1: Pull-to-Refresh
-                    onRefresh={async () => {
-                        await handleHappeningRefresh();
-                        // Aciona o gatilho para pegar uma nova chave de widget
-                        setWidgetTrigger(prev => prev + 1); 
-                    }}
+                    onRefresh={handleHappeningRefresh}
                     seenStoryIds={seenStoryIds} 
                     onMarkAsSeen={markStoryAsSeen}
                     
@@ -7074,7 +7070,7 @@ return (
       {askQuestion && (<AskAIModal question={askQuestion} answer={askAnswer} sources={askSources} isLoading={isAskLoading} onClose={() => setAskQuestion(null)} isDarkMode={isDarkMode} />)}
       {isSettingsOpen && (<SettingsModal onClose={() => setIsSettingsOpen(false)} isDarkMode={isDarkMode} feeds={userFeeds} setFeeds={setUserFeeds} apiKeys={apiKeys} setApiKeys={setApiKeys} user={user} />)}
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleReadNative} isDarkMode={isDarkMode} />}
-      {selectedStory && (<StoryOverlay story={selectedStory} onClose={closeStory} onRead={handleReadNative} onMarkAsSeen={markStoryAsSeen} allStories={storiesForHappeningTab} onNavigate={handleStoryNavigation} />)}
+      {selectedStory && (<StoryOverlay key={selectedStory.id} story={selectedStory} onClose={closeStory} onRead={handleReadNative} onMarkAsSeen={markStoryAsSeen} allStories={storiesForHappeningTab} onNavigate={handleStoryNavigation} />)}
 {playingAudio && (<GlobalAudioPlayer track={playingAudio} onClose={() => setPlayingAudio(null)} isDarkMode={isDarkMode} />)}      {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
   );
