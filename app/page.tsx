@@ -5674,7 +5674,7 @@ const generateSmartStories = (news, allClusters) => {
     // --- CONFIGURAÇÕES DA LÓGICA ---
     const BREAKING_NEWS_SOURCES = new Set(['Terra', 'Extra', 'Veja', 'CNN Brasil', 'Times Brasil', 'UOL', 'Jovem Pan', 'Istoé', 'G1 Mundo', 'G1 Nacional', 'Metropoles', 'Leo Dias', 'Fox News']);
     const BREAKING_NEWS_KEYWORDS = ['urgente', 'agora', 'ao vivo', 'última hora', 'alerta', 'plantão', 'acontece', 'acaba de', 'últimas informações', 'exclusivo', 'bomba', 'morre', 'desastre', 'acabou de', 'breaking news', 'ultimos acontecimentos', 'operação', 'deflagra', 'deflagrada', 'crise', 'explosão'];
-    const BREAKING_NEWS_TIMESPAN_MS = 15 * 60 * 1000;
+    const BREAKING_NEWS_TIMESPAN_MS = 45 * 60 * 1000;
     const ANCHOR_CACHE_TTL_MS = 40 * 60 * 1000;
     const ANCHOR_CACHE_KEY = 'newsos_anchor_story_cache';
 
