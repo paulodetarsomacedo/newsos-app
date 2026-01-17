@@ -4543,7 +4543,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
     '9to5mac': 'https://getlogovector.com/wp-content/uploads/2019/10/9to5mac-logo-vector.png',
     'times brasil': 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Times_Brasil_CNBC_logo_2025.svg',
-    'quatro rodas': 'https://pioneer.com.br/wp-content/uploads/2025/07/Quatro-Rodas.svg',
+    'quatro rodas': '/logos/quatro-rodas.png',
     'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
     'fox news': 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Fox_News_Media_Logo.svg/960px-Fox_News_Media_Logo.svg.png'
   };
