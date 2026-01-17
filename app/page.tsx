@@ -4531,7 +4531,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   const [category, setCategory] = useState('Tudo');
 
-  // DICIONÁRIO DE LOGOS PREMIUM (ISOLADO E SÓ PARA A BANCA)
+  // DICIONÁRIO DE LOGOS COMPLETO E RESTAURADO
   const LOGO_DICTIONARY = {
     'cnn brasil': 'https://assets.b9.com.br/wp-content/uploads/2019/03/cnn-brasil.jpg',
     'o globo': 'https://d37iydjzbdkvr9.cloudfront.net/google-assistant/o-globo/logo-globo-1000x1000.jpg',
@@ -4549,11 +4549,12 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   };
 
   const layoutStyles = [
-    { layoutType: 'standard', color: 'bg-[#004990]' },
+    { layoutType: 'standard', color: 'bg-blue-800' },
     { layoutType: 'magazine', color: 'bg-black' },
-    { layoutType: 'visual', color: 'bg-[#FFCC00] text-black' },
-    { layoutType: 'minimal', color: 'bg-[#D6CFC7] text-black' },
-    { layoutType: 'standard', color: 'bg-zinc-900' },
+    { layoutType: 'standard', color: 'bg-yellow-500' },
+    { layoutType: 'minimal', color: 'bg-gray-200 text-black' },
+    { layoutType: 'standard', color: 'bg-black' },
+    { layoutType: 'magazine', color: 'bg-blue-600' },
   ];
 
   const bancaFeeds = useMemo(() => {
@@ -4562,10 +4563,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     return userFeeds
         .filter(feed => feed.display?.banca)
         .map((feed, index) => {
-            const latestHeadlines = realNews
-                .filter(news => news.source === feed.name)
-                .slice(0, 2);
-            
+            const latestHeadlines = realNews.filter(news => news.source === feed.name).slice(0, 2);
             let finalLogo = feed.logo;
             const lowerName = feed.name.toLowerCase();
             
@@ -4586,14 +4584,12 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   }, [userFeeds, realNews]);
 
   const bancaCategories = useMemo(() => {
-      if (!bancaFeeds || bancaFeeds.length === 0) return ['Tudo'];
-      const categories = new Set(bancaFeeds.map(feed => feed.category || 'Geral'));
-      return ['Tudo', ...Array.from(categories)];
+    if (!bancaFeeds || bancaFeeds.length === 0) return ['Tudo'];
+    const categories = new Set(bancaFeeds.map(feed => feed.category || 'Geral'));
+    return ['Tudo', ...Array.from(categories)];
   }, [bancaFeeds]);
 
-  const displayedItems = category === 'Tudo' 
-      ? bancaFeeds 
-      : bancaFeeds.filter(i => (i.category || 'Geral') === category);
+  const displayedItems = category === 'Tudo' ? bancaFeeds : bancaFeeds.filter(i => (i.category || 'Geral') === category);
 
   return (
     <div className="pt-2 pb-24 pr-16 animate-in zoom-in-95 duration-500 min-h-screen">
@@ -4623,16 +4619,18 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
         {displayedItems.map((item) => (
           <div key={item.id} onClick={() => openOutlet(item)} 
                className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group ${isDarkMode ? 'bg-zinc-800' : 'bg-white'}`}>
+            
             <div className={`h-1/3 flex items-center justify-center p-4 ${item.color}`}>
                 <img 
                     src={item.logo} 
                     alt={item.name} 
-                    className="max-h-full max-w-full object-contain drop-shadow-lg"
+                    className="max-h-full max-w-full object-contain drop-shadow-lg p-2"
                     style={{ filter: item.color.includes('text-black') ? '' : 'brightness(0) invert(1)' }}
                 />
             </div>
+            
             <div className="flex-1 flex flex-col justify-center p-3 space-y-2">
-              {(item.latestHeadlines && item.latestHeadlines.length > 0) ? (
+              {item.latestHeadlines?.length > 0 ? (
                   item.latestHeadlines.map(headline => (
                       <div key={headline.id} className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>{headline.title}</div>
                   ))
@@ -4644,7 +4642,6 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     </div>
   ); 
 }
-
 
 // --- NOVO FILTRO MODERNO E MINIMALISTA (PARA A ABA SALVOS) ---
 
@@ -7356,26 +7353,17 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
 
       <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl ${outlet.color}`}>
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10"></div>
-        <div 
-          className="absolute inset-0 w-full h-full bg-gradient-to-t from-black/50 to-white/50"
-          style={{
-            maskImage: `url(${outlet.logo})`,
-            maskSize: 'contain',
-            maskRepeat: 'no-repeat',
-            maskPosition: 'center',
-            WebkitMaskImage: `url(${outlet.logo})`,
-            WebkitMaskSize: 'contain',
-            WebkitMaskRepeat: 'no-repeat',
-            WebkitMaskPosition: 'center',
-          }}
-        ></div>
-        <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-950 dark:via-zinc-950/95 dark:to-transparent"></div>
-        <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-end justify-between">
-          <div>
+        <div className="w-full h-full flex items-center justify-center p-8">
+            <img 
+                src={outlet.logo} 
+                className="max-h-full max-w-full object-contain" 
+                style={{ filter: outlet.color.includes('text-black') ? '' : 'brightness(0) invert(1)' }}
+            />
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 p-8 pt-16 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent">
             <span className={`font-serif font-extrabold text-6xl md:text-8xl tracking-tighter ${isDarkMode ? 'text-white' : 'text-black'}`}>
                 {outlet.name}
             </span>
-          </div>
         </div>
       </div>
 
@@ -7385,6 +7373,7 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
     </div>
   );
 }
+
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
 // Usa a API 'gtx' do Google (gratuita/pública) para traduzir textos mantendo estrutura
