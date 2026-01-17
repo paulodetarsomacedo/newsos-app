@@ -4528,10 +4528,9 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 // === SUBSTITUA SUA FUNÇÃO "BancaTab" INTEIRA POR ESTA ===
 // ==========================================================
 
-function BancaTab({ openOutlet, isDarkMode, userFeeds }) {
+function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   const [category, setCategory] = useState('Tudo');
 
-  // OS ESTILOS MOCKADOS AGORA SÃO UM "POOL" DE DESIGN
   const layoutStyles = [
     { layoutType: 'standard', color: 'bg-[#004990]' },
     { layoutType: 'magazine', color: 'bg-black' },
@@ -4540,27 +4539,28 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds }) {
     { layoutType: 'standard', color: 'bg-zinc-900' },
   ];
 
-  // 1. FILTRA APENAS AS FONTES MARCADAS PARA A BANCA E APLICA OS ESTILOS
   const bancaFeeds = useMemo(() => {
-    if (!userFeeds) return [];
+    if (!userFeeds || !realNews) return [];
     return userFeeds
         .filter(feed => feed.display?.banca)
-        .map((feed, index) => ({
-            ...feed,
-            ...layoutStyles[index % layoutStyles.length], 
-            headline: `Destaques de ${feed.name}`
-        }));
-  }, [userFeeds]);
+        .map((feed, index) => {
+            const latestHeadlines = realNews
+                .filter(news => news.source === feed.name)
+                .slice(0, 2);
+            return {
+                ...feed,
+                ...layoutStyles[index % layoutStyles.length],
+                latestHeadlines: latestHeadlines,
+            };
+        });
+  }, [userFeeds, realNews]);
 
-  // CATEGORIAS DISPONÍVEIS NA BANCA (DINÂMICO)
   const bancaCategories = useMemo(() => {
       if (!bancaFeeds || bancaFeeds.length === 0) return ['Tudo'];
-      // Pega as categorias únicas das fontes na banca e remove duplicatas
       const categories = new Set(bancaFeeds.map(feed => feed.category || 'Geral'));
       return ['Tudo', ...Array.from(categories)];
   }, [bancaFeeds]);
 
-  // Filtra os itens exibidos pela categoria selecionada
   const displayedItems = category === 'Tudo' 
       ? bancaFeeds 
       : bancaFeeds.filter(i => (i.category || 'Geral') === category);
@@ -4589,34 +4589,39 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds }) {
           </div>
       )}
 
-<div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
         {displayedItems.map((item) => (
           <div key={item.id} onClick={() => openOutlet(item)} 
-               className={`relative aspect-[3/4] rounded-2xl flex flex-col justify-between p-4 cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group ${item.color}`}>
+               className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group ${isDarkMode ? 'bg-zinc-800' : 'bg-white'}`}>
             
-            {/* Logo em alta resolução sobre o fundo colorido */}
-            <div className="flex-1 flex items-center justify-center">
+            {/* 1. FAIXA SUPERIOR COM COR E LOGO */}
+            <div className={`h-1/3 flex items-center justify-center p-4 ${item.color}`}>
                 <img 
                     src={item.logo} 
                     alt={item.name} 
-                    className="max-h-16 w-3/4 object-contain drop-shadow-lg"
-                    // Estilo para garantir que logos escuros apareçam em fundos escuros
+                    className="max-h-12 w-3/4 object-contain drop-shadow-lg"
                     style={{ filter: item.color === 'bg-black' || item.color === 'bg-zinc-900' ? 'brightness(0) invert(1)' : '' }}
                 />
             </div>
             
-            {/* Manchete na parte inferior */}
-            <div className="h-1/3 flex items-end">
-                <h3 className={`font-serif font-bold leading-tight text-lg ${item.color.includes('text-black') ? 'text-black' : 'text-white'}`}>{item.headline}</h3>
+            {/* 2. DUAS MANCHETES DE DESTAQUE */}
+            <div className="flex-1 flex flex-col justify-center p-3 space-y-2">
+              {(item.latestHeadlines && item.latestHeadlines.length > 0) ? (
+                  item.latestHeadlines.map(headline => (
+                      <div key={headline.id} className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
+                          {headline.title}
+                      </div>
+                  ))
+              ) : (
+                  <p className="text-xs text-zinc-500">Buscando destaques...</p>
+              )}
             </div>
-
           </div>
         ))}
       </div>
     </div>
   ); 
 }
-
 
 // --- NOVO FILTRO MODERNO E MINIMALISTA (PARA A ABA SALVOS) ---
 
@@ -7232,6 +7237,10 @@ return (
 
 
 
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "OutletDetail" INTEIRA POR ESTA ===
+// ==========================================================
+
 function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
 
   const outletNews = useMemo(() => {
@@ -7242,7 +7251,6 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
   const mainArticle = outletNews[0];
   const secondaryArticles = outletNews.slice(1);
 
-  // Função helper para limpar HTML (se ainda não existir globalmente)
   const stripTags = (html = "") => {
     if (!html) return "";
     return html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
@@ -7341,27 +7349,19 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
         <div className="w-16" />
       </div>
 
-      <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl bg-zinc-800`}>
-        {mainArticle && <img src={mainArticle.img} className="absolute inset-0 w-full h-full object-cover opacity-80" />}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
-        <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-center gap-3">
-          <img src={outlet.logo} alt={outlet.name} className="h-8 object-contain drop-shadow-lg" style={{ filter: 'brightness(0) invert(1)' }} />
-          <span className="text-white/90 uppercase tracking-widest text-sm font-bold">Edição de Hoje • Exclusivo NewsOS</span>
+      <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl ${outlet.color}`}>
+        <img src={outlet.logo} className="absolute inset-0 w-full h-full object-contain p-12 md:p-20 opacity-50" style={{ filter: outlet.color.includes('text-black') ? 'invert(100%)' : '' }} />
+        <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-950 dark:via-zinc-950/95 dark:to-transparent"></div>
+        <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-end justify-between">
+          <div>
+            <span className={`font-serif font-extrabold text-6xl md:text-8xl tracking-tighter ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                {outlet.name}
+            </span>
+          </div>
         </div>
       </div>
 
       <div className={`max-w-5xl mx-auto p-4 md:p-8 min-h-screen ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
-        
-        <div className={`w-full h-28 rounded-2xl flex items-center justify-between p-6 mb-8 relative overflow-hidden ${outlet.color}`}>
-            <div className="flex items-center gap-4">
-                <img src={outlet.logo} className="h-8 object-contain" style={{ filter: outlet.color.includes('text-black') ? '' : 'brightness(0) invert(1)' }}/>
-                <span className={`font-bold text-2xl ${outlet.color.includes('text-black') ? 'text-black' : 'text-white'}`}>{outlet.name}</span>
-            </div>
-            <span className={`font-semibold text-sm ${outlet.color.includes('text-black') ? 'text-black/70' : 'text-white/80'}`}>
-                Edição de {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
-            </span>
-        </div>
-
         {renderLayout()}
       </div>
     </div>
