@@ -4533,21 +4533,22 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
 
   // DICIONÁRIO DE LOGOS PREMIUM (ISOLADO E SÓ PARA A BANCA)
   const LOGO_DICTIONARY = {
-    'cnn brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/CNN_Brasil_logo.svg/2560px-CNN_Brasil_logo.svg.png',
-    'o globo': 'https://logospng.org/download/o-globo/logo-o-globo-2048.png',
-    'notícias ao minuto': 'https://th.bing.com/th/id/R.15f18b488665a3e19861e68b3b32087e?rik=qW222FW62b8g5Q&pid=ImgRaw&r=0',
-    'veja': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Veja_logo_2021.svg/2560px-Veja_logo_2021.svg.png',
+    'cnn brasil': 'https://assets.b9.com.br/wp-content/uploads/2019/03/cnn-brasil.jpg',
+    'o globo': 'https://d37iydjzbdkvr9.cloudfront.net/google-assistant/o-globo/logo-globo-1000x1000.jpg',
+    'notícias ao minuto': 'https://cdn.aptoide.com/imgs/e/5/5/e55c28a2f58c0caaf20b497a540ddc17_fgraphic.jpg',
+    'veja': 'https://yt3.googleusercontent.com/hs38K6IWkIOYBCJSktKWG6evViV0yoh-iGL0O4ufKtlt08g5FsE2fabMhRQIqNM5GoPeWWrgMQ=s900-c-k-c0x00ffffff-no-rj',
     'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
     'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
     'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
     'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
-    '9to5mac': 'https://i.vimeocdn.com/portrait/42969756_640x640',
+    '9to5mac': 'https://getlogovector.com/wp-content/uploads/2019/10/9to5mac-logo-vector.png',
     'times brasil': 'https://static.wikia.nocookie.net/tvpediabrasil/images/d/d4/Timescnbc.jpg/revision/latest?cb=20241118144454&path-prefix=pt-br',
-    'quatro rodas': 'https://logodownload.org/wp-content/uploads/2020/05/quatro-rodas-logo.png',
+    'quatro rodas': 'https://fcdesigner.art.br/wp-content/uploads/2018/05/Gps-e-som-Quatro-rodas_GPS-automotivo-quatro-rodas-logo.jpg',
     'g1': 'https://s2-g1.glbimg.com/CKKzaYNQ0DDudV5dxhseyl-YQPY=/0x0:1200x630/984x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_59edd422c0c84a879bd37670ae4f538a/internal_photos/bs/2022/K/M/n9NxFJQ0WnYH4pFapiGw/logo-g1.png',
     'fox news': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png'
-  };
 
+    // Adicione outros logos de alta qualidade aqui
+};
   const layoutStyles = [
     { layoutType: 'standard', color: 'bg-[#004990]' },
     { layoutType: 'magazine', color: 'bg-black' },
@@ -7268,10 +7269,22 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
     if (layout === 'standard') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+          {/* Coluna Principal (Manchete com Imagem) */}
           <div className="md:col-span-8 group">
+            {/* ========================================================== */}
+            {/* === O BLOCO DA IMAGEM FOI REINSERIDO AQUI === */}
+            {/* ========================================================== */}
+            <div 
+              className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm cursor-pointer ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}
+              onClick={() => openArticle(mainArticle)}
+            >
+              <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} onError={(e) => e.target.style.display='none'} />
+            </div>
             <h2 onClick={() => openArticle(mainArticle)} className={`text-4xl font-serif font-black mb-3 leading-tight cursor-pointer ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
             <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
           </div>
+          
+          {/* Coluna Secundária */}
           <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
             {secondaryArticles.slice(0, 4).map((article) => (
               <div key={article.id} className="cursor-pointer" onClick={() => openArticle(article)}>
@@ -7283,7 +7296,7 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
         </div>
       );
     }
-    
+
     if (layout === 'magazine') {
       return (
         <div className={`space-y-12 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
@@ -7347,9 +7360,24 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
         <div className="w-16" />
       </div>
 
+{/* Hero Section: O LOGO GIGANTE COMO FUNDO */}
+      {/* ========================================================== */}
+      {/* === CORREÇÃO DO "LOGO FANTASMA" ESTÁ AQUI === */}
+      {/* ========================================================== */}
       <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl ${outlet.color}`}>
-        <img src={outlet.logo} className="absolute inset-0 w-full h-full object-contain p-12 md:p-20 opacity-50" style={{ filter: outlet.color.includes('text-black') ? 'invert(100%)' : '' }} />
+        {/* Camada de Gradiente para dar textura */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10"></div>
+        
+        {/* Imagem do LOGO */}
+        <img 
+            src={outlet.logo} 
+            className="absolute inset-0 w-full h-full object-contain p-12 md:p-20 opacity-90" 
+            // Lógica de filtro para inverter logos escuros em fundos escuros
+            style={{ filter: outlet.color.includes('text-black') ? '' : 'brightness(0) invert(1)' }}
+        />
+        
         <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-950 dark:via-zinc-950/95 dark:to-transparent"></div>
+        
         <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-end justify-between">
           <div>
             <span className={`font-serif font-extrabold text-6xl md:text-8xl tracking-tighter ${isDarkMode ? 'text-white' : 'text-black'}`}>
