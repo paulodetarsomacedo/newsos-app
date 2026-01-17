@@ -4536,7 +4536,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     'cnn brasil': 'https://assets.b9.com.br/wp-content/uploads/2019/03/cnn-brasil.jpg',
     'o globo': 'https://d37iydjzbdkvr9.cloudfront.net/google-assistant/o-globo/logo-globo-1000x1000.jpg',
     'notícias ao minuto': 'https://cdn.aptoide.com/imgs/e/5/5/e55c28a2f58c0caaf20b497a540ddc17_fgraphic.jpg',
-    'veja': 'https://yt3.googleusercontent.com/hs38K6IWkIOYBCJSktKWG6evViV0yoh-iGL0O4ufKtlt08g5FsE2fabMhRQIqNM5GoPeWWrgMQ=s900-c-k-c0x00ffffff-no-rj',
+    'veja': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Veja.svg/1280px-Veja.svg.png',
     'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
     'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
     'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
