@@ -4535,13 +4535,13 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   const LOGO_DICTIONARY = {
     'cnn brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/CNN_Brasil.svg/1280px-CNN_Brasil.svg.png',
     'o globo': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/O_Globo.svg/1200px-O_Globo.svg.png',
-    'notícias ao minuto': 'https://www.manifestamente.org/uploads/1/1/5/9/115931813/noticias-ao-minuto-logo-media-lgp_orig.png', 
+    'notícias ao minuto': 'https://loveitportugal.com/cdn/shop/articles/Noticias-ao-Minuto_logo_1920x.png?v=1694717801', 
     'veja': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Veja.svg/1280px-Veja.svg.png',
     'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
     'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
     'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
-    'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
-    '9to5mac': '/logos/9to5.svg',
+    'appleinsider': 'logos/insider.png',
+    '9to5mac': 'https://filipeesposito.com/wp-content/uploads/2024/04/9to5Mac.png',
     'times brasil': 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Times_Brasil_CNBC_logo_2025.svg',
     'quatro rodas': '/logos/quatro-rodas.png',
     'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
@@ -7411,11 +7411,7 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
                 className="max-h-full max-w-full object-contain"
             />
         </div>
-        <div className="absolute bottom-0 left-0 right-0 p-8 pt-16 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent">
-            <span className={`font-serif font-extrabold text-6xl md:text-8xl tracking-tighter ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                {outlet.name}
-            </span>
-        </div>
+        
       </div>
 
       <div className={`max-w-5xl mx-auto p-4 md:p-8 min-h-screen ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
