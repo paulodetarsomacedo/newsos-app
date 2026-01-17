@@ -4533,20 +4533,22 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
 
   // DICIONÁRIO DE LOGOS PREMIUM (ISOLADO E SÓ PARA A BANCA)
   const LOGO_DICTIONARY = {
-    'cnn brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/CNN_Brasil_logo.svg/2560px-CNN_Brasil_logo.svg.png',
-    'o globo': 'https://logospng.org/download/o-globo/logo-o-globo-2048.png',
-    'notícias ao minuto': 'https://th.bing.com/th/id/R.15f18b488665a3e19861e68b3b32087e?rik=qW222FW62b8g5Q&pid=ImgRaw&r=0',
-    'veja': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Veja_logo_2021.svg/2560px-Veja_logo_2021.svg.png',
+    'cnn brasil': 'https://assets.b9.com.br/wp-content/uploads/2019/03/cnn-brasil.jpg',
+    'o globo': 'https://d37iydjzbdkvr9.cloudfront.net/google-assistant/o-globo/logo-globo-1000x1000.jpg',
+    'notícias ao minuto': 'https://cdn.aptoide.com/imgs/e/5/5/e55c28a2f58c0caaf20b497a540ddc17_fgraphic.jpg',
+    'veja': 'https://yt3.googleusercontent.com/hs38K6IWkIOYBCJSktKWG6evViV0yoh-iGL0O4ufKtlt08g5FsE2fabMhRQIqNM5GoPeWWrgMQ=s900-c-k-c0x00ffffff-no-rj',
     'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
     'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
     'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
     'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
-    '9to5mac': 'https://i.vimeocdn.com/portrait/42969756_640x640',
+    '9to5mac': 'https://getlogovector.com/wp-content/uploads/2019/10/9to5mac-logo-vector.png',
     'times brasil': 'https://static.wikia.nocookie.net/tvpediabrasil/images/d/d4/Timescnbc.jpg/revision/latest?cb=20241118144454&path-prefix=pt-br',
-    'quatro rodas': 'https://logodownload.org/wp-content/uploads/2020/05/quatro-rodas-logo.png',
+    'quatro rodas': 'https://fcdesigner.art.br/wp-content/uploads/2018/05/Gps-e-som-Quatro-rodas_GPS-automotivo-quatro-rodas-logo.jpg',
     'g1': 'https://s2-g1.glbimg.com/CKKzaYNQ0DDudV5dxhseyl-YQPY=/0x0:1200x630/984x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_59edd422c0c84a879bd37670ae4f538a/internal_photos/bs/2022/K/M/n9NxFJQ0WnYH4pFapiGw/logo-g1.png',
     'fox news': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png'
-  };
+
+    // Adicione outros logos de alta qualidade aqui
+};
 
   const layoutStyles = [
     { layoutType: 'standard', color: 'bg-[#004990]' },
@@ -6597,23 +6599,7 @@ const handleStoryNavigation = (direction) => {
                }
             }
 
-            const LOGO_DICTIONARY = {
-    'cnn brasil': 'https://assets.b9.com.br/wp-content/uploads/2019/03/cnn-brasil.jpg',
-    'o globo': 'https://d37iydjzbdkvr9.cloudfront.net/google-assistant/o-globo/logo-globo-1000x1000.jpg',
-    'notícias ao minuto': 'https://cdn.aptoide.com/imgs/e/5/5/e55c28a2f58c0caaf20b497a540ddc17_fgraphic.jpg',
-    'veja': 'https://yt3.googleusercontent.com/hs38K6IWkIOYBCJSktKWG6evViV0yoh-iGL0O4ufKtlt08g5FsE2fabMhRQIqNM5GoPeWWrgMQ=s900-c-k-c0x00ffffff-no-rj',
-    'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
-    'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
-    'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
-    'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
-    '9to5mac': 'https://getlogovector.com/wp-content/uploads/2019/10/9to5mac-logo-vector.png',
-    'times brasil': 'https://static.wikia.nocookie.net/tvpediabrasil/images/d/d4/Timescnbc.jpg/revision/latest?cb=20241118144454&path-prefix=pt-br',
-    'quatro rodas': 'https://fcdesigner.art.br/wp-content/uploads/2018/05/Gps-e-som-Quatro-rodas_GPS-automotivo-quatro-rodas-logo.jpg',
-    'g1': 'https://s2-g1.glbimg.com/CKKzaYNQ0DDudV5dxhseyl-YQPY=/0x0:1200x630/984x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_59edd422c0c84a879bd37670ae4f538a/internal_photos/bs/2022/K/M/n9NxFJQ0WnYH4pFapiGw/logo-g1.png',
-    'fox news': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png'
-
-    // Adicione outros logos de alta qualidade aqui
-};
+            
 
 // Procura por uma correspondência no dicionário
 for (const key in LOGO_DICTIONARY) {
