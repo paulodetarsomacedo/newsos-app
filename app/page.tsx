@@ -7095,7 +7095,7 @@ return (
                 />
             )}
             
-            {activeTab === 'banca' && <BancaTab openOutlet={setSelectedOutlet} isDarkMode={isDarkMode} userFeeds={userFeeds}/>}
+            {activeTab === 'banca' && <BancaTab openOutlet={setSelectedOutlet} isDarkMode={isDarkMode} userFeeds={userFeeds} realNews={realNews} />}
             
             {activeTab === 'youtube' && (
                 <YouTubeTab 
