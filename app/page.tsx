@@ -3577,7 +3577,7 @@ const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
                 if (isKeyword) {
                     return (
                         <button key={index} onClick={() => onKeywordClick(part)}
-                            className={`mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDarkMode ? 'bg-blue-700 hover:bg-yellow-500/40 text-pink-500' : 'bg-blue-700 hover:bg-yellow-200 text-pink-500'}`}>
+                            className={`mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDarkMode ? 'bg-blue-700 hover:bg-yellow-500/40 text-pink-500' : 'bg-blue-700/50 hover:bg-yellow-200 text-amber-500'}`}>
                             {part}
                         </button>
                     );
@@ -4517,31 +4517,95 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   );
 }
 
-function BancaTab({ openOutlet, isDarkMode }) {
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "BancaTab" INTEIRA POR ESTA ===
+// ==========================================================
+
+function BancaTab({ openOutlet, isDarkMode, userFeeds }) {
   const [category, setCategory] = useState('Tudo');
-  const displayedItems = category === 'Tudo' ? BANCA_ITEMS : BANCA_ITEMS.filter(i => i.category === category);
+
+  // OS ESTILOS MOCKADOS AGORA SÃO UM "POOL" DE DESIGN
+  const layoutStyles = [
+    { layoutType: 'standard', color: 'bg-[#004990]' },
+    { layoutType: 'magazine', color: 'bg-black' },
+    { layoutType: 'visual', color: 'bg-[#FFCC00] text-black' },
+    { layoutType: 'minimal', color: 'bg-[#D6CFC7] text-black' },
+    { layoutType: 'standard', color: 'bg-zinc-900' },
+  ];
+
+  // 1. FILTRA APENAS AS FONTES MARCADAS PARA A BANCA E APLICA OS ESTILOS
+  const bancaFeeds = useMemo(() => {
+    if (!userFeeds) return [];
+    return userFeeds
+        .filter(feed => feed.display?.banca)
+        .map((feed, index) => ({
+            ...feed,
+            ...layoutStyles[index % layoutStyles.length], 
+            headline: `Destaques de ${feed.name}`
+        }));
+  }, [userFeeds]);
+
+  // CATEGORIAS DISPONÍVEIS NA BANCA (DINÂMICO)
+  const bancaCategories = useMemo(() => {
+      if (!bancaFeeds || bancaFeeds.length === 0) return ['Tudo'];
+      // Pega as categorias únicas das fontes na banca e remove duplicatas
+      const categories = new Set(bancaFeeds.map(feed => feed.category || 'Geral'));
+      return ['Tudo', ...Array.from(categories)];
+  }, [bancaFeeds]);
+
+  // Filtra os itens exibidos pela categoria selecionada
+  const displayedItems = category === 'Tudo' 
+      ? bancaFeeds 
+      : bancaFeeds.filter(i => (i.category || 'Geral') === category);
 
   return (
     <div className="pt-2 pb-24 pr-16 animate-in zoom-in-95 duration-500 min-h-screen">
       <div className="fixed right-0 top-[25%] z-30 flex flex-col gap-1 items-end pointer-events-none">
-          {BANCA_CATEGORIES.map((cat) => (
-              <button key={cat} onClick={() => setCategory(cat)} className={`pointer-events-auto relative flex items-center justify-center w-10 py-6 rounded-l-xl rounded-r-none shadow-lg border-y border-l border-r-0 transition-all duration-300 ${category === cat ? 'bg-purple-500 text-white border-white-400 translate-x-0 w-12' : (isDarkMode ? 'bg-zinc-900 text-zinc-500 border-zinc-800 translate-x-2 hover:translate-x-0' : 'bg-zinc-200 text-zinc-400 border-zinc-300 translate-x-2 hover:translate-x-0')}`}>
+          {bancaCategories.map((cat) => (
+              <button key={cat} onClick={() => setCategory(cat)} className={`pointer-events-auto relative flex items-center justify-center w-10 py-6 rounded-l-xl rounded-r-none shadow-lg border-y border-l border-r-0 transition-all duration-300 ${category === cat ? 'bg-purple-500 text-white border-purple-400 translate-x-0 w-12' : (isDarkMode ? 'bg-zinc-900 text-zinc-500 border-zinc-800 translate-x-2 hover:translate-x-0' : 'bg-zinc-200 text-zinc-400 border-zinc-300 translate-x-2 hover:translate-x-0')}`}>
                   <span className="text-[12px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}>{cat}</span>
               </button>
           ))}
       </div>
-      <h2 className={`text-xl font-bold mb-6 px-2 mt-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}><LayoutGrid size={20} className="text-emerald-600"/> Banca de Jornais</h2>
+      
+      <h2 className={`text-xl font-bold mb-6 px-2 mt-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+        <LayoutGrid size={20} className="text-emerald-600"/> Sua Banca Pessoal
+      </h2>
+      
+      {displayedItems.length === 0 && (
+          <div className="flex flex-col items-center justify-center text-center py-20 opacity-60 px-4">
+              <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+                  <LayoutGrid size={24} className="text-zinc-400"/>
+              </div>
+              <h3 className="font-bold text-lg mb-2">Sua banca está vazia</h3>
+              <p className="text-sm max-w-xs">Vá em Configurações → Fontes e clique no ícone de banca <LayoutGrid size={12} className="inline-block -mt-1"/> ao lado de suas fontes favoritas para adicioná-las aqui.</p>
+          </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
         {displayedItems.map((item) => (
           <div key={item.id} onClick={() => openOutlet(item)} className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 group ${item.color}`}>
-            <div className="p-4 flex justify-center border-b border-white/20 relative z-20 bg-black/10 backdrop-blur-sm"><span className={`font-black tracking-tighter text-2xl uppercase ${item.id === 3 || item.id === 4 ? 'text-black' : 'text-white'}`}>{item.logo}</span></div>
-            <div className="flex-1 relative p-4 flex flex-col justify-end"><h3 className={`font-serif font-bold leading-tight text-lg ${item.id === 3 || item.id === 4 ? 'text-black' : 'text-white'}`}>{item.headline}</h3></div>
+            
+            <div className="p-4 flex justify-center items-center h-24 border-b border-white/10 relative z-20 bg-black/20 backdrop-blur-sm">
+                <img 
+                    src={item.logo} 
+                    alt={item.name} 
+                    className="max-h-full max-w-full object-contain" 
+                    onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }}
+                />
+                <span style={{ display: 'none' }} className={`font-black tracking-tighter text-2xl uppercase ${item.color.includes('text-black') ? 'text-black' : 'text-white'}`}>{item.name}</span>
+            </div>
+            
+            <div className="flex-1 relative p-4 flex flex-col justify-end">
+                <h3 className={`font-serif font-bold leading-tight text-lg ${item.color.includes('text-black') ? 'text-black' : 'text-white'}`}>{item.headline}</h3>
+            </div>
           </div>
         ))}
       </div>
     </div>
   ); 
 }
+
 
 // --- NOVO FILTRO MODERNO E MINIMALISTA (PARA A ABA SALVOS) ---
 
@@ -6990,7 +7054,7 @@ return (
                 />
             )}
             
-            {activeTab === 'banca' && <BancaTab openOutlet={setSelectedOutlet} isDarkMode={isDarkMode} />}
+            {activeTab === 'banca' && <BancaTab openOutlet={setSelectedOutlet} isDarkMode={isDarkMode} userFeeds={userFeeds}/>}
             
             {activeTab === 'youtube' && (
                 <YouTubeTab 
@@ -8364,7 +8428,7 @@ const [isWidgetPoolOpen, setIsWidgetPoolOpen] = useState(true); // Começa abert
     if (!targetFeed && !targetBanca) { alert("Selecione onde exibir."); return; }
     let formattedUrl = newUrl.trim();
     if (!formattedUrl.startsWith('http')) formattedUrl = 'https://' + formattedUrl;
-    const newFeed = { id: Date.now(), name: 'Nova Fonte', url: formattedUrl, type: feedType, category: feedType === 'podcast' ? 'Podcast' : 'Geral', display: { feed: targetFeed, banca: targetBanca } };
+    const newFeed = { id: Date.now(), name: 'Nova Fonte', url: formattedUrl, type: feedType, category: feedType === 'podcast' ? 'Podcast' : 'Geral', display: { feed: true, banca: false } };
     setFeeds(prev => [...prev, newFeed]);
     setNewUrl(''); setTargetFeed(true); setTargetBanca(false); setFeedType('news');
   };
@@ -8573,6 +8637,24 @@ const handleKeyChange = (targetId, newValue) => {
                                         </div>
                                         
                                         <div className="flex items-center gap-1">
+                                           <button 
+                    onClick={() => {
+                        // Esta função irá alternar o estado 'display.banca'
+                        setFeeds(prev => prev.map(f => 
+                            f.id === feed.id 
+                                ? { ...f, display: { ...f.display, banca: !f.display?.banca } } 
+                                : f
+                        ));
+                    }}
+                    className={`p-1.5 rounded-full transition-colors ${
+                        feed.display?.banca 
+                            ? 'text-emerald-500 bg-emerald-500/10' 
+                            : 'text-zinc-400 hover:text-emerald-500'
+                    }`}
+                    title="Adicionar/Remover da Banca"
+                >
+                    <LayoutGrid size={14}/>
+                </button>
                                             {editingId === feed.id ? (
                                                 <><button onClick={() => saveName(feed.id)} className="text-green-500 p-1.5"><Check size={16}/></button><button onClick={cancelEditing} className="text-zinc-500 p-1.5"><X size={16}/></button></>
                                             ) : (
