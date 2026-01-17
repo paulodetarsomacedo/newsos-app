@@ -6775,16 +6775,6 @@ const handleReadNative = useCallback(async (article) => {
 
 
 
-  // Adicione este bloco de código dentro de NewsOS_V12, antes do `return (`
-
-const storiesForHappeningTab = useMemo(() => {
-    // Agora ele chama a nova função inteligente!
-    // Ele precisa tanto das notícias quanto dos clusters para funcionar
-    const allClusters = globalClusters || generateHeuristicClusters(realNews);
-    return generateSmartStories(realNews, allClusters);
-}, [realNews, globalClusters]); // Depende das notícias e dos clusters
-
-
 // ==========================================================
   // ALTERAÇÃO 1: LÓGICA DE "CONGELAMENTO" E GATILHO
   // ==========================================================
