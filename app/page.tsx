@@ -4534,7 +4534,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   // DICIONÁRIO DE LOGOS COMPLETO E RESTAURADO
   const LOGO_DICTIONARY = {
     'cnn brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/CNN_Brasil.svg/1280px-CNN_Brasil.svg.png',
-    'o globo': 'https://logodownload.org/wp-content/uploads/2017/04/o-globo-logo-1.png',
+    'o globo': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/O_Globo.svg/1200px-O_Globo.svg.png',
     'notícias ao minuto': 'https://loveitportugal.com/cdn/shop/articles/Noticias-ao-Minuto_logo_1920x.png?v=1694717801',
     'veja': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Veja.svg/1280px-Veja.svg.png',
     'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
@@ -4542,10 +4542,10 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
     'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
     '9to5mac': 'https://filipeesposito.com/wp-content/uploads/2024/04/9to5Mac.png',
-    'times brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Times_Brasil_CNBC_logo.svg/1200px-Times_Brasil_CNBC_logo.svg.png',
+    'times brasil': 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Times_Brasil_CNBC_logo_2025.svg',
     'quatro rodas': 'https://logodownload.org/wp-content/uploads/2018/10/quatro-rodas-logo.png',
     'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
-    'fox news': 'https://upload.wikimedia.org/wikipedia/commons/b/b0/Fox_news_channel_logo.png'
+    'fox news': 'https://upload.wikimedia.org/wikipedia/commons/6/67/Fox_News_Channel_logo.svg'
   };
 
   const layoutStyles = [
