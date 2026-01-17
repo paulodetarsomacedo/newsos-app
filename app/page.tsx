@@ -3545,7 +3545,7 @@ const generateHeuristicClusters = (news) => {
 
         const keyEntities = extractKeyEntities(cluster.related_articles);
         const uniqueSourcesCount = new Set(cluster.related_articles.map(a => a.source)).size;
-        let summaryText = `Um evento de alta repercussão, coberto por ${uniqueSourcesCount} fontes diferentes.`;
+        let summaryText = `Notícia coberta por ${uniqueSourcesCount} fontes diferentes.`;
         if (keyEntities.length > 0) {
             summaryText += ` A pauta envolve principalmente: ${keyEntities.join(', ')}.`;
         }
@@ -3577,7 +3577,7 @@ const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
                 if (isKeyword) {
                     return (
                         <button key={index} onClick={() => onKeywordClick(part)}
-                            className={`mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDarkMode ? 'bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300' : 'bg-yellow-200/60 hover:bg-yellow-200 text-yellow-800'}`}>
+                            className={`mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDarkMode ? 'bg-blue-700 hover:bg-yellow-500/40 text-pink-500' : 'bg-blue-700 hover:bg-yellow-200 text-amber-500'}`}>
                             {part}
                         </button>
                     );
