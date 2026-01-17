@@ -7224,16 +7224,38 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
         );
     }
 
-    if (layout === 'standard') {
-      return (
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle(mainArticle)}>
-            <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-              <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} />
+ if (layout === 'standard') {
+  return (
+    // O <div> principal agora envolve a nova faixa e o grid
+    <div>
+        {/* ========================================================== */}
+        {/* === NOVA "FAIXA DE IDENTIDADE" === */}
+        {/* ========================================================== */}
+        <div className={`w-full h-40 md:h-48 rounded-2xl flex flex-col items-center justify-center text-center p-4 mb-8 relative overflow-hidden ${outlet.color}`}>
+            {/* Gradiente sutil para dar profundidade */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+            
+            <div className="relative z-10">
+                {/* Logo com tratamento visual */}
+                <img src={outlet.logo} alt={outlet.name} className="h-16 md:h-20 max-w-xs object-contain mb-3 drop-shadow-lg" />
+                <p className={`font-bold uppercase tracking-widest text-xs ${outlet.color.includes('text-black') ? 'text-black/70' : 'text-white/80'}`}>
+                    Edição de {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}
+                </p>
             </div>
-            <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
-            <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
-          </div>
+        </div>
+
+        {/* O grid de notícias agora vem abaixo da faixa */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+          {/* Manchete Principal (agora sem a imagem no topo) */}
+          {mainArticle && (
+            <div className="md:col-span-8 group" >
+              {/* O bloco da imagem foi removido daqui */}
+              <h2 onClick={() => openArticle(mainArticle)} className={`text-4xl font-serif font-black mb-3 leading-tight cursor-pointer ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
+              <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
+            </div>
+          )}
+          
+          {/* Notícias Secundárias (sem alterações) */}
           <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`}>
             {secondaryArticles.slice(0, 4).map((article) => (
               <div key={article.id} className="cursor-pointer" onClick={() => openArticle(article)}>
@@ -7243,8 +7265,9 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
             ))}
           </div>
         </div>
-      );
-    }
+    </div>
+  );
+}
     
     if (layout === 'magazine') {
       return (
@@ -7310,22 +7333,23 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
       </div>
 
       {/* Hero Section (Capa de Revista Rica) */}
-      <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl bg-zinc-800`}>
-        {/* Imagem de fundo da notícia principal */}
-        {mainArticle && <img src={mainArticle.img} className="absolute inset-0 w-full h-full object-cover opacity-80" />}
-        {/* Gradiente para legibilidade */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
-        <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-end justify-between">
-          <div>
-            {/* Logo em alta resolução sobreposto */}
-            <img src={outlet.logo} alt={outlet.name} className="max-h-20 max-w-xs object-contain mb-2 drop-shadow-lg" />
-            <p className="text-white/90 uppercase tracking-widest text-sm font-bold">Edição de Hoje • Exclusivo NewsOS</p>
-          </div>
-          <div className="hidden md:block">
-            <span className="text-white/80 text-xs font-mono border border-white/30 px-2 py-1 rounded">Layout: {outlet.layoutType?.toUpperCase()}</span>
-          </div>
-        </div>
-      </div>
+     <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl bg-zinc-800`}>
+  
+  {/* 1. Imagem de fundo da notícia principal */}
+  {mainArticle && <img src={mainArticle.img} className="absolute inset-0 w-full h-full object-cover opacity-80" />}
+  
+  {/* 2. Gradiente para legibilidade (a "parte sombreada") */}
+  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
+  
+  <div className="absolute bottom-0 left-0 p-8 ...">
+    <div>
+      {/* 3. Logo em alta resolução sobreposto */}
+      <img src={outlet.logo} alt={outlet.name} className="max-h-20 max-w-xs object-contain mb-2 drop-shadow-lg" />
+      <p className="text-white/90 ...">Edição de Hoje • Exclusivo NewsOS</p>
+    </div>
+    {/* ... */}
+  </div>
+</div>
 
       <div className={`max-w-5xl mx-auto p-4 md:p-8 min-h-screen ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
         {renderLayout()}
