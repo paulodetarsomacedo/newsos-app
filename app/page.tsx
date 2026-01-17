@@ -4623,7 +4623,6 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
         {displayedItems.map((item) => (
           <div key={item.id} onClick={() => openOutlet(item)} 
                className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group ${isDarkMode ? 'bg-zinc-800' : 'bg-white'}`}>
-            
             <div className={`h-1/3 flex items-center justify-center p-4 ${item.color}`}>
                 <img 
                     src={item.logo} 
@@ -4632,7 +4631,6 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
                     style={{ filter: item.color.includes('text-black') ? '' : 'brightness(0) invert(1)' }}
                 />
             </div>
-            
             <div className="flex-1 flex flex-col justify-center p-3 space-y-2">
               {(item.latestHeadlines && item.latestHeadlines.length > 0) ? (
                   item.latestHeadlines.map(headline => (
@@ -4646,6 +4644,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     </div>
   ); 
 }
+
 
 // --- NOVO FILTRO MODERNO E MINIMALISTA (PARA A ABA SALVOS) ---
 
