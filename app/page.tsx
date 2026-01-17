@@ -4589,23 +4589,27 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds }) {
           </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
+<div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
         {displayedItems.map((item) => (
-          <div key={item.id} onClick={() => openOutlet(item)} className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 group ${item.color}`}>
+          <div key={item.id} onClick={() => openOutlet(item)} 
+               className={`relative aspect-[3/4] rounded-2xl flex flex-col justify-between p-4 cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group ${item.color}`}>
             
-            <div className="p-4 flex justify-center items-center h-24 border-b border-white/10 relative z-20 bg-black/20 backdrop-blur-sm">
+            {/* Logo em alta resolução sobre o fundo colorido */}
+            <div className="flex-1 flex items-center justify-center">
                 <img 
                     src={item.logo} 
                     alt={item.name} 
-                    className="max-h-full max-w-full object-contain" 
-                    onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }}
+                    className="max-h-16 w-3/4 object-contain drop-shadow-lg"
+                    // Estilo para garantir que logos escuros apareçam em fundos escuros
+                    style={{ filter: item.color === 'bg-black' || item.color === 'bg-zinc-900' ? 'brightness(0) invert(1)' : '' }}
                 />
-                <span style={{ display: 'none' }} className={`font-black tracking-tighter text-2xl uppercase ${item.color.includes('text-black') ? 'text-black' : 'text-white'}`}>{item.name}</span>
             </div>
             
-            <div className="flex-1 relative p-4 flex flex-col justify-end">
+            {/* Manchete na parte inferior */}
+            <div className="h-1/3 flex items-end">
                 <h3 className={`font-serif font-bold leading-tight text-lg ${item.color.includes('text-black') ? 'text-black' : 'text-white'}`}>{item.headline}</h3>
             </div>
+
           </div>
         ))}
       </div>
@@ -6524,7 +6528,7 @@ const handleStoryNavigation = (direction) => {
                 finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6uiO4AtPH2uxKoEbqmsLXA5qR0voQ7Dd3xg&s';
             }
             else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) {
-                finalLogo = 'https://cdn.motor1.com/custom/share/motor1_loadimage.png';
+                finalLogo = 'https://motor1.uol.com.br/logo_square.png';
             }
             else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) {
                 finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
@@ -6566,6 +6570,31 @@ const handleStoryNavigation = (direction) => {
                }
             }
 
+            const LOGO_DICTIONARY = {
+    'cnn brasil': 'https://assets.b9.com.br/wp-content/uploads/2019/03/cnn-brasil.jpg',
+    'o globo': 'https://d37iydjzbdkvr9.cloudfront.net/google-assistant/o-globo/logo-globo-1000x1000.jpg',
+    'notícias ao minuto': 'https://cdn.aptoide.com/imgs/e/5/5/e55c28a2f58c0caaf20b497a540ddc17_fgraphic.jpg',
+    'veja': 'https://yt3.googleusercontent.com/hs38K6IWkIOYBCJSktKWG6evViV0yoh-iGL0O4ufKtlt08g5FsE2fabMhRQIqNM5GoPeWWrgMQ=s900-c-k-c0x00ffffff-no-rj',
+    'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
+    'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
+    'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
+    'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
+    '9to5mac': 'https://getlogovector.com/wp-content/uploads/2019/10/9to5mac-logo-vector.png',
+    'times brasil': 'https://static.wikia.nocookie.net/tvpediabrasil/images/d/d4/Timescnbc.jpg/revision/latest?cb=20241118144454&path-prefix=pt-br',
+    'quatro rodas': 'https://fcdesigner.art.br/wp-content/uploads/2018/05/Gps-e-som-Quatro-rodas_GPS-automotivo-quatro-rodas-logo.jpg',
+    'g1': 'https://s2-g1.glbimg.com/CKKzaYNQ0DDudV5dxhseyl-YQPY=/0x0:1200x630/984x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_59edd422c0c84a879bd37670ae4f538a/internal_photos/bs/2022/K/M/n9NxFJQ0WnYH4pFapiGw/logo-g1.png',
+    'fox news': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png'
+
+    // Adicione outros logos de alta qualidade aqui
+};
+
+// Procura por uma correspondência no dicionário
+for (const key in LOGO_DICTIONARY) {
+    if (lowerName.includes(key) || lowerUrl.includes(key)) {
+        finalLogo = LOGO_DICTIONARY[key];
+        break; // Para assim que encontrar o primeiro
+    }
+}
         let LIMIT = 20; 
         if (feed.type === 'podcast') LIMIT = 1; 
         else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
@@ -7213,6 +7242,12 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
   const mainArticle = outletNews[0];
   const secondaryArticles = outletNews.slice(1);
 
+  // Função helper para limpar HTML (se ainda não existir globalmente)
+  const stripTags = (html = "") => {
+    if (!html) return "";
+    return html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+  };
+  
   const renderLayout = () => {
     const layout = outlet.layoutType;
     
@@ -7224,39 +7259,14 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
         );
     }
 
- if (layout === 'standard') {
-  return (
-    // O <div> principal agora envolve a nova faixa e o grid
-    <div>
-        {/* ========================================================== */}
-        {/* === NOVA "FAIXA DE IDENTIDADE" === */}
-        {/* ========================================================== */}
-        <div className={`w-full h-40 md:h-48 rounded-2xl flex flex-col items-center justify-center text-center p-4 mb-8 relative overflow-hidden ${outlet.color}`}>
-            {/* Gradiente sutil para dar profundidade */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-            
-            <div className="relative z-10">
-                {/* Logo com tratamento visual */}
-                <img src={outlet.logo} alt={outlet.name} className="h-16 md:h-20 max-w-xs object-contain mb-3 drop-shadow-lg" />
-                <p className={`font-bold uppercase tracking-widest text-xs ${outlet.color.includes('text-black') ? 'text-black/70' : 'text-white/80'}`}>
-                    Edição de {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}
-                </p>
-            </div>
-        </div>
-
-        {/* O grid de notícias agora vem abaixo da faixa */}
+    if (layout === 'standard') {
+      return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          {/* Manchete Principal (agora sem a imagem no topo) */}
-          {mainArticle && (
-            <div className="md:col-span-8 group" >
-              {/* O bloco da imagem foi removido daqui */}
-              <h2 onClick={() => openArticle(mainArticle)} className={`text-4xl font-serif font-black mb-3 leading-tight cursor-pointer ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
-              <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
-            </div>
-          )}
-          
-          {/* Notícias Secundárias (sem alterações) */}
-          <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`}>
+          <div className="md:col-span-8 group">
+            <h2 onClick={() => openArticle(mainArticle)} className={`text-4xl font-serif font-black mb-3 leading-tight cursor-pointer ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
+            <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
+          </div>
+          <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
             {secondaryArticles.slice(0, 4).map((article) => (
               <div key={article.id} className="cursor-pointer" onClick={() => openArticle(article)}>
                 <span className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">{article.category || 'Geral'}</span>
@@ -7265,15 +7275,14 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
             ))}
           </div>
         </div>
-    </div>
-  );
-}
+      );
+    }
     
     if (layout === 'magazine') {
       return (
         <div className={`space-y-12 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
           {outletNews.slice(0, 3).map((article, i) => (
-            <div key={article.id} className={`flex gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`} onClick={() => openArticle(article)}>
+            <div key={article.id} className={`flex gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`} onClick={() => openArticle(article)}>
               <span className={`text-8xl font-black transition-colors ${isDarkMode ? 'text-zinc-800 group-hover:text-blue-500/20' : 'text-zinc-100 group-hover:text-blue-500/20'}`}>0{i+1}</span>
               <div className="w-full">
                 <span className="text-blue-500 font-bold tracking-widest uppercase text-xs mb-2 block">{article.category || 'Destaque'}</span>
@@ -7324,40 +7333,40 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
   return (
     <div className={`fixed inset-0 z-[65] overflow-y-auto animate-in slide-in-from-bottom-10 duration-500 ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
       
-      <div className={`sticky top-0 z-10 px-6 py-4 flex items-center justify-between backdrop-blur-md border-b ${isDarkMode ? 'bg-zinc-950/80 border-white/10' : 'bg-white/80 border-zinc-200'}`}>
+      <div className={`sticky top-0 z-20 px-6 py-4 flex items-center justify-between backdrop-blur-md border-b ${isDarkMode ? 'bg-zinc-950/80 border-white/10' : 'bg-white/80 border-zinc-200'}`}>
         <button onClick={onClose} className={`flex items-center gap-1 text-sm font-bold transition ${isDarkMode ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-black'}`}>
           <ChevronLeft size={20} /> Voltar
         </button>
         <span className={`font-bold text-lg tracking-tight ${isDarkMode ? 'text-white' : 'text-black'}`}>{outlet.name}</span>
-        <div className="w-6" />
+        <div className="w-16" />
       </div>
 
-      {/* Hero Section (Capa de Revista Rica) */}
-     <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl bg-zinc-800`}>
-  
-  {/* 1. Imagem de fundo da notícia principal */}
-  {mainArticle && <img src={mainArticle.img} className="absolute inset-0 w-full h-full object-cover opacity-80" />}
-  
-  {/* 2. Gradiente para legibilidade (a "parte sombreada") */}
-  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
-  
-  <div className="absolute bottom-0 left-0 p-8 ...">
-    <div>
-      {/* 3. Logo em alta resolução sobreposto */}
-      <img src={outlet.logo} alt={outlet.name} className="max-h-20 max-w-xs object-contain mb-2 drop-shadow-lg" />
-      <p className="text-white/90 ...">Edição de Hoje • Exclusivo NewsOS</p>
-    </div>
-    {/* ... */}
-  </div>
-</div>
+      <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl bg-zinc-800`}>
+        {mainArticle && <img src={mainArticle.img} className="absolute inset-0 w-full h-full object-cover opacity-80" />}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
+        <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-center gap-3">
+          <img src={outlet.logo} alt={outlet.name} className="h-8 object-contain drop-shadow-lg" style={{ filter: 'brightness(0) invert(1)' }} />
+          <span className="text-white/90 uppercase tracking-widest text-sm font-bold">Edição de Hoje • Exclusivo NewsOS</span>
+        </div>
+      </div>
 
       <div className={`max-w-5xl mx-auto p-4 md:p-8 min-h-screen ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
+        
+        <div className={`w-full h-28 rounded-2xl flex items-center justify-between p-6 mb-8 relative overflow-hidden ${outlet.color}`}>
+            <div className="flex items-center gap-4">
+                <img src={outlet.logo} className="h-8 object-contain" style={{ filter: outlet.color.includes('text-black') ? '' : 'brightness(0) invert(1)' }}/>
+                <span className={`font-bold text-2xl ${outlet.color.includes('text-black') ? 'text-black' : 'text-white'}`}>{outlet.name}</span>
+            </div>
+            <span className={`font-semibold text-sm ${outlet.color.includes('text-black') ? 'text-black/70' : 'text-white/80'}`}>
+                Edição de {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+            </span>
+        </div>
+
         {renderLayout()}
       </div>
     </div>
   );
 }
-
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
 // Usa a API 'gtx' do Google (gratuita/pública) para traduzir textos mantendo estrutura
