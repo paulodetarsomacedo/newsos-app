@@ -4380,46 +4380,20 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isContextLoading, setIsContextLoading] = useState(true);
 
-  const handleTouchStart = (e) => {
-    if (window.scrollY <= 5 && !isRefreshing) setStartY(e.touches[0].clientY);
-  };
-  const handleTouchMove = (e) => {
-    if (startY === 0 || isRefreshing) return;
-    const currentY = e.touches[0].clientY;
-    const diff = currentY - startY;
-    if (diff > 0 && window.scrollY <= 5) {
-      if (e.cancelable) e.preventDefault();
-      const newPull = Math.min(diff * 0.5, 220);
-      setPullDistance(newPull);
-    }
-  };
-  const handleTouchEnd = async () => {
-    if (pullDistance > 90) {
-      setIsRefreshing(true);
-      setPullDistance(120);
-      setRefreshTrigger(prev => prev + 1);
-      if (onRefresh) await onRefresh();
-      setTimeout(() => {
-        setIsRefreshing(false);
-        setPullDistance(0);
-      }, 1000);
-    } else {
-      setPullDistance(0);
-    }
-    setStartY(0);
-  };
+  const handleTouchStart = (e) => { if (window.scrollY <= 5 && !isRefreshing) setStartY(e.touches[0].clientY); };
+  const handleTouchMove = (e) => { if (startY === 0 || isRefreshing) return; const currentY = e.touches[0].clientY; const diff = currentY - startY; if (diff > 0 && window.scrollY <= 5) { if (e.cancelable) e.preventDefault(); const newPull = Math.min(diff * 0.5, 220); setPullDistance(newPull); } };
+  const handleTouchEnd = async () => { if (pullDistance > 90) { setIsRefreshing(true); setPullDistance(120); setRefreshTrigger(prev => prev + 1); if (onRefresh) await onRefresh(); setTimeout(() => { setIsRefreshing(false); setPullDistance(0); }, 1000); } else { setPullDistance(0); } setStartY(0); };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       
-      {/* AS TAGS <STYLE> FORAM MOVIDAS PARA DENTRO DO RETURN, ONDE PERTENCEM */}
       <style jsx="true">{`
-        @keyframes gradient-flow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes fast-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.7; } }
+        @keyframes slow-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
         @keyframes shimmer-text { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
         .animate-shimmer-text { background-size: 200% auto; animation: shimmer-text 3s linear infinite; }
       `}</style>
       
-      {/* Indicador de Loading (Pull to refresh) */}
       <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '35%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 || isRefreshing ? 'flex' : 'none' }}>
          <div className={`flex flex-col items-center gap-3 p-6 rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-black/5 border-white/10 shadow-purple-500/20' : 'bg-white/90 border-white shadow-xl text-zinc-900'}`}>
             {isRefreshing ? <Loader2 size={42} className="animate-spin text-purple-500" /> : <RefreshCw size={42} className="text-purple-500 transition-transform" style={{ transform: `rotate(${pullDistance * 3}deg)` }}/>}
@@ -4427,24 +4401,48 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
          </div>
       </div>
       
-      {/* Área de Stories */}
        <div className="flex items-center gap-4 px-2 pt-2 relative z-10">
         <div className="flex-1 min-w-0"> 
             <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
                 {storiesToDisplay && storiesToDisplay
                     .filter(story => !seenStoryIds?.includes(story.id))
-                    .map((story) => (
-                    <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
-                        <div className="relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-lg shadow-rose-500/20">
-                            <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
-                                <img src={story.avatar} className="w-full h-full object-cover" alt="" onError={(e) => e.target.style.display = 'none'} />
+                    .map((story) => {
+                        // LÓGICA DE ESTILO VISUAL
+                        const isBreaking = story.isBreaking;
+                        const isAnchor = story.isAnchor;
+                        let ringClass = 'bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-rose-500/20'; // Padrão
+                        let animationClass = '';
+                        let badgeIcon = null;
+
+                        if (isBreaking) {
+                            ringClass = 'bg-red-600 shadow-red-500/40';
+                            animationClass = 'animate-[fast-pulse_1s_ease-in-out_infinite]';
+                            badgeIcon = <Zap size={10} className="text-white"/>;
+                        } else if (isAnchor) {
+                            ringClass = 'bg-gradient-to-tr from-yellow-400 via-amber-500 to-orange-500 shadow-amber-500/30';
+                            animationClass = 'animate-[slow-pulse_2.5s_ease-in-out_infinite]';
+                            badgeIcon = <Sparkles size={10} className="text-white"/>;
+                        }
+
+                        return (
+                            <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
+                                <div className={`relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 shadow-lg ${ringClass} ${animationClass}`}>
+                                    <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
+                                        <img src={story.avatar} className="w-full h-full object-cover" alt="" onError={(e) => e.target.style.display = 'none'} />
+                                    </div>
+                                    {badgeIcon && (
+                                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm border-2 border-white/20 flex items-center justify-center">
+                                            {badgeIcon}
+                                        </div>
+                                    )}
+                                </div>
+                                <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                                    {story.name}
+                                </span>
                             </div>
-                        </div>
-                        <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                            {story.name}
-                        </span>
-                    </div>
-                ))}
+                        );
+                    })}
+
                 {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).length === 0 && (
                     <div className="flex flex-col justify-center h-full pl-2 opacity-50">
                         <span className="text-[10px] font-bold uppercase tracking-widest">Tudo visto por aqui</span>
@@ -4455,14 +4453,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
       
-      <TrendRadar 
-        newsData={newsData} 
-        getApiKey={getApiKey} 
-        isDarkMode={isDarkMode} 
-        refreshTrigger={refreshTrigger} 
-        openArticle={openArticle} 
-      />
-      
+      <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} openArticle={openArticle} />
+
       <div className="space-y-4">
         <div className="flex items-center gap-3 px-4">
             <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
@@ -4473,23 +4465,11 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             </h3>
         </div>
         <WhileYouWereAwayWidget 
-            news={newsData} 
-            openArticle={openArticle} 
-            isDarkMode={isDarkMode} 
-            getApiKey={getApiKey}
-            clusters={savedClusters}
-            setClusters={setSavedClusters}
-            onContextReady={() => {}}
-            onTriggerWidgetRotation={onTriggerWidgetRotation}
+          news={newsData} openArticle={openArticle} isDarkMode={isDarkMode} getApiKey={getApiKey} clusters={savedClusters} setClusters={setSavedClusters} onContextReady={() => {}} onTriggerWidgetRotation={onTriggerWidgetRotation}
         />
       </div>
     
-      <SmartDigestWidget 
-          newsData={newsData} 
-          getApiKey={getApiKey}
-          isDarkMode={isDarkMode} 
-          refreshTrigger={refreshTrigger} 
-      />
+      <SmartDigestWidget newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
       
       <div className="space-y-4 px-2">
           <div className="flex items-center gap-3 px-4">
@@ -4502,12 +4482,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
           </div>
           <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
             <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-              <MarketPulseWidget 
-                newsData={newsData}
-                getApiKey={getApiKey}
-                isDarkMode={isDarkMode}
-                openArticle={openArticle}
-              />
+              <MarketPulseWidget newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} openArticle={openArticle} />
             </div>
           </div>
       </div>
@@ -5594,6 +5569,105 @@ const StoryOverlay = ({ story, onClose, onRead, onMarkAsSeen, allStories, onNavi
     </div>
   );
 }
+
+
+
+const generateSmartStories = (news, allClusters) => {
+    if (!news || news.length === 0) return [];
+
+    // --- CONFIGURAÇÕES DA LÓGICA ---
+    const BREAKING_NEWS_SOURCES = new Set(['Terra', 'Extra', 'Veja', 'CNN Brasil', 'Times Brasil', 'UOL', 'Jovem Pan', 'Istoé', 'G1 Mundo', 'G1 Nacional', 'Metropoles', 'Leo Dias', 'Fox News']);
+    const BREAKING_NEWS_KEYWORDS = ['urgente', 'agora', 'ao vivo', 'última hora', 'alerta', 'plantão', 'acontece', 'acaba de', 'últimas informações', 'exclusivo', 'bomba', 'morre', 'desastre', 'acabou de', 'breaking news', 'ultimos acontecimentos', 'operação', 'deflagra', 'deflagrada', 'crise', 'explosão'];
+    const BREAKING_NEWS_TIMESPAN_MS = 45 * 60 * 1000; // 45 minutos
+
+    // 1. PEGA A ÚLTIMA NOTÍCIA DE CADA FONTE (BASE PARA OS STORIES)
+    const latestBySource = new Map();
+    news.forEach(item => {
+        if (!latestBySource.has(item.source)) {
+            latestBySource.set(item.source, item);
+        }
+    });
+    let storyCandidates = Array.from(latestBySource.values());
+    let breakingNewsArticle = null;
+    let anchorArticle = null;
+
+    // 2. IDENTIFICA A "BREAKING NEWS"
+    const now = Date.now();
+    const potentialBreaking = [];
+    for (const article of news) { // Varre todas as notícias recentes, não apenas as "latest"
+        const articleTime = new Date(article.rawDate).getTime();
+        if (now - articleTime > BREAKING_NEWS_TIMESPAN_MS) continue; // Descarta se for antiga
+        if (!BREAKING_NEWS_SOURCES.has(article.source)) continue; // Descarta se não for da fonte certa
+        
+        const titleLower = article.title.toLowerCase();
+        if (BREAKING_NEWS_KEYWORDS.some(keyword => titleLower.includes(keyword))) {
+            potentialBreaking.push(article);
+        }
+    }
+    // A Breaking News é a mais recente de todas as candidatas
+    if (potentialBreaking.length > 0) {
+        breakingNewsArticle = potentialBreaking.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate))[0];
+    }
+    
+    // 3. IDENTIFICA A "ÂNCORA"
+    // Usa os clusters já calculados (seja da IA ou heurístico)
+    if (allClusters && allClusters.length > 0) {
+        // A âncora é a notícia principal do cluster mais importante
+        const mainCluster = allClusters[0];
+        anchorArticle = mainCluster.related_articles[0]; // Pega a notícia mais recente do cluster mais relevante
+    } else if (storyCandidates.length > 0) {
+        // Fallback: Se não houver clusters, a âncora é simplesmente a notícia mais recente de todas.
+        anchorArticle = storyCandidates.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate))[0];
+    }
+
+    // 4. MONTAGEM DA LISTA FINAL
+    let finalStoryList = [];
+    const usedIds = new Set();
+
+    // Adiciona a Breaking News (se houver e for diferente da âncora)
+    if (breakingNewsArticle) {
+        finalStoryList.push({ ...breakingNewsArticle, isBreaking: true });
+        usedIds.add(breakingNewsArticle.id);
+    }
+
+    // Adiciona a Âncora (se houver e ainda não tiver sido adicionada)
+    if (anchorArticle && !usedIds.has(anchorArticle.id)) {
+        finalStoryList.push({ ...anchorArticle, isAnchor: true });
+        usedIds.add(anchorArticle.id);
+    }
+    
+    // Filtra as candidatas restantes
+    let remainingCandidates = storyCandidates.filter(article => !usedIds.has(article.id));
+
+    // 5. EMBARALHAMENTO ESTÁVEL
+    // Usa o dia do ano como "semente" para o embaralhamento
+    const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24);
+    remainingCandidates.sort(() => {
+        // Algoritmo de embaralhamento simples e determinístico
+        const random = Math.sin(dayOfYear + remainingCandidates.length);
+        return random - 0.5;
+    });
+
+    // Adiciona as embaralhadas
+    finalStoryList.push(...remainingCandidates);
+
+    // 6. FORMATAÇÃO FINAL PARA A UI
+    return finalStoryList.map(item => {
+        const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
+        const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
+
+        return {
+            id: item.id,
+            name: item.source,
+            avatar: item.logo || `https://ui-avatars.com/api/?name=${item.source}&background=random&color=fff`,
+            // Adiciona as flags para a UI usar
+            isBreaking: !!item.isBreaking,
+            isAnchor: !!item.isAnchor,
+            items: [{ ...item, img: finalImg, origin: 'story' }]
+        };
+    });
+};
+
 
 
 
@@ -6704,48 +6778,12 @@ const handleReadNative = useCallback(async (article) => {
   // Adicione este bloco de código dentro de NewsOS_V12, antes do `return (`
 
 const storiesForHappeningTab = useMemo(() => {
-    if (!realNews || realNews.length === 0) return [];
+    // Agora ele chama a nova função inteligente!
+    // Ele precisa tanto das notícias quanto dos clusters para funcionar
+    const allClusters = globalClusters || generateHeuristicClusters(realNews);
+    return generateSmartStories(realNews, allClusters);
+}, [realNews, globalClusters]); // Depende das notícias e dos clusters
 
-    const latestBySource = new Map();
-    // Ordena cronologicamente
-    const chronologicalNews = [...realNews].sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
-    
-    chronologicalNews.forEach(item => {
-        const sourceName = (item.source || "Fonte").trim();
-        // Pega a mais recente de cada fonte (SEM FILTRAR OS VISTOS AQUI)
-        if (!latestBySource.has(sourceName)) {
-            latestBySource.set(sourceName, item);
-        }
-    });
-
-    let storyCandidates = Array.from(latestBySource.values());
-
-    // EMBARALHAMENTO ESTÁVEL (Semente baseada no tamanho para não pular toda hora)
-    // Para evitar que a lista mude a cada clique, vamos apenas inverter ou manter fixa por enquanto,
-    // ou usar um shuffle simples que só roda quando a lista de notícias muda.
-    const BUCKET_SIZE = 5;
-    const shuffledStories = [];
-
-    for (let i = 0; i < storyCandidates.length; i += BUCKET_SIZE) {
-        let chunk = storyCandidates.slice(i, i + BUCKET_SIZE);
-        // Shuffle simples
-        chunk = chunk.sort(() => Math.random() - 0.5);
-        shuffledStories.push(...chunk);
-    }
-
-    return shuffledStories.map(item => {
-         const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
-         const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
-
-         return {
-            id: item.id,
-            name: item.source,
-            avatar: item.logo || `https://ui-avatars.com/api/?name=${item.source}&background=random&color=fff`,
-            items: [{ ...item, img: finalImg, origin: 'story' }]
-         };
-    });
-
-  }, [realNews]); // REMOVIDO 'seenStoryIds' DAS DEPENDÊNCIAS
 
 // ==========================================================
   // ALTERAÇÃO 1: LÓGICA DE "CONGELAMENTO" E GATILHO
