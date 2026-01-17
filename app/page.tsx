@@ -4535,7 +4535,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   const LOGO_DICTIONARY = {
     'cnn brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/CNN_Brasil.svg/1280px-CNN_Brasil.svg.png',
     'o globo': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/O_Globo.svg/1200px-O_Globo.svg.png',
-    'notícias ao minuto': '/logos/aominuto.svg', 
+    'notícias ao minuto': '/logos/aominuto2.svg', 
     'veja': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Veja.svg/1280px-Veja.svg.png',
     'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
     'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
