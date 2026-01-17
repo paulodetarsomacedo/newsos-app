@@ -4541,7 +4541,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
     'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
     'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
-    '9to5mac': 'https://getlogovector.com/wp-content/uploads/2019/10/9to5mac-logo-vector.png',
+    '9to5mac': '/logos/9to5.svg',
     'times brasil': 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Times_Brasil_CNBC_logo_2025.svg',
     'quatro rodas': '/logos/quatro-rodas.png',
     'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
