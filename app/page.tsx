@@ -4533,19 +4533,19 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
 
   // DICIONÁRIO DE LOGOS COMPLETO E RESTAURADO
   const LOGO_DICTIONARY = {
-    'cnn brasil': 'https://assets.b9.com.br/wp-content/uploads/2019/03/cnn-brasil.jpg',
-    'o globo': 'https://d37iydjzbdkvr9.cloudfront.net/google-assistant/o-globo/logo-globo-1000x1000.jpg',
-    'notícias ao minuto': 'https://cdn.aptoide.com/imgs/e/5/5/e55c28a2f58c0caaf20b497a540ddc17_fgraphic.jpg',
+    'cnn brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/CNN_Brasil.svg/1280px-CNN_Brasil.svg.png',
+    'o globo': 'https://logodownload.org/wp-content/uploads/2017/04/o-globo-logo-1.png',
+    'notícias ao minuto': 'https://loveitportugal.com/cdn/shop/articles/Noticias-ao-Minuto_logo_1920x.png?v=1694717801',
     'veja': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Veja.svg/1280px-Veja.svg.png',
     'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
     'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
     'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
     'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
-    '9to5mac': 'https://getlogovector.com/wp-content/uploads/2019/10/9to5mac-logo-vector.png',
-    'times brasil': 'https://static.wikia.nocookie.net/tvpediabrasil/images/d/d4/Timescnbc.jpg/revision/latest?cb=20241118144454&path-prefix=pt-br',
-    'quatro rodas': 'https://fcdesigner.art.br/wp-content/uploads/2018/05/Gps-e-som-Quatro-rodas_GPS-automotivo-quatro-rodas-logo.jpg',
-    'g1': 'https://s2-g1.glbimg.com/CKKzaYNQ0DDudV5dxhseyl-YQPY=/0x0:1200x630/984x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_59edd422c0c84a879bd37670ae4f538a/internal_photos/bs/2022/K/M/n9NxFJQ0WnYH4pFapiGw/logo-g1.png',
-    'fox news': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png'
+    '9to5mac': 'https://filipeesposito.com/wp-content/uploads/2024/04/9to5Mac.png',
+    'times brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Times_Brasil_CNBC_logo.svg/1200px-Times_Brasil_CNBC_logo.svg.png',
+    'quatro rodas': 'https://logodownload.org/wp-content/uploads/2018/10/quatro-rodas-logo.png',
+    'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
+    'fox news': 'https://upload.wikimedia.org/wikipedia/commons/b/b0/Fox_news_channel_logo.png'
   };
 
   const layoutStyles = [
