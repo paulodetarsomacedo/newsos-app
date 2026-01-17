@@ -3656,11 +3656,36 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
   }, [activeIndex]);
 
   const handleKeywordClick = (keyword) => {
-    const related = news.filter(article => article.title.toLowerCase().includes(keyword.toLowerCase()));
+    const related = news.filter(article => 
+        article.title.toLowerCase().includes(keyword.toLowerCase())
+    );
     setFocusModalData({ keyword, articles: related });
   };
 
-  const runAI = async () => { /* ... código da função runAI ... */ };
+  const runAI = async () => {
+    const currentApiKey = getApiKey('widgets');
+    if (!currentApiKey) {
+      alert("Configure sua API Key de Widgets nas configurações primeiro.");
+      return;
+    }
+    if (!news || news.length < 10) {
+      alert("Aguarde o carregamento de mais notícias para uma análise completa.");
+      return;
+    }
+
+    setLoading(true);
+    setClusters(null); // Usa a prop setClusters vinda do componente pai
+    await new Promise(r => setTimeout(r, 800));
+    
+    const result = await generateSmartClustering(news, currentApiKey, 300);
+    
+    if (result) {
+      setClusters(result); // Atualiza o estado no componente pai
+    } else {
+      alert("A IA não encontrou correlações suficientes no momento. Tente novamente mais tarde.");
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
     if (heuristicClusters && heuristicClusters.length > 0 && onContextReady) {
@@ -3668,12 +3693,42 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
     }
   }, [heuristicClusters, onContextReady]);
 
-  const handleScroll = () => { /* ... código da função handleScroll ... */ };
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const scrollLeft = scrollRef.current.scrollLeft;
+      const cardWidth = scrollRef.current.offsetWidth;
+      const newIndex = Math.round(scrollLeft / cardWidth);
+      if (newIndex !== activeIndex) setActiveIndex(newIndex);
+    }
+  };
   
+  // A LÓGICA DE DECISÃO AGORA É FEITA NO COMPONENTE PAI.
+  // ESTE COMPONENTE APENAS USA A PROP 'heuristicClusters' QUE RECEBE.
   const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
 
-  if (loading) { /* ... código do loading ... */ }
-  if (!displayClusters || displayClusters.length === 0) { /* ... código do skeleton ... */ }
+  if (loading) {
+    return (
+      <div className="relative w-full h-[380px] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 z-10">
+          <Loader2 size={48} className="animate-spin text-purple-500" />
+          <span className="text-xs font-bold uppercase tracking-[0.2em] animate-pulse opacity-60">Analisando Notícias...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!displayClusters || displayClusters.length === 0) {
+      return (
+        <div>
+            <div className="px-6 pb-2 text-center">
+                <p className={`text-xl font-medium animate-pulse ${isDarkMode ? 'text-purple-500' : 'text-purple-400'}`}>
+                    Analisando as últimas notícias para você...
+                </p>
+            </div>
+            <WhileYouWereAwaySkeleton isDarkMode={isDarkMode} />
+        </div>
+      );
+  }
 
   return (
     <div className="relative">
@@ -3696,10 +3751,22 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
       >
         {displayClusters.map((cluster, idx) => (
           <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
-            <div className={`w-full rounded-2xl overflow-hidden flex flex-col ${isDarkMode ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}`}>
+            <div className={`
+              w-full rounded-2xl overflow-hidden flex flex-col
+              ${isDarkMode 
+                ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' 
+                : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
+            `}>
+
               <div className="relative w-full flex-grow h-[535px] bg-zinc-800">
-                <img src={cluster.representative_image} className="w-full h-full object-cover" alt={cluster.ai_title} onError={(e) => e.target.style.display = 'none'} />
+                <img
+                  src={cluster.representative_image}
+                  className="w-full h-full object-cover"
+                  alt={cluster.ai_title}
+                  onError={(e) => e.target.style.display = 'none'}
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                
                 <div className="absolute top-4 left-4 z-10">
                   <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
                     <Globe size={12} />
@@ -3708,21 +3775,23 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
                     </span>
                   </div>
                 </div>
+
                 <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                   <h2 className="text-3xl lg:text-4xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-3">
                     {cluster.ai_title}
                   </h2>
                   <div className="flex items-start gap-3">
                     <div className="w-1 h-auto self-stretch bg-purple-400 rounded-full flex-shrink-0" />
-                    <HighlightedSummary 
+                   <HighlightedSummary 
                       text={cluster.ai_summary}
                       keywords={cluster.keyEntities}
-                      onKeywordClick={handleKeywordClick}
+                      onKeywordClick={(keyword) => handleKeywordClick(keyword, cluster.related_articles)}
                       isDarkMode={isDarkMode}
-                    />
+                  />
                   </div>
                 </div>
               </div>
+
               <div className="px-6 py-4">
                 <div className="flex flex-wrap items-center gap-3">
                   {cluster.related_articles.map(article => (
@@ -4306,16 +4375,43 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isContextLoading, setIsContextLoading] = useState(true);
 
-  const handleTouchStart = (e) => { if (window.scrollY <= 5 && !isRefreshing) setStartY(e.touches[0].clientY); };
-  const handleTouchMove = (e) => { if (startY === 0 || isRefreshing) return; const currentY = e.touches[0].clientY; const diff = currentY - startY; if (diff > 0 && window.scrollY <= 5) { if (e.cancelable) e.preventDefault(); const newPull = Math.min(diff * 0.5, 220); setPullDistance(newPull); } };
-  const handleTouchEnd = async () => { if (pullDistance > 90) { setIsRefreshing(true); setPullDistance(120); setRefreshTrigger(prev => prev + 1); if (onRefresh) await onRefresh(); setTimeout(() => { setIsRefreshing(false); setPullDistance(0); }, 1000); } else { setPullDistance(0); } setStartY(0); };
+  const handleTouchStart = (e) => {
+    if (window.scrollY <= 5 && !isRefreshing) setStartY(e.touches[0].clientY);
+  };
+  const handleTouchMove = (e) => {
+    if (startY === 0 || isRefreshing) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - startY;
+    if (diff > 0 && window.scrollY <= 5) {
+      if (e.cancelable) e.preventDefault();
+      const newPull = Math.min(diff * 0.5, 220);
+      setPullDistance(newPull);
+    }
+  };
+  const handleTouchEnd = async () => {
+    if (pullDistance > 90) {
+      setIsRefreshing(true);
+      setPullDistance(120);
+      setRefreshTrigger(prev => prev + 1);
+      if (onRefresh) await onRefresh();
+      setTimeout(() => {
+        setIsRefreshing(false);
+        setPullDistance(0);
+      }, 1000);
+    } else {
+      setPullDistance(0);
+    }
+    setStartY(0);
+  };
+
+  // LÓGICA DE DECISÃO CENTRALIZADA: Define qual lista de clusters será exibida
+  const displayClusters = savedClusters && savedClusters.length > 0 ? savedClusters : heuristicClusters;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       
       <style jsx="true">{`
-        @keyframes fast-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.7; } }
-        @keyframes slow-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+        @keyframes gradient-flow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         @keyframes shimmer-text { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
         .animate-shimmer-text { background-size: 200% auto; animation: shimmer-text 3s linear infinite; }
       `}</style>
@@ -4333,22 +4429,14 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                 {storiesToDisplay && storiesToDisplay
                     .filter(story => !seenStoryIds?.includes(story.id))
                     .map((story) => {
-                        // LÓGICA DE ESTILO VISUAL
                         const isBreaking = story.isBreaking;
                         const isAnchor = story.isAnchor;
-                        let ringClass = 'bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-rose-500/20'; // Padrão
+                        let ringClass = 'bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-rose-500/20';
                         let animationClass = '';
                         let badgeIcon = null;
 
-                        if (isBreaking) {
-                            ringClass = 'bg-red-600 shadow-red-500/40';
-                            animationClass = 'animate-[fast-pulse_1s_ease-in-out_infinite]';
-                            badgeIcon = <Zap size={10} className="text-white"/>;
-                        } else if (isAnchor) {
-                            ringClass = 'bg-gradient-to-tr from-yellow-400 via-amber-500 to-orange-500 shadow-amber-500/30';
-                            animationClass = 'animate-[slow-pulse_2.5s_ease-in-out_infinite]';
-                            badgeIcon = <Sparkles size={10} className="text-white"/>;
-                        }
+                        if (isBreaking) { ringClass = 'bg-red-600 shadow-red-500/40'; animationClass = 'animate-[fast-pulse_1s_ease-in-out_infinite]'; badgeIcon = <Zap size={10} className="text-white"/>;
+                        } else if (isAnchor) { ringClass = 'bg-gradient-to-tr from-yellow-400 via-amber-500 to-orange-500 shadow-amber-500/30'; animationClass = 'animate-[slow-pulse_2.5s_ease-in-out_infinite]'; badgeIcon = <Sparkles size={10} className="text-white"/>; }
 
                         return (
                             <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
@@ -4356,15 +4444,9 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                                     <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
                                         <img src={story.avatar} className="w-full h-full object-cover" alt="" onError={(e) => e.target.style.display = 'none'} />
                                     </div>
-                                    {badgeIcon && (
-                                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm border-2 border-white/20 flex items-center justify-center">
-                                            {badgeIcon}
-                                        </div>
-                                    )}
+                                    {badgeIcon && ( <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm border-2 border-white/20 flex items-center justify-center">{badgeIcon}</div> )}
                                 </div>
-                                <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                                    {story.name}
-                                </span>
+                                <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span>
                             </div>
                         );
                     })}
@@ -4380,7 +4462,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       </div>
       
       <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} openArticle={openArticle} />
-
+      
       <div className="space-y-4">
         <div className="flex items-center gap-3 px-4">
             <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
@@ -4391,11 +4473,25 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             </h3>
         </div>
         <WhileYouWereAwayWidget 
-          news={newsData} openArticle={openArticle} isDarkMode={isDarkMode} getApiKey={getApiKey} clusters={savedClusters} setClusters={setSavedClusters} onContextReady={() => {}} onTriggerWidgetRotation={onTriggerWidgetRotation} heuristicClusters={heuristicClusters}
+          news={newsData} 
+          openArticle={openArticle} 
+          isDarkMode={isDarkMode} 
+          getApiKey={getApiKey}
+          clusters={savedClusters}
+          setClusters={setSavedClusters}
+          displayClusters={displayClusters}
+          onContextReady={() => {}}
+          onTriggerWidgetRotation={onTriggerWidgetRotation}
+          heuristicClusters={heuristicClusters}
         />
       </div>
     
-      <SmartDigestWidget newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
+      <SmartDigestWidget 
+          newsData={newsData} 
+          getApiKey={getApiKey}
+          isDarkMode={isDarkMode} 
+          refreshTrigger={refreshTrigger} 
+      />
       
       <div className="space-y-4 px-2">
           <div className="flex items-center gap-3 px-4">
@@ -4408,15 +4504,18 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
           </div>
           <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
             <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-              <MarketPulseWidget newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} openArticle={openArticle} />
+              <MarketPulseWidget 
+                newsData={newsData}
+                getApiKey={getApiKey}
+                isDarkMode={isDarkMode}
+                openArticle={openArticle}
+              />
             </div>
           </div>
       </div>
     </div>
   );
 }
-
-
 
 function BancaTab({ openOutlet, isDarkMode }) {
   const [category, setCategory] = useState('Tudo');
