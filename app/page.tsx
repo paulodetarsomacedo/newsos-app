@@ -4531,6 +4531,23 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   const [category, setCategory] = useState('Tudo');
 
+  // DICIONÁRIO DE LOGOS PREMIUM (ISOLADO E SÓ PARA A BANCA)
+  const LOGO_DICTIONARY = {
+    'cnn brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/CNN_Brasil_logo.svg/2560px-CNN_Brasil_logo.svg.png',
+    'o globo': 'https://logospng.org/download/o-globo/logo-o-globo-2048.png',
+    'notícias ao minuto': 'https://th.bing.com/th/id/R.15f18b488665a3e19861e68b3b32087e?rik=qW222FW62b8g5Q&pid=ImgRaw&r=0',
+    'veja': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Veja_logo_2021.svg/2560px-Veja_logo_2021.svg.png',
+    'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
+    'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
+    'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
+    'appleinsider': 'https://getlogovector.com/wp-content/uploads/2019/10/appleinsider-logo-vector.png',
+    '9to5mac': 'https://i.vimeocdn.com/portrait/42969756_640x640',
+    'times brasil': 'https://static.wikia.nocookie.net/tvpediabrasil/images/d/d4/Timescnbc.jpg/revision/latest?cb=20241118144454&path-prefix=pt-br',
+    'quatro rodas': 'https://logodownload.org/wp-content/uploads/2020/05/quatro-rodas-logo.png',
+    'g1': 'https://s2-g1.glbimg.com/CKKzaYNQ0DDudV5dxhseyl-YQPY=/0x0:1200x630/984x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_59edd422c0c84a879bd37670ae4f538a/internal_photos/bs/2022/K/M/n9NxFJQ0WnYH4pFapiGw/logo-g1.png',
+    'fox news': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png'
+  };
+
   const layoutStyles = [
     { layoutType: 'standard', color: 'bg-[#004990]' },
     { layoutType: 'magazine', color: 'bg-black' },
@@ -4541,14 +4558,27 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
 
   const bancaFeeds = useMemo(() => {
     if (!userFeeds || !realNews) return [];
+    
     return userFeeds
         .filter(feed => feed.display?.banca)
         .map((feed, index) => {
             const latestHeadlines = realNews
                 .filter(news => news.source === feed.name)
                 .slice(0, 2);
+            
+            let finalLogo = feed.logo;
+            const lowerName = feed.name.toLowerCase();
+            
+            for (const key in LOGO_DICTIONARY) {
+                if (lowerName.includes(key)) {
+                    finalLogo = LOGO_DICTIONARY[key];
+                    break;
+                }
+            }
+            
             return {
                 ...feed,
+                logo: finalLogo,
                 ...layoutStyles[index % layoutStyles.length],
                 latestHeadlines: latestHeadlines,
             };
@@ -4593,8 +4623,6 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
         {displayedItems.map((item) => (
           <div key={item.id} onClick={() => openOutlet(item)} 
                className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group ${isDarkMode ? 'bg-zinc-800' : 'bg-white'}`}>
-            
-            {/* 1. FAIXA SUPERIOR COM COR E LOGO */}
             <div className={`h-1/3 flex items-center justify-center p-4 ${item.color}`}>
                 <img 
                     src={item.logo} 
@@ -4603,18 +4631,12 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
                     style={{ filter: item.color === 'bg-black' || item.color === 'bg-zinc-900' ? 'brightness(0) invert(1)' : '' }}
                 />
             </div>
-            
-            {/* 2. DUAS MANCHETES DE DESTAQUE */}
             <div className="flex-1 flex flex-col justify-center p-3 space-y-2">
               {(item.latestHeadlines && item.latestHeadlines.length > 0) ? (
                   item.latestHeadlines.map(headline => (
-                      <div key={headline.id} className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-                          {headline.title}
-                      </div>
+                      <div key={headline.id} className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>{headline.title}</div>
                   ))
-              ) : (
-                  <p className="text-xs text-zinc-500">Buscando destaques...</p>
-              )}
+              ) : ( <p className="text-xs text-zinc-500">Buscando destaques...</p> )}
             </div>
           </div>
         ))}
