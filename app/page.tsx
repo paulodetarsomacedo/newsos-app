@@ -4534,7 +4534,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   // DICIONÁRIO DE LOGOS COMPLETO E RESTAURADO
   const LOGO_DICTIONARY = {
     'cnn brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/CNN_Brasil.svg/1280px-CNN_Brasil.svg.png',
-    'o globo': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/O_Globo.svg/1200px-O_Globo.svg.png',
+    'o globo': 'https://upload.wikimedia.org/wikipedia/commons/9/9b/O_Globo_2025.svg',
     'notícias ao minuto': 'logos/noticiasao.png', 
     'veja': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Veja.svg/1280px-Veja.svg.png',
     'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
@@ -4545,7 +4545,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     'times brasil': 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Times_Brasil_CNBC_logo_2025.svg',
     'quatro rodas': '/logos/quatro-rodas.png',
     'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
-    'fox news': 'logos/fox.png'
+    'fox news': 'logos/fox2.png'
   };
 
   const layoutStyles = [
