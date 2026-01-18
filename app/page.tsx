@@ -983,6 +983,10 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // === SUBSTITUA SUA FUNÇÃO "NewsCard" INTEIRA POR ESTA ===
 // ==========================================================
 
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "NewsCard" INTEIRA POR ESTA ===
+// ==========================================================
+
 const NewsCard = React.memo(({ 
   news, 
   isSelected, 
@@ -1057,11 +1061,11 @@ const NewsCard = React.memo(({
       <div className={`relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'} ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}`}>
       
           <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
-            <img src={news.img} alt={news.title} className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6" onError={(e) => e.target.style.display='none'}/>
+            {/* A CORREÇÃO ESTÁ NA LINHA ABAIXO */}
+            <img src={news.img} alt={news.title} className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6" onError={(e) => e.target.style.display='none'} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
-            {/* CABEÇALHO "PLACA DE VIDRO" */}
             <div className="absolute top-0 left-0 w-1/3 h-14 bg-gradient-to-r from-white/90 via-white/80 to-white/60 backdrop-blur-md rounded-br-3xl shadow-lg border-b border-r border-white/50 z-20 flex items-center pl-4 pr-2 py-1 gap-3">
                 <div className="w-10 h-10 rounded-lg bg-white p-0.5 shadow-md flex-shrink-0 border border-black/5">
                     <img src={news.logo} className="w-full h-full object-contain rounded-[6px]" onError={(e) => e.target.style.display = 'none'} alt={news.source} />
@@ -1072,81 +1076,71 @@ const NewsCard = React.memo(({
                 </div>
             </div>
 
-            {/* NOVA PÍLULA DE AÇÕES VERTICAL (iOS 26) */}
-        
-            
-            <div className="absolute top-25 right-5 z-20 flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/50 shadow-lg">
-                   {isRead && (
+            <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-2">
+                {isRead && (
                     <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
                         Lida
                     </div>
                 )}
-                <button onClick={(e) => { e.stopPropagation(); onToggleLike(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
-                    <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
-                    <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
-                </button>
-                {isPlayable && (
-                    <button onClick={(e) => { e.stopPropagation(); onPlay(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isCurrentPlaying ? 'text-green-400 bg-green-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
-                        {isGenerating ? (<Loader2 size={20} className="animate-spin" />) : isCurrentPlaying ? (<Pause size={20} fill="currentColor"/>) : (<Play size={20} fill="currentColor" />)}
+                <div className="flex flex-col items-center gap-1 p-1 rounded-full bg-black/20 backdrop-blur-md border border-white/10 shadow-lg">
+                    <button onClick={(e) => { e.stopPropagation(); onToggleLike(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                        <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                     </button>
-                )}
+                    <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                        <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
+                    </button>
+                    {isPlayable && (
+                        <button onClick={(e) => { e.stopPropagation(); onPlay(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isCurrentPlaying ? 'text-green-400 bg-green-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                            {isGenerating ? (<Loader2 size={20} className="animate-spin" />) : isCurrentPlaying ? (<Pause size={20} fill="currentColor"/>) : (<Play size={20} fill="currentColor" />)}
+                        </button>
+                    )}
+                </div>
             </div>
           </div>
           
-         {/* NOVA PÍLULA DE AÇÃO "SWITCH" (iOS 26) - VERSÃO SIMPLES E ROBUSTA */}
-<div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-    <div className={`relative flex items-center p-1 rounded-full border shadow-2xl ${isDarkMode ? 'bg-zinc-800/60 border-white/10 backdrop-blur-xl' : 'bg-white/70 backdrop-blur-md border border-white/70 shadow-lg'}`}>
-        
-        {/* PÍLULA VERDE ÚNICA */}
-        <AnimatePresence>
-            {activePill && (
-                <motion.div
-                    layoutId={`pill-switch-${news.id}`}
-                    className="absolute h-[calc(100%-8px)] rounded-full overflow-hidden"
-                    initial={false}
-                    // A LÓGICA DE CÁLCULO AGORA É EXPLÍCITA E SIMPLES
-                    animate={{
-                        left: activePill === 'read' ? '4px' : 'calc(100% - 132px)', // Posição calculada
-                        width: activePill === 'read' ? '68px' : '128px' // Largura fixa para cada estado
-                    }}
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+          <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
+            <div className={`relative flex items-center p-1 rounded-full border shadow-2xl ${isDarkMode ? 'bg-zinc-800/60 border-white/10 backdrop-blur-xl' : 'bg-white/70 backdrop-blur-md border border-white/70 shadow-lg'}`}>
+                <AnimatePresence>
+                    {activePill && (
+                        <motion.div
+                            layoutId={`pill-switch-${news.id}`}
+                            className="absolute h-[calc(100%-8px)] rounded-full overflow-hidden"
+                            initial={false}
+                            animate={{
+                                left: activePill === 'read' ? '4px' : 'calc(100% - 132px)',
+                                width: activePill === 'read' ? '68px' : '128px'
+                            }}
+                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                        >
+                            <div className="relative w-full h-full">
+                                <div className="absolute inset-0 bg-gradient-to-br from-green-400 to-emerald-500 opacity-80"></div>
+                                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/30 to-transparent"></div>
+                                <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/20 to-transparent"></div>
+                                <div className="absolute inset-0 rounded-full border border-white/30"></div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); setActivePill('read'); onClick(news); }} 
+                    className="relative z-10 w-[68px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
                 >
-                    {/* Efeito de Vidro */}
-                    <div className="relative w-full h-full">
-                        <div className="absolute inset-0 bg-gradient-to-br from-green-400 to-emerald-500 opacity-80"></div>
-                        <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/30 to-transparent"></div>
-                        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/20 to-transparent"></div>
-                        <div className="absolute inset-0 rounded-full border border-white/30"></div>
+                    <span className={activePill === 'read' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}>
+                        Ler
+                    </span>
+                </button>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); setActivePill('analyze'); onAnalyze(news); }} 
+                    className="relative z-10 w-[128px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
+                >
+                    <div className={`flex items-center gap-2 ${activePill === 'analyze' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}`}>
+                        <Sparkles size={20} className={`animate-pulse ${activePill === 'analyze' ? 'text-white/80' : 'text-purple-400'}`} />
+                        <span>Analisar</span>
                     </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
-
-        {/* Botões de texto (por cima da pílula) */}
-        <button 
-            onClick={(e) => { e.stopPropagation(); setActivePill('read'); onClick(news); }} 
-            className="relative z-10 w-[68px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
-        >
-            <span className={activePill === 'read' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}>
-                Ler
-            </span>
-        </button>
-
-        <button 
-            onClick={(e) => { e.stopPropagation(); setActivePill('analyze'); onAnalyze(news); }} 
-            className="relative z-10 w-[128px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
-        >
-            <div className={`flex items-center gap-2 ${activePill === 'analyze' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}`}>
-                <Sparkles size={20} className={`animate-pulse ${activePill === 'analyze' ? 'text-white/80' : 'text-purple-400'}`} />
-                <span>Analisar</span>
+                </button>
             </div>
-        </button>
-    </div>
-</div>
+          </div>
           
-          {/* ÁREA DE TEXTO (RESTAURADA E CORRIGIDA) */}
           <div className="relative px-4 pt-8 pb-2 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer" onClick={() => { setActivePill('read'); onClick(news); }}>
                  <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
