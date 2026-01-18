@@ -1082,7 +1082,7 @@ const NewsCard = React.memo(({
                         Lida
                     </div>
                 )}
-                <div className="flex flex-col items-center gap-1 p-1 rounded-full bg-black/20 backdrop-blur-md border border-white/10 shadow-lg">
+                <div className="flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/60 shadow-lg">
                     <button onClick={(e) => { e.stopPropagation(); onToggleLike(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                     </button>
@@ -1134,7 +1134,7 @@ const NewsCard = React.memo(({
                     className="relative z-10 w-[128px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
                 >
                     <div className={`flex items-center gap-2 ${activePill === 'analyze' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}`}>
-                        <Sparkles size={20} className={`animate-pulse ${activePill === 'analyze' ? 'text-white/80' : 'text-purple-400'}`} />
+                        <Sparkles size={22} className={`animate-pulse ${activePill === 'analyze' ? 'text-white/80' : 'text-purple-400'}`} />
                         <span>Analisar</span>
                     </div>
                 </button>
