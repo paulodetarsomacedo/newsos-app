@@ -10,7 +10,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Configuração do Parser
 const parser = new Parser({
   timeout: 10000,
   customFields: {
@@ -130,17 +129,15 @@ function extractYoutubeId(url: string): string | null {
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null;
 }
-function repairXML(xml: string): string { return xml.replace(/&(?!(?:[a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});)/gi, '&amp;'); }
 
-// --- HANDLER PRINCIPAL ---
+function repairXML(xml: string): string { 
+    return xml.replace(/&(?!(?:[a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});)/gi, '&amp;'); 
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    // ==========================================================
-    // === ALTERAÇÃO 1: LER O PARÂMETRO 'brief' ===
-    // ==========================================================
     const { url, brief } = await req.json();
     if (!url) throw new Error("URL is required");
 
@@ -196,7 +193,7 @@ serve(async (req) => {
         title: item.title,
         link: item.link,
         pubDate: item.pubDate || new Date().toISOString(),
-        summary: item.contentSnippet || "", 
+        summary: item.contentSnippet || item.summary || item.description || "", 
         img: img,
         author: item.creator || feed.title, 
         origin: origin,
@@ -207,27 +204,28 @@ serve(async (req) => {
       };
     }));
 
-    // ==========================================================
-    // === ALTERAÇÃO 2: APLICAR O FILTRO 'brief' ANTES DE RETORNAR ===
-    // ==========================================================
     let itemsToReturn = cleanItems;
+
     if (brief) {
-        itemsToReturn = cleanItems.map(item => ({
-            // Retorna apenas os campos essenciais para a listagem
-            id: item.id,
-            title: item.title,
-            link: item.link,
-            pubDate: item.pubDate,
-            img: item.img,
-            videoId: item.videoId,
-            // Campos como 'summary', 'author', etc., são omitidos para economizar dados
-        }));
+        itemsToReturn = cleanItems.map(item => {
+            const shortSummary = item.summary ? item.summary.substring(0, 150) : "";
+
+            return {
+                id: item.id,
+                title: item.title,
+                link: item.link,
+                pubDate: item.pubDate,
+                summary: shortSummary,
+                img: item.img,
+                videoId: item.videoId,
+            };
+        });
     }
 
     return new Response(JSON.stringify({
       title: feed.title,
       image: feedLogo,
-      items: itemsToReturn, // <<-- Usa a lista otimizada ou a completa
+      items: itemsToReturn,
       isYoutube: isYoutube 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

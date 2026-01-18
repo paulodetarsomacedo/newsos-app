@@ -6448,7 +6448,7 @@ const handleStoryNavigation = (direction) => {
 
                 } else {
                     // Supabase (Pago)
-                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true  } });
+                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
                     if (!error && data && data.items) {
                         feedItems = data.items;
                         detectedXmlTitle = data.title;
