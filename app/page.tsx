@@ -678,10 +678,14 @@ const triggerSearch = () => {
 
 function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
   return (
-    // Container que fixa o filtro na borda direita
-    <div className="fixed right-0 top-1/2 -translate-y-1/2 z-30 flex flex-col items-end pointer-events-none">
+    // 1. MUDANÇA DE POSICIONAMENTO: De 'fixed' para 'sticky' e ajuste no 'top'
+    // 'sticky' faz com que ele role junto com a página até atingir o 'top' definido.
+    // 'top-[35%]' o posiciona mais para baixo, livrando o HeaderDashboard.
+    <div className="absolute right-0 top-[35%] z-30 flex flex-col items-end pointer-events-none">
+      
+      {/* 2. REDUÇÃO DE ESPAÇAMENTO: 'gap-1' foi trocado por 'gap-0.5' */}
       <div className={`
-        pointer-events-auto flex flex-col gap-1 p-1 rounded-l-2xl border-t border-l border-b
+        pointer-events-auto flex flex-col gap-0.5 p-1 rounded-l-2xl border-t border-l border-b
         shadow-xl
         ${isDarkMode 
           ? 'bg-zinc-900/80 border-white/10 backdrop-blur-md' 
@@ -693,6 +697,7 @@ function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
               <button 
                 key={cat} 
                 onClick={() => onChange(cat)} 
+                // A altura do botão (py-5) foi mantida para uma boa área de clique
                 className={`
                   relative flex items-center justify-center w-10 py-5 rounded-lg
                   transition-all duration-300
@@ -703,8 +708,9 @@ function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
                           : 'text-zinc-500 hover:bg-black/5 hover:text-black')}
                 `}
               >
+                  {/* 3. AUMENTO DA FONTE: 'text-[10px]' foi trocado por 'text-[11px]' */}
                   <span 
-                    className="text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap" 
+                    className="text-[12px] font-black uppercase tracking-[0.2em] whitespace-nowrap" 
                     style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
                   >
                       {cat}
