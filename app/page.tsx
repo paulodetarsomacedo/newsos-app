@@ -1075,7 +1075,7 @@ const NewsCard = React.memo(({
             {/* NOVA PÍLULA DE AÇÕES VERTICAL (iOS 26) */}
         
             
-            <div className="absolute top-5 right-5 z-20 flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/50 shadow-lg">
+            <div className="absolute top-25 right-5 z-20 flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/50 shadow-lg">
                    {isRead && (
                     <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
                         Lida
