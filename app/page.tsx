@@ -1141,16 +1141,16 @@ const NewsCard = React.memo(({
             </div>
           </div>
 {/* ÁREA DE TEXTO (COM PADDING E LAYOUT CORRIGIDOS PARA APARECER) */}
-<div className="relative px-6 pt-12 pb-6 flex-1">
-    <div className="cursor-pointer" onClick={() => { setActivePill('read'); onClick(news); }}>
-         <h3 className={`text-2xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-             {news.title}
-         </h3>
-         <p className={`text-base font-medium leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} line-clamp-2`}>
-             {news.summary}
-         </p>
-    </div>
-</div>
+ <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
+            <div className="cursor-pointer">
+                 <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                     {news.title}
+                 </h3>
+                 <p className={`text-sm font-medium leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} line-clamp-2`}>
+                     {news.summary}
+                 </p>
+            </div>
+          </div>
 
           {isCurrentPlaying && <InlinePlayer />}
       </div>
