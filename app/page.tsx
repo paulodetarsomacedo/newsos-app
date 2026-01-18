@@ -679,8 +679,10 @@ const triggerSearch = () => {
 function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
   return (
     // 'fixed' é a melhor abordagem para este caso
-    <div className="fixed right-0 top-1/2 -translate-y-1/2 z-30 flex flex-col items-end pointer-events-none">
-      
+<div 
+    className="fixed right-0 z-30 flex flex-col items-end pointer-events-none"
+    style={{ top: 'calc(50% + 40px)', transform: 'translateY(-50%)' }} // <<-- A MÁGICA ESTÁ AQUI
+>      
       {/* O espaçamento entre os botões foi reduzido */}
       <div className={`
         pointer-events-auto flex flex-col gap-0.5 p-1 rounded-l-2xl border-t border-l border-b
