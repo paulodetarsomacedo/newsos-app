@@ -1073,6 +1073,12 @@ const NewsCard = React.memo(({
             </div>
 
             {/* NOVA PÍLULA DE AÇÕES VERTICAL (iOS 26) */}
+            {isRead && (
+                    <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
+                        Lida
+                    </div>
+                )}
+            
             <div className="absolute top-5 right-5 z-20 flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/50 shadow-lg">
                 <button onClick={(e) => { e.stopPropagation(); onToggleLike(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
                     <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
@@ -6262,7 +6268,7 @@ const handleStoryNavigation = (direction) => {
 
       const timer = setTimeout(() => {
           saveData();
-      }, 2000);
+      }, 5000);
 
       return () => clearTimeout(timer);
   }, [user, userFeeds, savedItems, readHistory, likedItems, apiKeys, isDarkMode, seenStoryIds, articleHistory]);
