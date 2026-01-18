@@ -676,82 +676,46 @@ const triggerSearch = () => {
   );
 }
 
-// --- LIQUID FILTER ---
-
-const SlidingPillFilter = ({ categories, active, onChange, isDarkMode }) => {
-  const tabsRef = useRef([]);
-
-const handleFilterClick = (category) => {
-    // 1. Chama a função original para mudar a categoria
-    onChange(category);
-// 2. Encontra o container do feed e rola para o topo
-    // Como estamos na FeedTab, podemos usar a ref que já existe lá (passando como prop)
-    // ou o seletor 'main' novamente. Vamos usar o seletor por simplicidade.
-    const mainContent = document.querySelector('main');
-    if (mainContent) {
-      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-
+function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
   return (
-    <div className="w-full flex justify-start pl-14 pr-4 sticky top-0 z-30 py-2 pointer-events-none">
-      
+    // Container que fixa o filtro na borda direita
+    <div className="fixed right-0 top-1/2 -translate-y-1/2 z-30 flex flex-col items-end pointer-events-none">
       <div className={`
-        pointer-events-auto
-        relative flex items-center
-        w-full p-1 rounded-full 
-        shadow-lg
-        border
+        pointer-events-auto flex flex-col gap-1 p-1 rounded-l-2xl border-t border-l border-b
+        shadow-xl
         ${isDarkMode 
-          ? 'bg-zinc-800/60 border-white/10 backdrop-blur-md' 
-          : 'bg-white/60 border-white/30 backdrop-blur-md'}
+          ? 'bg-zinc-900/80 border-white/10 backdrop-blur-md' 
+          : 'bg-white/80 border-zinc-200 backdrop-blur-md'}
       `}>
-        
-        {/* PÍLULA INTERNA - COM INSET PARA SIMETRIA PERFEITA */}
-        <AnimatePresence>
-            {active && (
-                <motion.div
-                    layoutId="activePill"
-                    className={`
-                        absolute inset-1 rounded-full /* <-- MUDANÇA PRINCIPAL AQUI */
-                        ${isDarkMode ? 'bg-zinc-700/60' : 'bg-white/90 shadow-sm'}
-                    `}
-                    initial={false}
-                    animate={{ 
-                        x: tabsRef.current[active]?.offsetLeft || 0,
-                        width: tabsRef.current[active]?.offsetWidth || 0,
-                    }}
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                />
-            )}
-        </AnimatePresence>
-
-        {/* BOTÕES - MENOS ALTURA, MAIS LARGURA */}
-        {categories.map((cat) => {
-          const isActive = active === cat;
-          return (
-            <button 
-              key={cat} 
-              onClick={() => handleFilterClick(cat)}
-              ref={(el) => (tabsRef.current[cat] = el)}
-              className={`
-                relative z-10 px-5 py-1.5 rounded-full /* <-- MUDANÇA AQUI */
-                text-xs font-bold transition-colors duration-300 whitespace-nowrap flex-shrink-0
-                ${isActive 
-      // A CORREÇÃO ESTÁ AQUI:
-      ? 'text-purple-600 dark:text-purple-400' 
-      : (isDarkMode ? 'text-zinc-400 hover:text-zinc-100' : 'text-zinc-500 hover:text-black')}
-  `}
-            >
-              {cat}
-            </button>
-          )
-        })}
+          {categories.map((cat) => {
+            const isActive = active === cat;
+            return (
+              <button 
+                key={cat} 
+                onClick={() => onChange(cat)} 
+                className={`
+                  relative flex items-center justify-center w-10 py-5 rounded-lg
+                  transition-all duration-300
+                  ${isActive 
+                      ? 'bg-purple-600 text-white shadow-lg' 
+                      : (isDarkMode 
+                          ? 'text-zinc-400 hover:bg-white/5 hover:text-white' 
+                          : 'text-zinc-500 hover:bg-black/5 hover:text-black')}
+                `}
+              >
+                  <span 
+                    className="text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap" 
+                    style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+                  >
+                      {cat}
+                  </span>
+              </button>
+            )
+          })}
       </div>
     </div>
   );
-};
+}
 
 function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -1005,6 +969,13 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
 
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "NewsCard" INTEIRA POR ESTA ===
+// ==========================================================
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "NewsCard" INTEIRA POR ESTA ===
+// ==========================================================
+
 const NewsCard = React.memo(({ 
   news, 
   isSelected, 
@@ -1019,10 +990,11 @@ const NewsCard = React.memo(({
   onPlay, 
   playingAudio 
 }) => {
-  const displayTime = news.rawDate 
-    ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-    : '...';
+  const [activePill, setActivePill] = useState(null);
+  const readButtonRef = useRef(null);
+  const analyzeButtonRef = useRef(null);
 
+  const displayTime = news.rawDate ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
   const isPlayable = !!news.title;
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
@@ -1060,16 +1032,14 @@ const NewsCard = React.memo(({
 
   return (
     <div 
-      onClick={() => onClick(news)}
+      onClick={() => {
+        setActivePill('read');
+        onClick(news);
+      }}
       style={{ zIndex: isSelected ? 40 : 1 }}
-      className={`
-        group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer
-        transition-all duration-500 ease-out will-change-transform
-        ${isSelected ? 'scale-[1.02]' : 'active:scale-[0.98]'}
-      `}
+      className={`group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer transition-all duration-500 ease-out will-change-transform ${isSelected ? 'scale-[1.02]' : 'active:scale-[0.98]'}`}
     >
       
-      {/* EFEITOS DE AURA */}
       {isSelected && (
         <>
             <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-60 blur-xl animate-pulse transition-all duration-500" />
@@ -1077,113 +1047,94 @@ const NewsCard = React.memo(({
         </>
       )}
 
-      {/* CONTAINER PRINCIPAL */}
-      <div className={`
-        relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem]
-        ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'}
-        ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}
-      `}>
+      <div className={`relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'} ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}`}>
       
-          {/* 
-            ================================================================
-            1. ÁREA DE IMAGEM
-            ================================================================
-          */}
           <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
-            
-            {/* 
-              NOVA LÓGICA:
-              - A imagem agora é absoluta dentro do container.
-              - Ela é maior que o container (h-[calc(100%+1.5rem)]) e posicionada 
-                para baixo (-bottom-6) para cobrir o fundo cinza.
-            */}
-            <img 
-                src={news.img} 
-                alt={news.title}
-                className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6"
-            />
-            
-            {/* Gradiente Inferior para legibilidade do Título */}
+            <img src={news.img} alt={news.title} className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6" onError={(e) => e.target.style.display='none'}/>
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-            {/* Gradiente Superior Branco */}
             <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
-            {/* CABEÇALHO "LIQUID" */}
-            <div className="absolute top-0 left-0 w-1/3 h-12 bg-gradient-to-r from-white/90 via-white/80 to-white/60 backdrop-blur-md rounded-br-3xl shadow-lg border-b border-r border-white/50 z-20 flex items-center pl-6 pr-2 py-1 gap-2">
-    
-    {/* 1. Logo Quadrado */}
-    <div className="w-10 h-10 rounded-lg bg-white p-0.5 shadow-md flex-shrink-0 border border-black/5">
-        <img 
-            src={news.logo} 
-            className="w-full h-full object-contain rounded-[6px]" 
-            onError={(e) => e.target.style.display = 'none'} 
-            alt={news.source}
-        />
-    </div>
-    
-    {/* 2. Nome da Fonte e Hora */}
-    <div className="flex flex-col min-w-0">
-        <span className="text-[15px] font-black text-zinc-800 uppercase tracking-widest truncate">
-            {news.source}
-        </span>
-        {/* 3. Hora com fonte de relógio digital */}
-        <span className="text-sm font-mono font-bold text-gray-800 tracking-wider">
-            {displayTime}
-        </span>
-    </div>
-</div>
-
-            {/* BOTÕES DE AÇÃO */}
-            <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-3">
-                {isRead && (
-                    <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
-                        Lida
-                    </div>
-                )}
-                <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/20 backdrop-blur-md border border-white/10 shadow-lg">
-                    <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/90 hover:text-white'}`}>
-                        <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-1.5 transition-colors ${isSaved ? 'text-purple-500' : 'text-white/90 hover:text-white'}`}>
-                        <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
-                    </button>
-                    {isPlayable && (
-                        <button onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-md group ${isCurrentPlaying ? 'bg-purple-600' : 'bg-green-500 hover:bg-green-400'}`}>
-                            {isGenerating ? (<Loader2 size={14} className="text-white animate-spin" />) : isCurrentPlaying ? (<Pause size={14} fill="white"/>) : (<Play size={14} fill="white" className="ml-0.5" />)}
-                        </button>
-                    )}
+            {/* CABEÇALHO "PLACA DE VIDRO" */}
+            <div className="absolute top-0 left-0 w-1/3 h-14 bg-gradient-to-r from-white/90 via-white/80 to-white/60 backdrop-blur-md rounded-br-3xl shadow-lg border-b border-r border-white/50 z-20 flex items-center pl-4 pr-2 py-1 gap-3">
+                <div className="w-10 h-10 rounded-lg bg-white p-0.5 shadow-md flex-shrink-0 border border-black/5">
+                    <img src={news.logo} className="w-full h-full object-contain rounded-[6px]" onError={(e) => e.target.style.display = 'none'} alt={news.source} />
+                </div>
+                <div className="flex flex-col min-w-0">
+                    <span className="text-[13px] font-black text-zinc-800 uppercase tracking-widest truncate">{news.source}</span>
+                    <span className="text-sm font-mono font-bold text-black/70 tracking-wider">{displayTime}</span>
                 </div>
             </div>
 
-          </div>
-          
-          {/* PÍLULA FLUTUANTE DE AÇÃO */}
-          <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-            <div className="flex items-center shadow-2xl rounded-full px-0.5 bg-white/80 backdrop-blur border border-white/20">
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onClick(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-violet-600 bg-transparent hover:bg-white/10 transition-colors"
-                >
-                  Ler
+            {/* NOVA PÍLULA DE AÇÕES VERTICAL (iOS 26) */}
+            <div className="absolute top-5 right-5 z-20 flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/50 shadow-lg">
+                <button onClick={(e) => { e.stopPropagation(); onToggleLike(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                    <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                 </button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[15px] font-black tracking-widest text-white bg-purple-800 hover:brightness-110 transition-all shadow-lg shadow-neutral-100/30 border border-white/10"
-                >
-                  <Sparkles size={16} className="mr-2 inline text-pink-300 animate-pulse" /> Analisar
+                <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                    <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
                 </button>
+                {isPlayable && (
+                    <button onClick={(e) => { e.stopPropagation(); onPlay(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isCurrentPlaying ? 'text-green-400 bg-green-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                        {isGenerating ? (<Loader2 size={20} className="animate-spin" />) : isCurrentPlaying ? (<Pause size={20} fill="currentColor"/>) : (<Play size={20} fill="currentColor" />)}
+                    </button>
+                )}
             </div>
           </div>
           
-          {/* 
-            ================================================================
-            2. ÁREA DE TEXTO
-            MELHORIA: Padding vertical ainda mais reduzido para diminuir a altura.
-            ================================================================
-          */}
-          <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
-            <div className="cursor-pointer">
+         {/* NOVA PÍLULA DE AÇÃO "SWITCH" (iOS 26) - VERSÃO SIMPLES E ROBUSTA */}
+<div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
+    <div className={`relative flex items-center p-1 rounded-full border shadow-2xl ${isDarkMode ? 'bg-zinc-800/60 border-white/10 backdrop-blur-xl' : 'bg-white/70 backdrop-blur-md border border-white/70 shadow-lg'}`}>
+        
+        {/* PÍLULA VERDE ÚNICA */}
+        <AnimatePresence>
+            {activePill && (
+                <motion.div
+                    layoutId={`pill-switch-${news.id}`}
+                    className="absolute h-[calc(100%-8px)] rounded-full overflow-hidden"
+                    initial={false}
+                    // A LÓGICA DE CÁLCULO AGORA É EXPLÍCITA E SIMPLES
+                    animate={{
+                        left: activePill === 'read' ? '4px' : 'calc(100% - 132px)', // Posição calculada
+                        width: activePill === 'read' ? '68px' : '128px' // Largura fixa para cada estado
+                    }}
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                >
+                    {/* Efeito de Vidro */}
+                    <div className="relative w-full h-full">
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-400 to-emerald-500 opacity-80"></div>
+                        <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/30 to-transparent"></div>
+                        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/20 to-transparent"></div>
+                        <div className="absolute inset-0 rounded-full border border-white/30"></div>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* Botões de texto (por cima da pílula) */}
+        <button 
+            onClick={(e) => { e.stopPropagation(); setActivePill('read'); onClick(news); }} 
+            className="relative z-10 w-[68px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
+        >
+            <span className={activePill === 'read' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}>
+                Ler
+            </span>
+        </button>
+
+        <button 
+            onClick={(e) => { e.stopPropagation(); setActivePill('analyze'); onAnalyze(news); }} 
+            className="relative z-10 w-[128px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
+        >
+            <div className={`flex items-center gap-2 ${activePill === 'analyze' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}`}>
+                <Sparkles size={20} className={`animate-pulse ${activePill === 'analyze' ? 'text-white/80' : 'text-purple-400'}`} />
+                <span>Analisar</span>
+            </div>
+        </button>
+    </div>
+</div>
+          
+          {/* ÁREA DE TEXTO (RESTAURADA E CORRIGIDA) */}
+          <div className="relative px-4 pt-8 pb-2 flex-1 flex flex-col justify-end">
+            <div className="cursor-pointer" onClick={() => { setActivePill('read'); onClick(news); }}>
                  <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
                  </h3>
@@ -1317,9 +1268,16 @@ function FeedTab({
     >
       <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
       
-      <div className="sticky top-3 z-40 w-full flex justify-center py-2 pointer-events-none">
-          <div className="pointer-events-auto"><SourceSelector news={filteredByCategory} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} /></div>
-          <SlidingPillFilter categories={FEED_CATEGORIES} active={category} onChange={setCategory} isDarkMode={isDarkMode} />
+      <FeedVerticalFilter 
+          categories={FEED_CATEGORIES} 
+          active={category} 
+          onChange={setCategory} 
+          isDarkMode={isDarkMode} 
+      />
+      
+      {/* O SELETOR DE FONTES AGORA FICA PRESO NO TOPO */}
+      <div className="sticky top-0 z-20 py-2">
+        <SourceSelector news={filteredByCategory} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} />
       </div>
 
       <div style={{ height: `${pullDistance}px`, opacity: Math.min(pullDistance / 40, 1) }} className="flex items-end justify-center overflow-hidden w-full">
@@ -1328,7 +1286,8 @@ function FeedTab({
          </div>
       </div>
       
-      <div className="flex flex-col gap-4 px-4">
+      {/* O PADDING LATERAL AGORA É APLICADO AQUI, E É MAIOR À DIREITA */}
+      <div className="flex flex-col gap-4 px-4 pr-12">
         {uniqueNews.length === 0 && !isLoading && <div className="text-center py-10 opacity-50"><p>Nenhuma notícia encontrada.</p></div>}
         {uniqueNews.map((news) => (
             <NewsCard 
@@ -1345,6 +1304,7 @@ function FeedTab({
     </div>
   );
 }
+
 // --- OUTROS COMPONENTES E FILTROS ---
 
 function YouTubeVerticalFilter({ categories, active, onChange, isDarkMode }) {
