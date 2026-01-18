@@ -681,7 +681,7 @@ function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
     // 1. MUDANÇA DE POSICIONAMENTO: De 'fixed' para 'sticky' e ajuste no 'top'
     // 'sticky' faz com que ele role junto com a página até atingir o 'top' definido.
     // 'top-[35%]' o posiciona mais para baixo, livrando o HeaderDashboard.
-    <div className="absolute right-0 top-[35%] z-30 flex flex-col items-end pointer-events-none">
+    <div className="sticky right-0 top-[35%] z-30 flex flex-col items-end pointer-events-none">
       
       {/* 2. REDUÇÃO DE ESPAÇAMENTO: 'gap-1' foi trocado por 'gap-0.5' */}
       <div className={`
@@ -710,7 +710,7 @@ function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
               >
                   {/* 3. AUMENTO DA FONTE: 'text-[10px]' foi trocado por 'text-[11px]' */}
                   <span 
-                    className="text-[12px] font-black uppercase tracking-[0.2em] whitespace-nowrap" 
+                    className="text-[14px] font-black uppercase tracking-[0.2em] whitespace-nowrap" 
                     style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
                   >
                       {cat}
