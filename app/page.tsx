@@ -1066,15 +1066,31 @@ const NewsCard = React.memo(({
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
-            <div className="absolute top-0 left-0 w-1/3 h-14 bg-gradient-to-r from-white/90 via-white/80 to-white/60 backdrop-blur-md rounded-br-3xl shadow-lg border-b border-r border-white/50 z-20 flex items-center pl-4 pr-2 py-1 gap-3">
-                <div className="w-10 h-10 rounded-lg bg-white p-0.5 shadow-md flex-shrink-0 border border-black/5">
-                    <img src={news.logo} className="w-full h-full object-contain rounded-[6px]" onError={(e) => e.target.style.display = 'none'} alt={news.source} />
-                </div>
-                <div className="flex flex-col min-w-0">
-                    <span className="text-[13px] font-black text-zinc-800 uppercase tracking-widest truncate">{news.source}</span>
-                    <span className="text-sm font-mono font-bold text-black/70 tracking-wider">{displayTime}</span>
-                </div>
-            </div>
+{/* NOVO CABEÇALHO DESCONSTRUÍDO (VERSÃO FINAL CORRIGIDA) */}
+<div className="absolute top-4 left-4 z-20 flex items-center gap-3">
+    
+    {/* 1. LOGO INDEPENDENTE */}
+    <div className="w-12 h-12 rounded-2xl bg-white p-1 shadow-lg border-2 border-white/80">
+        <img 
+            src={news.logo} 
+            className="w-full h-full object-contain rounded-lg" 
+            onError={(e) => e.target.style.display = 'none'} 
+            alt={news.source}
+        />
+    </div>
+    
+    {/* 2. UMA ÚNICA PÍLULA DE INFORMAÇÕES */}
+    <div className="flex items-center gap-4 px-4 py-2 rounded-full bg-black/30 backdrop-blur-md border border-white/70">
+        {/* Nome da Fonte */}
+        <span className="text-[13px] font-black text-white uppercase tracking-widest truncate">
+            {news.source}
+        </span>
+        {/* Hora */}
+        <span className="text-sm font-mono font-bold text-white/70 tracking-wider">
+            {displayTime}
+        </span>
+    </div>
+</div>
 
             <div className="absolute top-20 right-5 z-20 flex flex-col items-end gap-2">
                 {isRead && (
