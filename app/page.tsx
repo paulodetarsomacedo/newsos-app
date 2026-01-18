@@ -678,12 +678,10 @@ const triggerSearch = () => {
 
 function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
   return (
-    // 1. MUDANÇA DE VOLTA PARA 'fixed' COM 'top' AJUSTADO
-    // 'fixed' garante que ele fique sempre na mesma posição na tela.
-    // 'top-48' (12rem ou 192px) é um bom ponto de partida para ficar abaixo do Header.
-    <div className="fixed right-0 top-48 z-30 flex flex-col items-end pointer-events-none">
+    // 'fixed' é a melhor abordagem para este caso
+    <div className="fixed right-0 top-1/2 -translate-y-1/2 z-30 flex flex-col items-end pointer-events-none">
       
-      {/* Reduzi o espaçamento para deixar mais compacto */}
+      {/* O espaçamento entre os botões foi reduzido */}
       <div className={`
         pointer-events-auto flex flex-col gap-0.5 p-1 rounded-l-2xl border-t border-l border-b
         shadow-xl
@@ -697,8 +695,12 @@ function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
               <button 
                 key={cat} 
                 onClick={() => onChange(cat)} 
+                // ==========================================================
+                // === A ALTURA DO BOTÃO (PADDING VERTICAL) FOI REDUZIDA ===
+                // ==========================================================
+                // 'py-5' (40px) foi trocado por 'py-3' (24px)
                 className={`
-                  relative flex items-center justify-center w-10 py-5 rounded-lg
+                  relative flex items-center justify-center w-10 py-3 rounded-lg
                   transition-all duration-300
                   ${isActive 
                       ? 'bg-purple-600 text-white shadow-lg' 
@@ -707,9 +709,9 @@ function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
                           : 'text-zinc-500 hover:bg-black/5 hover:text-black')}
                 `}
               >
-                  {/* Mantive a fonte em 14px como você tinha, mas 11px pode ficar melhor */}
+                  {/* O tamanho da fonte foi ajustado para melhor encaixe */}
                   <span 
-                    className="text-[14px] font-black uppercase tracking-[0.2em] whitespace-nowrap" 
+                    className="text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap" 
                     style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
                   >
                       {cat}
@@ -6445,7 +6447,7 @@ const handleStoryNavigation = (direction) => {
 
                 } else {
                     // Supabase (Pago)
-                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
+                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true  } });
                     if (!error && data && data.items) {
                         feedItems = data.items;
                         detectedXmlTitle = data.title;
