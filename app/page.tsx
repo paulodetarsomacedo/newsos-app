@@ -1140,9 +1140,8 @@ const NewsCard = React.memo(({
                 </button>
             </div>
           </div>
-          
 {/* ÁREA DE TEXTO (COM PADDING E LAYOUT CORRIGIDOS PARA APARECER) */}
-<div className="relative px-6 pt-12 pb-4 flex-1">
+<div className="relative px-6 pt-12 pb-6 flex-1">
     <div className="cursor-pointer" onClick={() => { setActivePill('read'); onClick(news); }}>
          <h3 className={`text-2xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
              {news.title}
