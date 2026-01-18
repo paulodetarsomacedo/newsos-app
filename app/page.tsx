@@ -1141,17 +1141,18 @@ const NewsCard = React.memo(({
             </div>
           </div>
           
-{/* ÁREA DE TEXTO (COM PADDING E LAYOUT CORRIGIDOS) */}
-<div className="relative px-6 pt-7 pb-1 flex-1 flex flex-col justify-start">
-    <div className="cursor-pointer" onClick={() => { setActivePill('read'); onClick(news); }}>
-         <h3 className={`text-2xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-             {news.title}
-         </h3>
-         <p className={`text-base font-medium leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} line-clamp-2`}>
-             {news.summary}
-         </p>
-    </div>
-</div>
+{/* ÁREA DE TEXTO (RESTAURADA E CORRIGIDA) */}
+          <div className="relative px-6 pt-7 pb-1 flex-1 flex flex-col">
+            <div className="cursor-pointer" onClick={() => { setActivePill('read'); onClick(news); }}>
+                 <h3 className={`text-2xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                     {news.title}
+                 </h3>
+                 {/* O PARÁGRAFO DO RESUMO FOI RESTAURADO AQUI */}
+                 <p className={`text-base font-medium leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} line-clamp-2`}>
+                     {news.summary}
+                 </p>
+            </div>
+          </div>
 
           {isCurrentPlaying && <InlinePlayer />}
       </div>
