@@ -1076,7 +1076,7 @@ const NewsCard = React.memo(({
                 </div>
             </div>
 
-            <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-2">
+            <div className="absolute top-20 right-5 z-20 flex flex-col items-end gap-2">
                 {isRead && (
                     <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
                         Lida
