@@ -3734,7 +3734,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
       return (
         <div>
             <div className="px-6 pb-2 text-center">
-                <p className={`text-xl font-medium animate-pulse ${isDarkMode ? 'text-purple-500' : 'text-purple-400'}`}>
+                <p className={`text-3xl font-medium animate-pulse ${isDarkMode ? 'text-purple-500' : 'text-purple-400'}`}>
                     Analisando as últimas notícias para você...
                 </p>
             </div>
@@ -3746,14 +3746,14 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
   return (
     <div className="relative">
       
-      <div className="absolute top-[-4.5rem] right-4 z-20">
+      <div className="absolute top-[-8rem] right-0 z-20">
         <button
           onClick={runAI}
           className="group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/30"
         >
           {loading ? ( <div className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /><span>Analisando</span></div> ) 
           : clusters ? ( <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar</span></div> ) 
-          : ( <div className="flex items-center gap-2"><Sparkles size={14} className="text-yellow-300" /><span>Analisar</span></div> )}
+          : ( <div className="flex items-center gap-2"><Sparkles size={16} className="text-yellow-300" /><span>Analisar</span></div> )}
         </button>
       </div>
 
@@ -3918,7 +3918,6 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // ==========================================================
 // === SUBSTITUA SUA FUNÇÃO "TrendRadar" INTEIRA POR ESTA ===
 // ==========================================================
-
 const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -3937,9 +3936,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
           setTrends(sorted);
           setHasGenerated(true);
         }
-      } catch (e) {
-        console.error("Erro ao ler Trend Radar salvo", e);
-      }
+      } catch (e) { console.error("Erro ao ler Trend Radar salvo", e); }
     }
   }, []);
 
@@ -3950,7 +3947,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     if (score >= 3) return { color: '#22c55e', label: 'LEVE' };
     return { color: '#3b82f6', label: 'FRIO' };
   };
-
+  
   const runTrendAnalysis = async () => {
     const currentApiKey = getApiKey('widgets');
     if (!currentApiKey || !newsData || newsData.length === 0) {
@@ -4032,9 +4029,23 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       )}
 
       {!loading && trends && trends.length > 0 && (
-        <div className="relative flex h-[400px] w-full mt-8">
-            <div className="relative w-10 flex-shrink-0 flex flex-col items-center">
-                <div className="w-2 h-full rounded-full bg-gradient-to-t from-blue-500 via-yellow-500 to-red-500"></div>
+        <div className="relative flex h-[450px] w-full mt-4">
+            <div className="relative w-12 flex-shrink-0 flex flex-col items-center">
+                <div className="w-2 h-full rounded-full bg-gradient-to-t from-blue-500/50 via-yellow-500/50 to-red-500/50 relative">
+                    <AnimatePresence>
+                    {activeIndex !== null && activeItem && (
+                        <motion.div
+                            layoutId="temp-marker"
+                            className="absolute left-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 bg-white dark:bg-zinc-800 shadow-lg"
+                            style={{ 
+                                bottom: `calc(${activeItem.score * 10}% - 8px)`,
+                                borderColor: getTrendStyle(activeItem.score).color
+                            }}
+                            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        />
+                    )}
+                    </AnimatePresence>
+                </div>
                 <div className="absolute top-0 -mt-4 text-[9px] font-bold text-red-500">10</div>
                 <div className="absolute bottom-0 -mb-4 text-[9px] font-bold text-blue-500">0</div>
             </div>
@@ -4042,20 +4053,30 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
             <div className="relative flex-1">
                 {trends.slice(0, 5).map((item, i) => {
                     const style = getTrendStyle(item.score);
-                    const verticalPosition = `${100 - (item.score * 10)}%`; 
+                    const isActive = activeIndex === i;
+                    const topPosition = i * 70 + 20;
 
                     return (
                         <div key={item.topic} 
-                             className="absolute w-full transition-all duration-500"
-                             style={{ top: `calc(${verticalPosition} - 24px)` }}>
+                             className="absolute w-full transition-all duration-300"
+                             style={{ top: `${topPosition}px`, left: '10px', right: '0' }}
+                        >
                             <div className="flex items-center">
-                                <div className="w-6 border-b border-dashed" style={{ borderColor: style.color }}></div>
-                                
+                                <div className="w-4 border-b border-dashed" style={{ borderColor: `${style.color}80` }}></div>
                                 <button onClick={() => handleToggle(i)}
-                                    className={`p-2 rounded-lg border flex-1 text-left transition-all duration-300 hover:scale-105 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-50'}`}
-                                    style={{ borderColor: style.color }}>
-                                    <p className="text-xs font-bold line-clamp-1">{item.topic}</p>
-                                    <p className="text-[10px] font-bold" style={{ color: style.color }}>Impacto: {item.score}/10</p>
+                                    className={`p-3 rounded-lg border flex-1 text-left min-h-[56px] transition-all duration-300
+                                        ${isActive 
+                                            ? 'scale-105 shadow-2xl' 
+                                            : 'hover:scale-105 hover:shadow-lg'}
+                                        ${isDarkMode ? 'bg-zinc-800/80 backdrop-blur-sm' : 'bg-white/80 backdrop-blur-sm'}`
+                                    }
+                                    style={{ 
+                                        borderColor: isActive ? style.color : (isDarkMode ? '#ffffff20' : '#00000015'),
+                                        boxShadow: isActive ? `0 0 20px ${style.color}40` : ''
+                                    }}
+                                >
+                                    <p className={`text-sm font-bold leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{item.topic}</p>
+                                    <p className="text-xs font-bold mt-1" style={{ color: style.color }}>Impacto: {item.score}/10</p>
                                 </button>
                             </div>
                         </div>
