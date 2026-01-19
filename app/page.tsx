@@ -3915,6 +3915,10 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // ✅ Termômetro agora é horizontal (0–10)
 // ✅ Cards menores, agrupados horizontalmente por faixas de temperatura (colunas)
 // ✅ Texto legível: dark = branco, light = preto/cinza escuro
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "TrendRadar" INTEIRA POR ESTA ===
+// ==========================================================
+
 const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -3929,7 +3933,8 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       try {
         const parsed = JSON.parse(savedData);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setTrends(parsed.sort((a, b) => b.score - a.score));
+          const sorted = parsed.sort((a, b) => b.score - a.score);
+          setTrends(sorted);
           setHasGenerated(true);
         }
       } catch (e) {
@@ -3939,20 +3944,16 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   }, []);
 
   const getTrendStyle = (score) => {
-    if (score >= 9) return { color: '#ef4444', heightPercent: 100 };
-    if (score >= 7) return { color: '#f97316', heightPercent: 85 };
-    if (score >= 5) return { color: '#eab308', heightPercent: 65 };
-    if (score >= 3) return { color: '#22c55e', heightPercent: 45 };
-    return { color: '#3b82f6', heightPercent: 30 };
+    if (score >= 9) return { color: '#ef4444', label: 'MUITO QUENTE' };
+    if (score >= 7) return { color: '#f97316', label: 'QUENTE' };
+    if (score >= 5) return { color: '#eab308', label: 'MÉDIO' };
+    if (score >= 3) return { color: '#22c55e', label: 'LEVE' };
+    return { color: '#3b82f6', label: 'FRIO' };
   };
 
-
-
-const runTrendAnalysis = async () => {
-    // Pega uma chave do pool de widgets
+  const runTrendAnalysis = async () => {
     const currentApiKey = getApiKey('widgets');
-    
-    if (!currentApiKey || !newsData || !newsData.length === 0) {
+    if (!currentApiKey || !newsData || newsData.length === 0) {
       alert("Aguarde o carregamento das notícias ou configure as chaves de IA do Pool 1.");
       return;
     }
@@ -3960,46 +3961,25 @@ const runTrendAnalysis = async () => {
     setActiveIndex(null);
     await new Promise((r) => setTimeout(r, 800));
 
-    // Passa a chave para a função de IA
-    const data = await generateTrendRadar(newsData, currentApiKey); 
+    const data = await generateTrendRadar(newsData, currentApiKey);
 
-    // ==========================================================
-    // === INÍCIO DA CORREÇÃO: Lógica preenchida ===
-    // ==========================================================
     if (data && Array.isArray(data) && data.length > 0) {
-      // 1. Ordena os dados recebidos pelo score
-
-
-       const hydratedData = data.map(trend => {
+      const hydratedData = data.map(trend => {
         const relatedArticles = trend.source_indices
             ? trend.source_indices.map(index => newsData[index]).filter(Boolean)
             : [];
         return { ...trend, related_articles: relatedArticles };
-    });
-
-    const sortedData = hydratedData.sort((a, b) => b.score - a.score);
-      
-
-
-
-      // 2. Atualiza o estado 'trends' com os novos dados
+      });
+      const sortedData = hydratedData.sort((a, b) => b.score - a.score);
       setTrends(sortedData);
-      
-      // 3. Avisa o componente que ele já tem dados reais para mostrar
       setHasGenerated(true);
-      
-      // 4. Salva os dados no cache do navegador para a próxima vez que o app abrir
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedData));
     } else {
-      // Se a IA não retornar dados, avisa o usuário
       alert("A IA não identificou tendências claras no momento. Tente novamente mais tarde.");
     }
-    // ==========================================================
-    // === FIM DA CORREÇÃO ===
-    // ==========================================================
     
     setLoading(false);
-};
+  };
 
   const handleToggle = (idx) => {
     setActiveIndex(activeIndex === idx ? null : idx);
@@ -4007,373 +3987,111 @@ const runTrendAnalysis = async () => {
 
   const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
 
-  // --- FUNÇÕES DE AGRUPAMENTO POR FAIXAS (SEM ABREVIAÇÕES) ---
-  const temperatureBands = [
-    { label: '🧊 FRIO', min: 0, max: 2 },
-    { label: '🟢 LEVE', min: 2, max: 4 },
-    { label: '🟡 MÉDIO', min: 4, max: 6 },
-    { label: '🟠 QUENTE', min: 6, max: 8 },
-    { label: '🔥 MUITO QUENTE', min: 8, max: 10.01 }, // para incluir 10
-  ];
-
-  const getBandIndexByScore = (score) => {
-    for (let i = 0; i < temperatureBands.length; i++) {
-      const band = temperatureBands[i];
-      if (score >= band.min && score < band.max) return i;
-    }
-    return temperatureBands.length - 1;
-  };
-
-  const buildGroupedTrends = (trendsArray) => {
-    const grouped = temperatureBands.map(() => []);
-    for (let i = 0; i < trendsArray.length; i++) {
-      const item = trendsArray[i];
-      const bandIndex = getBandIndexByScore(item.score);
-      grouped[bandIndex].push({ ...item, __originalIndex: i });
-    }
-    return grouped;
-  };
-
   return (
-    <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 px-4">
-      <style jsx="true">{`
-        @keyframes radar-sweep {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes radar-pulse {
-          0%, 100% { transform: scale(0.5); opacity: 0; }
-          50% { transform: scale(1.2); opacity: 0.1; }
-        }
-      `}</style>
-
-      {hasGenerated && (
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 opacity-70">
-            <Activity size={14} className="text-orange-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-              Trend Radar AI
-            </span>
-          </div>
-
-          <button
-            onClick={runTrendAnalysis}
-            disabled={loading}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${
-              isDarkMode
-                ? 'bg-zinc-800 text-zinc-400 hover:text-white'
-                : 'bg-zinc-200 text-zinc-600 hover:text-black'
-            }`}
-          >
-            {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {loading ? 'Analisando...' : 'Atualizar'}
-          </button>
+    <div className={`relative p-4 rounded-2xl ${isDarkMode ? 'bg-zinc-900/50 border border-white/10' : 'bg-white shadow-lg'}`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+            <TrendingUp size={16} className="text-purple-400" />
+            <h3 className="text-base font-bold">Trend Radar AI</h3>
         </div>
-      )}
-
-      {loading ? (
-        <div className="h-48 flex flex-col items-center justify-center text-center gap-4">
-          <div className="relative h-40 w-40 flex items-center justify-center">
-            <div className="absolute w-full h-full rounded-full border border-dashed border-orange-500/20"></div>
-            <div className="absolute w-2/3 h-2/3 rounded-full border border-dashed border-orange-500/20"></div>
-            <div
-              className="absolute w-full h-full rounded-full bg-orange-500"
-              style={{ animation: 'radar-pulse 2s ease-out infinite' }}
-            ></div>
-            <div
-              className="absolute w-full h-full origin-center"
-              style={{ animation: 'radar-sweep 2s linear infinite' }}
-            >
-              <div className="w-1/2 h-px bg-gradient-to-r from-transparent to-orange-400 absolute top-1/2"></div>
-            </div>
-            <Activity size={24} className="text-orange-400 z-10" />
-          </div>
-          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
-            Analisando tendências...
-          </p>
-        </div>
-      ) : (
-        <div className="w-full">
-          {hasGenerated && trends ? (
-            <div className="relative">
-              {/* 1) TERMÔMETRO HORIZONTAL + GRUPOS */}
-              <div className="relative mt-2">
-                {/* Título */}
-                <div className="flex items-center justify-between mb-3">
-                  <span
-                    className={`text-[10px] font-black uppercase tracking-widest ${
-                      isDarkMode ? 'text-white/40' : 'text-black/40'
-                    }`}
-                  >
-                    Termômetro de tendências (0–10)
-                  </span>
-                </div>
-
-                {/* Container */}
-                <div
-                  className="relative w-full rounded-2xl p-4"
-                  style={{
-                    background: isDarkMode ? 'rgba(24,24,27,0.55)' : 'rgba(255,255,255,0.75)',
-                    border: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)',
-                    backdropFilter: 'blur(10px)',
-                  }}
-                >
-                  {/* Régua 0–10 */}
-                  <div className="relative mb-4">
-                    <div
-                      className="h-3 w-full rounded-full overflow-hidden"
-                      style={{
-                        background:
-                          'linear-gradient(90deg, #3b82f6, #22c55e, #eab308, #f97316, #ef4444)',
-                        boxShadow: isDarkMode
-                          ? '0 10px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.20)'
-                          : '0 10px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.35)',
-                      }}
-                    />
-
-                    <div className="relative mt-2 flex justify-between">
-                      {Array.from({ length: 11 }).map((_, i) => (
-                        <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
-                          <div
-                            style={{
-                              height: '6px',
-                              width: '1px',
-                              background: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)',
-                            }}
-                          />
-                          <span className={`mt-1 text-[10px] font-black ${isDarkMode ? 'text-white/40' : 'text-black/40'}`}>
-                            {i}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* GRID DE COLUNAS POR FAIXA */}
-                  <div className="grid grid-cols-5 gap-3">
-                    {(() => {
-                      const grouped = buildGroupedTrends(trends);
-
-                      return temperatureBands.map((band, colIndex) => (
-                        <div key={band.label} className="min-w-0">
-                          <div className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDarkMode ? 'text-white/40' : 'text-black/40'}`}>
-                            {band.label}
-                          </div>
-
-                          <div className="flex flex-col gap-2">
-                            {grouped[colIndex].map((item) => {
-                              const style = getTrendStyle(item.score);
-                              const isActive = activeIndex === item.__originalIndex;
-
-                              const cardBackground = isDarkMode ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.92)';
-                              const cardBorder = isActive
-                                ? `${style.color}88`
-                                : (isDarkMode ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)');
-
-                              const titleColor = isDarkMode ? '#ffffff' : '#111827';
-                              const subColor = isDarkMode ? 'rgba(255,255,255,0.55)' : 'rgba(17,24,39,0.60)';
-
-                              return (
-                                <button
-                                  key={item.__originalIndex}
-                                  onClick={() => handleToggle(item.__originalIndex)}
-                                  className="w-full text-left transition-transform active:scale-[0.99] animate-in fade-in" // Adicione 'animate-in fade-in'
-  // ===================================
-  // === ADICIONE O ESTILO ABAIXO ===
-  // ===================================
-  style={{ animationDelay: `${item.__originalIndex * 50}ms` }}
-                                >
-                                  <div
-                                    className="rounded-xl px-3 py-2"
-                                    style={{
-                                      background: cardBackground,
-                                      border: `1px solid ${cardBorder}`,
-                                      boxShadow: isActive
-                                        ? `0 16px 30px rgba(0,0,0,0.20), 0 0 0 1px ${style.color}22, 0 0 18px ${style.color}22`
-                                        : (isDarkMode ? '0 10px 20px rgba(0,0,0,0.30)' : '0 10px 20px rgba(0,0,0,0.10)'),
-                                    }}
-                                  >
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="min-w-0">
-                                        <div
-                                      className="font-black tracking-tight break-words"
-  style={{
-    color: titleColor,
-    fontSize: '12px',
-    lineHeight: '1.2',
-    display: '-webkit-box',
-    wordBreak: 'break-word',        // até 2 linhas
-    WebkitBoxOrient: 'vertical',
-    overflow: 'hidden',
-  }}
-  title={item.topic}
->
-  {item.topic}
-</div>
-
-                                        <div
-                                          className="mt-1 text-[10px] font-black uppercase tracking-widest"
-                                          style={{ color: subColor }}
-                                        >
-                                          Impacto
-                                        </div>
-                                      </div>
-
-                                      <div
-                                        className="text-[11px] font-black"
-                                        style={{ color: style.color }}
-                                      >
-                                        {item.score}/10
-                                      </div>
-                                    </div>
-
-                                    <div
-                                      className="mt-2 h-1.5 w-full rounded-full overflow-hidden"
-                                      style={{
-                                        background: isDarkMode ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)',
-                                      }}
-                                    >
-                                      <div
-                                        className="h-full rounded-full"
-                                        style={{
-                                          width: `${Math.min(100, Math.max(0, item.score * 10))}%`,
-                                          background: style.color,
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-              </div>
-
-              {/* ÁREA DO BALÃO CORRIGIDA (COM ALTURA DINÂMICA) */}
-<div className={`
-  grid transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
-  ${activeItem ? 'grid-rows-[1fr] mt-8' : 'grid-rows-[0fr] mt-0'}
-`}>
-  <div className="overflow-hidden min-h-0">
-    <AnimatePresence>
-      {activeItem && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.3 }}
-          // ==========================================================
-          // === REMOVA a altura fixa 'h-36' daqui, se ela existir ===
-          // ==========================================================
-        >
-          <div
-            className={`w-full p-5 rounded-2xl flex flex-col gap-4 ${ // Aumentei o gap
-              isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
-            }`}
-            style={{
-              border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-              boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
-            }}
-          >
-            {/* --- CABEÇALHO DO BALÃO (Mantido) --- */}
-            <div className="border-b border-dashed border-zinc-700/50 pb-2 mb-2">
-    {/* O CÓDIGO ANTIGO TINHA UM <span> AQUI. VAMOS SUBSTITUIR. */}
-
-    {/* ========================================================== */}
-    {/* === NOVO: BARRA DE TEMPERATURA E TEXTO ALINHADOS === */}
-    {/* ========================================================== */}
-    <div className="flex items-center justify-between">
-        <span
-            className="text-[10px] font-black uppercase tracking-widest"
-            style={{ color: getTrendStyle(activeItem.score).color }}
-        >
-            NÍVEL DE IMPACTO
-        </span>
-        <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
-            <div
-                className="h-full rounded-full"
-                style={{
-                    width: `${activeItem.score * 10}%`,
-                    backgroundColor: getTrendStyle(activeItem.score).color,
-                    transition: 'width 0.5s ease-out'
-                }}
-            />
-        </div>
-    </div>
-</div>
-
-            {/* --- RESUMO (Mantido) --- */}
-            <p className={`text-sm leading-relaxed ...`}>
-              {activeItem.summary}
-            </p>
-
-            {/* ========================================================== */}
-            {/* === NOVO: SEÇÃO DE NOTÍCIAS RELACIONADAS === */}
-            {/* ========================================================== */}
-            {activeItem.related_articles && activeItem.related_articles.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">
-                  Fontes Analisadas
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {activeItem.related_articles.slice(0, 5).map(article => (
-        <button
-          key={article.id}
-          // ============================================
-          // === AQUI ESTÁ A MUDANÇA NO ONCLICK ===
-          // ============================================
-          onClick={() => openArticle(article)} 
-          className="transition-transform hover:scale-110"
-          title={article.title}
-        >
-          <img src={article.logo} className="w-6 h-6 rounded-full border border-black/10" />
+        <button onClick={runTrendAnalysis} disabled={loading} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 text-zinc-600 hover:text-black'}`}>
+          {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+          <span>{loading ? 'Analisando...' : (hasGenerated ? 'Atualizar' : 'Analisar')}</span>
         </button>
-      ))}
-                </div>
-              </div>
-            )}
-            
-            {/* ========================================================== */}
-            {/* === NOVO: BOTÕES DE AÇÃO "APROFUNDAR" === */}
-            {/* ========================================================== */}
-            <div className="flex gap-2 pt-2 border-t border-dashed border-zinc-700/50">
-                <a href={`https://pt.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(activeItem.topic)}`} target="_blank" className={`flex-1 text-center py-2 rounded-lg text-[10px] font-bold ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
-                    Ver na Wikipedia
-                </a>
-                <a href={`https://www.google.com/search?q=${encodeURIComponent(activeItem.topic)}`} target="_blank" className={`flex-1 text-center py-2 rounded-lg text-[10px] font-bold ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
-                    Buscar no Google
-                </a>
-            </div>
+      </div>
 
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </div>
-</div>
+      {loading && (
+        <div className="h-96 flex flex-col items-center justify-center text-center gap-4">
+            <style jsx="true">{`
+              @keyframes radar-sweep { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+              @keyframes radar-pulse { 0%, 100% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.2); opacity: 0.1; } }
+            `}</style>
+            <div className="relative h-40 w-40 flex items-center justify-center">
+                <div className="absolute w-full h-full rounded-full border border-dashed border-orange-500/20"></div>
+                <div className="absolute w-2/3 h-2/3 rounded-full border border-dashed border-orange-500/20"></div>
+                <div className="absolute w-full h-full rounded-full bg-orange-500" style={{ animation: 'radar-pulse 2s ease-out infinite' }}></div>
+                <div className="absolute w-full h-full origin-center" style={{ animation: 'radar-sweep 2s linear infinite' }}>
+                    <div className="w-1/2 h-px bg-gradient-to-r from-transparent to-orange-400 absolute top-1/2"></div>
+                </div>
+                <Activity size={24} className="text-orange-400 z-10" />
             </div>
-          ) : (
-            <div className="h-48 flex flex-col items-center justify-center text-center">
-              <p className="font-bold text-lg mb-4">Ative o Radar de Tendências</p>
-              <p className="text-base text-zinc-500 max-w-xs mb-6">
-                Clique para escanear as notícias e revelar as trends mais importantes de agora.
-              </p>
-              <button
-                onClick={runTrendAnalysis}
-                className="group relative px-8 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-orange-500 text-white hover:bg-orange-400 shadow-orange-500/30"
-              >
-                <span className="flex items-center gap-2">
-                  <Sparkles size={16} className="text-yellow-300" /> Ativar Radar
-                </span>
-              </button>
-            </div>
-          )}
+            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Analisando tendências...</p>
         </div>
       )}
+
+      {!loading && (!trends || trends.length === 0) && (
+        <div className="h-96 flex flex-col items-center justify-center text-center">
+            <p className="font-bold text-lg mb-4">Ative o Radar de Tendências</p>
+            <p className="text-base text-zinc-500 max-w-xs mb-6">Clique para escanear as notícias e revelar as trends mais importantes de agora.</p>
+            <button onClick={runTrendAnalysis} className="group relative px-8 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-orange-500 text-white hover:bg-orange-400 shadow-orange-500/30">
+              <span className="flex items-center gap-2">
+                <Sparkles size={16} className="text-yellow-300" /> Ativar Radar
+              </span>
+            </button>
+        </div>
+      )}
+
+      {!loading && trends && trends.length > 0 && (
+        <div className="relative flex h-[400px] w-full mt-8">
+            <div className="relative w-10 flex-shrink-0 flex flex-col items-center">
+                <div className="w-2 h-full rounded-full bg-gradient-to-t from-blue-500 via-yellow-500 to-red-500"></div>
+                <div className="absolute top-0 -mt-4 text-[9px] font-bold text-red-500">10</div>
+                <div className="absolute bottom-0 -mb-4 text-[9px] font-bold text-blue-500">0</div>
+            </div>
+
+            <div className="relative flex-1">
+                {trends.slice(0, 5).map((item, i) => {
+                    const style = getTrendStyle(item.score);
+                    const verticalPosition = `${100 - (item.score * 10)}%`; 
+
+                    return (
+                        <div key={item.topic} 
+                             className="absolute w-full transition-all duration-500"
+                             style={{ top: `calc(${verticalPosition} - 24px)` }}>
+                            <div className="flex items-center">
+                                <div className="w-6 border-b border-dashed" style={{ borderColor: style.color }}></div>
+                                
+                                <button onClick={() => handleToggle(i)}
+                                    className={`p-2 rounded-lg border flex-1 text-left transition-all duration-300 hover:scale-105 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-50'}`}
+                                    style={{ borderColor: style.color }}>
+                                    <p className="text-xs font-bold line-clamp-1">{item.topic}</p>
+                                    <p className="text-[10px] font-bold" style={{ color: style.color }}>Impacto: {item.score}/10</p>
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {activeItem && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+            className={`relative mt-4 p-5 rounded-2xl border ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}
+            style={{ borderColor: getTrendStyle(activeItem.score).color }}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: getTrendStyle(activeItem.score).color }}>
+                    NÍVEL DE IMPACTO: {getTrendStyle(activeItem.score).label}
+                </span>
+                <button onClick={() => handleToggle(null)}><X size={16} /></button>
+              </div>
+              <p className={`text-sm leading-relaxed mt-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{activeItem.summary}</p>
+              {activeItem.related_articles && activeItem.related_articles.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-dashed border-zinc-700/50 space-y-2">
+                  <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Fontes Analisadas</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {activeItem.related_articles.slice(0, 5).map(article => (
+                      <button key={article.id} onClick={() => openArticle(article)} className="transition-transform hover:scale-110" title={article.title}>
+                        <img src={article.logo} className="w-6 h-6 rounded-full border border-black/10" onError={(e) => e.target.style.display='none'} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
