@@ -3746,7 +3746,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
   return (
     <div className="relative">
       
-      <div className="absolute top-[-8rem] right-0 z-20">
+      <div className="absolute top-[-2rem] right-0 z-20">
         <button
           onClick={runAI}
           className="group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/30"
@@ -3918,6 +3918,9 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // ==========================================================
 // === SUBSTITUA SUA FUNÇÃO "TrendRadar" INTEIRA POR ESTA ===
 // ==========================================================
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "TrendRadar" INTEIRA POR ESTA ===
+// ==========================================================
 const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -4031,9 +4034,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       {!loading && trends && trends.length > 0 && (
         <div className="relative flex h-[450px] w-full mt-4">
             <div className="relative w-12 flex-shrink-0 flex flex-col items-center">
-                <div className="w-2 h-full rounded-full bg-gradient-to-t from-blue-500/50 via-yellow-500/50 to-red-500/50 relative">
+                <div className="w-2 h-full rounded-full bg-gradient-to-t from-blue-500 via-yellow-500 to-red-500 relative">
                     <AnimatePresence>
-                    {activeIndex !== null && activeItem && (
+                    {activeItem && (
                         <motion.div
                             layoutId="temp-marker"
                             className="absolute left-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 bg-white dark:bg-zinc-800 shadow-lg"
@@ -4050,24 +4053,23 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                 <div className="absolute bottom-0 -mb-4 text-[9px] font-bold text-blue-500">0</div>
             </div>
 
-            <div className="relative flex-1">
+            <div className="relative flex-1 grid grid-cols-1" style={{ gridTemplateRows: 'repeat(5, 1fr)' }}>
                 {trends.slice(0, 5).map((item, i) => {
                     const style = getTrendStyle(item.score);
                     const isActive = activeIndex === i;
-                    const topPosition = i * 70 + 20;
+                    const verticalPosition = 100 - (item.score * 10);
 
                     return (
                         <div key={item.topic} 
-                             className="absolute w-full transition-all duration-300"
-                             style={{ top: `${topPosition}px`, left: '10px', right: '0' }}
+                             className="absolute w-full"
+                             style={{ top: `${verticalPosition}%`, transform: 'translateY(-50%)' }}
                         >
-                            <div className="flex items-center">
+                            <div className="flex items-center pl-2">
                                 <div className="w-4 border-b border-dashed" style={{ borderColor: `${style.color}80` }}></div>
+                                
                                 <button onClick={() => handleToggle(i)}
-                                    className={`p-3 rounded-lg border flex-1 text-left min-h-[56px] transition-all duration-300
-                                        ${isActive 
-                                            ? 'scale-105 shadow-2xl' 
-                                            : 'hover:scale-105 hover:shadow-lg'}
+                                    className={`p-3 rounded-lg border flex-1 text-left min-h-[60px] transition-all duration-300
+                                        ${isActive ? 'scale-105 shadow-2xl' : 'hover:scale-105 hover:shadow-lg'}
                                         ${isDarkMode ? 'bg-zinc-800/80 backdrop-blur-sm' : 'bg-white/80 backdrop-blur-sm'}`
                                     }
                                     style={{ 
@@ -4116,7 +4118,6 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     </div>
   );
 };
-
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters }) {
