@@ -4097,7 +4097,11 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                 </span>
                 <button onClick={() => handleToggle(null)}><X size={16} /></button>
               </div>
-              <p className={`text-sm leading-relaxed mt-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{item.summary}</p>
+              
+              {/* CORREÇÃO: Usar activeItem.summary */}
+              <p className={`text-sm leading-relaxed mt-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{activeItem.summary}</p>
+              
+              {/* CORREÇÃO: Usar activeItem.related_articles */}
               {activeItem.related_articles && activeItem.related_articles.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-dashed border-zinc-700/50 space-y-2">
                   <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Fontes Analisadas</h4>
