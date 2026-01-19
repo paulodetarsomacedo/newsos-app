@@ -3989,7 +3989,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
             <TrendingUp size={16} className="text-purple-400" />
-            <h3 className="text-base font-bold bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">Trend Radar AI</h3>
+            <h3 className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">Trend Radar AI</h3>
         </div>
         <button onClick={runTrendAnalysis} disabled={loading} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 text-zinc-600 hover:text-black'}`}>
           {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
