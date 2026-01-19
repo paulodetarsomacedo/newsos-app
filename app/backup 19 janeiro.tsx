@@ -1178,12 +1178,25 @@ const NewsCard = React.memo(({
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 // --- TAB: FEED (VERSÃO FINAL, LIMPA E OTIMIZADA) ---
-// ==========================================================
-// === 1. SUBSTITUA SUA FUNÇÃO "FeedTab" INTEIRA POR ESTA ===
-// ==========================================================
-
-function FeedTab({ isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onReadArticle, onGenerateAudio, openArticle }) {
+function FeedTab({ 
+  isDarkMode, 
+  selectedArticleId, 
+  savedItems, 
+  onToggleSave, 
+  readHistory, 
+  newsData, 
+  isLoading, 
+  sourceFilter, 
+  setSourceFilter, 
+  likedItems, 
+  onToggleLike, 
+  onRefresh, 
+  onReadArticle, 
+  onGenerateAudio,
+  openArticle // Esta é a função que abre o painel de IA
+}) {
   
+  // Estados e lógica pertencentes APENAS ao feed
   const [category, setCategory] = useState('Tudo');
   const [stableData, setStableData] = useState([]);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -1217,7 +1230,7 @@ function FeedTab({ isDarkMode, selectedArticleId, savedItems, onToggleSave, read
   }, [newsData]);
 
   useEffect(() => {
-    if (audioUrl && audioUrl.startsWith('http') && audioRef.current) {
+    if (audioUrl && audioRef.current) {
         audioRef.current.src = audioUrl;
         audioRef.current.play().catch(e => console.error("Erro ao tocar áudio:", e));
     } else if (audioRef.current) {
@@ -1233,11 +1246,9 @@ function FeedTab({ isDarkMode, selectedArticleId, savedItems, onToggleSave, read
   const uniqueNews = useMemo(() => {
       const seen = new Set();
       return sortedFeed.filter(item => {
-          if (item && item.id && !seen.has(item.id)) { // Adicionado verificação
-              seen.add(item.id);
-              return true;
-          }
-          return false;
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
       }).slice(0, 50); 
   }, [sortedFeed]);
 
@@ -1266,7 +1277,7 @@ function FeedTab({ isDarkMode, selectedArticleId, savedItems, onToggleSave, read
     else { setLocalPlayingAudio(null); setIsGenerating(false); }
   }, [localPlayingAudio, onGenerateAudio]);
 
-  if (isLoading && uniqueNews.length === 0) {
+  if (isLoading && stableData.length === 0) {
      return (
        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
           <Loader2 size={40} className="animate-spin text-purple-500" />
@@ -1278,7 +1289,7 @@ function FeedTab({ isDarkMode, selectedArticleId, savedItems, onToggleSave, read
   return (
     <div 
       ref={feedContainerRef} 
-      className="relative space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 min-h-screen overscroll-y-none touch-pan-y custom-scrollbar"
+      className="space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 pt-2 min-h-screen overscroll-y-none touch-pan-y custom-scrollbar"
       onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
     >
       <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
@@ -1290,6 +1301,7 @@ function FeedTab({ isDarkMode, selectedArticleId, savedItems, onToggleSave, read
           isDarkMode={isDarkMode} 
       />
       
+      {/* O SELETOR DE FONTES AGORA FICA PRESO NO TOPO */}
       <div className="sticky top-0 z-20 py-2">
         <SourceSelector news={filteredByCategory} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} />
       </div>
@@ -1300,56 +1312,24 @@ function FeedTab({ isDarkMode, selectedArticleId, savedItems, onToggleSave, read
          </div>
       </div>
       
+      {/* O PADDING LATERAL AGORA É APLICADO AQUI, E É MAIOR À DIREITA */}
       <div className="flex flex-col gap-4 px-4 pr-12">
         {uniqueNews.length === 0 && !isLoading && <div className="text-center py-10 opacity-50"><p>Nenhuma notícia encontrada.</p></div>}
-        
-        {uniqueNews.map((news, index) => {
-            const isHighlightCard = (index + 1) % 5 === 0;
-
-            if (isHighlightCard) {
-                return (
-                    <div key={news.id} onClick={() => onReadArticle(news)} 
-                        className={`relative w-full h-96 rounded-3xl overflow-hidden shadow-2xl my-8 group cursor-pointer border ${isDarkMode ? 'border-white/10' : 'border-black/10'}`}>
-                        <img src={news.img} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
-                        <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/40 text-white px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
-                            <Sparkles size={14} className="text-purple-400"/>
-                            DESTAQUE
-                        </div>
-                        <div className="absolute bottom-0 left-0 p-6">
-                            <div className="flex items-center gap-3 mb-2">
-                                <img src={news.logo} className="w-8 h-8 rounded-full bg-white p-0.5" />
-                                <span className="text-white font-bold uppercase tracking-widest">{news.source}</span>
-                            </div>
-                            <h2 className="text-3xl font-black text-white leading-tight drop-shadow-lg">{news.title}</h2>
-                        </div>
-                    </div>
-                );
-            }
-
-            return (
-                <NewsCard 
-                  key={news.id} 
-                  news={news} 
-                  isSelected={selectedArticleId === news.id}
-                  playingAudio={isGenerating ? {id: localPlayingAudio?.id, isGenerating: true} : localPlayingAudio}
-                  onPlay={handleLocalPlay} 
-                  isRead={readHistory?.includes(news.id)}
-                  isSaved={savedItems?.some((item) => item.id === news.id)}
-                  isDarkMode={isDarkMode} 
-                  onClick={onReadArticle} 
-                  onAnalyze={openArticle}
-                  onToggleSave={onToggleSave} 
-                  isLiked={likedItems?.includes(news.id)}
-                  onToggleLike={onToggleLike}
-                />
-            );
-        })}
+        {uniqueNews.map((news) => (
+            <NewsCard 
+              key={news.id} news={news} isSelected={selectedArticleId === news.id}
+              playingAudio={isGenerating ? {id: localPlayingAudio?.id, isGenerating: true} : localPlayingAudio}
+              onPlay={handleLocalPlay} isRead={readHistory?.includes(news.id)}
+              isSaved={savedItems?.some((item) => item.id === news.id)}
+              isDarkMode={isDarkMode} onClick={onReadArticle} onAnalyze={openArticle}
+              onToggleSave={onToggleSave} isLiked={likedItems?.includes(news.id)}
+              onToggleLike={onToggleLike}
+            />
+        ))}
       </div>
     </div>
   );
 }
-
 
 // --- OUTROS COMPONENTES E FILTROS ---
 
@@ -4417,14 +4397,14 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     setStartY(0);
   };
 
+  // LÓGICA DE DECISÃO CENTRALIZADA: Define qual lista de clusters será exibida
   const displayClusters = savedClusters && savedClusters.length > 0 ? savedClusters : heuristicClusters;
 
   return (
-    <div className="animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y px-4" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+    <div className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       
       <style jsx="true">{`
-        @keyframes fast-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.7; } }
-        @keyframes slow-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+        @keyframes gradient-flow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         @keyframes shimmer-text { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
         .animate-shimmer-text { background-size: 200% auto; animation: shimmer-text 3s linear infinite; }
       `}</style>
@@ -4436,108 +4416,95 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
          </div>
       </div>
       
-      <div className="py-4">
-        <div className="flex items-center gap-4 relative z-10">
-          <div className="flex-1 min-w-0"> 
-              <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
-                  {storiesToDisplay && storiesToDisplay
-                      .filter(story => !seenStoryIds?.includes(story.id))
-                      .map((story) => {
-                          const isBreaking = story.isBreaking;
-                          const isAnchor = story.isAnchor;
-                          let ringClass = 'bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-rose-500/20';
-                          let animationClass = '';
-                          let badgeIcon = null;
+       <div className="flex items-center gap-4 px-2 pt-2 relative z-10">
+        <div className="flex-1 min-w-0"> 
+            <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
+                {storiesToDisplay && storiesToDisplay
+                    .filter(story => !seenStoryIds?.includes(story.id))
+                    .map((story) => {
+                        const isBreaking = story.isBreaking;
+                        const isAnchor = story.isAnchor;
+                        let ringClass = 'bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-rose-500/20';
+                        let animationClass = '';
+                        let badgeIcon = null;
 
-                          if (isBreaking) { ringClass = 'bg-red-600 shadow-red-500/40'; animationClass = 'animate-[fast-pulse_1s_ease-in-out_infinite]'; badgeIcon = <Zap size={10} className="text-white"/>;
-                          } else if (isAnchor) { ringClass = 'bg-gradient-to-tr from-yellow-400 via-amber-500 to-orange-500 shadow-amber-500/30'; animationClass = 'animate-[slow-pulse_2.5s_ease-in-out_infinite]'; badgeIcon = <Sparkles size={10} className="text-white"/>; }
+                        if (isBreaking) { ringClass = 'bg-red-600 shadow-red-500/40'; animationClass = 'animate-[fast-pulse_1s_ease-in-out_infinite]'; badgeIcon = <Zap size={10} className="text-white"/>;
+                        } else if (isAnchor) { ringClass = 'bg-gradient-to-tr from-yellow-400 via-amber-500 to-orange-500 shadow-amber-500/30'; animationClass = 'animate-[slow-pulse_2.5s_ease-in-out_infinite]'; badgeIcon = <Sparkles size={10} className="text-white"/>; }
 
-                          return (
-                              <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
-                                  <div className={`relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 shadow-lg ${ringClass} ${animationClass}`}>
-                                      <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
-                                          <img src={story.avatar} className="w-full h-full object-cover" alt="" onError={(e) => e.target.style.display = 'none'} />
-                                      </div>
-                                      {badgeIcon && ( <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm border-2 border-white/20 flex items-center justify-center">{badgeIcon}</div> )}
-                                  </div>
-                                  <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span>
-                              </div>
-                          );
-                      })}
+                        return (
+                            <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
+                                <div className={`relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 shadow-lg ${ringClass} ${animationClass}`}>
+                                    <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
+                                        <img src={story.avatar} className="w-full h-full object-cover" alt="" onError={(e) => e.target.style.display = 'none'} />
+                                    </div>
+                                    {badgeIcon && ( <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm border-2 border-white/20 flex items-center justify-center">{badgeIcon}</div> )}
+                                </div>
+                                <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span>
+                            </div>
+                        );
+                    })}
 
-                  {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).length === 0 && (
-                      <div className="flex flex-col justify-center h-full pl-2 opacity-50">
-                          <span className="text-[10px] font-bold uppercase tracking-widest">Tudo visto por aqui</span>
-                          <span className="text-[9px]">Puxe para atualizar</span>
-                      </div>
-                  )}
-              </div>
-          </div>
+                {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).length === 0 && (
+                    <div className="flex flex-col justify-center h-full pl-2 opacity-50">
+                        <span className="text-[10px] font-bold uppercase tracking-widest">Tudo visto por aqui</span>
+                        <span className="text-[9px]">Puxe para atualizar</span>
+                    </div>
+                )}
+            </div>
         </div>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-            <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                        <Sparkles size={18} />
-                    </div>
-                    <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                        As principais notícias de agora, em múltiplos ângulos.
-                    </h3>
-                </div>
-                <WhileYouWereAwayWidget 
-                  news={newsData} 
-                  openArticle={openArticle} 
-                  isDarkMode={isDarkMode} 
-                  getApiKey={getApiKey}
-                  clusters={savedClusters}
-                  setClusters={setSavedClusters}
-                  displayClusters={displayClusters}
-                  onContextReady={() => {}}
-                  onTriggerWidgetRotation={onTriggerWidgetRotation}
-                  heuristicClusters={heuristicClusters}
-                />
+      <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} openArticle={openArticle} />
+      
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 px-4">
+            <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+                <Sparkles size={18} />
             </div>
-            
-            <SmartDigestWidget 
-                newsData={newsData} 
+            <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                As principais notícias de agora, em múltiplos ângulos.
+            </h3>
+        </div>
+        <WhileYouWereAwayWidget 
+          news={newsData} 
+          openArticle={openArticle} 
+          isDarkMode={isDarkMode} 
+          getApiKey={getApiKey}
+          clusters={savedClusters}
+          setClusters={setSavedClusters}
+          displayClusters={displayClusters}
+          onContextReady={() => {}}
+          onTriggerWidgetRotation={onTriggerWidgetRotation}
+          heuristicClusters={heuristicClusters}
+        />
+      </div>
+    
+      <SmartDigestWidget 
+          newsData={newsData} 
+          getApiKey={getApiKey}
+          isDarkMode={isDarkMode} 
+          refreshTrigger={refreshTrigger} 
+      />
+      
+      <div className="space-y-4 px-2">
+          <div className="flex items-center gap-3 px-4">
+              <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+                  <TrendingUp size={18} />
+              </div>
+              <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                  Mercados Hoje
+              </h3>
+          </div>
+          <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
+            <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+              <MarketPulseWidget 
+                newsData={newsData}
                 getApiKey={getApiKey}
-                isDarkMode={isDarkMode} 
-                refreshTrigger={refreshTrigger} 
-            />
-        </div>
-
-        <div className="space-y-6">
-            <TrendRadar 
-                newsData={newsData} 
-                getApiKey={getApiKey} 
-                isDarkMode={isDarkMode} 
-                openArticle={openArticle} 
-            />
-
-            <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                        <TrendingUp size={18} />
-                    </div>
-                    <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                        Mercados Hoje
-                    </h3>
-                </div>
-                <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
-                  <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-                    <MarketPulseWidget 
-                      newsData={newsData}
-                      getApiKey={getApiKey}
-                      isDarkMode={isDarkMode}
-                      openArticle={openArticle}
-                    />
-                  </div>
-                </div>
+                isDarkMode={isDarkMode}
+                openArticle={openArticle}
+              />
             </div>
-        </div>
+          </div>
       </div>
     </div>
   );
