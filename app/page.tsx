@@ -3918,9 +3918,6 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // ==========================================================
 // === SUBSTITUA SUA FUNÇÃO "TrendRadar" INTEIRA POR ESTA ===
 // ==========================================================
-// ==========================================================
-// === SUBSTITUA SUA FUNÇÃO "TrendRadar" INTEIRA POR ESTA ===
-// ==========================================================
 const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -4032,7 +4029,8 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       )}
 
       {!loading && trends && trends.length > 0 && (
-        <div className="relative flex h-[450px] w-full mt-4">
+        <div className="relative flex h-[450px] w-full mt-8">
+            {/* 1. TERMÔMETRO VERTICAL COLORIDO */}
             <div className="relative w-12 flex-shrink-0 flex flex-col items-center">
                 <div className="w-2 h-full rounded-full bg-gradient-to-t from-blue-500 via-yellow-500 to-red-500 relative">
                     <AnimatePresence>
@@ -4053,22 +4051,22 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                 <div className="absolute bottom-0 -mb-4 text-[9px] font-bold text-blue-500">0</div>
             </div>
 
-            <div className="relative flex-1 grid grid-cols-1" style={{ gridTemplateRows: 'repeat(5, 1fr)' }}>
+            {/* 2. ÁREA DOS CARDS COM ESPAÇAMENTO ELEGANTE */}
+            <div className="relative flex-1 flex flex-col justify-between pl-4">
                 {trends.slice(0, 5).map((item, i) => {
                     const style = getTrendStyle(item.score);
                     const isActive = activeIndex === i;
-                    const verticalPosition = 100 - (item.score * 10);
-
+                    
                     return (
-                        <div key={item.topic} 
-                             className="absolute w-full"
-                             style={{ top: `${verticalPosition}%`, transform: 'translateY(-50%)' }}
-                        >
-                            <div className="flex items-center pl-2">
-                                <div className="w-4 border-b border-dashed" style={{ borderColor: `${style.color}80` }}></div>
+                        <div key={item.topic} className="relative">
+                            <div className="flex items-center">
+                                {/* Linha de Conexão */}
+                                <div className="absolute left-0 top-1/2 -translate-x-full h-px w-4 border-b border-dashed"
+                                     style={{ borderColor: `${style.color}80` }}>
+                                </div>
                                 
                                 <button onClick={() => handleToggle(i)}
-                                    className={`p-3 rounded-lg border flex-1 text-left min-h-[60px] transition-all duration-300
+                                    className={`w-full p-3 rounded-lg border text-left min-h-[60px] transition-all duration-300
                                         ${isActive ? 'scale-105 shadow-2xl' : 'hover:scale-105 hover:shadow-lg'}
                                         ${isDarkMode ? 'bg-zinc-800/80 backdrop-blur-sm' : 'bg-white/80 backdrop-blur-sm'}`
                                     }
@@ -4099,7 +4097,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                 </span>
                 <button onClick={() => handleToggle(null)}><X size={16} /></button>
               </div>
-              <p className={`text-sm leading-relaxed mt-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{activeItem.summary}</p>
+              <p className={`text-sm leading-relaxed mt-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{item.summary}</p>
               {activeItem.related_articles && activeItem.related_articles.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-dashed border-zinc-700/50 space-y-2">
                   <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Fontes Analisadas</h4>
