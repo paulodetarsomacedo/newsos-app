@@ -6183,94 +6183,83 @@ const handleStoryNavigation = (direction) => {
   };
 
   // 1. Verificar usuário ao carregar
-useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
+  useEffect(() => {
+    const checkUser = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user || null);
+        if (session?.user) loadUserData(session.user.id);
+    };
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user || null);
+        if (session?.user) loadUserData(session.user.id);
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (user) {
-        console.log("LOG: Usuário definido. Iniciando carregamento de dados...");
-        loadUserData(user.id);
-    } else {
-        // Limpa os dados se o usuário fizer logout
-        setUserFeeds([]);
-        setSavedItems([]);
-        setReadHistory([]);
-        setLikedItems([]);
-    }
-  }, [user]);
-
-
-
   // 2. Função para Carregar Dados do Banco
-const loadUserData = async (userId) => {
-    setIsSyncing(true);
-    
-    console.log("🚨 [DEBUG] 1. Iniciando loadUserData.");
-    console.log("🚨 [DEBUG] 2. Meu User ID atual é:", userId);
+  const loadUserData = async (userId) => {
+      setIsSyncing(true);
+      const { data, error } = await supabase
+          .from('user_preferences')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
 
-    // Tenta buscar os dados
-    const { data, error } = await supabase
-        .from('user_preferences')
-        .select('*')
-        .eq('user_id', userId);
+      if (data) {
+          if (data.feeds) setUserFeeds(data.feeds);
+          if (data.saved_items) setSavedItems(data.saved_items);
+          if (data.read_history) setReadHistory(data.read_history);
+          if (data.liked_items) setLikedItems(data.liked_items);
+          
+          if (data.api_key) {
+              try {
+                  const parsedFromDB = JSON.parse(data.api_key);
 
-    console.log("🚨 [DEBUG] 3. Resposta do Supabase:", { data, error });
-
-    if (error) {
-        console.error("❌ [DEBUG] Erro retornado pelo Supabase:", error);
-        setIsSyncing(false);
-        return;
-    }
-    
-    // Se data for um array vazio, isso confirma minha teoria
-    if (data && data.length === 0) {
-        console.warn("⚠️ [DEBUG] O Supabase retornou SUCESSO, mas NENHUMA LINHA (Array vazio).");
-        console.warn("⚠️ [DEBUG] Isso significa que não existe linha no banco com user_id =", userId);
-        
-        // Tenta criar
-        console.log("🚨 [DEBUG] 4. Tentando criar linha padrão...");
-        const { error: insertError } = await supabase
-            .from('user_preferences')
-            .insert([{ user_id: userId }]);
-        
-        if (insertError) {
-             console.error("❌ [DEBUG] Erro ao criar:", insertError);
-        } else {
-             console.log("✅ [DEBUG] Linha criada! Recarregue a página.");
-        }
-    } 
-    
-    else if (data && data.length > 0) {
-        console.log("✅ [DEBUG] DADOS ENCONTRADOS! Carregando no App...");
-        const userData = data[0];
-        
-        // Vamos ver o que tem dentro
-        console.log("🚨 [DEBUG] Conteúdo:", userData);
-
-        setUserFeeds(userData.feeds || []);
-        setSavedItems(userData.saved_items || []);
-        // ... (resto dos sets)
-        if (userData.api_key) {
-            // ... (logica da api key)
-            // (Para economizar espaço, mantenha sua lógica de parse aqui ou deixe vazio pro teste)
-             try {
-                  const parsedFromDB = JSON.parse(userData.api_key);
                   if (Array.isArray(parsedFromDB)) {
-                      setApiKeys(parsedFromDB); // Simplificado para teste
+                      const defaultKeysStructure = [
+                          { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
+                          { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
+                          { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
+                          { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
+                          { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
+                          { id: 11, value: '', type: 'heavy_rotation' }, { id: 15, value: '', type: 'heavy_rotation' },
+                          { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
+                      ];
+
+                      // ==========================================================
+                      // === A MUDANÇA CRÍTICA ESTÁ AQUI ===
+                      // ==========================================================
+                      const mergedKeys = defaultKeysStructure.map(defaultKey => {
+                          const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
+                          
+                          // LÓGICA DE FUSÃO SEGURA E EXPLÍCITA
+                          return {
+                              id: defaultKey.id,           // Usa o ID do padrão, sempre.
+                              type: defaultKey.type,         // Usa o TYPE do padrão, sempre.
+                              value: keyFromDB?.value || ''  // Pega o VALUE do banco, ou retorna '' se não existir.
+                          };
+                      });
+                      
+                      setApiKeys(mergedKeys);
+
+                  } else {
+                      console.warn("Formato de chaves antigo no banco. Mantendo estado padrão.");
                   }
-              } catch (e) {}
-        }
-    }
-    
-    setIsSyncing(false);
-};
+              } catch (e) {
+                  console.error("Erro ao fazer parse das chaves do banco:", e);
+              }
+          }
+          if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
+          if (data.seen_story_ids) setSeenStoryIds(data.seen_story_ids);
+          if (data.article_history) setArticleHistory(data.article_history);
+      } else if (!error) {
+          await supabase.from('user_preferences').insert([{ user_id: userId }]);
+      }
+      setIsSyncing(false);
+  };
 
   // 3. Função para Salvar (Debounced effect)
   useEffect(() => {
