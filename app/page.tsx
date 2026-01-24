@@ -4650,7 +4650,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   );
 };
 
-export default TrendRadar;
+
 
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
