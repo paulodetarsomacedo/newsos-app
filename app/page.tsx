@@ -6183,41 +6183,61 @@ const handleStoryNavigation = (direction) => {
   };
 
   // 1. Verificar usuário ao carregar
-  useEffect(() => {
-    const checkUser = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        setUser(session?.user || null);
-        if (session?.user) loadUserData(session.user.id);
-    };
-    checkUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user || null);
-        if (session?.user) loadUserData(session.user.id);
+useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
+  useEffect(() => {
+    if (user) {
+        console.log("LOG: Usuário definido. Iniciando carregamento de dados...");
+        loadUserData(user.id);
+    } else {
+        // Limpa os dados se o usuário fizer logout
+        setUserFeeds([]);
+        setSavedItems([]);
+        setReadHistory([]);
+        setLikedItems([]);
+    }
+  }, [user]);
+
+
+
   // 2. Função para Carregar Dados do Banco
-  const loadUserData = async (userId) => {
+const loadUserData = async (userId) => {
       setIsSyncing(true);
+      
+      // MUDANÇA 1: REMOVEMOS o .single() daqui
       const { data, error } = await supabase
           .from('user_preferences')
           .select('*')
-          .eq('user_id', userId)
-          .single();
+          .eq('user_id', userId);
 
-      if (data) {
-          if (data.feeds) setUserFeeds(data.feeds);
-          if (data.saved_items) setSavedItems(data.saved_items);
-          if (data.read_history) setReadHistory(data.read_history);
-          if (data.liked_items) setLikedItems(data.liked_items);
+      // Se houver um erro REAL (de rede, RLS, etc.), pare a execução.
+      if (error) {
+          console.error("Erro crítico ao buscar dados do usuário:", error);
+          setIsSyncing(false);
+          return;
+      }
+      
+      // MUDANÇA 2: A nova lógica de verificação
+      // Se 'data' existe e o array tem pelo menos um item, o usuário existe.
+      if (data && data.length > 0) {
+          const userData = data[0]; // Usamos o primeiro (e único) item do array
+
+          if (userData.feeds) setUserFeeds(userData.feeds);
+          if (userData.saved_items) setSavedItems(userData.saved_items);
+          if (userData.read_history) setReadHistory(userData.read_history);
+          if (userData.liked_items) setLikedItems(userData.liked_items);
           
-          if (data.api_key) {
+          if (userData.api_key) {
               try {
-                  const parsedFromDB = JSON.parse(data.api_key);
-
+                  const parsedFromDB = JSON.parse(userData.api_key);
                   if (Array.isArray(parsedFromDB)) {
                       const defaultKeysStructure = [
                           { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
@@ -6229,38 +6249,39 @@ const handleStoryNavigation = (direction) => {
                           { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
                       ];
 
-                      // ==========================================================
-                      // === A MUDANÇA CRÍTICA ESTÁ AQUI ===
-                      // ==========================================================
                       const mergedKeys = defaultKeysStructure.map(defaultKey => {
                           const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
-                          
-                          // LÓGICA DE FUSÃO SEGURA E EXPLÍCITA
                           return {
-                              id: defaultKey.id,           // Usa o ID do padrão, sempre.
-                              type: defaultKey.type,         // Usa o TYPE do padrão, sempre.
-                              value: keyFromDB?.value || ''  // Pega o VALUE do banco, ou retorna '' se não existir.
+                              id: defaultKey.id,
+                              type: defaultKey.type,
+                              value: keyFromDB?.value || ''
                           };
                       });
-                      
                       setApiKeys(mergedKeys);
-
-                  } else {
-                      console.warn("Formato de chaves antigo no banco. Mantendo estado padrão.");
                   }
-              } catch (e) {
-                  console.error("Erro ao fazer parse das chaves do banco:", e);
-              }
+              } catch (e) { console.error("Erro ao fazer parse das chaves:", e); }
           }
-          if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
-          if (data.seen_story_ids) setSeenStoryIds(data.seen_story_ids);
-          if (data.article_history) setArticleHistory(data.article_history);
-      } else if (!error) {
-          await supabase.from('user_preferences').insert([{ user_id: userId }]);
+          if (userData.is_dark_mode !== null) setIsDarkMode(userData.is_dark_mode);
+          if (userData.seen_story_ids) setSeenStoryIds(userData.seen_story_ids);
+          if (userData.article_history) setArticleHistory(userData.article_history);
+
+      } else {
+          // Se 'data' é um array vazio, significa que é um novo usuário.
+          console.log("LOG: Nenhum dado encontrado. Criando novo registro de preferências...");
+          const { error: insertError } = await supabase
+              .from('user_preferences')
+              .insert([{ user_id: userId }]);
+              
+          if (insertError) {
+              console.error("Erro fatal ao criar o primeiro registro do usuário:", insertError);
+          } else {
+              console.log("LOG: Novo registro criado com sucesso.");
+          }
       }
       setIsSyncing(false);
   };
 
+  
   // 3. Função para Salvar (Debounced effect)
   useEffect(() => {
       if (!user || isSyncing) return;
