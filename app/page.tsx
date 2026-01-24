@@ -3893,125 +3893,385 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // ✅ Termômetro agora é horizontal (0–10)
 // ✅ Cards menores, agrupados horizontalmente por faixas de temperatura (colunas)
 // ✅ Texto legível: dark = branco, light = preto/cinza escuro
+// Este componente substitui o seu TrendRadar atual.
+// Requer: generateTrendRadar(newsData, apiKey), getApiKey("widgets"), openArticle(article), isDarkMode boolean.
+
 const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  const STORAGE_KEY = 'newsos_trend_radar_data_v5';
+  // Filtros novos
+  const [timeWindow, setTimeWindow] = useState("24h"); // "6h" | "24h" | "7d" | "all"
+  const [rangeMinimum, setRangeMinimum] = useState(0);
+  const [rangeMaximum, setRangeMaximum] = useState(10);
 
+  // Cache
+  const STORAGE_KEY_CURRENT = "newsos_trend_radar_data_v6";
+  const STORAGE_KEY_PREVIOUS = "newsos_trend_radar_previous_v1";
+
+  // --------- Helpers de estilo ---------
+  const getTrendStyle = (score) => {
+    if (score >= 9) return { color: "#ef4444", bandLabel: "🔥 MUITO QUENTE" };
+    if (score >= 7) return { color: "#f97316", bandLabel: "🟠 QUENTE" };
+    if (score >= 5) return { color: "#eab308", bandLabel: "🟡 MÉDIO" };
+    if (score >= 3) return { color: "#22c55e", bandLabel: "🟢 LEVE" };
+    return { color: "#3b82f6", bandLabel: "🧊 FRIO" };
+  };
+
+  const temperatureBands = [
+    { label: "🧊 FRIO", minimum: 0, maximum: 2 },
+    { label: "🟢 LEVE", minimum: 2, maximum: 4 },
+    { label: "🟡 MÉDIO", minimum: 4, maximum: 6 },
+    { label: "🟠 QUENTE", minimum: 6, maximum: 8 },
+    { label: "🔥 MUITO QUENTE", minimum: 8, maximumInclusive: 10 },
+  ];
+
+  const clampNumber = (value, minimum, maximum) => {
+    return Math.min(maximum, Math.max(minimum, value));
+  };
+
+  const formatDelta = (delta) => {
+    if (delta === null || typeof delta !== "number") return "—";
+    if (Math.abs(delta) < 0.05) return "0.0";
+    const fixed = Math.abs(delta).toFixed(1);
+    return delta > 0 ? `+${fixed}` : `-${fixed}`;
+  };
+
+  const getConfidenceLabel = (confidenceValue) => {
+    if (confidenceValue >= 0.75) return "Alta";
+    if (confidenceValue >= 0.5) return "Média";
+    return "Baixa";
+  };
+
+  const getConfidenceValue = (trendItem) => {
+    // Heurística simples e consistente:
+    // - quanto mais fontes relacionadas, maior a confiança
+    // - um pouco de peso extra para scores altos
+    const relatedCount = Array.isArray(trendItem.related_articles) ? trendItem.related_articles.length : 0;
+    const normalizedRelated = clampNumber(relatedCount / 8, 0, 1); // 0..1
+    const normalizedScore = clampNumber(trendItem.score / 10, 0, 1); // 0..1
+    const confidence = clampNumber(0.65 * normalizedRelated + 0.35 * normalizedScore, 0, 1);
+    return confidence;
+  };
+
+  const getVolumeValue = (trendItem) => {
+    return Array.isArray(trendItem.related_articles) ? trendItem.related_articles.length : 0;
+  };
+
+  const parseArticleDate = (article) => {
+    // Tenta achar uma data em campos comuns
+    const candidate =
+      article?.publishedAt ||
+      article?.pubDate ||
+      article?.date ||
+      article?.createdAt ||
+      article?.isoDate ||
+      article?.published ||
+      null;
+
+    if (!candidate) return null;
+
+    const parsed = new Date(candidate);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed;
+  };
+
+  const filterNewsByTimeWindow = (allNews, windowKey) => {
+    if (!Array.isArray(allNews) || allNews.length === 0) return [];
+    if (windowKey === "all") return allNews;
+
+    const now = new Date();
+    let windowMilliseconds = 24 * 60 * 60 * 1000;
+
+    if (windowKey === "6h") windowMilliseconds = 6 * 60 * 60 * 1000;
+    if (windowKey === "24h") windowMilliseconds = 24 * 60 * 60 * 1000;
+    if (windowKey === "7d") windowMilliseconds = 7 * 24 * 60 * 60 * 1000;
+
+    const cutoff = new Date(now.getTime() - windowMilliseconds);
+
+    // Se não houver datas válidas, não filtra para não “sumir” com tudo
+    let foundAnyValidDate = false;
+
+    const filtered = allNews.filter((article) => {
+      const articleDate = parseArticleDate(article);
+      if (articleDate) foundAnyValidDate = true;
+      if (!articleDate) return true;
+      return articleDate >= cutoff;
+    });
+
+    if (!foundAnyValidDate) return allNews;
+    return filtered;
+  };
+
+  // --------- Carrega cache ao abrir ---------
   useEffect(() => {
-    const savedData = localStorage.getItem(STORAGE_KEY);
-    if (savedData) {
+    const savedCurrent = localStorage.getItem(STORAGE_KEY_CURRENT);
+    if (savedCurrent) {
       try {
-        const parsed = JSON.parse(savedData);
+        const parsed = JSON.parse(savedCurrent);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setTrends(parsed.sort((a, b) => b.score - a.score));
+          const sorted = parsed.slice().sort((first, second) => (second.score || 0) - (first.score || 0));
+          setTrends(sorted);
           setHasGenerated(true);
         }
-      } catch (e) {
-        console.error("Erro ao ler Trend Radar salvo", e);
+      } catch (error) {
+        console.error("Erro ao ler Trend Radar salvo", error);
       }
     }
   }, []);
 
-  const getTrendStyle = (score) => {
-    if (score >= 9) return { color: '#ef4444', heightPercent: 100 };
-    if (score >= 7) return { color: '#f97316', heightPercent: 85 };
-    if (score >= 5) return { color: '#eab308', heightPercent: 65 };
-    if (score >= 3) return { color: '#22c55e', heightPercent: 45 };
-    return { color: '#3b82f6', heightPercent: 30 };
-  };
-
-
-
-const runTrendAnalysis = async () => {
-    // Pega uma chave do pool de widgets
-    const currentApiKey = getApiKey('widgets');
-    
-    if (!currentApiKey || !newsData || !newsData.length === 0) {
-      alert("Aguarde o carregamento das notícias ou configure as chaves de IA do Pool 1.");
-      return;
-    }
-    setLoading(true);
-    setActiveIndex(null);
-    await new Promise((r) => setTimeout(r, 800));
-
-    // Passa a chave para a função de IA
-    const data = await generateTrendRadar(newsData, currentApiKey); 
-
-    // ==========================================================
-    // === INÍCIO DA CORREÇÃO: Lógica preenchida ===
-    // ==========================================================
-    if (data && Array.isArray(data) && data.length > 0) {
-      // 1. Ordena os dados recebidos pelo score
-
-
-       const hydratedData = data.map(trend => {
-        const relatedArticles = trend.source_indices
-            ? trend.source_indices.map(index => newsData[index]).filter(Boolean)
-            : [];
-        return { ...trend, related_articles: relatedArticles };
-    });
-
-    const sortedData = hydratedData.sort((a, b) => b.score - a.score);
-      
-
-
-
-      // 2. Atualiza o estado 'trends' com os novos dados
-      setTrends(sortedData);
-      
-      // 3. Avisa o componente que ele já tem dados reais para mostrar
-      setHasGenerated(true);
-      
-      // 4. Salva os dados no cache do navegador para a próxima vez que o app abrir
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedData));
-    } else {
-      // Se a IA não retornar dados, avisa o usuário
-      alert("A IA não identificou tendências claras no momento. Tente novamente mais tarde.");
-    }
-    // ==========================================================
-    // === FIM DA CORREÇÃO ===
-    // ==========================================================
-    
-    setLoading(false);
-};
-
-  const handleToggle = (idx) => {
-    setActiveIndex(activeIndex === idx ? null : idx);
+  const handleToggle = (index) => {
+    setActiveIndex((current) => (current === index ? null : index));
   };
 
   const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
 
-  // --- FUNÇÕES DE AGRUPAMENTO POR FAIXAS (SEM ABREVIAÇÕES) ---
-  const temperatureBands = [
-    { label: '🧊 FRIO', min: 0, max: 2 },
-    { label: '🟢 LEVE', min: 2, max: 4 },
-    { label: '🟡 MÉDIO', min: 4, max: 6 },
-    { label: '🟠 QUENTE', min: 6, max: 8 },
-    { label: '🔥 MUITO QUENTE', min: 8, max: 10.01 }, // para incluir 10
-  ];
+  // --------- Termômetro interativo (range) ---------
+  const handleRangeMinimumChange = (value) => {
+    const numeric = clampNumber(Number(value), 0, 10);
+    const correctedMinimum = Math.min(numeric, rangeMaximum);
+    setRangeMinimum(correctedMinimum);
+  };
 
+  const handleRangeMaximumChange = (value) => {
+    const numeric = clampNumber(Number(value), 0, 10);
+    const correctedMaximum = Math.max(numeric, rangeMinimum);
+    setRangeMaximum(correctedMaximum);
+  };
+
+  // --------- Radar Map (posicionamento) ---------
   const getBandIndexByScore = (score) => {
-    for (let i = 0; i < temperatureBands.length; i++) {
-      const band = temperatureBands[i];
-      if (score >= band.min && score < band.max) return i;
+    for (let index = 0; index < temperatureBands.length; index++) {
+      const band = temperatureBands[index];
+      const maximum = band.maximumInclusive ?? band.maximum;
+      if (score >= band.minimum && score <= maximum) return index;
     }
     return temperatureBands.length - 1;
   };
 
-  const buildGroupedTrends = (trendsArray) => {
-    const grouped = temperatureBands.map(() => []);
-    for (let i = 0; i < trendsArray.length; i++) {
-      const item = trendsArray[i];
-      const bandIndex = getBandIndexByScore(item.score);
-      grouped[bandIndex].push({ ...item, __originalIndex: i });
+  // --------- Run Analysis (com deltas) ---------
+  const runTrendAnalysis = async () => {
+    const currentApiKey = getApiKey("widgets");
+
+    if (!currentApiKey || !Array.isArray(newsData) || newsData.length === 0) {
+      alert("Aguarde o carregamento das notícias ou configure as chaves de IA do Pool 1.");
+      return;
     }
-    return grouped;
+
+    setLoading(true);
+    setActiveIndex(null);
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const filteredNews = filterNewsByTimeWindow(newsData, timeWindow);
+
+    const data = await generateTrendRadar(filteredNews, currentApiKey);
+
+    if (data && Array.isArray(data) && data.length > 0) {
+      // Hidrata com related_articles
+      const hydratedData = data.map((trend) => {
+        const relatedArticles = Array.isArray(trend.source_indices)
+          ? trend.source_indices.map((index) => filteredNews[index]).filter(Boolean)
+          : [];
+
+        return {
+          ...trend,
+          related_articles: relatedArticles,
+        };
+      });
+
+      // Pega snapshot anterior para delta
+      let previousData = null;
+      try {
+        const savedPrevious = localStorage.getItem(STORAGE_KEY_PREVIOUS);
+        if (savedPrevious) {
+          const parsedPrevious = JSON.parse(savedPrevious);
+          if (Array.isArray(parsedPrevious)) previousData = parsedPrevious;
+        }
+      } catch (error) {
+        previousData = null;
+      }
+
+      const previousScoreByTopic = new Map();
+      if (Array.isArray(previousData)) {
+        previousData.forEach((trend) => {
+          if (trend && typeof trend.topic === "string") {
+            previousScoreByTopic.set(trend.topic.trim().toLowerCase(), Number(trend.score || 0));
+          }
+        });
+      }
+
+      const enrichedWithDelta = hydratedData.map((trend) => {
+        const topicKey = typeof trend.topic === "string" ? trend.topic.trim().toLowerCase() : "";
+        const previousScore = previousScoreByTopic.has(topicKey) ? previousScoreByTopic.get(topicKey) : null;
+        const delta = previousScore === null ? null : Number(trend.score || 0) - Number(previousScore || 0);
+
+        // Confiança e volume
+        const confidenceValue = getConfidenceValue({ ...trend, related_articles: trend.related_articles });
+        const volumeValue = getVolumeValue({ ...trend, related_articles: trend.related_articles });
+
+        return {
+          ...trend,
+          delta_score: delta,
+          confidence_value: confidenceValue,
+          volume_value: volumeValue,
+        };
+      });
+
+      const sortedData = enrichedWithDelta.slice().sort((first, second) => (second.score || 0) - (first.score || 0));
+
+      setTrends(sortedData);
+      setHasGenerated(true);
+
+      // Salva o atual e também como "previous" para a próxima rodada
+      localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(sortedData));
+      localStorage.setItem(STORAGE_KEY_PREVIOUS, JSON.stringify(sortedData));
+    } else {
+      alert("A IA não identificou tendências claras no momento. Tente novamente mais tarde.");
+    }
+
+    setLoading(false);
   };
 
+  // --------- Tendências filtradas (range) + Top 1 e Top 4 ---------
+  const filteredTrendsByRange = useMemo(() => {
+    if (!Array.isArray(trends)) return null;
+    return trends.filter((trend) => {
+      const score = Number(trend.score || 0);
+      return score >= rangeMinimum && score <= rangeMaximum;
+    });
+  }, [trends, rangeMinimum, rangeMaximum]);
+
+  const featuredTrend = useMemo(() => {
+    if (!Array.isArray(filteredTrendsByRange) || filteredTrendsByRange.length === 0) return null;
+    return filteredTrendsByRange[0];
+  }, [filteredTrendsByRange]);
+
+  const topFourTrends = useMemo(() => {
+    if (!Array.isArray(filteredTrendsByRange) || filteredTrendsByRange.length <= 1) return [];
+    return filteredTrendsByRange.slice(1, 5);
+  }, [filteredTrendsByRange]);
+
+  // --------- Radar map layout ---------
+  const radarPoints = useMemo(() => {
+    if (!Array.isArray(filteredTrendsByRange) || filteredTrendsByRange.length === 0) return [];
+
+    const maximumPoints = Math.min(filteredTrendsByRange.length, 18);
+    const candidates = filteredTrendsByRange.slice(0, maximumPoints);
+
+    // Radar settings
+    const centerX = 80;
+    const centerY = 80;
+    const minimumRadius = 18;
+    const maximumRadius = 70;
+
+    return candidates.map((trend, index) => {
+      const score = clampNumber(Number(trend.score || 0), 0, 10);
+      const bandIndex = getBandIndexByScore(score);
+
+      // Ângulo por faixa + espalhamento interno
+      const baseAngleDegrees = 270; // topo
+      const bandSpreadDegrees = 60;  // cada faixa ocupa "um setor" visual
+      const withinBandOffset = (index % 6) * 8; // espalha dots
+      const angleDegrees = baseAngleDegrees + bandIndex * bandSpreadDegrees + withinBandOffset;
+
+      const angleRadians = (angleDegrees * Math.PI) / 180;
+
+      // Raio proporcional ao score
+      const radius = minimumRadius + (score / 10) * (maximumRadius - minimumRadius);
+
+      const x = centerX + radius * Math.cos(angleRadians);
+      const y = centerY + radius * Math.sin(angleRadians);
+
+      const { color } = getTrendStyle(score);
+
+      // Precisa do índice no array "trends" para abrir item correto no detalhe
+      // Vamos localizar por referência (topic + score) no array original
+      let originalIndex = null;
+      if (Array.isArray(trends)) {
+        const foundIndex = trends.findIndex((item) => item?.topic === trend?.topic && Number(item?.score || 0) === Number(trend?.score || 0));
+        originalIndex = foundIndex >= 0 ? foundIndex : null;
+      }
+
+      return {
+        x,
+        y,
+        color,
+        score,
+        topic: trend.topic,
+        originalIndex,
+      };
+    });
+  }, [filteredTrendsByRange, trends]);
+
+  // --------- UI helpers ---------
+  const commonPanelBackground = isDarkMode ? "rgba(24,24,27,0.55)" : "rgba(255,255,255,0.75)";
+  const commonPanelBorder = isDarkMode ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)";
+  const commonPanelShadow = isDarkMode
+    ? "0 18px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12)"
+    : "0 18px 40px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.30)";
+
+  const Chip = ({ label, value, toneColor, subtle }) => {
+    const background = isDarkMode
+      ? subtle
+        ? "rgba(255,255,255,0.06)"
+        : "rgba(0,0,0,0.35)"
+      : subtle
+      ? "rgba(0,0,0,0.05)"
+      : "rgba(255,255,255,0.85)";
+
+    const border = isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)";
+    const textColor = isDarkMode ? "rgba(255,255,255,0.78)" : "rgba(17,24,39,0.78)";
+
+    return (
+      <div
+        className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full"
+        style={{
+          background,
+          border,
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: textColor }}>
+          {label}
+        </span>
+        <span className="text-[10px] font-black" style={{ color: toneColor || textColor }}>
+          {value}
+        </span>
+      </div>
+    );
+  };
+
+  const WindowButton = ({ label, value }) => {
+    const isActive = timeWindow === value;
+    return (
+      <button
+        onClick={() => setTimeWindow(value)}
+        className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+        style={{
+          background: isActive
+            ? isDarkMode
+              ? "rgba(249,115,22,0.18)"
+              : "rgba(249,115,22,0.14)"
+            : isDarkMode
+            ? "rgba(255,255,255,0.06)"
+            : "rgba(0,0,0,0.05)",
+          border: isActive
+            ? "1px solid rgba(249,115,22,0.35)"
+            : isDarkMode
+            ? "1px solid rgba(255,255,255,0.08)"
+            : "1px solid rgba(0,0,0,0.08)",
+          color: isActive ? "#f97316" : isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)",
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  // --------- Render ---------
   return (
     <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 px-4">
       <style jsx="true">{`
@@ -4021,10 +4281,11 @@ const runTrendAnalysis = async () => {
         }
         @keyframes radar-pulse {
           0%, 100% { transform: scale(0.5); opacity: 0; }
-          50% { transform: scale(1.2); opacity: 0.1; }
+          50% { transform: scale(1.2); opacity: 0.10; }
         }
       `}</style>
 
+      {/* Header */}
       {hasGenerated && (
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 opacity-70">
@@ -4039,303 +4300,41 @@ const runTrendAnalysis = async () => {
             disabled={loading}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${
               isDarkMode
-                ? 'bg-zinc-800 text-zinc-400 hover:text-white'
-                : 'bg-zinc-200 text-zinc-600 hover:text-black'
+                ? "bg-zinc-800 text-zinc-400 hover:text-white"
+                : "bg-zinc-200 text-zinc-600 hover:text-black"
             }`}
           >
             {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {loading ? 'Analisando...' : 'Atualizar'}
+            {loading ? "Analisando..." : "Atualizar"}
           </button>
         </div>
       )}
 
+      {/* Loading */}
       {loading ? (
-        <div className="h-48 flex flex-col items-center justify-center text-center gap-4">
+        <div className="h-56 flex flex-col items-center justify-center text-center gap-4">
           <div className="relative h-40 w-40 flex items-center justify-center">
             <div className="absolute w-full h-full rounded-full border border-dashed border-orange-500/20"></div>
             <div className="absolute w-2/3 h-2/3 rounded-full border border-dashed border-orange-500/20"></div>
             <div
               className="absolute w-full h-full rounded-full bg-orange-500"
-              style={{ animation: 'radar-pulse 2s ease-out infinite' }}
-            ></div>
-            <div
-              className="absolute w-full h-full origin-center"
-              style={{ animation: 'radar-sweep 2s linear infinite' }}
-            >
-              <div className="w-1/2 h-px bg-gradient-to-r from-transparent to-orange-400 absolute top-1/2"></div>
+              style={{ animation: "radar-pulse 2s ease-out infinite" }}
+            />
+            <div className="absolute w-full h-full origin-center" style={{ animation: "radar-sweep 2s linear infinite" }}>
+              <div className="w-1/2 h-px bg-gradient-to-r from-transparent to-orange-400 absolute top-1/2" />
             </div>
             <Activity size={24} className="text-orange-400 z-10" />
           </div>
+
           <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
             Analisando tendências...
           </p>
         </div>
       ) : (
         <div className="w-full">
-          {hasGenerated && trends ? (
-            <div className="relative">
-              {/* 1) TERMÔMETRO HORIZONTAL + GRUPOS */}
-              <div className="relative mt-2">
-                {/* Título */}
-                <div className="flex items-center justify-between mb-3">
-                  <span
-                    className={`text-[10px] font-black uppercase tracking-widest ${
-                      isDarkMode ? 'text-white/40' : 'text-black/40'
-                    }`}
-                  >
-                    Termômetro de tendências (0–10)
-                  </span>
-                </div>
-
-                {/* Container */}
-                <div
-                  className="relative w-full rounded-2xl p-4"
-                  style={{
-                    background: isDarkMode ? 'rgba(24,24,27,0.55)' : 'rgba(255,255,255,0.75)',
-                    border: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)',
-                    backdropFilter: 'blur(10px)',
-                  }}
-                >
-                  {/* Régua 0–10 */}
-                  <div className="relative mb-4">
-                    <div
-                      className="h-3 w-full rounded-full overflow-hidden"
-                      style={{
-                        background:
-                          'linear-gradient(90deg, #3b82f6, #22c55e, #eab308, #f97316, #ef4444)',
-                        boxShadow: isDarkMode
-                          ? '0 10px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.20)'
-                          : '0 10px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.35)',
-                      }}
-                    />
-
-                    <div className="relative mt-2 flex justify-between">
-                      {Array.from({ length: 11 }).map((_, i) => (
-                        <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
-                          <div
-                            style={{
-                              height: '6px',
-                              width: '1px',
-                              background: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)',
-                            }}
-                          />
-                          <span className={`mt-1 text-[10px] font-black ${isDarkMode ? 'text-white/40' : 'text-black/40'}`}>
-                            {i}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* GRID DE COLUNAS POR FAIXA */}
-                  <div className="grid grid-cols-5 gap-3">
-                    {(() => {
-                      const grouped = buildGroupedTrends(trends);
-
-                      return temperatureBands.map((band, colIndex) => (
-                        <div key={band.label} className="min-w-0">
-                          <div className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDarkMode ? 'text-white/40' : 'text-black/40'}`}>
-                            {band.label}
-                          </div>
-
-                          <div className="flex flex-col gap-2">
-                            {grouped[colIndex].map((item) => {
-                              const style = getTrendStyle(item.score);
-                              const isActive = activeIndex === item.__originalIndex;
-
-                              const cardBackground = isDarkMode ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.92)';
-                              const cardBorder = isActive
-                                ? `${style.color}88`
-                                : (isDarkMode ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)');
-
-                              const titleColor = isDarkMode ? '#ffffff' : '#111827';
-                              const subColor = isDarkMode ? 'rgba(255,255,255,0.55)' : 'rgba(17,24,39,0.60)';
-
-                              return (
-                                <button
-                                  key={item.__originalIndex}
-                                  onClick={() => handleToggle(item.__originalIndex)}
-                                  className="w-full text-left transition-transform active:scale-[0.99] animate-in fade-in" // Adicione 'animate-in fade-in'
-  // ===================================
-  // === ADICIONE O ESTILO ABAIXO ===
-  // ===================================
-  style={{ animationDelay: `${item.__originalIndex * 50}ms` }}
-                                >
-                                  <div
-                                    className="rounded-xl px-3 py-2"
-                                    style={{
-                                      background: cardBackground,
-                                      border: `1px solid ${cardBorder}`,
-                                      boxShadow: isActive
-                                        ? `0 16px 30px rgba(0,0,0,0.20), 0 0 0 1px ${style.color}22, 0 0 18px ${style.color}22`
-                                        : (isDarkMode ? '0 10px 20px rgba(0,0,0,0.30)' : '0 10px 20px rgba(0,0,0,0.10)'),
-                                    }}
-                                  >
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="min-w-0">
-                                        <div
-                                      className="font-black tracking-tight break-words"
-  style={{
-    color: titleColor,
-    fontSize: '12px',
-    lineHeight: '1.2',
-    display: '-webkit-box',
-    wordBreak: 'break-word',        // até 2 linhas
-    WebkitBoxOrient: 'vertical',
-    overflow: 'hidden',
-  }}
-  title={item.topic}
->
-  {item.topic}
-</div>
-
-                                        <div
-                                          className="mt-1 text-[10px] font-black uppercase tracking-widest"
-                                          style={{ color: subColor }}
-                                        >
-                                          Impacto
-                                        </div>
-                                      </div>
-
-                                      <div
-                                        className="text-[11px] font-black"
-                                        style={{ color: style.color }}
-                                      >
-                                        {item.score}/10
-                                      </div>
-                                    </div>
-
-                                    <div
-                                      className="mt-2 h-1.5 w-full rounded-full overflow-hidden"
-                                      style={{
-                                        background: isDarkMode ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)',
-                                      }}
-                                    >
-                                      <div
-                                        className="h-full rounded-full"
-                                        style={{
-                                          width: `${Math.min(100, Math.max(0, item.score * 10))}%`,
-                                          background: style.color,
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-              </div>
-
-              {/* ÁREA DO BALÃO CORRIGIDA (COM ALTURA DINÂMICA) */}
-<div className={`
-  grid transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
-  ${activeItem ? 'grid-rows-[1fr] mt-8' : 'grid-rows-[0fr] mt-0'}
-`}>
-  <div className="overflow-hidden min-h-0">
-    <AnimatePresence>
-      {activeItem && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.3 }}
-          // ==========================================================
-          // === REMOVA a altura fixa 'h-36' daqui, se ela existir ===
-          // ==========================================================
-        >
-          <div
-            className={`w-full p-5 rounded-2xl flex flex-col gap-4 ${ // Aumentei o gap
-              isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
-            }`}
-            style={{
-              border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-              boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
-            }}
-          >
-            {/* --- CABEÇALHO DO BALÃO (Mantido) --- */}
-            <div className="border-b border-dashed border-zinc-700/50 pb-2 mb-2">
-    {/* O CÓDIGO ANTIGO TINHA UM <span> AQUI. VAMOS SUBSTITUIR. */}
-
-    {/* ========================================================== */}
-    {/* === NOVO: BARRA DE TEMPERATURA E TEXTO ALINHADOS === */}
-    {/* ========================================================== */}
-    <div className="flex items-center justify-between">
-        <span
-            className="text-[10px] font-black uppercase tracking-widest"
-            style={{ color: getTrendStyle(activeItem.score).color }}
-        >
-            NÍVEL DE IMPACTO
-        </span>
-        <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
-            <div
-                className="h-full rounded-full"
-                style={{
-                    width: `${activeItem.score * 10}%`,
-                    backgroundColor: getTrendStyle(activeItem.score).color,
-                    transition: 'width 0.5s ease-out'
-                }}
-            />
-        </div>
-    </div>
-</div>
-
-            {/* --- RESUMO (Mantido) --- */}
-            <p className={`text-sm leading-relaxed ...`}>
-              {activeItem.summary}
-            </p>
-
-            {/* ========================================================== */}
-            {/* === NOVO: SEÇÃO DE NOTÍCIAS RELACIONADAS === */}
-            {/* ========================================================== */}
-            {activeItem.related_articles && activeItem.related_articles.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">
-                  Fontes Analisadas
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {activeItem.related_articles.slice(0, 5).map(article => (
-        <button
-          key={article.id}
-          // ============================================
-          // === AQUI ESTÁ A MUDANÇA NO ONCLICK ===
-          // ============================================
-          onClick={() => openArticle(article)} 
-          className="transition-transform hover:scale-110"
-          title={article.title}
-        >
-          <img src={article.logo} className="w-6 h-6 rounded-full border border-black/10" />
-        </button>
-      ))}
-                </div>
-              </div>
-            )}
-            
-            {/* ========================================================== */}
-            {/* === NOVO: BOTÕES DE AÇÃO "APROFUNDAR" === */}
-            {/* ========================================================== */}
-            <div className="flex gap-2 pt-2 border-t border-dashed border-zinc-700/50">
-                <a href={`https://pt.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(activeItem.topic)}`} target="_blank" className={`flex-1 text-center py-2 rounded-lg text-[10px] font-bold ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
-                    Ver na Wikipedia
-                </a>
-                <a href={`https://www.google.com/search?q=${encodeURIComponent(activeItem.topic)}`} target="_blank" className={`flex-1 text-center py-2 rounded-lg text-[10px] font-bold ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
-                    Buscar no Google
-                </a>
-            </div>
-
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </div>
-</div>
-            </div>
-          ) : (
-            <div className="h-48 flex flex-col items-center justify-center text-center">
+          {/* Empty state */}
+          {!hasGenerated ? (
+            <div className="h-56 flex flex-col items-center justify-center text-center">
               <p className="font-bold text-lg mb-4">Ative o Radar de Tendências</p>
               <p className="text-base text-zinc-500 max-w-xs mb-6">
                 Clique para escanear as notícias e revelar as trends mais importantes de agora.
@@ -4349,12 +4348,310 @@ const runTrendAnalysis = async () => {
                 </span>
               </button>
             </div>
+          ) : (
+            <>
+              {/* Painel principal */}
+              <div
+                className="relative w-full rounded-2xl p-4"
+                style={{
+                  background: commonPanelBackground,
+                  border: commonPanelBorder,
+                  boxShadow: commonPanelShadow,
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                {/* Linha: controles */}
+                <div className="flex flex-col gap-3 mb-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/40" : "text-black/40"}`}>
+                        Termômetro (filtro)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <WindowButton label="6h" value="6h" />
+                      <WindowButton label="24h" value="24h" />
+                      <WindowButton label="7d" value="7d" />
+                      <WindowButton label="Tudo" value="all" />
+                    </div>
+                  </div>
+
+                  {/* Termômetro visual + sliders de range */}
+                  <div className="relative">
+                    <div
+                      className="h-3 w-full rounded-full overflow-hidden"
+                      style={{
+                        background: "linear-gradient(90deg, #3b82f6, #22c55e, #eab308, #f97316, #ef4444)",
+                        boxShadow: isDarkMode
+                          ? "0 10px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.20)"
+                          : "0 10px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.35)",
+                      }}
+                    />
+
+                    {/* Highlight do range selecionado */}
+                    <div
+                      className="absolute top-0 h-3 rounded-full"
+                      style={{
+                        left: `${(rangeMinimum / 10) * 100}%`,
+                        width: `${((rangeMaximum - rangeMinimum) / 10) * 100}%`,
+                        background: isDarkMode ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.35)",
+                        border: isDarkMode ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.08)",
+                        boxShadow: isDarkMode ? "0 10px 22px rgba(0,0,0,0.25)" : "0 10px 22px rgba(0,0,0,0.10)",
+                      }}
+                    />
+
+                    {/* Sliders (double range) */}
+                    <div className="relative mt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Chip label="Mínimo" value={`${rangeMinimum}`} subtle />
+                          <Chip label="Máximo" value={`${rangeMaximum}`} subtle />
+                        </div>
+
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/35" : "text-black/35"}`}>
+                          Clique nos cards ou no radar para detalhes
+                        </span>
+                      </div>
+
+                      <div className="relative h-8">
+                        <input
+                          type="range"
+                          min={0}
+                          max={10}
+                          step={1}
+                          value={rangeMinimum}
+                          onChange={(event) => handleRangeMinimumChange(event.target.value)}
+                          className="absolute w-full h-8 opacity-0 cursor-pointer"
+                          aria-label="Filtro mínimo"
+                        />
+                        <input
+                          type="range"
+                          min={0}
+                          max={10}
+                          step={1}
+                          value={rangeMaximum}
+                          onChange={(event) => handleRangeMaximumChange(event.target.value)}
+                          className="absolute w-full h-8 opacity-0 cursor-pointer"
+                          aria-label="Filtro máximo"
+                        />
+
+                        {/* Marcadores 0..10 */}
+                        <div className="absolute inset-0 flex justify-between items-center pointer-events-none">
+    {Array.from({ length: 11 }).map((_, number) => (
+                            <div
+                              key={number}
+                              className="flex flex-col items-center gap-1"
+                              style={{ width: "1px" }}
+                            >
+                              <div
+                                style={{
+                                  height: "6px",
+                                  width: "1px",
+                                  background: isDarkMode
+                                    ? "rgba(255,255,255,0.25)"
+                                    : "rgba(0,0,0,0.25)",
+                                }}
+                              />
+                              <span
+                                className={`text-[9px] font-black ${
+                                  isDarkMode ? "text-white/40" : "text-black/40"
+                                }`}
+                              >
+                                {number}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ================= FEATURED + TOP 4 ================= */}
+                <div className="grid grid-cols-12 gap-4 mt-6">
+                  {/* FEATURED */}
+                  {featuredTrend && (
+                    <div className="col-span-12 lg:col-span-7">
+                      <div
+                        className="rounded-2xl p-5 h-full"
+                        style={{
+                          background: isDarkMode
+                            ? "rgba(0,0,0,0.45)"
+                            : "rgba(255,255,255,0.95)",
+                          border: `2px solid ${getTrendStyle(featuredTrend.score).color}`,
+                          boxShadow: `0 20px 40px ${getTrendStyle(featuredTrend.score).color}33`,
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                          <h3 className="text-lg font-black leading-tight">
+                            {featuredTrend.topic}
+                          </h3>
+                          <span
+                            className="text-sm font-black"
+                            style={{ color: getTrendStyle(featuredTrend.score).color }}
+                          >
+                            {featuredTrend.score}/10
+                          </span>
+                        </div>
+
+                        <p className="text-sm opacity-80 leading-relaxed mb-4">
+                          {featuredTrend.summary}
+                        </p>
+
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          <Chip
+                            label="Confiança"
+                            value={getConfidenceLabel(featuredTrend.confidence_value)}
+                            toneColor={getTrendStyle(featuredTrend.score).color}
+                          />
+                          <Chip
+                            label="Volume"
+                            value={featuredTrend.volume_value}
+                          />
+                          <Chip
+                            label="Delta"
+                            value={formatDelta(featuredTrend.delta_score)}
+                            toneColor={
+                              featuredTrend.delta_score > 0
+                                ? "#22c55e"
+                                : "#ef4444"
+                            }
+                          />
+                        </div>
+
+                        {featuredTrend.related_articles?.length > 0 && (
+                          <div className="flex gap-2 flex-wrap">
+                            {featuredTrend.related_articles.slice(0, 6).map((article) => (
+                              <button
+                                key={article.id}
+                                onClick={() => openArticle(article)}
+                                className="hover:scale-110 transition-transform"
+                                title={article.title}
+                              >
+                                <img
+                                  src={article.logo}
+                                  alt=""
+                                  className="w-7 h-7 rounded-full border border-black/10"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TOP 4 */}
+                  <div className="col-span-12 lg:col-span-5 flex flex-col gap-3">
+                    {topFourTrends.map((trend, index) => {
+                      const style = getTrendStyle(trend.score);
+                      const originalIndex = trends.findIndex(
+                        (item) => item.topic === trend.topic
+                      );
+
+                      return (
+                        <button
+                          key={trend.topic}
+                          onClick={() => handleToggle(originalIndex)}
+                          className="text-left rounded-xl p-3 transition-all hover:scale-[1.01]"
+                          style={{
+                            background: isDarkMode
+                              ? "rgba(0,0,0,0.35)"
+                              : "rgba(255,255,255,0.90)",
+                            border: `1px solid ${style.color}55`,
+                          }}
+                        >
+                          <div className="flex justify-between items-start gap-3">
+                            <div>
+                              <div className="text-sm font-black leading-tight">
+                                {trend.topic}
+                              </div>
+                              <div className="text-[11px] opacity-60 line-clamp-2">
+                                {trend.summary}
+                              </div>
+                            </div>
+                            <span
+                              className="text-xs font-black"
+                              style={{ color: style.color }}
+                            >
+                              {trend.score}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ================= RADAR MAP ================= */}
+                <div className="mt-8 flex justify-center">
+                  <div className="relative w-40 h-40">
+                    <div className="absolute inset-0 rounded-full border border-dashed border-orange-500/30" />
+                    <div className="absolute inset-4 rounded-full border border-dashed border-orange-500/20" />
+                    <div className="absolute inset-8 rounded-full border border-dashed border-orange-500/10" />
+
+                    {radarPoints.map((point, index) => (
+                      <button
+                        key={index}
+                        onClick={() =>
+                          point.originalIndex !== null &&
+                          handleToggle(point.originalIndex)
+                        }
+                        className="absolute rounded-full transition-transform hover:scale-125"
+                        style={{
+                          left: `${point.x}px`,
+                          top: `${point.y}px`,
+                          width: `${6 + point.score}px`,
+                          height: `${6 + point.score}px`,
+                          background: point.color,
+                          transform: "translate(-50%, -50%)",
+                          boxShadow: `0 0 10px ${point.color}`,
+                        }}
+                        title={point.topic}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* ================= DETALHE EXPANDIDO ================= */}
+              <AnimatePresence>
+                {activeItem && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.3 }}
+                    className="mt-6"
+                  >
+                    <div
+                      className="rounded-2xl p-5"
+                      style={{
+                        background: isDarkMode ? "#09090b" : "#ffffff",
+                        border: `2px solid ${getTrendStyle(activeItem.score).color}`,
+                      }}
+                    >
+                      <h4 className="font-black text-base mb-2">
+                        {activeItem.topic}
+                      </h4>
+                      <p className="text-sm opacity-80 leading-relaxed">
+                        {activeItem.summary}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
           )}
         </div>
       )}
     </div>
   );
 };
+
+
+
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
