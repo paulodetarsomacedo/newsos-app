@@ -17,7 +17,7 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, Telescope,
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, 
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle
 } from 'lucide-react';
 
 
@@ -1117,7 +1117,7 @@ const NewsCard = React.memo(({
           </div>
           
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-            <div className={`relative flex items-center p-0 rounded-full border shadow-2xl ${isDarkMode ? 'bg-zinc-800/60 border-white/10 backdrop-blur-xl' : 'bg-white/70 backdrop-blur-md border border-white/70 shadow-lg'}`}>
+            <div className={`relative flex items-center p-1 rounded-full border shadow-2xl ${isDarkMode ? 'bg-zinc-800/60 border-white/10 backdrop-blur-xl' : 'bg-white/70 backdrop-blur-md border border-white/70 shadow-lg'}`}>
                 <AnimatePresence>
                     {activePill && (
                         <motion.div
@@ -1178,25 +1178,12 @@ const NewsCard = React.memo(({
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 // --- TAB: FEED (VERSÃO FINAL, LIMPA E OTIMIZADA) ---
-function FeedTab({ 
-  isDarkMode, 
-  selectedArticleId, 
-  savedItems, 
-  onToggleSave, 
-  readHistory, 
-  newsData, 
-  isLoading, 
-  sourceFilter, 
-  setSourceFilter, 
-  likedItems, 
-  onToggleLike, 
-  onRefresh, 
-  onReadArticle, 
-  onGenerateAudio,
-  openArticle // Esta é a função que abre o painel de IA
-}) {
+// ==========================================================
+// === 1. SUBSTITUA SUA FUNÇÃO "FeedTab" INTEIRA POR ESTA ===
+// ==========================================================
+
+function FeedTab({ isDarkMode, selectedArticleId, savedItems, onToggleSave, readHistory, newsData, isLoading, sourceFilter, setSourceFilter, likedItems, onToggleLike, onRefresh, onReadArticle, onGenerateAudio, openArticle }) {
   
-  // Estados e lógica pertencentes APENAS ao feed
   const [category, setCategory] = useState('Tudo');
   const [stableData, setStableData] = useState([]);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -1230,7 +1217,7 @@ function FeedTab({
   }, [newsData]);
 
   useEffect(() => {
-    if (audioUrl && audioRef.current) {
+    if (audioUrl && audioUrl.startsWith('http') && audioRef.current) {
         audioRef.current.src = audioUrl;
         audioRef.current.play().catch(e => console.error("Erro ao tocar áudio:", e));
     } else if (audioRef.current) {
@@ -1246,9 +1233,11 @@ function FeedTab({
   const uniqueNews = useMemo(() => {
       const seen = new Set();
       return sortedFeed.filter(item => {
-          if (seen.has(item.id)) return false;
-          seen.add(item.id);
-          return true;
+          if (item && item.id && !seen.has(item.id)) { // Adicionado verificação
+              seen.add(item.id);
+              return true;
+          }
+          return false;
       }).slice(0, 50); 
   }, [sortedFeed]);
 
@@ -1277,7 +1266,7 @@ function FeedTab({
     else { setLocalPlayingAudio(null); setIsGenerating(false); }
   }, [localPlayingAudio, onGenerateAudio]);
 
-  if (isLoading && stableData.length === 0) {
+  if (isLoading && uniqueNews.length === 0) {
      return (
        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
           <Loader2 size={40} className="animate-spin text-purple-500" />
@@ -1289,7 +1278,7 @@ function FeedTab({
   return (
     <div 
       ref={feedContainerRef} 
-      className="space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 pt-2 min-h-screen overscroll-y-none touch-pan-y custom-scrollbar"
+      className="relative space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 min-h-screen overscroll-y-none touch-pan-y custom-scrollbar"
       onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
     >
       <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
@@ -1301,7 +1290,6 @@ function FeedTab({
           isDarkMode={isDarkMode} 
       />
       
-      {/* O SELETOR DE FONTES AGORA FICA PRESO NO TOPO */}
       <div className="sticky top-0 z-20 py-2">
         <SourceSelector news={filteredByCategory} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} />
       </div>
@@ -1312,24 +1300,56 @@ function FeedTab({
          </div>
       </div>
       
-      {/* O PADDING LATERAL AGORA É APLICADO AQUI, E É MAIOR À DIREITA */}
       <div className="flex flex-col gap-4 px-4 pr-12">
         {uniqueNews.length === 0 && !isLoading && <div className="text-center py-10 opacity-50"><p>Nenhuma notícia encontrada.</p></div>}
-        {uniqueNews.map((news) => (
-            <NewsCard 
-              key={news.id} news={news} isSelected={selectedArticleId === news.id}
-              playingAudio={isGenerating ? {id: localPlayingAudio?.id, isGenerating: true} : localPlayingAudio}
-              onPlay={handleLocalPlay} isRead={readHistory?.includes(news.id)}
-              isSaved={savedItems?.some((item) => item.id === news.id)}
-              isDarkMode={isDarkMode} onClick={onReadArticle} onAnalyze={openArticle}
-              onToggleSave={onToggleSave} isLiked={likedItems?.includes(news.id)}
-              onToggleLike={onToggleLike}
-            />
-        ))}
+        
+        {uniqueNews.map((news, index) => {
+            const isHighlightCard = (index + 1) % 5 === 0;
+
+            if (isHighlightCard) {
+                return (
+                    <div key={news.id} onClick={() => onReadArticle(news)} 
+                        className={`relative w-full h-96 rounded-3xl overflow-hidden shadow-2xl my-8 group cursor-pointer border ${isDarkMode ? 'border-white/10' : 'border-black/10'}`}>
+                        <img src={news.img} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+                        <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/40 text-white px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
+                            <Sparkles size={14} className="text-purple-400"/>
+                            DESTAQUE
+                        </div>
+                        <div className="absolute bottom-0 left-0 p-6">
+                            <div className="flex items-center gap-3 mb-2">
+                                <img src={news.logo} className="w-8 h-8 rounded-full bg-white p-0.5" />
+                                <span className="text-white font-bold uppercase tracking-widest">{news.source}</span>
+                            </div>
+                            <h2 className="text-3xl font-black text-white leading-tight drop-shadow-lg">{news.title}</h2>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <NewsCard 
+                  key={news.id} 
+                  news={news} 
+                  isSelected={selectedArticleId === news.id}
+                  playingAudio={isGenerating ? {id: localPlayingAudio?.id, isGenerating: true} : localPlayingAudio}
+                  onPlay={handleLocalPlay} 
+                  isRead={readHistory?.includes(news.id)}
+                  isSaved={savedItems?.some((item) => item.id === news.id)}
+                  isDarkMode={isDarkMode} 
+                  onClick={onReadArticle} 
+                  onAnalyze={openArticle}
+                  onToggleSave={onToggleSave} 
+                  isLiked={likedItems?.includes(news.id)}
+                  onToggleLike={onToggleLike}
+                />
+            );
+        })}
       </div>
     </div>
   );
 }
+
 
 // --- OUTROS COMPONENTES E FILTROS ---
 
@@ -3714,7 +3734,7 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
       return (
         <div>
             <div className="px-6 pb-2 text-center">
-                <p className={`text-xl font-medium animate-pulse ${isDarkMode ? 'text-purple-500' : 'text-purple-400'}`}>
+                <p className={`text-3xl font-medium animate-pulse ${isDarkMode ? 'text-purple-500' : 'text-purple-400'}`}>
                     Analisando as últimas notícias para você...
                 </p>
             </div>
@@ -3726,29 +3746,31 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
   return (
     <div className="relative">
       
-      <div className="absolute top-[-3rem] right-4 z-20">
+      <div className="absolute top-[-2rem] right-0 z-20">
         <button
           onClick={runAI}
           className="group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/30"
         >
           {loading ? ( <div className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /><span>Analisando</span></div> ) 
           : clusters ? ( <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar</span></div> ) 
-          : ( <div className="flex items-center gap-2"><Sparkles size={20} className="text-yellow-300" /><span>Analisar</span></div> )}
+          : ( <div className="flex items-center gap-2"><Sparkles size={16} className="text-yellow-300" /><span>Analisar</span></div> )}
         </button>
       </div>
 
-        <div
+      <div
         ref={scrollRef}
         onScroll={handleScroll}
-        // O carrossel em si não tem mais padding
         className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
       >
-      {displayClusters.map((cluster, idx) => (
-          // A CORREÇÃO: p-2 foi removido desta div
-          <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center">
-            <div className={`w-full rounded-[2.5rem] overflow-hidden flex flex-col ${isDarkMode ? 'bg-zinc-900 border-x border-b border-zinc-800' : 'bg-white ring-1 ring-black/5'}`}>
+        {displayClusters.map((cluster, idx) => (
+          <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
+            <div className={`
+              w-full rounded-2xl overflow-hidden flex flex-col
+              ${isDarkMode 
+                ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' 
+                : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
+            `}>
 
-              {/* O conteúdo do card (imagem, texto, etc.) permanece o mesmo */}
               <div className="relative w-full flex-grow h-[535px] bg-zinc-800">
                 <img
                   src={cluster.representative_image}
@@ -3893,766 +3915,211 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // ✅ Termômetro agora é horizontal (0–10)
 // ✅ Cards menores, agrupados horizontalmente por faixas de temperatura (colunas)
 // ✅ Texto legível: dark = branco, light = preto/cinza escuro
-// Este componente substitui o seu TrendRadar atual.
-// Requer: generateTrendRadar(newsData, apiKey), getApiKey("widgets"), openArticle(article), isDarkMode boolean.
-
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "TrendRadar" INTEIRA POR ESTA ===
+// ==========================================================
 const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  // Filtros novos
-  const [timeWindow, setTimeWindow] = useState("24h"); // "6h" | "24h" | "7d" | "all"
-  const [rangeMinimum, setRangeMinimum] = useState(0);
-  const [rangeMaximum, setRangeMaximum] = useState(10);
+  const STORAGE_KEY = 'newsos_trend_radar_data_v5';
 
-  // Cache
-  const STORAGE_KEY_CURRENT = "newsos_trend_radar_data_v6";
-  const STORAGE_KEY_PREVIOUS = "newsos_trend_radar_previous_v1";
-
-  // --------- Helpers de estilo ---------
-  const getTrendStyle = (score) => {
-    if (score >= 9) return { color: "#ef4444", bandLabel: "🔥 MUITO QUENTE" };
-    if (score >= 7) return { color: "#f97316", bandLabel: "🟠 QUENTE" };
-    if (score >= 5) return { color: "#eab308", bandLabel: "🟡 MÉDIO" };
-    if (score >= 3) return { color: "#22c55e", bandLabel: "🟢 LEVE" };
-    return { color: "#3b82f6", bandLabel: "🧊 FRIO" };
-  };
-
-  const temperatureBands = [
-    { label: "🧊 FRIO", minimum: 0, maximum: 2 },
-    { label: "🟢 LEVE", minimum: 2, maximum: 4 },
-    { label: "🟡 MÉDIO", minimum: 4, maximum: 6 },
-    { label: "🟠 QUENTE", minimum: 6, maximum: 8 },
-    { label: "🔥 MUITO QUENTE", minimum: 8, maximumInclusive: 10 },
-  ];
-
-  const clampNumber = (value, minimum, maximum) => {
-    return Math.min(maximum, Math.max(minimum, value));
-  };
-
-  const formatDelta = (delta) => {
-    if (delta === null || typeof delta !== "number") return "—";
-    if (Math.abs(delta) < 0.05) return "0.0";
-    const fixed = Math.abs(delta).toFixed(1);
-    return delta > 0 ? `+${fixed}` : `-${fixed}`;
-  };
-
-  const getConfidenceLabel = (confidenceValue) => {
-    if (confidenceValue >= 0.75) return "Alta";
-    if (confidenceValue >= 0.5) return "Média";
-    return "Baixa";
-  };
-
-  const getConfidenceValue = (trendItem) => {
-    // Heurística simples e consistente:
-    // - quanto mais fontes relacionadas, maior a confiança
-    // - um pouco de peso extra para scores altos
-    const relatedCount = Array.isArray(trendItem.related_articles) ? trendItem.related_articles.length : 0;
-    const normalizedRelated = clampNumber(relatedCount / 8, 0, 1); // 0..1
-    const normalizedScore = clampNumber(trendItem.score / 10, 0, 1); // 0..1
-    const confidence = clampNumber(0.65 * normalizedRelated + 0.35 * normalizedScore, 0, 1);
-    return confidence;
-  };
-
-  const getVolumeValue = (trendItem) => {
-    return Array.isArray(trendItem.related_articles) ? trendItem.related_articles.length : 0;
-  };
-
-  const parseArticleDate = (article) => {
-    // Tenta achar uma data em campos comuns
-    const candidate =
-      article?.publishedAt ||
-      article?.pubDate ||
-      article?.date ||
-      article?.createdAt ||
-      article?.isoDate ||
-      article?.published ||
-      null;
-
-    if (!candidate) return null;
-
-    const parsed = new Date(candidate);
-    if (Number.isNaN(parsed.getTime())) return null;
-    return parsed;
-  };
-
-  const filterNewsByTimeWindow = (allNews, windowKey) => {
-    if (!Array.isArray(allNews) || allNews.length === 0) return [];
-    if (windowKey === "all") return allNews;
-
-    const now = new Date();
-    let windowMilliseconds = 24 * 60 * 60 * 1000;
-
-    if (windowKey === "6h") windowMilliseconds = 6 * 60 * 60 * 1000;
-    if (windowKey === "24h") windowMilliseconds = 24 * 60 * 60 * 1000;
-    if (windowKey === "7d") windowMilliseconds = 7 * 24 * 60 * 60 * 1000;
-
-    const cutoff = new Date(now.getTime() - windowMilliseconds);
-
-    // Se não houver datas válidas, não filtra para não “sumir” com tudo
-    let foundAnyValidDate = false;
-
-    const filtered = allNews.filter((article) => {
-      const articleDate = parseArticleDate(article);
-      if (articleDate) foundAnyValidDate = true;
-      if (!articleDate) return true;
-      return articleDate >= cutoff;
-    });
-
-    if (!foundAnyValidDate) return allNews;
-    return filtered;
-  };
-
-  // --------- Carrega cache ao abrir ---------
   useEffect(() => {
-    const savedCurrent = localStorage.getItem(STORAGE_KEY_CURRENT);
-    if (savedCurrent) {
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
       try {
-        const parsed = JSON.parse(savedCurrent);
+        const parsed = JSON.parse(savedData);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const sorted = parsed.slice().sort((first, second) => (second.score || 0) - (first.score || 0));
+          const sorted = parsed.sort((a, b) => b.score - a.score);
           setTrends(sorted);
           setHasGenerated(true);
         }
-      } catch (error) {
-        console.error("Erro ao ler Trend Radar salvo", error);
-      }
+      } catch (e) { console.error("Erro ao ler Trend Radar salvo", e); }
     }
   }, []);
 
-  const handleToggle = (index) => {
-    setActiveIndex((current) => (current === index ? null : index));
+  const getTrendStyle = (score) => {
+    if (score >= 9) return { color: '#ef4444', label: 'MUITO QUENTE' };
+    if (score >= 7) return { color: '#f97316', label: 'QUENTE' };
+    if (score >= 5) return { color: '#eab308', label: 'MÉDIO' };
+    if (score >= 3) return { color: '#22c55e', label: 'LEVE' };
+    return { color: '#3b82f6', label: 'FRIO' };
+  };
+  
+  const runTrendAnalysis = async () => {
+    const currentApiKey = getApiKey('widgets');
+    if (!currentApiKey || !newsData || newsData.length === 0) {
+      alert("Aguarde o carregamento das notícias ou configure as chaves de IA do Pool 1.");
+      return;
+    }
+    setLoading(true);
+    setActiveIndex(null);
+    await new Promise((r) => setTimeout(r, 800));
+
+    const data = await generateTrendRadar(newsData, currentApiKey);
+
+    if (data && Array.isArray(data) && data.length > 0) {
+      const hydratedData = data.map(trend => {
+        const relatedArticles = trend.source_indices
+            ? trend.source_indices.map(index => newsData[index]).filter(Boolean)
+            : [];
+        return { ...trend, related_articles: relatedArticles };
+      });
+      const sortedData = hydratedData.sort((a, b) => b.score - a.score);
+      setTrends(sortedData);
+      setHasGenerated(true);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedData));
+    } else {
+      alert("A IA não identificou tendências claras no momento. Tente novamente mais tarde.");
+    }
+    
+    setLoading(false);
+  };
+
+  const handleToggle = (idx) => {
+    setActiveIndex(activeIndex === idx ? null : idx);
   };
 
   const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
 
-  // --------- Termômetro interativo (range) ---------
-  const handleRangeMinimumChange = (value) => {
-    const numeric = clampNumber(Number(value), 0, 10);
-    const correctedMinimum = Math.min(numeric, rangeMaximum);
-    setRangeMinimum(correctedMinimum);
-  };
-
-  const handleRangeMaximumChange = (value) => {
-    const numeric = clampNumber(Number(value), 0, 10);
-    const correctedMaximum = Math.max(numeric, rangeMinimum);
-    setRangeMaximum(correctedMaximum);
-  };
-
-  // --------- Radar Map (posicionamento) ---------
-  const getBandIndexByScore = (score) => {
-    for (let index = 0; index < temperatureBands.length; index++) {
-      const band = temperatureBands[index];
-      const maximum = band.maximumInclusive ?? band.maximum;
-      if (score >= band.minimum && score <= maximum) return index;
-    }
-    return temperatureBands.length - 1;
-  };
-
-  // --------- Run Analysis (com deltas) ---------
-  const runTrendAnalysis = async () => {
-    const currentApiKey = getApiKey("widgets");
-
-    if (!currentApiKey || !Array.isArray(newsData) || newsData.length === 0) {
-      alert("Aguarde o carregamento das notícias ou configure as chaves de IA do Pool 1.");
-      return;
-    }
-
-    setLoading(true);
-    setActiveIndex(null);
-
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    const filteredNews = filterNewsByTimeWindow(newsData, timeWindow);
-
-    const data = await generateTrendRadar(filteredNews, currentApiKey);
-
-    if (data && Array.isArray(data) && data.length > 0) {
-      // Hidrata com related_articles
-      const hydratedData = data.map((trend) => {
-        const relatedArticles = Array.isArray(trend.source_indices)
-          ? trend.source_indices.map((index) => filteredNews[index]).filter(Boolean)
-          : [];
-
-        return {
-          ...trend,
-          related_articles: relatedArticles,
-        };
-      });
-
-      // Pega snapshot anterior para delta
-      let previousData = null;
-      try {
-        const savedPrevious = localStorage.getItem(STORAGE_KEY_PREVIOUS);
-        if (savedPrevious) {
-          const parsedPrevious = JSON.parse(savedPrevious);
-          if (Array.isArray(parsedPrevious)) previousData = parsedPrevious;
-        }
-      } catch (error) {
-        previousData = null;
-      }
-
-      const previousScoreByTopic = new Map();
-      if (Array.isArray(previousData)) {
-        previousData.forEach((trend) => {
-          if (trend && typeof trend.topic === "string") {
-            previousScoreByTopic.set(trend.topic.trim().toLowerCase(), Number(trend.score || 0));
-          }
-        });
-      }
-
-      const enrichedWithDelta = hydratedData.map((trend) => {
-        const topicKey = typeof trend.topic === "string" ? trend.topic.trim().toLowerCase() : "";
-        const previousScore = previousScoreByTopic.has(topicKey) ? previousScoreByTopic.get(topicKey) : null;
-        const delta = previousScore === null ? null : Number(trend.score || 0) - Number(previousScore || 0);
-
-        // Confiança e volume
-        const confidenceValue = getConfidenceValue({ ...trend, related_articles: trend.related_articles });
-        const volumeValue = getVolumeValue({ ...trend, related_articles: trend.related_articles });
-
-        return {
-          ...trend,
-          delta_score: delta,
-          confidence_value: confidenceValue,
-          volume_value: volumeValue,
-        };
-      });
-
-      const sortedData = enrichedWithDelta.slice().sort((first, second) => (second.score || 0) - (first.score || 0));
-
-      setTrends(sortedData);
-      setHasGenerated(true);
-
-      // Salva o atual e também como "previous" para a próxima rodada
-      localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(sortedData));
-      localStorage.setItem(STORAGE_KEY_PREVIOUS, JSON.stringify(sortedData));
-    } else {
-      alert("A IA não identificou tendências claras no momento. Tente novamente mais tarde.");
-    }
-
-    setLoading(false);
-  };
-
-  // --------- Tendências filtradas (range) + Top 1 e Top 4 ---------
-  const filteredTrendsByRange = useMemo(() => {
-    if (!Array.isArray(trends)) return null;
-    return trends.filter((trend) => {
-      const score = Number(trend.score || 0);
-      return score >= rangeMinimum && score <= rangeMaximum;
-    });
-  }, [trends, rangeMinimum, rangeMaximum]);
-
-  const featuredTrend = useMemo(() => {
-    if (!Array.isArray(filteredTrendsByRange) || filteredTrendsByRange.length === 0) return null;
-    return filteredTrendsByRange[0];
-  }, [filteredTrendsByRange]);
-
-  const topFourTrends = useMemo(() => {
-    if (!Array.isArray(filteredTrendsByRange) || filteredTrendsByRange.length <= 1) return [];
-    return filteredTrendsByRange.slice(1, 5);
-  }, [filteredTrendsByRange]);
-
-  // --------- Radar map layout ---------
-  const radarPoints = useMemo(() => {
-    if (!Array.isArray(filteredTrendsByRange) || filteredTrendsByRange.length === 0) return [];
-
-    const maximumPoints = Math.min(filteredTrendsByRange.length, 18);
-    const candidates = filteredTrendsByRange.slice(0, maximumPoints);
-
-    // Radar settings
-    const centerX = 80;
-    const centerY = 80;
-    const minimumRadius = 18;
-    const maximumRadius = 70;
-
-    return candidates.map((trend, index) => {
-      const score = clampNumber(Number(trend.score || 0), 0, 10);
-      const bandIndex = getBandIndexByScore(score);
-
-      // Ângulo por faixa + espalhamento interno
-      const baseAngleDegrees = 270; // topo
-      const bandSpreadDegrees = 60;  // cada faixa ocupa "um setor" visual
-      const withinBandOffset = (index % 6) * 8; // espalha dots
-      const angleDegrees = baseAngleDegrees + bandIndex * bandSpreadDegrees + withinBandOffset;
-
-      const angleRadians = (angleDegrees * Math.PI) / 180;
-
-      // Raio proporcional ao score
-      const radius = minimumRadius + (score / 10) * (maximumRadius - minimumRadius);
-
-      const x = centerX + radius * Math.cos(angleRadians);
-      const y = centerY + radius * Math.sin(angleRadians);
-
-      const { color } = getTrendStyle(score);
-
-      // Precisa do índice no array "trends" para abrir item correto no detalhe
-      // Vamos localizar por referência (topic + score) no array original
-      let originalIndex = null;
-      if (Array.isArray(trends)) {
-        const foundIndex = trends.findIndex((item) => item?.topic === trend?.topic && Number(item?.score || 0) === Number(trend?.score || 0));
-        originalIndex = foundIndex >= 0 ? foundIndex : null;
-      }
-
-      return {
-        x,
-        y,
-        color,
-        score,
-        topic: trend.topic,
-        originalIndex,
-      };
-    });
-  }, [filteredTrendsByRange, trends]);
-
-  // --------- UI helpers ---------
-  const commonPanelBackground = isDarkMode ? "rgba(24,24,27,0.55)" : "rgba(255,255,255,0.75)";
-  const commonPanelBorder = isDarkMode ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)";
-  const commonPanelShadow = isDarkMode
-    ? "0 18px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12)"
-    : "0 18px 40px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.30)";
-
-  const Chip = ({ label, value, toneColor, subtle }) => {
-    const background = isDarkMode
-      ? subtle
-        ? "rgba(255,255,255,0.06)"
-        : "rgba(0,0,0,0.35)"
-      : subtle
-      ? "rgba(0,0,0,0.05)"
-      : "rgba(255,255,255,0.85)";
-
-    const border = isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)";
-    const textColor = isDarkMode ? "rgba(255,255,255,0.78)" : "rgba(17,24,39,0.78)";
-
-    return (
-      <div
-        className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full"
-        style={{
-          background,
-          border,
-          backdropFilter: "blur(10px)",
-        }}
-      >
-        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: textColor }}>
-          {label}
-        </span>
-        <span className="text-[10px] font-black" style={{ color: toneColor || textColor }}>
-          {value}
-        </span>
-      </div>
-    );
-  };
-
-  const WindowButton = ({ label, value }) => {
-    const isActive = timeWindow === value;
-    return (
-      <button
-        onClick={() => setTimeWindow(value)}
-        className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
-        style={{
-          background: isActive
-            ? isDarkMode
-              ? "rgba(249,115,22,0.18)"
-              : "rgba(249,115,22,0.14)"
-            : isDarkMode
-            ? "rgba(255,255,255,0.06)"
-            : "rgba(0,0,0,0.05)",
-          border: isActive
-            ? "1px solid rgba(249,115,22,0.35)"
-            : isDarkMode
-            ? "1px solid rgba(255,255,255,0.08)"
-            : "1px solid rgba(0,0,0,0.08)",
-          color: isActive ? "#f97316" : isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)",
-        }}
-      >
-        {label}
-      </button>
-    );
-  };
-
-  // --------- Render ---------
   return (
-    <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 px-4">
-      <style jsx="true">{`
-        @keyframes radar-sweep {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes radar-pulse {
-          0%, 100% { transform: scale(0.5); opacity: 0; }
-          50% { transform: scale(1.2); opacity: 0.10; }
-        }
-      `}</style>
+    <div className={`relative p-4 rounded-2xl ${isDarkMode ? 'bg-zinc-900/50 border border-white/10' : 'bg-white shadow-lg'}`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+            <TrendingUp size={16} className="text-purple-400" />
+            <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">Trend Radar AI</h3>
+        </div>
+        <button onClick={runTrendAnalysis} disabled={loading} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 text-zinc-600 hover:text-black'}`}>
+          {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+          <span>{loading ? 'Analisando...' : (hasGenerated ? 'Atualizar' : 'Analisar')}</span>
+        </button>
+      </div>
 
-      {/* Header */}
-      {hasGenerated && (
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 opacity-70">
-            <Activity size={14} className="text-orange-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-              Trend Radar AI
-            </span>
-          </div>
-
-          <button
-            onClick={runTrendAnalysis}
-            disabled={loading}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${
-              isDarkMode
-                ? "bg-zinc-800 text-zinc-400 hover:text-white"
-                : "bg-zinc-200 text-zinc-600 hover:text-black"
-            }`}
-          >
-            {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {loading ? "Analisando..." : "Atualizar"}
-          </button>
+      {loading && (
+        <div className="h-96 flex flex-col items-center justify-center text-center gap-4">
+            <style jsx="true">{`
+              @keyframes radar-sweep { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+              @keyframes radar-pulse { 0%, 100% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.2); opacity: 0.1; } }
+            `}</style>
+            <div className="relative h-40 w-40 flex items-center justify-center">
+                <div className="absolute w-full h-full rounded-full border border-dashed border-orange-500/20"></div>
+                <div className="absolute w-2/3 h-2/3 rounded-full border border-dashed border-orange-500/20"></div>
+                <div className="absolute w-full h-full rounded-full bg-orange-500" style={{ animation: 'radar-pulse 2s ease-out infinite' }}></div>
+                <div className="absolute w-full h-full origin-center" style={{ animation: 'radar-sweep 2s linear infinite' }}>
+                    <div className="w-1/2 h-px bg-gradient-to-r from-transparent to-orange-400 absolute top-1/2"></div>
+                </div>
+                <Activity size={24} className="text-orange-400 z-10" />
+            </div>
+            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Analisando tendências...</p>
         </div>
       )}
 
-      {/* Loading */}
-      {loading ? (
-        <div className="h-56 flex flex-col items-center justify-center text-center gap-4">
-          <div className="relative h-40 w-40 flex items-center justify-center">
-            <div className="absolute w-full h-full rounded-full border border-dashed border-orange-500/20"></div>
-            <div className="absolute w-2/3 h-2/3 rounded-full border border-dashed border-orange-500/20"></div>
-            <div
-              className="absolute w-full h-full rounded-full bg-orange-500"
-              style={{ animation: "radar-pulse 2s ease-out infinite" }}
-            />
-            <div className="absolute w-full h-full origin-center" style={{ animation: "radar-sweep 2s linear infinite" }}>
-              <div className="w-1/2 h-px bg-gradient-to-r from-transparent to-orange-400 absolute top-1/2" />
-            </div>
-            <Activity size={24} className="text-orange-400 z-10" />
-          </div>
-
-          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
-            Analisando tendências...
-          </p>
+      {!loading && (!trends || trends.length === 0) && (
+        <div className="h-96 flex flex-col items-center justify-center text-center">
+            <p className="font-bold text-lg mb-4">Ative o Radar de Tendências</p>
+            <p className="text-base text-zinc-500 max-w-xs mb-6">Clique para escanear as notícias e revelar as trends mais importantes de agora.</p>
+            <button onClick={runTrendAnalysis} className="group relative px-8 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-orange-500 text-white hover:bg-orange-400 shadow-orange-500/30">
+              <span className="flex items-center gap-2">
+                <Sparkles size={16} className="text-yellow-300" /> Ativar Radar
+              </span>
+            </button>
         </div>
-      ) : (
-        <div className="w-full">
-          {/* Empty state */}
-          {!hasGenerated ? (
-            <div className="h-56 flex flex-col items-center justify-center text-center">
-              <p className="font-bold text-lg mb-4">Ative o Radar de Tendências</p>
-              <p className="text-base text-zinc-500 max-w-xs mb-6">
-                Clique para escanear as notícias e revelar as trends mais importantes de agora.
-              </p>
-              <button
-                onClick={runTrendAnalysis}
-                className="group relative px-8 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-orange-500 text-white hover:bg-orange-400 shadow-orange-500/30"
-              >
-                <span className="flex items-center gap-2">
-                  <Sparkles size={16} className="text-yellow-300" /> Ativar Radar
-                </span>
-              </button>
+      )}
+
+      {!loading && trends && trends.length > 0 && (
+        <div className="relative flex h-[450px] w-full mt-8">
+            {/* 1. TERMÔMETRO VERTICAL COLORIDO */}
+            <div className="relative w-12 flex-shrink-0 flex flex-col items-center">
+                <div className="w-2 h-full rounded-full bg-gradient-to-t from-blue-500 via-yellow-500 to-red-500 relative">
+                    <AnimatePresence>
+                    {activeItem && (
+                        <motion.div
+                            layoutId="temp-marker"
+                            className="absolute left-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 bg-white dark:bg-zinc-800 shadow-lg"
+                            style={{ 
+                                bottom: `calc(${activeItem.score * 10}% - 8px)`,
+                                borderColor: getTrendStyle(activeItem.score).color
+                            }}
+                            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        />
+                    )}
+                    </AnimatePresence>
+                </div>
+                <div className="absolute top-0 -mt-4 text-[9px] font-bold text-red-500">10</div>
+                <div className="absolute bottom-0 -mb-4 text-[9px] font-bold text-blue-500">0</div>
             </div>
-          ) : (
-            <>
-              {/* Painel principal */}
-              <div
-                className="relative w-full rounded-2xl p-4"
-                style={{
-                  background: commonPanelBackground,
-                  border: commonPanelBorder,
-                  boxShadow: commonPanelShadow,
-                  backdropFilter: "blur(12px)",
-                }}
-              >
-                {/* Linha: controles */}
-                <div className="flex flex-col gap-3 mb-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/40" : "text-black/40"}`}>
-                        Termômetro (filtro)
-                      </span>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <WindowButton label="6h" value="6h" />
-                      <WindowButton label="24h" value="24h" />
-                      <WindowButton label="7d" value="7d" />
-                      <WindowButton label="Tudo" value="all" />
-                    </div>
-                  </div>
-
-                  {/* Termômetro visual + sliders de range */}
-                  <div className="relative">
-                    <div
-                      className="h-3 w-full rounded-full overflow-hidden"
-                      style={{
-                        background: "linear-gradient(90deg, #3b82f6, #22c55e, #eab308, #f97316, #ef4444)",
-                        boxShadow: isDarkMode
-                          ? "0 10px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.20)"
-                          : "0 10px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.35)",
-                      }}
-                    />
-
-                    {/* Highlight do range selecionado */}
-                    <div
-                      className="absolute top-0 h-3 rounded-full"
-                      style={{
-                        left: `${(rangeMinimum / 10) * 100}%`,
-                        width: `${((rangeMaximum - rangeMinimum) / 10) * 100}%`,
-                        background: isDarkMode ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.35)",
-                        border: isDarkMode ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(0,0,0,0.08)",
-                        boxShadow: isDarkMode ? "0 10px 22px rgba(0,0,0,0.25)" : "0 10px 22px rgba(0,0,0,0.10)",
-                      }}
-                    />
-
-                    {/* Sliders (double range) */}
-                    <div className="relative mt-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Chip label="Mínimo" value={`${rangeMinimum}`} subtle />
-                          <Chip label="Máximo" value={`${rangeMaximum}`} subtle />
-                        </div>
-
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/35" : "text-black/35"}`}>
-                          Clique nos cards ou no radar para detalhes
-                        </span>
-                      </div>
-
-                      <div className="relative h-8">
-                        <input
-                          type="range"
-                          min={0}
-                          max={10}
-                          step={1}
-                          value={rangeMinimum}
-                          onChange={(event) => handleRangeMinimumChange(event.target.value)}
-                          className="absolute w-full h-8 opacity-0 cursor-pointer"
-                          aria-label="Filtro mínimo"
-                        />
-                        <input
-                          type="range"
-                          min={0}
-                          max={10}
-                          step={1}
-                          value={rangeMaximum}
-                          onChange={(event) => handleRangeMaximumChange(event.target.value)}
-                          className="absolute w-full h-8 opacity-0 cursor-pointer"
-                          aria-label="Filtro máximo"
-                        />
-
-                        {/* Marcadores 0..10 */}
-                        <div className="absolute inset-0 flex justify-between items-center pointer-events-none">
-    {Array.from({ length: 11 }).map((_, number) => (
-                            <div
-                              key={number}
-                              className="flex flex-col items-center gap-1"
-                              style={{ width: "1px" }}
-                            >
-                              <div
-                                style={{
-                                  height: "6px",
-                                  width: "1px",
-                                  background: isDarkMode
-                                    ? "rgba(255,255,255,0.25)"
-                                    : "rgba(0,0,0,0.25)",
-                                }}
-                              />
-                              <span
-                                className={`text-[9px] font-black ${
-                                  isDarkMode ? "text-white/40" : "text-black/40"
-                                }`}
-                              >
-                                {number}
-                              </span>
+            {/* 2. ÁREA DOS CARDS COM ESPAÇAMENTO ELEGANTE */}
+            <div className="relative flex-1 flex flex-col justify-between pl-4">
+                {trends.slice(0, 5).map((item, i) => {
+                    const style = getTrendStyle(item.score);
+                    const isActive = activeIndex === i;
+                    
+                    return (
+                        <div key={item.topic} className="relative">
+                            <div className="flex items-center">
+                                {/* Linha de Conexão */}
+                                <div className="absolute left-0 top-1/2 -translate-x-full h-px w-4 border-b border-dashed"
+                                     style={{ borderColor: `${style.color}80` }}>
+                                </div>
+                                
+                                <button onClick={() => handleToggle(i)}
+                                    className={`w-full p-3 rounded-lg border text-left min-h-[60px] transition-all duration-300
+                                        ${isActive ? 'scale-105 shadow-2xl' : 'hover:scale-105 hover:shadow-lg'}
+                                        ${isDarkMode ? 'bg-zinc-800/80 backdrop-blur-sm' : 'bg-white/80 backdrop-blur-sm'}`
+                                    }
+                                    style={{ 
+                                        borderColor: isActive ? style.color : (isDarkMode ? '#ffffff20' : '#00000015'),
+                                        boxShadow: isActive ? `0 0 20px ${style.color}40` : ''
+                                    }}
+                                >
+                                    <p className={`text-sm font-bold leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{item.topic}</p>
+                                    <p className="text-xs font-bold mt-1" style={{ color: style.color }}>Impacto: {item.score}/10</p>
+                                </button>
                             </div>
-                          ))}
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                    );
+                })}
+            </div>
+        </div>
+      )}
 
-                {/* ================= FEATURED + TOP 4 ================= */}
-                <div className="grid grid-cols-12 gap-4 mt-6">
-                  {/* FEATURED */}
-                  {featuredTrend && (
-                    <div className="col-span-12 lg:col-span-7">
-                      <div
-                        className="rounded-2xl p-5 h-full"
-                        style={{
-                          background: isDarkMode
-                            ? "rgba(0,0,0,0.45)"
-                            : "rgba(255,255,255,0.95)",
-                          border: `2px solid ${getTrendStyle(featuredTrend.score).color}`,
-                          boxShadow: `0 20px 40px ${getTrendStyle(featuredTrend.score).color}33`,
-                        }}
-                      >
-                        <div className="flex items-start justify-between gap-4 mb-3">
-                          <h3 className="text-lg font-black leading-tight">
-                            {featuredTrend.topic}
-                          </h3>
-                          <span
-                            className="text-sm font-black"
-                            style={{ color: getTrendStyle(featuredTrend.score).color }}
-                          >
-                            {featuredTrend.score}/10
-                          </span>
-                        </div>
-
-                        <p className="text-sm opacity-80 leading-relaxed mb-4">
-                          {featuredTrend.summary}
-                        </p>
-
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          <Chip
-                            label="Confiança"
-                            value={getConfidenceLabel(featuredTrend.confidence_value)}
-                            toneColor={getTrendStyle(featuredTrend.score).color}
-                          />
-                          <Chip
-                            label="Volume"
-                            value={featuredTrend.volume_value}
-                          />
-                          <Chip
-                            label="Delta"
-                            value={formatDelta(featuredTrend.delta_score)}
-                            toneColor={
-                              featuredTrend.delta_score > 0
-                                ? "#22c55e"
-                                : "#ef4444"
-                            }
-                          />
-                        </div>
-
-                        {featuredTrend.related_articles?.length > 0 && (
-                          <div className="flex gap-2 flex-wrap">
-                            {featuredTrend.related_articles.slice(0, 6).map((article) => (
-                              <button
-                                key={article.id}
-                                onClick={() => openArticle(article)}
-                                className="hover:scale-110 transition-transform"
-                                title={article.title}
-                              >
-                                <img
-                                  src={article.logo}
-                                  alt=""
-                                  className="w-7 h-7 rounded-full border border-black/10"
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* TOP 4 */}
-                  <div className="col-span-12 lg:col-span-5 flex flex-col gap-3">
-                    {topFourTrends.map((trend, index) => {
-                      const style = getTrendStyle(trend.score);
-                      const originalIndex = trends.findIndex(
-                        (item) => item.topic === trend.topic
-                      );
-
-                      return (
-                        <button
-                          key={trend.topic}
-                          onClick={() => handleToggle(originalIndex)}
-                          className="text-left rounded-xl p-3 transition-all hover:scale-[1.01]"
-                          style={{
-                            background: isDarkMode
-                              ? "rgba(0,0,0,0.35)"
-                              : "rgba(255,255,255,0.90)",
-                            border: `1px solid ${style.color}55`,
-                          }}
-                        >
-                          <div className="flex justify-between items-start gap-3">
-                            <div>
-                              <div className="text-sm font-black leading-tight">
-                                {trend.topic}
-                              </div>
-                              <div className="text-[11px] opacity-60 line-clamp-2">
-                                {trend.summary}
-                              </div>
-                            </div>
-                            <span
-                              className="text-xs font-black"
-                              style={{ color: style.color }}
-                            >
-                              {trend.score}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* ================= RADAR MAP ================= */}
-                <div className="mt-8 flex justify-center">
-                  <div className="relative w-40 h-40">
-                    <div className="absolute inset-0 rounded-full border border-dashed border-orange-500/30" />
-                    <div className="absolute inset-4 rounded-full border border-dashed border-orange-500/20" />
-                    <div className="absolute inset-8 rounded-full border border-dashed border-orange-500/10" />
-
-                    {radarPoints.map((point, index) => (
-                      <button
-                        key={index}
-                        onClick={() =>
-                          point.originalIndex !== null &&
-                          handleToggle(point.originalIndex)
-                        }
-                        className="absolute rounded-full transition-transform hover:scale-125"
-                        style={{
-                          left: `${point.x}px`,
-                          top: `${point.y}px`,
-                          width: `${6 + point.score}px`,
-                          height: `${6 + point.score}px`,
-                          background: point.color,
-                          transform: "translate(-50%, -50%)",
-                          boxShadow: `0 0 10px ${point.color}`,
-                        }}
-                        title={point.topic}
-                      />
+      <AnimatePresence>
+        {activeItem && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+            className={`relative mt-4 p-5 rounded-2xl border ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}
+            style={{ borderColor: getTrendStyle(activeItem.score).color }}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: getTrendStyle(activeItem.score).color }}>
+                    NÍVEL DE IMPACTO: {getTrendStyle(activeItem.score).label}
+                </span>
+                <button onClick={() => handleToggle(null)}><X size={16} /></button>
+              </div>
+              
+              {/* CORREÇÃO: Usar activeItem.summary */}
+              <p className={`text-sm leading-relaxed mt-2 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{activeItem.summary}</p>
+              
+              {/* CORREÇÃO: Usar activeItem.related_articles */}
+              {activeItem.related_articles && activeItem.related_articles.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-dashed border-zinc-700/50 space-y-2">
+                  <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Fontes Analisadas</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {activeItem.related_articles.slice(0, 5).map(article => (
+                      <button key={article.id} onClick={() => openArticle(article)} className="transition-transform hover:scale-110" title={article.title}>
+                        <img src={article.logo} className="w-6 h-6 rounded-full border border-black/10" onError={(e) => e.target.style.display='none'} />
+                      </button>
                     ))}
                   </div>
                 </div>
-              </div>
-
-              {/* ================= DETALHE EXPANDIDO ================= */}
-              <AnimatePresence>
-                {activeItem && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
-                    className="mt-6"
-                  >
-                    <div
-                      className="rounded-2xl p-5"
-                      style={{
-                        background: isDarkMode ? "#09090b" : "#ffffff",
-                        border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-                      }}
-                    >
-                      <h4 className="font-black text-base mb-2">
-                        {activeItem.topic}
-                      </h4>
-                      <p className="text-sm opacity-80 leading-relaxed">
-                        {activeItem.summary}
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </>
-          )}
-        </div>
-      )}
+              )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
-
-export default TrendRadar;
-
-
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters }) {
@@ -4695,10 +4162,11 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const displayClusters = savedClusters && savedClusters.length > 0 ? savedClusters : heuristicClusters;
 
   return (
-    // A classe 'px-4' foi REMOVIDA daqui para permitir largura total
-    <div className="animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y space-y-8" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>      
+    <div className="animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y px-4" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+      
       <style jsx="true">{`
-        @keyframes gradient-flow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes fast-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.7; } }
+        @keyframes slow-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
         @keyframes shimmer-text { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
         .animate-shimmer-text { background-size: 200% auto; animation: shimmer-text 3s linear infinite; }
       `}</style>
@@ -4710,109 +4178,112 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
          </div>
       </div>
       
-       {/* ÁREA DE STORIES (agora com seu próprio padding 'px-4') */}
-       <div className="flex items-center gap-4 px-4 pt-2 relative z-10">
-        <div className="flex-1 min-w-0"> 
-            <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
-                {storiesToDisplay && storiesToDisplay
-                    .filter(story => !seenStoryIds?.includes(story.id))
-                    .map((story) => {
-                        const isBreaking = story.isBreaking;
-                        const isAnchor = story.isAnchor;
-                        let ringClass = 'bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-rose-500/20';
-                        let animationClass = '';
-                        let badgeIcon = null;
+      <div className="py-4">
+        <div className="flex items-center gap-4 relative z-10">
+          <div className="flex-1 min-w-0"> 
+              <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
+                  {storiesToDisplay && storiesToDisplay
+                      .filter(story => !seenStoryIds?.includes(story.id))
+                      .map((story) => {
+                          const isBreaking = story.isBreaking;
+                          const isAnchor = story.isAnchor;
+                          let ringClass = 'bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-rose-500/20';
+                          let animationClass = '';
+                          let badgeIcon = null;
 
-                        if (isBreaking) { ringClass = 'bg-red-600 shadow-red-500/40'; animationClass = 'animate-[fast-pulse_1s_ease-in-out_infinite]'; badgeIcon = <Zap size={10} className="text-white"/>;
-                        } else if (isAnchor) { ringClass = 'bg-gradient-to-tr from-yellow-400 via-amber-500 to-orange-500 shadow-amber-500/30'; animationClass = 'animate-[slow-pulse_2.5s_ease-in-out_infinite]'; badgeIcon = <Sparkles size={10} className="text-white"/>; }
+                          if (isBreaking) { ringClass = 'bg-red-600 shadow-red-500/40'; animationClass = 'animate-[fast-pulse_1s_ease-in-out_infinite]'; badgeIcon = <Zap size={10} className="text-white"/>;
+                          } else if (isAnchor) { ringClass = 'bg-gradient-to-tr from-yellow-400 via-amber-500 to-orange-500 shadow-amber-500/30'; animationClass = 'animate-[slow-pulse_2.5s_ease-in-out_infinite]'; badgeIcon = <Sparkles size={10} className="text-white"/>; }
 
-                        return (
-                            <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
-                                <div className={`relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 shadow-lg ${ringClass} ${animationClass}`}>
-                                    <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
-                                        <img src={story.avatar} className="w-full h-full object-cover" alt="" onError={(e) => e.target.style.display = 'none'} />
-                                    </div>
-                                    {badgeIcon && ( <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm border-2 border-white/20 flex items-center justify-center">{badgeIcon}</div> )}
-                                </div>
-                                <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span>
-                            </div>
-                        );
-                    })}
+                          return (
+                              <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
+                                  <div className={`relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 shadow-lg ${ringClass} ${animationClass}`}>
+                                      <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
+                                          <img src={story.avatar} className="w-full h-full object-cover" alt="" onError={(e) => e.target.style.display = 'none'} />
+                                      </div>
+                                      {badgeIcon && ( <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm border-2 border-white/20 flex items-center justify-center">{badgeIcon}</div> )}
+                                  </div>
+                                  <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span>
+                              </div>
+                          );
+                      })}
 
-                {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).length === 0 && (
-                    <div className="flex flex-col justify-center h-full pl-2 opacity-50">
-                        <span className="text-[10px] font-bold uppercase tracking-widest">Tudo visto por aqui</span>
-                        <span className="text-[9px]">Puxe para atualizar</span>
-                    </div>
-                )}
-            </div>
-        </div>
-      </div>
-      
-      {/* TREND RADAR (agora com seu próprio padding 'px-4') */}
-      <div className="px-4">
-        <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} openArticle={openArticle} />
-      </div>
-      
-      {/* A GRANDE MANCHETE (SEM PADDING LATERAL) */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3 px-4">
-            <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                <Sparkles size={18} />
-            </div>
-            <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                As principais notícias de agora, em múltiplos ângulos.
-            </h3>
-        </div>
-        <WhileYouWereAwayWidget 
-          news={newsData} 
-          openArticle={openArticle} 
-          isDarkMode={isDarkMode} 
-          getApiKey={getApiKey}
-          clusters={savedClusters}
-          setClusters={setSavedClusters}
-          displayClusters={displayClusters}
-          onContextReady={() => {}}
-          onTriggerWidgetRotation={onTriggerWidgetRotation}
-          heuristicClusters={heuristicClusters}
-        />
-      </div>
-    
-      {/* SMART DIGEST (agora com seu próprio padding 'px-4') */}
-      <div className="px-4">
-        <SmartDigestWidget 
-            newsData={newsData} 
-            getApiKey={getApiKey}
-            isDarkMode={isDarkMode} 
-            refreshTrigger={refreshTrigger} 
-        />
-      </div>
-      
-      {/* MARKET PULSE (agora com seu próprio padding 'px-4') */}
-      <div className="space-y-4 px-4 pt-4">
-          <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
-                  <TrendingUp size={18} />
+                  {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).length === 0 && (
+                      <div className="flex flex-col justify-center h-full pl-2 opacity-50">
+                          <span className="text-[10px] font-bold uppercase tracking-widest">Tudo visto por aqui</span>
+                          <span className="text-[9px]">Puxe para atualizar</span>
+                      </div>
+                  )}
               </div>
-              <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                  Mercados Hoje
-              </h3>
           </div>
-          <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
-            <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-              <MarketPulseWidget 
-                newsData={newsData}
-                getApiKey={getApiKey}
-                isDarkMode={isDarkMode}
-                openArticle={openArticle}
-              />
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+            <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+                        <Sparkles size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                        As principais notícias de agora, em múltiplos ângulos.
+                    </h3>
+                </div>
+                <WhileYouWereAwayWidget 
+                  news={newsData} 
+                  openArticle={openArticle} 
+                  isDarkMode={isDarkMode} 
+                  getApiKey={getApiKey}
+                  clusters={savedClusters}
+                  setClusters={setSavedClusters}
+                  displayClusters={displayClusters}
+                  onContextReady={() => {}}
+                  onTriggerWidgetRotation={onTriggerWidgetRotation}
+                  heuristicClusters={heuristicClusters}
+                />
             </div>
-          </div>
+            
+            <SmartDigestWidget 
+                newsData={newsData} 
+                getApiKey={getApiKey}
+                isDarkMode={isDarkMode} 
+                refreshTrigger={refreshTrigger} 
+            />
+        </div>
+
+        <div className="space-y-6">
+            <TrendRadar 
+                newsData={newsData} 
+                getApiKey={getApiKey} 
+                isDarkMode={isDarkMode} 
+                openArticle={openArticle} 
+            />
+
+            <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+                        <TrendingUp size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
+                        Mercados Hoje
+                    </h3>
+                </div>
+                <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
+                  <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+                    <MarketPulseWidget 
+                      newsData={newsData}
+                      getApiKey={getApiKey}
+                      isDarkMode={isDarkMode}
+                      openArticle={openArticle}
+                    />
+                  </div>
+                </div>
+            </div>
+        </div>
       </div>
     </div>
   );
 }
-
 
 // ==========================================================
 // === SUBSTITUA SUA FUNÇÃO "BancaTab" INTEIRA POR ESTA ===
@@ -7324,7 +6795,8 @@ return (
              onSearch={handleAskAI} 
           />
 
-<main ref={mainRef} className="flex-1 overflow-y-auto pb-40 scrollbar-hide pt-2">            
+          <main ref={mainRef} className="flex-1 overflow-y-auto pb-40 px-4 md:px-6 scrollbar-hide pt-2">
+            
        {activeTab === 'happening' && (
                 <HappeningTab 
                    openArticle={handleReadNative}
