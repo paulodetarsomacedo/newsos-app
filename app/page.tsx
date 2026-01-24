@@ -21,6 +21,13 @@ import {
 } from 'lucide-react';
 
 
+const stripTags = (html = "") => {
+    if (!html) return "";
+    return html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+};
+
+
+
 const stringToHash = (str) => {
   let hash = 0;
   if (str.length === 0) return hash;
@@ -328,7 +335,7 @@ function CalendarModal({ isOpen, onClose, selectedDate, onSelectDate, isDarkMode
 }
 
 
-function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, selectedSource, onSearch }) {
+function HeaderDashboard({ isDarkMode, onOpenSettings, activeTab, isLoading, selectedSource, onSearch, onOpenPodNews }) {
   const [aiStatus, setAiStatus] = useState("Inicializando sistemas...");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [data, setData] = useState({});
@@ -543,7 +550,6 @@ const triggerSearch = () => {
 
   return (
     <div className="relative z-20 pb-2">
-      {/* O CalendarModal só é renderizado se a data existir */}
       {currentDate && <CalendarModal 
         isOpen={isCalendarOpen} 
         onClose={() => setIsCalendarOpen(false)}
@@ -562,17 +568,13 @@ const triggerSearch = () => {
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 mix-blend-soft-light pointer-events-none"></div>
 
         <div className="relative px-6 pt-6 pb-4 flex flex-col gap-4">
-           {/* --- NOVO LOGO NEWSOS --- */}
-                    <div className="absolute top-2 left-3 flex items-center gap-3 opacity-95">
-                        <div className="w-10 h-10 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
-                            <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
-                        </div>
-                        <span className="text-xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
-                    </div>
+           <div className="absolute top-2 left-3 flex items-center gap-3 opacity-95">
+                <div className="w-10 h-10 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
+                    <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
+                </div>
+                <span className="text-xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
+            </div>
 
-                    <div className="absolute top-0 right-0 z-50 ...">
-
-                    </div>
            <div 
              className="absolute top-0 right-0 z-50 cursor-ew-resize select-none touch-none group"
              onMouseDown={(e) => handleDragStart(e.clientX)}
@@ -584,29 +586,24 @@ const triggerSearch = () => {
              onTouchEnd={handleDragEnd}
            >
               <div 
-                className={`
-                    flex items-center gap-3 px-5 py-3 
-                    rounded-b-2xl border-x border-b border-white/10
-                    bg-black/20 backdrop-blur-xl shadow-lg
-                    transition-all duration-200 ease-out
-                    ${Math.abs(dragOffset) > 0 ? 'translate-y-1 bg-black/40' : 'hover:bg-black/30 hover:pt-4'}
-                `}
+                className={`flex items-center gap-3 px-5 py-3 rounded-b-2xl border-x border-b border-white/10 bg-black/20 backdrop-blur-xl shadow-lg transition-all duration-200 ease-out ${Math.abs(dragOffset) > 0 ? 'translate-y-1 bg-black/40' : 'hover:bg-black/30 hover:pt-4'}`}
                 style={{ transform: `translateX(${dragOffset}px)` }}
               >
                   <ChevronLeft size={14} className={`text-white/40 transition-opacity ${Math.abs(dragOffset) > 0 ? 'opacity-100' : 'group-hover:opacity-100'}`} />
                   <span className="text-sm font-bold text-green-400 whitespace-nowrap tracking-wide flex items-center gap-2 uppercase text-[10px]">
-                      {/* --- CORREÇÃO DE HIDRATAÇÃO APLICADA AQUI --- */}
-                      {/* 3. Renderiza a data apenas se ela já foi definida no cliente */}
                       {currentDate ? formatDate(currentDate) : <>&nbsp;</>}
-                      {/* --- FIM DA CORREÇÃO --- */}
                       <CalendarIcon size={10} className="opacity-50" />
                   </span>
                   <ChevronRight size={14} className={`text-white/40 transition-opacity ${Math.abs(dragOffset) > 0 ? 'opacity-100' : 'group-hover:opacity-100'}`} />
               </div>
            </div>
 
-           <div className="flex justify-between items-center mt-12 transform -translate-x-3">
-              <div className="flex items-center gap-3">
+           {/* ========================================================== */}
+           {/* === A MUDANÇA PRINCIPAL ESTÁ AQUI === */}
+           {/* ========================================================== */}
+           <div className="flex justify-between items-center mt-12">
+              {/* --- Lado Esquerdo: Avatar e Status --- */}
+              <div className="flex items-center gap-3 -translate-x-3">
                  <div onClick={onOpenSettings} className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] cursor-pointer hover:scale-105 transition-transform shadow-lg">
                     <img src="https://ui-avatars.com/api/?name=User&background=000&color=fff" className="rounded-full w-full h-full border-2 border-black" alt="User" />
                  </div>
@@ -620,77 +617,56 @@ const triggerSearch = () => {
                     </div>
                  </div>
               </div>
-              <button 
-                onClick={() => setIsSearchOpen(!isSearchOpen)}
-                className={`
-                    relative z-[60] p-2.5 rounded-xl transition-all duration-500 flex items-center gap-2 border -mr-6
-                    ${isSearchOpen 
-                        ? 'bg-white text-black border-white shadow-[0_0_30px_rgba(255,255,255,0.2)] scale-90' 
-                        : 'bg-white/5 border-white/10 text-white hover:bg-white/10 active:scale-95'}
-                `}
-              >
-                {isSearchOpen ? <X size={18} /> : <Sparkles size={18} className="text-purple-400 animate-pulse" />}
-                {!isSearchOpen && <span className="text-[10px] font-black uppercase tracking-widest px-4">Ask AI</span>}
-              </button>
-           </div>
-           <div className={`
-              grid transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
-              ${isSearchOpen ? 'grid-rows-[1fr] mt-2 mb-2' : 'grid-rows-[0fr] mt-0 mb-0'}
-           `}>
-              <div className="overflow-hidden">
-                <div 
-                    className={`
-                        transition-all duration-500 delay-[50ms] origin-top-right
-                        ${isSearchOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-0 opacity-0 -translate-y-4'}
-                    `}
+
+              {/* --- Lado Direito: PodNews e Ask AI --- */}
+              <div className="flex items-center gap-3">
+                {/* O NOVO BOTÃO PODNEWS */}
+                <button
+                    onClick={onOpenPodNews}
+                    className="group relative flex items-center gap-3 px-4 h-11 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 active:scale-95 transition-all"
                 >
+                    <div className="relative">
+                        <div className="absolute -inset-1 bg-purple-500 rounded-full blur-md opacity-0 group-hover:opacity-50 transition-opacity duration-300 animate-pulse" />
+                        <Headphones size={20} className="relative text-purple-400" />
+                    </div>
+                    <div className="flex flex-col items-start leading-none">
+                        <span className="text-[10px] font-black uppercase tracking-widest">PodNews</span>
+                        <span className="text-[9px] font-bold text-white/60">Resumo 07:00</span>
+                    </div>
+                </button>
+
+                {/* O BOTÃO ASK AI (com margem ajustada) */}
+                <button 
+                  onClick={() => setIsSearchOpen(!isSearchOpen)}
+                  className={`relative z-[60] p-2.5 rounded-xl transition-all duration-500 flex items-center gap-2 border ${isSearchOpen ? 'bg-white text-black border-white shadow-[0_0_30px_rgba(255,255,255,0.2)] scale-90' : 'bg-white/5 border-white/10 text-white hover:bg-white/10 active:scale-95'}`}
+                >
+                  {isSearchOpen ? <X size={18} /> : <Sparkles size={18} className="text-purple-400 animate-pulse" />}
+                  {!isSearchOpen && <span className="text-[10px] font-black uppercase tracking-widest px-4">Ask AI</span>}
+                </button>
+              </div>
+           </div>
+
+           <div className={`grid transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isSearchOpen ? 'grid-rows-[1fr] mt-2 mb-2' : 'grid-rows-[0fr] mt-0 mb-0'}`}>
+              <div className="overflow-hidden">
+                <div className={`transition-all duration-500 delay-[50ms] origin-top-right ${isSearchOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-0 opacity-0 -translate-y-4'}`}>
                     <div className="relative flex items-center bg-white/5 backdrop-blur-3xl border border-white/20 rounded-2xl p-1 shadow-inner">
                         <div className="pl-4 pr-3 text-white/30"><Search size={18} /></div>
-                        <input 
-                            ref={searchInputRef}
-                            type="text" 
-                            autoFocus={isSearchOpen}
-                            placeholder="O que você deseja saber?" 
-                            className="w-full bg-transparent text-white placeholder:text-white/30 text-sm font-medium py-3 outline-none" 
-                            onKeyDown={(e) => {
-        if (e.key === 'Enter' && e.target.value.trim()) {
-            // Ele tenta chamar onSearch. Se onSearch não foi passado no Passo 1, ele quebra aqui.
-            if (onSearch) {
-                onSearch(e.target.value);
-                setIsSearchOpen(false); // Fecha a barra
-            }
-            e.target.value = ''; 
-        }
-    }}
-    // ----------------------------
-/>
+                        <input ref={searchInputRef} type="text" autoFocus={isSearchOpen} placeholder="O que você deseja saber?" className="w-full bg-transparent text-white placeholder:text-white/30 text-sm font-medium py-3 outline-none" onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { if (onSearch) { onSearch(e.target.value); setIsSearchOpen(false); } e.target.value = ''; } }} />
                         <div className="pr-1.5">
-    <button 
-        onClick={triggerSearch} // <--- AQUI ESTÁ A MÁGICA
-        className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg"
-    >
-        <ArrowRight size={16} />
-    </button>
-</div>
+                            <button onClick={triggerSearch} className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg">
+                                <ArrowRight size={16} />
+                            </button>
+                        </div>
                     </div>
                 </div>
               </div>
            </div>
-           <div className={`
-              relative w-full overflow-hidden transition-all duration-700
-              [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]
-              ${isSearchOpen ? 'opacity-20  scale-95 pointer-events-none' : 'opacity-100 scale-100'}
-           `}>
+           
+           <div className={`relative w-full overflow-hidden transition-all duration-700 [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)] ${isSearchOpen ? 'opacity-20  scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
               <style>{`@keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
               <div className="flex w-max animate-[scroll_40s_linear_infinite] hover:[animation-play-state:paused]">
                   {[...TICKERS, ...TICKERS, ...TICKERS].map((item, index) => (
-                      <TickerItem 
-                        key={`${item.id}-${index}`} 
-                        label={item.label} 
-                        value={data[item.id]?.val || '...'} 
-                        up={data[item.id]?.up} 
-                        icon={item.icon} 
-                      />
+                      <TickerItem key={`${item.id}-${index}`} label={item.label} value={data[item.id]?.val || '...'} up={data[item.id]?.up} icon={item.icon} />
                   ))}
               </div>
            </div>
@@ -700,82 +676,55 @@ const triggerSearch = () => {
   );
 }
 
-// --- LIQUID FILTER ---
-
-const SlidingPillFilter = ({ categories, active, onChange, isDarkMode }) => {
-  const tabsRef = useRef([]);
-
-const handleFilterClick = (category) => {
-    // 1. Chama a função original para mudar a categoria
-    onChange(category);
-// 2. Encontra o container do feed e rola para o topo
-    // Como estamos na FeedTab, podemos usar a ref que já existe lá (passando como prop)
-    // ou o seletor 'main' novamente. Vamos usar o seletor por simplicidade.
-    const mainContent = document.querySelector('main');
-    if (mainContent) {
-      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-
+function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
   return (
-    <div className="w-full flex justify-start pl-14 pr-4 sticky top-0 z-30 py-2 pointer-events-none">
-      
+    // 'fixed' é a melhor abordagem para este caso
+<div 
+    className="fixed right-0 z-30 flex flex-col items-end pointer-events-none"
+    style={{ top: 'calc(50% + 40px)', transform: 'translateY(-50%)' }} // <<-- A MÁGICA ESTÁ AQUI
+>      
+      {/* O espaçamento entre os botões foi reduzido */}
       <div className={`
-        pointer-events-auto
-        relative flex items-center
-        w-full p-1 rounded-full 
-        shadow-lg
-        border
+        pointer-events-auto flex flex-col gap-0.5 p-1 rounded-l-2xl border-t border-l border-b
+        shadow-xl
         ${isDarkMode 
-          ? 'bg-zinc-800/60 border-white/10 backdrop-blur-md' 
-          : 'bg-white/60 border-white/30 backdrop-blur-md'}
+          ? 'bg-zinc-900/80 border-white/10 backdrop-blur-md' 
+          : 'bg-white/80 border-zinc-200 backdrop-blur-md'}
       `}>
-        
-        {/* PÍLULA INTERNA - COM INSET PARA SIMETRIA PERFEITA */}
-        <AnimatePresence>
-            {active && (
-                <motion.div
-                    layoutId="activePill"
-                    className={`
-                        absolute inset-1 rounded-full /* <-- MUDANÇA PRINCIPAL AQUI */
-                        ${isDarkMode ? 'bg-zinc-700/60' : 'bg-white/90 shadow-sm'}
-                    `}
-                    initial={false}
-                    animate={{ 
-                        x: tabsRef.current[active]?.offsetLeft || 0,
-                        width: tabsRef.current[active]?.offsetWidth || 0,
-                    }}
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                />
-            )}
-        </AnimatePresence>
-
-        {/* BOTÕES - MENOS ALTURA, MAIS LARGURA */}
-        {categories.map((cat) => {
-          const isActive = active === cat;
-          return (
-            <button 
-              key={cat} 
-              onClick={() => handleFilterClick(cat)}
-              ref={(el) => (tabsRef.current[cat] = el)}
-              className={`
-                relative z-10 px-5 py-1.5 rounded-full /* <-- MUDANÇA AQUI */
-                text-xs font-bold transition-colors duration-300 whitespace-nowrap flex-shrink-0
-                ${isActive 
-      // A CORREÇÃO ESTÁ AQUI:
-      ? 'text-purple-600 dark:text-purple-400' 
-      : (isDarkMode ? 'text-zinc-400 hover:text-zinc-100' : 'text-zinc-500 hover:text-black')}
-  `}
-            >
-              {cat}
-            </button>
-          )
-        })}
+          {categories.map((cat) => {
+            const isActive = active === cat;
+            return (
+              <button 
+                key={cat} 
+                onClick={() => onChange(cat)} 
+                // ==========================================================
+                // === A ALTURA DO BOTÃO (PADDING VERTICAL) FOI REDUZIDA ===
+                // ==========================================================
+                // 'py-5' (40px) foi trocado por 'py-3' (24px)
+                className={`
+                  relative flex items-center justify-center w-10 py-3 rounded-lg
+                  transition-all duration-300
+                  ${isActive 
+                      ? 'bg-purple-600 text-white shadow-lg' 
+                      : (isDarkMode 
+                          ? 'text-zinc-400 hover:bg-white/5 hover:text-white' 
+                          : 'text-zinc-500 hover:bg-black/5 hover:text-black')}
+                `}
+              >
+                  {/* O tamanho da fonte foi ajustado para melhor encaixe */}
+                  <span 
+                    className="text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap" 
+                    style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+                  >
+                      {cat}
+                  </span>
+              </button>
+            )
+          })}
       </div>
     </div>
   );
-};
+}
 
 function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -814,7 +763,7 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
         {selectedSource === 'all' ? (
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
-           <div className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
+           <div className="w-6 h-6 rounded-md overflow-hidden border border-white/20">
               <img 
                 src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
                 className="w-full h-full object-cover"
@@ -1029,6 +978,17 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
 
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "NewsCard" INTEIRA POR ESTA ===
+// ==========================================================
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "NewsCard" INTEIRA POR ESTA ===
+// ==========================================================
+
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "NewsCard" INTEIRA POR ESTA ===
+// ==========================================================
+
 const NewsCard = React.memo(({ 
   news, 
   isSelected, 
@@ -1043,10 +1003,11 @@ const NewsCard = React.memo(({
   onPlay, 
   playingAudio 
 }) => {
-  const displayTime = news.rawDate 
-    ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-    : '...';
+  const [activePill, setActivePill] = useState(null);
+  const readButtonRef = useRef(null);
+  const analyzeButtonRef = useRef(null);
 
+  const displayTime = news.rawDate ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
   const isPlayable = !!news.title;
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
@@ -1084,16 +1045,14 @@ const NewsCard = React.memo(({
 
   return (
     <div 
-      onClick={() => onClick(news)}
+      onClick={() => {
+        setActivePill('read');
+        onClick(news);
+      }}
       style={{ zIndex: isSelected ? 40 : 1 }}
-      className={`
-        group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer
-        transition-all duration-500 ease-out will-change-transform
-        ${isSelected ? 'scale-[1.02]' : 'active:scale-[0.98]'}
-      `}
+      className={`group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer transition-all duration-500 ease-out will-change-transform ${isSelected ? 'scale-[1.02]' : 'active:scale-[0.98]'}`}
     >
       
-      {/* EFEITOS DE AURA */}
       {isSelected && (
         <>
             <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-60 blur-xl animate-pulse transition-all duration-500" />
@@ -1101,107 +1060,106 @@ const NewsCard = React.memo(({
         </>
       )}
 
-      {/* CONTAINER PRINCIPAL */}
-      <div className={`
-        relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem]
-        ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'}
-        ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}
-      `}>
+      <div className={`relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'} ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}`}>
       
-          {/* 
-            ================================================================
-            1. ÁREA DE IMAGEM
-            ================================================================
-          */}
           <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
-            
-            {/* 
-              NOVA LÓGICA:
-              - A imagem agora é absoluta dentro do container.
-              - Ela é maior que o container (h-[calc(100%+1.5rem)]) e posicionada 
-                para baixo (-bottom-6) para cobrir o fundo cinza.
-            */}
-            <img 
-                src={news.img} 
-                alt={news.title}
-                className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6"
-            />
-            
-            {/* Gradiente Inferior para legibilidade do Título */}
+            {/* A CORREÇÃO ESTÁ NA LINHA ABAIXO */}
+            <img src={news.img} alt={news.title} className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6" onError={(e) => e.target.style.display='none'} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-            {/* Gradiente Superior Branco */}
             <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
-            {/* CABEÇALHO "LIQUID" */}
-            <div className="absolute top-6 left-5 flex items-center z-20">
-                <div className="relative z-20 shrink-0 shadow-lg">
-                    <img 
-                        src={news.logo} 
-                        className="w-14 h-14 rounded-2xl bg-white object-contain p-0.5 border-2 border-white shadow-sm" 
-                        onError={(e) => e.target.style.display = 'none'} 
-                        alt={news.source}
-                    />
-                </div>
-                <div className="-ml-5 pl-7 pr-4 py-2 flex items-center bg-white rounded-r-full shadow-md border-y border-r border-zinc-100 relative z-10">
-                    <span className="text-[11px] font-black text-zinc-800 uppercase tracking-widest leading-none">
-                        {news.source}
-                    </span>
-                </div>
-                <div className="ml-2 px-4 py-2 flex items-center bg-white rounded-full shadow-md border border-zinc-100">
-                    <span className="text-xs font-bold text-zinc-600">{displayTime}</span>
-                </div>
-            </div>
+{/* NOVO CABEÇALHO DESCONSTRUÍDO (VERSÃO FINAL CORRIGIDA) */}
+<div className="absolute top-4 left-4 z-20 flex items-center gap-3">
+    
+    {/* 1. LOGO INDEPENDENTE */}
+    <div className="w-12 h-12 rounded-2xl bg-white p-1 shadow-lg border-2 border-white/80">
+        <img 
+            src={news.logo} 
+            className="w-full h-full object-contain rounded-lg" 
+            onError={(e) => e.target.style.display = 'none'} 
+            alt={news.source}
+        />
+    </div>
+    
+    {/* 2. UMA ÚNICA PÍLULA DE INFORMAÇÕES */}
+    <div className="flex items-center gap-4 px-4 py-2 rounded-full bg-black/30 backdrop-blur-md border border-white/70">
+        {/* Nome da Fonte */}
+        <span className="text-[13px] font-black text-white uppercase tracking-widest truncate">
+            {news.source}
+        </span>
+        {/* Hora */}
+        <span className="text-sm font-mono font-bold text-white/70 tracking-wider">
+            {displayTime}
+        </span>
+    </div>
+</div>
 
-            {/* BOTÕES DE AÇÃO */}
-            <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-3">
+            <div className="absolute top-20 right-5 z-20 flex flex-col items-end gap-2">
                 {isRead && (
                     <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
                         Lida
                     </div>
                 )}
-                <div className="flex flex-col items-center gap-3 p-2 rounded-full bg-black/20 backdrop-blur-md border border-white/10 shadow-lg">
-                    <button onClick={(e) => { e.stopPropagation(); if(onToggleLike) onToggleLike(news); }} className={`p-1.5 transition-colors ${isLiked ? 'text-rose-500' : 'text-white/90 hover:text-white'}`}>
+                <div className="flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/60 shadow-lg">
+                    <button onClick={(e) => { e.stopPropagation(); onToggleLike(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`p-1.5 transition-colors ${isSaved ? 'text-purple-500' : 'text-white/90 hover:text-white'}`}>
+                    <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
                         <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
                     </button>
                     {isPlayable && (
-                        <button onClick={(e) => { e.stopPropagation(); if (onPlay) onPlay(news); }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-md group ${isCurrentPlaying ? 'bg-purple-600' : 'bg-green-500 hover:bg-green-400'}`}>
-                            {isGenerating ? (<Loader2 size={14} className="text-white animate-spin" />) : isCurrentPlaying ? (<Pause size={14} fill="white"/>) : (<Play size={14} fill="white" className="ml-0.5" />)}
+                        <button onClick={(e) => { e.stopPropagation(); onPlay(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isCurrentPlaying ? 'text-green-400 bg-green-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                            {isGenerating ? (<Loader2 size={20} className="animate-spin" />) : isCurrentPlaying ? (<Pause size={20} fill="currentColor"/>) : (<Play size={20} fill="currentColor" />)}
                         </button>
                     )}
                 </div>
             </div>
-
           </div>
           
-          {/* PÍLULA FLUTUANTE DE AÇÃO */}
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-            <div className="flex items-center shadow-2xl rounded-full px-0.5 bg-white/80 backdrop-blur border border-white/20">
+            <div className={`relative flex items-center p-1 rounded-full border shadow-2xl ${isDarkMode ? 'bg-zinc-800/60 border-white/10 backdrop-blur-xl' : 'bg-white/70 backdrop-blur-md border border-white/70 shadow-lg'}`}>
+                <AnimatePresence>
+                    {activePill && (
+                        <motion.div
+                            layoutId={`pill-switch-${news.id}`}
+                            className="absolute h-[calc(100%-8px)] rounded-full overflow-hidden"
+                            initial={false}
+                            animate={{
+                                left: activePill === 'read' ? '4px' : 'calc(100% - 132px)',
+                                width: activePill === 'read' ? '68px' : '128px'
+                            }}
+                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                        >
+                            <div className="relative w-full h-full">
+                                <div className="absolute inset-0 bg-gradient-to-br from-green-400 to-emerald-500 opacity-80"></div>
+                                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/30 to-transparent"></div>
+                                <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/20 to-transparent"></div>
+                                <div className="absolute inset-0 rounded-full border border-white/30"></div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onClick(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest text-violet-600 bg-transparent hover:bg-white/10 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); setActivePill('read'); onClick(news); }} 
+                    className="relative z-10 w-[68px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
                 >
-                  Ler
+                    <span className={activePill === 'read' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}>
+                        Ler
+                    </span>
                 </button>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onAnalyze(news); }} 
-                  className="px-6 py-2.5 rounded-full text-[15px] font-black tracking-widest text-white bg-purple-800 hover:brightness-110 transition-all shadow-lg shadow-neutral-100/30 border border-white/10"
+                    onClick={(e) => { e.stopPropagation(); setActivePill('analyze'); onAnalyze(news); }} 
+                    className="relative z-10 w-[128px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
                 >
-                  <Sparkles size={16} className="mr-2 inline text-pink-300 animate-pulse" /> Analisar
+                    <div className={`flex items-center gap-2 ${activePill === 'analyze' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}`}>
+                        <Sparkles size={22} className={`animate-pulse ${activePill === 'analyze' ? 'text-white/80' : 'text-purple-400'}`} />
+                        <span>Analisar</span>
+                    </div>
                 </button>
             </div>
           </div>
-          
-          {/* 
-            ================================================================
-            2. ÁREA DE TEXTO
-            MELHORIA: Padding vertical ainda mais reduzido para diminuir a altura.
-            ================================================================
-          */}
-          <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
+{/* ÁREA DE TEXTO (COM PADDING E LAYOUT CORRIGIDOS PARA APARECER) */}
+ <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
                  <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
@@ -1336,9 +1294,16 @@ function FeedTab({
     >
       <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
       
-      <div className="sticky top-0 z-40 w-full flex justify-center py-2 pointer-events-none">
-          <div className="pointer-events-auto"><SourceSelector news={filteredByCategory} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} /></div>
-          <SlidingPillFilter categories={FEED_CATEGORIES} active={category} onChange={setCategory} isDarkMode={isDarkMode} />
+      <FeedVerticalFilter 
+          categories={FEED_CATEGORIES} 
+          active={category} 
+          onChange={setCategory} 
+          isDarkMode={isDarkMode} 
+      />
+      
+      {/* O SELETOR DE FONTES AGORA FICA PRESO NO TOPO */}
+      <div className="sticky top-0 z-20 py-2">
+        <SourceSelector news={filteredByCategory} selectedSource={sourceFilter} onSelect={setSourceFilter} isDarkMode={isDarkMode} />
       </div>
 
       <div style={{ height: `${pullDistance}px`, opacity: Math.min(pullDistance / 40, 1) }} className="flex items-end justify-center overflow-hidden w-full">
@@ -1347,7 +1312,8 @@ function FeedTab({
          </div>
       </div>
       
-      <div className="flex flex-col gap-4 px-4">
+      {/* O PADDING LATERAL AGORA É APLICADO AQUI, E É MAIOR À DIREITA */}
+      <div className="flex flex-col gap-4 px-4 pr-12">
         {uniqueNews.length === 0 && !isLoading && <div className="text-center py-10 opacity-50"><p>Nenhuma notícia encontrada.</p></div>}
         {uniqueNews.map((news) => (
             <NewsCard 
@@ -1364,6 +1330,7 @@ function FeedTab({
     </div>
   );
 }
+
 // --- OUTROS COMPONENTES E FILTROS ---
 
 function YouTubeVerticalFilter({ categories, active, onChange, isDarkMode }) {
@@ -1863,43 +1830,45 @@ const generateFullAnalysis = async (text, apiKey) => {
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 12000);
 
   const prompt = `
-  Aja como um Analista de Inteligência. Analise o texto:
-  GERE UM JSON ESTRITO (PT-BR):
+  Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
+  
+  GERE UM JSON ESTRITO COM ESTA ESTRUTURA EXATA (Tudo em PT-BR):
   {
     "summaries": {
-      "executive": "Resumo formal (3 parágrafos).",
-      "tldr": "Resumo em 1 frase.",
-      "eli5": "Explicação para criança de 5 anos.",
-      "bullets": ["Ponto 1", "Ponto 2", "Ponto 3"]
+      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos e bem explicados).",
+      "tldr": "Resumo em 1 única frase de impacto (Too Long Didn't Read).",
+      "eli5": "Explicação didática como se fosse para uma criança de 5 anos (analogias).",
+      "bullets": ["Ponto chave 1", "Ponto chave 2", "Ponto chave 3", "Ponto chave 4"]
     },
     "mindmap": {
-      "center": "Tema Central",
-      "nodes": ["A", "B", "C", "D"]
+    "center": "Tema Central (Max 3 palavras)",
+    "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"]
+},
+"contextualTerms": [
+    {
+        "term": "Nó A (Nome exato do nó do mindmap)",
+        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. SEJA DENSO E DETALHADO. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
+        "sentiment": "neutral", 
+        "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
     },
-    "timeline": [
-    { 
-        "label": "Passado (Causa)", 
-        "date": "A data, dia, ou referência temporal EXATA (ex: 'Ontem', '8 de julho') encontrada no texto para este evento.",
-        "event": "O que causou o contexto geral desta notícia?" 
-    },
-    { 
-        "label": "Recente (Gatilho)", 
-        "date": "A data ou referência temporal EXATA do evento que serviu de gatilho.",
-        "event": "Qual foi o evento específico que levou diretamente a esta matéria?" 
-    },
-    { 
-        "label": "Hoje (Fato Principal)", 
-        "date": "A data ou referência temporal EXATA do fato principal de hoje.",
-        "event": "Qual é o fato central e mais importante reportado neste artigo?" 
-    }
+    { "term": "Nó B", "context": "...", "sentiment": "positive", "evidence_quotes": ["..."] },
+    { "term": "Nó C", "context": "...", "sentiment": "negative", "evidence_quotes": ["..."] },
+    { "term": "Nó D", "context": "...", "sentiment": "neutral", "evidence_quotes": ["..."] }
 ],
+    "timeline": [
+                      { "time": "Passado (Causa Raiz)", "event": "O que causou o contexto geral desta notícia?" },
+                      { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
+                      { "time": "Hoje (Fato Principal)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
+                  ],
     "future": {
-      "optimistic": "Melhor caso",
-      "pessimistic": "Pior caso",
-      "probable": "Realista"
+      "optimistic": "Melhor cenário possível a longo prazo.",
+      "pessimistic": "Pior cenário/Riscos envolvidos.",
+      "probable": "O que realmente deve acontecer (análise realista)."
     }
   }
-  TEXTO: ${cleanText}
+
+  TEXTO:
+  ${cleanText}
   `;
 
   try {
@@ -2481,24 +2450,24 @@ const generateTrendRadar = async (news, apiKey) => {
   // === INÍCIO DA ALTERAÇÃO: O NOVO PROMPT ===
   // ==========================================================
   const prompt = `
-  Você é um Analista de Tendências. Analise os títulos das notícias.
-  Sua missão é identificar 8 tópicos com diferentes níveis de impacto (temperatura).
+Você é um Editor de Primeira Página. Analise as notícias e identifique 8 tendências com diferentes níveis de impacto.
 
   REGRAS OBRIGATÓRIAS:
-  1.  **VARIEDADE DE SCORES:** Sua resposta DEVE incluir tópicos em diferentes faixas de score. Gere:
-      - 2 tópicos "MUITO QUENTES" (score 9-10).
-      - 3 tópicos "QUENTES" (score 6-8).
-      - 2 tópicos "MÉDIOS" (score 4-5).
-      - 1 tópico "LEVE" ou "FRIO" (score 1-3).
-  2.  **JSON ESTRITO:** Retorne APENAS um array JSON com 8 objetos.
+  1.  **TÓPICO COMO MANCHETE:** O campo "topic" DEVE ser uma micro-manchete curta e dinâmica (máx. 5 palavras) que explique a tendência.
+      - NÃO FAÇA: "Inflação"
+      - FAÇA: "Inflação Preocupa Mercados Globais"
+      - FAÇA: "Avanço da IA na Saúde"
+  2.  **VARIEDADE DE SCORES:** Sua resposta DEVE incluir tópicos em diferentes faixas de score (quente, médio, frio).
+  3.  **JSON ESTRITO:** Retorne APENAS um array JSON com 8 objetos.
 
   FORMATO DO JSON:
   [
     {
-      "topic": "Nome do Tópico",
+      "topic": "Micro-Manchete da Tendência", // <<-- A GRANDE MUDANÇA
       "score": 1, // Número de 1 a 10
-      "hex": "#3b82f6", // Cor correspondente ao score
+      "hex": "#3b82f6", // Cor correspondente
       "summary": "Um fato curto e direto sobre este tópico."
+      "source_indices": [0, 5, 12]
     }
   ]
 
@@ -3478,112 +3447,179 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) 
 };
 
 
+// ==========================================================
+// === COLE A PARTIR DAQUI, SUBSTITUINDO TUDO ATÉ O FIM DO WIDGET ===
+// ==========================================================
+
 const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
 
-    const clusters = {};
+    // --- CONFIGURAÇÕES DE QUALIDADE PERCEBIDA ---
+    const SOURCE_WEIGHTS = { 'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, };
+    const DEFAULT_WEIGHT = 1;
+    const IMAGE_PREFERRED_SOURCES = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT News', 'Times Brasil', 'Estadao', 'Fox News', '180graus']);
+    const IMAGE_BLOCKED_SOURCES = new Set(['Istoé', 'UOL Economia', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Notícias', 'Money Times']);
+    const SIMILARITY_THRESHOLD = 0.58;
+    const CLUSTER_LIMIT = 5;
+
+    const articles = [...news.slice(0, 200)];
+    let potentialClusters = [];
     const articlesUsed = new Set();
 
-    // 1. Encontra palavras-chave importantes (lógica mantida)
-    const keywordScores = {};
-    const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em']);
-    
-    news.slice(0, 30).forEach(article => {
-        const words = article.title.toLowerCase().replace(/[^a-zà-ú\s]/g, '').split(/\s+/);
-        words.forEach(word => {
-            if (word.length > 4 && !stopWords.has(word)) {
-                keywordScores[word] = (keywordScores[word] || 0) + 1;
+    for (let i = 0; i < articles.length; i++) {
+        if (articlesUsed.has(articles[i].id)) continue;
+        let currentCluster = { related_articles: [articles[i]], sourcesInCluster: new Set([articles[i].source]) };
+        articlesUsed.add(articles[i].id);
+
+        for (let j = i + 1; j < articles.length; j++) {
+            if (articlesUsed.has(articles[j].id)) continue;
+            const similarity = stringSimilarity.compareTwoStrings(articles[i].title, articles[j].title);
+            let threshold = SIMILARITY_THRESHOLD;
+            if (currentCluster.sourcesInCluster.has(articles[j].source)) {
+                threshold = 0.85;
+            }
+            if (similarity >= threshold) {
+                currentCluster.related_articles.push(articles[j]);
+                currentCluster.sourcesInCluster.add(articles[j].source);
+                articlesUsed.add(articles[j].id);
+            }
+        }
+        if (currentCluster.related_articles.length > 1) {
+            potentialClusters.push(currentCluster);
+        }
+    }
+
+    const scoredClusters = potentialClusters.map(cluster => {
+        const uniqueSources = new Set(cluster.related_articles.map(a => a.source));
+        let sourceImpact = 0;
+        uniqueSources.forEach(sourceName => {
+            sourceImpact += (SOURCE_WEIGHTS[sourceName] || DEFAULT_WEIGHT);
+        });
+        const impactScore = cluster.related_articles.length * sourceImpact * uniqueSources.size;
+        return { ...cluster, impactScore };
+    });
+
+    const topClusters = scoredClusters.sort((a, b) => b.impactScore - a.impactScore).slice(0, CLUSTER_LIMIT);
+
+    const finalClusters = topClusters.map(cluster => {
+        let bestArticleForTitle = cluster.related_articles[0];
+        let maxCentrality = 0;
+        cluster.related_articles.forEach(articleA => {
+            let currentCentrality = 0;
+            cluster.related_articles.forEach(articleB => {
+                if (articleA.id !== articleB.id) {
+                    currentCentrality += stringSimilarity.compareTwoStrings(articleA.title, articleB.title);
+                }
+            });
+            if (currentCentrality > maxCentrality) {
+                maxCentrality = currentCentrality;
+                bestArticleForTitle = articleA;
             }
         });
-    });
 
-    // 2. Pega as 5 palavras-chave mais frequentes (lógica mantida)
-    const topKeywords = Object.keys(keywordScores).sort((a, b) => keywordScores[b] - keywordScores[a]).slice(0, 5);
+        const hasRealImageUrl = (url) => url && /\.(jpg|jpeg|png|webp)/i.test(url) && !url.includes('ui-avatars.com');
+        const imageCandidates = cluster.related_articles.filter(a => !IMAGE_BLOCKED_SOURCES.has(a.source) && hasRealImageUrl(a.img));
+        let representativeArticleForImage = imageCandidates.find(a => IMAGE_PREFERRED_SOURCES.has(a.source)) || imageCandidates[0] || bestArticleForTitle;
 
-    // Lista de fontes sem imagem para evitar como capa
-    const blockedSources = new Set(['uol', 'istoé', 'estadao', 'folha', 'investing', 'einvestidor', 'folha', 'moneytimes']);
+        const extractKeyEntities = (articles) => {
+            const wordFrequency = {};
+            const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em', 'no', 'na', 'dos', 'das', 'seu', 'sua']);
+            articles.forEach(article => {
+                const words = article.title.match(/\b[A-Z][a-zà-úA-Z]{2,}\b/g) || [];
+                words.forEach(word => {
+                    const cleanWord = word.toLowerCase();
+                    if (!stopWords.has(cleanWord)) {
+                        wordFrequency[word] = (wordFrequency[word] || 0) + 1;
+                    }
+                });
+            });
+            return Object.keys(wordFrequency).sort((a, b) => wordFrequency[b] - wordFrequency[a]).slice(0, 3);
+        };
 
-    // 3. Monta os cards
-    topKeywords.forEach(keyword => {
-        
-        // Esta lista já contém TODOS os artigos relevantes e NÃO USADOS para a palavra-chave.
-        const allCandidatesForKeyword = news.filter(article =>
-            !articlesUsed.has(article.id) && article.title.toLowerCase().includes(keyword)
-        );
-
-        if (allCandidatesForKeyword.length === 0) return;
-
-        // Lógica para escolher a melhor imagem (prioriza fontes não bloqueadas)
-        const bestImageCandidate = allCandidatesForKeyword.find(article =>
-            !blockedSources.has((article.source || '').toLowerCase())
-        );
-        
-        // Usa o melhor candidato ou, como fallback, o primeiro da lista
-        const representativeArticle = bestImageCandidate || allCandidatesForKeyword[0];
-
-        if (representativeArticle) {
-            
-            // CORREÇÃO: Usamos a lista já filtrada, garantindo consistência.
-            const relatedArticles = allCandidatesForKeyword;
-            
-            // Cria o "cluster falso"
-            clusters[keyword] = {
-                ai_title: representativeArticle.title,
-                representative_image: representativeArticle.img,
-                related_articles: relatedArticles.slice(0, 5) // Limita a 5 logos
-            };
-            
-            // Marca todos os artigos deste cluster como usados para evitar que apareçam em outros.
-            relatedArticles.forEach(a => articlesUsed.add(a.id));
+        const keyEntities = extractKeyEntities(cluster.related_articles);
+        const uniqueSourcesCount = new Set(cluster.related_articles.map(a => a.source)).size;
+        let summaryText = `Notícia coberta por ${uniqueSourcesCount} fontes diferentes.`;
+        if (keyEntities.length > 0) {
+            summaryText += ` A pauta envolve principalmente: ${keyEntities.join(', ')}.`;
         }
+
+        const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+
+        return {
+            ai_title: bestArticleForTitle.title,
+            ai_summary: summaryText,
+            representative_image: representativeArticleForImage.img,
+            related_articles: sortedArticles,
+            keyEntities: keyEntities,
+        };
     });
 
-    return Object.values(clusters);
+    return finalClusters;
 };
 
+const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
+    if (!keywords || keywords.length === 0) {
+        return <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">{text}</p>;
+    }
+    const regex = new RegExp(`(${keywords.join('|')})`, 'gi');
+    const parts = text.split(regex);
+    return (
+        <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">
+            {parts.map((part, index) => {
+                const isKeyword = keywords.some(kw => part.toLowerCase() === kw.toLowerCase());
+                if (isKeyword) {
+                    return (
+                        <button key={index} onClick={() => onKeywordClick(part)}
+                            className={`mx-1 px-1 py-0 rounded-md font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg ${isDarkMode ? 'bg-blue-700 hover:bg-yellow-500/40 text-pink-500' : 'bg-blue-700/50 hover:bg-yellow-200 text-amber-400'}`}>
+                            {part}
+                        </button>
+                    );
+                }
+                return part;
+            })}
+        </p>
+    );
+};
 
-// --- COMPONENTE SKELETON PARA O SMARTNEWS ---
+const KeywordFocusModal = ({ data, onClose, openArticle, isDarkMode }) => {
+    if (!data) return null;
+    const { keyword, articles } = data;
+    return (
+        <div className="fixed inset-0 z-[8000] flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+            <div className={`relative w-full max-w-md h-[70vh] flex flex-col rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white'}`}>
+                <div className={`p-4 border-b flex items-center justify-between shrink-0 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                    <div className="flex items-center gap-2">
+                        <div className={`p-1.5 rounded-lg ${isDarkMode ? 'bg-yellow-500/20' : 'bg-yellow-100'}`}><Search size={16} className="text-yellow-500" /></div>
+                        <h3 className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Foco em: {keyword}</h3>
+                    </div>
+                    <button onClick={onClose} className={`p-2 rounded-full ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-zinc-100'}`}><X size={20}/></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                    {articles.map(article => (
+                        <button key={article.id} onClick={() => openArticle(article)} className={`w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-colors ${isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'}`}>
+                            <img src={article.logo} className="w-8 h-8 rounded-full border border-black/10 shrink-0" onError={(e) => e.target.style.display = 'none'} />
+                            <div className="min-w-0">
+                                <p className={`text-sm font-bold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{article.title}</p>
+                                <span className="text-xs text-zinc-500">{article.source}</span>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
   return (
     <div className="relative p-2">
-      <style jsx="true">{`
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
-        }
-        .animate-shimmer::after {
-          content: '';
-          position: absolute;
-          top: 0;
-          right: 0;
-          bottom: 0;
-          left: 0;
-          transform: translateX(-100%);
-          background-image: linear-gradient(90deg, 
-            rgba(255, 255, 255, 0) 0, 
-            rgba(255, 255, 255, 0.05) 20%, 
-            rgba(255, 255, 255, 0.2) 60%, 
-            rgba(255, 255, 255, 0) 100%
-          );
-          animation: shimmer 2s infinite;
-        }
-      `}</style>
-      <div className={`
-        w-full h-[535px] rounded-2xl overflow-hidden flex flex-col p-6
-        relative animate-shimmer
-        ${isDarkMode 
-          ? 'bg-zinc-900 border border-zinc-800' 
-          : 'bg-zinc-200'}
-      `}>
-        {/* Placeholder para a Imagem */}
+      <style jsx="true">{` @keyframes shimmer { 100% { transform: translateX(100%); } } .animate-shimmer::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; transform: translateX(-100%); background-image: linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, 0.05) 20%, rgba(255, 255, 255, 0.2) 60%, rgba(255, 255, 255, 0) 100%); animation: shimmer 2s infinite; } `}</style>
+      <div className={`w-full h-[535px] rounded-2xl overflow-hidden flex flex-col p-6 relative animate-shimmer ${isDarkMode ? 'bg-zinc-900 border border-zinc-800' : 'bg-zinc-200'}`}>
         <div className={`absolute top-0 left-0 right-0 h-52 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-
-        {/* Placeholder para o Conteúdo */}
         <div className="relative z-10 mt-56">
-          {/* Placeholder para o Título */}
           <div className={`h-8 w-3/4 rounded-lg mb-4 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
           <div className={`h-8 w-1/2 rounded-lg mb-6 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
-          
-          {/* Placeholder para o Resumo */}
           <div className="flex items-start gap-3">
             <div className={`w-1 h-12 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
             <div className="space-y-2 flex-1">
@@ -3591,8 +3627,6 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
               <div className={`h-4 w-5/6 rounded-lg ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
             </div>
           </div>
-
-          {/* Placeholder para os Logos */}
           <div className="flex items-center gap-3 mt-auto pt-6">
             <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
             <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
@@ -3604,29 +3638,25 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
   );
 };
 
-
-
-// --- WIDGET: CONTEXTO GLOBAL (V5 - LAYOUT FINAL CORRIGIDO CONFORME PRINT "GROENLÂNDIA") ---
-const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation }) => {
+const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, onContextReady, onTriggerWidgetRotation, heuristicClusters }) => {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
+  const [focusModalData, setFocusModalData] = useState(null);
 
-  // Garante que o fallback heurístico tenha a mesma estrutura de dados que a IA
-  const heuristicClusters = useMemo(() => {
-    if (clusters && clusters.length > 0) return [];
-    const generated = generateHeuristicClusters(news);
-    // Adiciona o campo ai_summary para consistência de design
-    return generated.map(cluster => ({
-      ...cluster,
-      ai_summary: cluster.ai_summary || 'Clique em "Analisar" para obter um resumo detalhado gerado por IA sobre este tópico.'
-    }));
-  }, [news, clusters]);
+  useEffect(() => {
+    setFocusModalData(null);
+  }, [activeIndex]);
 
-const runAI = async () => {
-    // 1. CHAMA A FUNÇÃO PARA PEGAR UMA NOVA CHAVE NO MOMENTO DO CLIQUE
-    const currentApiKey = getApiKey('widgets'); // Especifica o pool de widgets
-    
+  const handleKeywordClick = (keyword) => {
+    const related = news.filter(article => 
+        article.title.toLowerCase().includes(keyword.toLowerCase())
+    );
+    setFocusModalData({ keyword, articles: related });
+  };
+
+  const runAI = async () => {
+    const currentApiKey = getApiKey('widgets');
     if (!currentApiKey) {
       alert("Configure sua API Key de Widgets nas configurações primeiro.");
       return;
@@ -3637,14 +3667,13 @@ const runAI = async () => {
     }
 
     setLoading(true);
-    setClusters(null);
+    setClusters(null); // Usa a prop setClusters vinda do componente pai
     await new Promise(r => setTimeout(r, 800));
     
-    // 2. USA A CHAVE RECÉM-BUSCADA PARA CHAMAR A IA
     const result = await generateSmartClustering(news, currentApiKey, 300);
     
     if (result) {
-      setClusters(result);
+      setClusters(result); // Atualiza o estado no componente pai
     } else {
       alert("A IA não encontrou correlações suficientes no momento. Tente novamente mais tarde.");
     }
@@ -3666,6 +3695,8 @@ const runAI = async () => {
     }
   };
   
+  // A LÓGICA DE DECISÃO AGORA É FEITA NO COMPONENTE PAI.
+  // ESTE COMPONENTE APENAS USA A PROP 'heuristicClusters' QUE RECEBE.
   const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
 
   if (loading) {
@@ -3679,11 +3710,9 @@ const runAI = async () => {
     );
   }
 
-// Renderização de Fallback (sem notícias) ou Skeleton inicial
   if (!displayClusters || displayClusters.length === 0) {
       return (
         <div>
-            {/* Texto inteligente que aparece sobre o skeleton */}
             <div className="px-6 pb-2 text-center">
                 <p className={`text-xl font-medium animate-pulse ${isDarkMode ? 'text-purple-500' : 'text-purple-400'}`}>
                     Analisando as últimas notícias para você...
@@ -3722,8 +3751,7 @@ const runAI = async () => {
                 : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
             `}>
 
-              {/* === BLOCO 1: IMAGEM E TEXTO SOBREPOSTO (ALTURA DOMINANTE) === */}
-              <div className="relative w-full flex-grow h-[535px] bg-zinc-800"> {/* h-80 para uma altura bem maior */}
+              <div className="relative w-full flex-grow h-[535px] bg-zinc-800">
                 <img
                   src={cluster.representative_image}
                   className="w-full h-full object-cover"
@@ -3741,21 +3769,22 @@ const runAI = async () => {
                   </div>
                 </div>
 
-                {/* Container do texto sobreposto, posicionado na parte inferior */}
                 <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                   <h2 className="text-3xl lg:text-4xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-3">
                     {cluster.ai_title}
                   </h2>
                   <div className="flex items-start gap-3">
                     <div className="w-1 h-auto self-stretch bg-purple-400 rounded-full flex-shrink-0" />
-                    <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">
-                      {cluster.ai_summary}
-                    </p>
+                   <HighlightedSummary 
+                      text={cluster.ai_summary}
+                      keywords={cluster.keyEntities}
+                      onKeywordClick={(keyword) => handleKeywordClick(keyword, cluster.related_articles)}
+                      isDarkMode={isDarkMode}
+                  />
                   </div>
                 </div>
               </div>
 
-              {/* === BLOCO 2: LOGOS DAS FONTES (ÁREA BRANCA/CLARA) === */}
               <div className="px-6 py-4">
                 <div className="flex flex-wrap items-center gap-3">
                   {cluster.related_articles.map(article => (
@@ -3775,7 +3804,6 @@ const runAI = async () => {
         ))}
       </div>
 
-      {/* INDICADOR DO CARROSSEL */}
       {displayClusters.length > 1 && (
         <div className="flex justify-center gap-2 mt-4 pb-4">
           {displayClusters.map((_, idx) => (
@@ -3783,11 +3811,18 @@ const runAI = async () => {
           ))}
         </div>
       )}
+
+      {focusModalData && (
+          <KeywordFocusModal 
+              data={focusModalData}
+              onClose={() => setFocusModalData(null)}
+              openArticle={openArticle}
+              isDarkMode={isDarkMode}
+          />
+      )}
     </div>
   );
 };
-
-
 
 
 
@@ -3860,7 +3895,7 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // ✅ Termômetro agora é horizontal (0–10)
 // ✅ Cards menores, agrupados horizontalmente por faixas de temperatura (colunas)
 // ✅ Texto legível: dark = branco, light = preto/cinza escuro
-const TrendRadar = ({ newsData, getApiKey, isDarkMode }) => {
+const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
@@ -3913,8 +3948,20 @@ const runTrendAnalysis = async () => {
     // ==========================================================
     if (data && Array.isArray(data) && data.length > 0) {
       // 1. Ordena os dados recebidos pelo score
-      const sortedData = data.sort((a, b) => b.score - a.score);
+
+
+       const hydratedData = data.map(trend => {
+        const relatedArticles = trend.source_indices
+            ? trend.source_indices.map(index => newsData[index]).filter(Boolean)
+            : [];
+        return { ...trend, related_articles: relatedArticles };
+    });
+
+    const sortedData = hydratedData.sort((a, b) => b.score - a.score);
       
+
+
+
       // 2. Atualiza o estado 'trends' com os novos dados
       setTrends(sortedData);
       
@@ -4110,8 +4157,11 @@ const runTrendAnalysis = async () => {
                                 <button
                                   key={item.__originalIndex}
                                   onClick={() => handleToggle(item.__originalIndex)}
-                                  className="w-full text-left transition-transform active:scale-[0.99]"
-                                  style={{ outline: 'none' }}
+                                  className="w-full text-left transition-transform active:scale-[0.99] animate-in fade-in" // Adicione 'animate-in fade-in'
+  // ===================================
+  // === ADICIONE O ESTILO ABAIXO ===
+  // ===================================
+  style={{ animationDelay: `${item.__originalIndex * 50}ms` }}
                                 >
                                   <div
                                     className="rounded-xl px-3 py-2"
@@ -4130,9 +4180,9 @@ const runTrendAnalysis = async () => {
   style={{
     color: titleColor,
     fontSize: '12px',
-    lineHeight: '1.15',
+    lineHeight: '1.2',
     display: '-webkit-box',
-    WebkitLineClamp: 2,          // até 2 linhas
+    wordBreak: 'break-word',        // até 2 linhas
     WebkitBoxOrient: 'vertical',
     overflow: 'hidden',
   }}
@@ -4183,59 +4233,108 @@ const runTrendAnalysis = async () => {
                 </div>
               </div>
 
-              {/* ========================================================== */}
-              {/* === ÁREA DO BALÃO CORRIGIDA (COM ALTURA DINÂMICA) === */}
-              {/* ========================================================== */}
-              <div className={`
-                grid transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
-                ${activeItem ? 'grid-rows-[1fr] mt-8' : 'grid-rows-[0fr] mt-0'}
-              `}>
-                <div className="overflow-hidden min-h-0">
-                  <AnimatePresence>
-                    {activeItem && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.3 }}
-                        // A altura agora é definida aqui dentro
-                        className="h-36"
-                      >
-                        <div
-                          className={`w-full h-full p-5 rounded-2xl flex flex-col gap-2 ${
-                            isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
-                          }`}
-                          style={{
-                            border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-                            boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
-                          }}
-                        >
-                          <div className="flex items-center justify-between border-b border-dashed border-zinc-700/50 pb-2 mb-1">
-                            <span
-                              className="text-[10px] font-black uppercase tracking-widest"
-                              style={{ color: getTrendStyle(activeItem.score).color }}
-                            >
-                              Impacto: {activeItem.score}/10
-                            </span>
-                            <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
-                              <div
-                                className="h-full rounded-full"
-                                style={{
-                                  width: `${activeItem.score * 10}%`,
-                                  backgroundColor: getTrendStyle(activeItem.score).color,
-                                }}
-                              />
-                            </div>
-                          </div>
-                          <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                            {activeItem.summary}
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+              {/* ÁREA DO BALÃO CORRIGIDA (COM ALTURA DINÂMICA) */}
+<div className={`
+  grid transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
+  ${activeItem ? 'grid-rows-[1fr] mt-8' : 'grid-rows-[0fr] mt-0'}
+`}>
+  <div className="overflow-hidden min-h-0">
+    <AnimatePresence>
+      {activeItem && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.3 }}
+          // ==========================================================
+          // === REMOVA a altura fixa 'h-36' daqui, se ela existir ===
+          // ==========================================================
+        >
+          <div
+            className={`w-full p-5 rounded-2xl flex flex-col gap-4 ${ // Aumentei o gap
+              isDarkMode ? 'bg-zinc-900 text-zinc-200' : 'bg-white text-zinc-800'
+            }`}
+            style={{
+              border: `2px solid ${getTrendStyle(activeItem.score).color}`,
+              boxShadow: `0 10px 30px -10px ${getTrendStyle(activeItem.score).color}40`,
+            }}
+          >
+            {/* --- CABEÇALHO DO BALÃO (Mantido) --- */}
+            <div className="border-b border-dashed border-zinc-700/50 pb-2 mb-2">
+    {/* O CÓDIGO ANTIGO TINHA UM <span> AQUI. VAMOS SUBSTITUIR. */}
+
+    {/* ========================================================== */}
+    {/* === NOVO: BARRA DE TEMPERATURA E TEXTO ALINHADOS === */}
+    {/* ========================================================== */}
+    <div className="flex items-center justify-between">
+        <span
+            className="text-[10px] font-black uppercase tracking-widest"
+            style={{ color: getTrendStyle(activeItem.score).color }}
+        >
+            NÍVEL DE IMPACTO
+        </span>
+        <div className="h-1.5 w-20 rounded-full bg-black/20 dark:bg-white/10 overflow-hidden">
+            <div
+                className="h-full rounded-full"
+                style={{
+                    width: `${activeItem.score * 10}%`,
+                    backgroundColor: getTrendStyle(activeItem.score).color,
+                    transition: 'width 0.5s ease-out'
+                }}
+            />
+        </div>
+    </div>
+</div>
+
+            {/* --- RESUMO (Mantido) --- */}
+            <p className={`text-sm leading-relaxed ...`}>
+              {activeItem.summary}
+            </p>
+
+            {/* ========================================================== */}
+            {/* === NOVO: SEÇÃO DE NOTÍCIAS RELACIONADAS === */}
+            {/* ========================================================== */}
+            {activeItem.related_articles && activeItem.related_articles.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">
+                  Fontes Analisadas
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {activeItem.related_articles.slice(0, 5).map(article => (
+        <button
+          key={article.id}
+          // ============================================
+          // === AQUI ESTÁ A MUDANÇA NO ONCLICK ===
+          // ============================================
+          onClick={() => openArticle(article)} 
+          className="transition-transform hover:scale-110"
+          title={article.title}
+        >
+          <img src={article.logo} className="w-6 h-6 rounded-full border border-black/10" />
+        </button>
+      ))}
                 </div>
               </div>
+            )}
+            
+            {/* ========================================================== */}
+            {/* === NOVO: BOTÕES DE AÇÃO "APROFUNDAR" === */}
+            {/* ========================================================== */}
+            <div className="flex gap-2 pt-2 border-t border-dashed border-zinc-700/50">
+                <a href={`https://pt.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(activeItem.topic)}`} target="_blank" className={`flex-1 text-center py-2 rounded-lg text-[10px] font-bold ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
+                    Ver na Wikipedia
+                </a>
+                <a href={`https://www.google.com/search?q=${encodeURIComponent(activeItem.topic)}`} target="_blank" className={`flex-1 text-center py-2 rounded-lg text-[10px] font-bold ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
+                    Buscar no Google
+                </a>
+            </div>
+
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+</div>
             </div>
           ) : (
             <div className="h-48 flex flex-col items-center justify-center text-center">
@@ -4261,17 +4360,12 @@ const runTrendAnalysis = async () => {
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation }) {
-  const [isPodcastOpen, setIsPodcastOpen] = useState(false);
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters }) {
+ 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [startY, setStartY] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-
-
-  // --- NOVO ESTADO ---
-  // Este estado será atualizado pelo componente filho (WhileYouWereAwayWidget)
   const [isContextLoading, setIsContextLoading] = useState(true);
 
   const handleTouchStart = (e) => {
@@ -4303,44 +4397,18 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     setStartY(0);
   };
 
-  const trending = [
-    { id: 1, title: 'IA Generativa: O novo marco regulatório começa a valer hoje na Europa', source: 'Politico', time: '15m', img: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&q=80' },
-    { id: 2, title: 'Final da Champions: Real Madrid e City se enfrentam em jogo histórico', source: 'ESPN', time: '45m', img: 'https://images.unsplash.com/photo-1522778119026-d647f0565c6a?w=600&q=80' },
-    { id: 3, title: 'Bitcoin atinge nova máxima histórica com aprovação de ETF', source: 'Bloomberg', time: '2h', img: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=600&q=80' }
-  ];
-
-<style jsx="true">{`
-  @keyframes bar-shimmer {
-    0% {
-      background-position: 0% 0;
-    }
-    100% {
-      background-position: 200% 0;
-    }
-  }
-`}</style>
+  // LÓGICA DE DECISÃO CENTRALIZADA: Define qual lista de clusters será exibida
+  const displayClusters = savedClusters && savedClusters.length > 0 ? savedClusters : heuristicClusters;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       
       <style jsx="true">{`
-        @keyframes gradient-flow {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        /* Animação de texto cintilante */
-        @keyframes shimmer-text {
-            0% { background-position: 200% center; }
-            100% { background-position: -200% center; }
-        }
-        .animate-shimmer-text {
-            background-size: 200% auto;
-            animation: shimmer-text 3s linear infinite;
-        }
+        @keyframes gradient-flow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes shimmer-text { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
+        .animate-shimmer-text { background-size: 200% auto; animation: shimmer-text 3s linear infinite; }
       `}</style>
       
-      {/* Indicador de Loading (Pull to refresh) */}
       <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '35%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 || isRefreshing ? 'flex' : 'none' }}>
          <div className={`flex flex-col items-center gap-3 p-6 rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-black/5 border-white/10 shadow-purple-500/20' : 'bg-white/90 border-white shadow-xl text-zinc-900'}`}>
             {isRefreshing ? <Loader2 size={42} className="animate-spin text-purple-500" /> : <RefreshCw size={42} className="text-purple-500 transition-transform" style={{ transform: `rotate(${pullDistance * 3}deg)` }}/>}
@@ -4348,58 +4416,47 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
          </div>
       </div>
       
-      {/* Área de Stories */}
        <div className="flex items-center gap-4 px-2 pt-2 relative z-10">
         <div className="flex-1 min-w-0"> 
             <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
-                
-                {/* LÓGICA DE FILTRO VISUAL: Filtra os vistos SÓ aqui no visual */}
                 {storiesToDisplay && storiesToDisplay
                     .filter(story => !seenStoryIds?.includes(story.id))
-                    .map((story) => (
-                    <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
-                        <div className="relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-lg shadow-rose-500/20">
-                            <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
-                                <img src={story.avatar} className="w-full h-full object-cover" alt="" onError={(e) => e.target.style.display = 'none'} />
-                            </div>
-                        </div>
-                        <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                            {story.name}
-                        </span>
-                    </div>
-                ))}
+                    .map((story) => {
+                        const isBreaking = story.isBreaking;
+                        const isAnchor = story.isAnchor;
+                        let ringClass = 'bg-gradient-to-tr from-rose-600 via-pink-500 to-orange-400 shadow-rose-500/20';
+                        let animationClass = '';
+                        let badgeIcon = null;
 
-                {/* MENSAGEM SE TUDO FOI VISTO */}
+                        if (isBreaking) { ringClass = 'bg-red-600 shadow-red-500/40'; animationClass = 'animate-[fast-pulse_1s_ease-in-out_infinite]'; badgeIcon = <Zap size={10} className="text-white"/>;
+                        } else if (isAnchor) { ringClass = 'bg-gradient-to-tr from-yellow-400 via-amber-500 to-orange-500 shadow-amber-500/30'; animationClass = 'animate-[slow-pulse_2.5s_ease-in-out_infinite]'; badgeIcon = <Sparkles size={10} className="text-white"/>; }
+
+                        return (
+                            <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0">
+                                <div className={`relative w-[76px] h-[76px] rounded-full p-[3px] transition-all duration-500 shadow-lg ${ringClass} ${animationClass}`}>
+                                    <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
+                                        <img src={story.avatar} className="w-full h-full object-cover" alt="" onError={(e) => e.target.style.display = 'none'} />
+                                    </div>
+                                    {badgeIcon && ( <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm border-2 border-white/20 flex items-center justify-center">{badgeIcon}</div> )}
+                                </div>
+                                <span className={`text-[10px] font-semibold truncate max-w-[76px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span>
+                            </div>
+                        );
+                    })}
+
                 {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).length === 0 && (
                     <div className="flex flex-col justify-center h-full pl-2 opacity-50">
                         <span className="text-[10px] font-bold uppercase tracking-widest">Tudo visto por aqui</span>
                         <span className="text-[9px]">Puxe para atualizar</span>
                     </div>
                 )}
-
             </div>
-        </div>
-
-        {/* BOTÃO DO PODCAST (Lateral Direita) */}
-        <div className="flex-shrink-0 pl-2 border-l border-dashed border-zinc-300 dark:border-zinc-700">
-            <button onClick={() => setIsPodcastOpen(true)} className="group relative flex flex-col items-center justify-center gap-1.5 w-20 transition-all hover:scale-105 active:scale-95">
-                <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                    <Sparkles size={14} className="absolute top-1 right-1 text-white/60 animate-pulse" />
-                    <Headphones size={20} className="text-white" />
-                </div>
-                <div className="text-center leading-none">
-                    <span className={`block text-[10px] font-black uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</span>
-                    <span className="text-[8px] text-purple-500 font-bold">07:00</span>
-                </div>
-            </button>
         </div>
       </div>
       
-      <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} />
-
-  {/* --- SEÇÃO DO CONTEXTO GLOBAL ATUALIZADA COM LAYOUT CORRIGIDO --- */}
+      <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} openArticle={openArticle} />
+      
       <div className="space-y-4">
-        {/* TÍTULO PRINCIPAL DA SEÇÃO */}
         <div className="flex items-center gap-3 px-4">
             <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
                 <Sparkles size={18} />
@@ -4408,33 +4465,28 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                 As principais notícias de agora, em múltiplos ângulos.
             </h3>
         </div>
-
-     
-            <WhileYouWereAwayWidget 
-              news={newsData} 
-              openArticle={openArticle} 
-              isDarkMode={isDarkMode} 
-              getApiKey={getApiKey}
-              clusters={savedClusters}
-              setClusters={setSavedClusters}
-              onContextReady={() => {}} // onContextReady pode ser ajustado se necessário
-              // A "PONTE": Repassa a função que veio do avô
+        <WhileYouWereAwayWidget 
+          news={newsData} 
+          openArticle={openArticle} 
+          isDarkMode={isDarkMode} 
+          getApiKey={getApiKey}
+          clusters={savedClusters}
+          setClusters={setSavedClusters}
+          displayClusters={displayClusters}
+          onContextReady={() => {}}
           onTriggerWidgetRotation={onTriggerWidgetRotation}
+          heuristicClusters={heuristicClusters}
         />
-       
-          </div>
+      </div>
     
-
       <SmartDigestWidget 
           newsData={newsData} 
-         getApiKey={getApiKey}
+          getApiKey={getApiKey}
           isDarkMode={isDarkMode} 
           refreshTrigger={refreshTrigger} 
       />
       
-     {/* --- NOVA SEÇÃO DE MERCADOS --- */}
       <div className="space-y-4 px-2">
-          {/* TÍTULO DA SEÇÃO */}
           <div className="flex items-center gap-3 px-4">
               <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
                   <TrendingUp size={18} />
@@ -4443,51 +4495,159 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                   Mercados Hoje
               </h3>
           </div>
-
-          {/* CONTORNO ROXO ENVOLVENDO O WIDGET */}
           <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
             <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
               <MarketPulseWidget 
                 newsData={newsData}
-                getApiKey={getApiKey} // Repassa a função
+                getApiKey={getApiKey}
                 isDarkMode={isDarkMode}
                 openArticle={openArticle}
               />
             </div>
           </div>
       </div>
-
-      {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
   );
 }
 
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "BancaTab" INTEIRA POR ESTA ===
+// ==========================================================
 
-
-function BancaTab({ openOutlet, isDarkMode }) {
+function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
   const [category, setCategory] = useState('Tudo');
-  const displayedItems = category === 'Tudo' ? BANCA_ITEMS : BANCA_ITEMS.filter(i => i.category === category);
 
-  return (
+  // DICIONÁRIO DE LOGOS COMPLETO E RESTAURADO
+  const LOGO_DICTIONARY = {
+    'cnn brasil': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/CNN_Brasil.svg/1280px-CNN_Brasil.svg.png',
+    'o globo': 'https://upload.wikimedia.org/wikipedia/commons/9/9b/O_Globo_2025.svg',
+    'notícias ao minuto': 'logos/noticiasao.png', 
+    'veja': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Veja.svg/1280px-Veja.svg.png',
+    'infomoney': 'https://logodownload.org/wp-content/uploads/2019/09/infomoney-logo.png',
+    'macmagazine': 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png',
+    'le monde': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Le_Monde.svg/2560px-Le_Monde.svg.png',
+    'appleinsider': 'logos/insider.png',
+    '9to5mac': 'logos/9to.png',
+    'times brasil': 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Times_Brasil_CNBC_logo_2025.svg',
+    'quatro rodas': '/logos/quatro-rodas.png',
+    'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
+    'fox news': 'logos/fox2.png'
+  };
+
+  const layoutStyles = [
+    { layoutType: 'standard', color: 'bg-blue-800' },
+    { layoutType: 'magazine', color: 'bg-black' },
+    { layoutType: 'visual', color: 'bg-yellow-500 text-black' }, // Restaurado
+    { layoutType: 'impact', color: 'bg-red-700' },             // Novo
+    { layoutType: 'minimal', color: 'bg-gray-200 text-black' },
+    { layoutType: 'grid', color: 'bg-zinc-900' },               // Novo
+];
+
+  const bancaFeeds = useMemo(() => {
+    if (!userFeeds || !realNews) return [];
+    
+    return userFeeds
+        .filter(feed => feed.display?.banca)
+        .map((feed, index) => {
+            const latestHeadlines = realNews.filter(news => news.source === feed.name).slice(0, 2);
+            let finalLogo = feed.logo;
+            const lowerName = feed.name.toLowerCase();
+            
+            for (const key in LOGO_DICTIONARY) {
+                if (lowerName.includes(key)) {
+                    finalLogo = LOGO_DICTIONARY[key];
+                    break;
+                }
+            }
+            
+            return {
+                ...feed,
+                logo: finalLogo,
+                ...layoutStyles[index % layoutStyles.length],
+                latestHeadlines: latestHeadlines,
+            };
+        });
+  }, [userFeeds, realNews]);
+
+  const bancaCategories = useMemo(() => {
+    if (!bancaFeeds || bancaFeeds.length === 0) return ['Tudo'];
+    const categories = new Set(bancaFeeds.map(feed => feed.category || 'Geral'));
+    return ['Tudo', ...Array.from(categories)];
+  }, [bancaFeeds]);
+
+  const displayedItems = category === 'Tudo' ? bancaFeeds : bancaFeeds.filter(i => (i.category || 'Geral') === category);
+
+return (
     <div className="pt-2 pb-24 pr-16 animate-in zoom-in-95 duration-500 min-h-screen">
       <div className="fixed right-0 top-[25%] z-30 flex flex-col gap-1 items-end pointer-events-none">
-          {BANCA_CATEGORIES.map((cat) => (
-              <button key={cat} onClick={() => setCategory(cat)} className={`pointer-events-auto relative flex items-center justify-center w-10 py-6 rounded-l-xl rounded-r-none shadow-lg border-y border-l border-r-0 transition-all duration-300 ${category === cat ? 'bg-purple-500 text-white border-white-400 translate-x-0 w-12' : (isDarkMode ? 'bg-zinc-900 text-zinc-500 border-zinc-800 translate-x-2 hover:translate-x-0' : 'bg-zinc-200 text-zinc-400 border-zinc-300 translate-x-2 hover:translate-x-0')}`}>
+          {bancaCategories.map((cat) => (
+              <button key={cat} onClick={() => setCategory(cat)} className={`pointer-events-auto relative flex items-center justify-center w-10 py-6 rounded-l-xl rounded-r-none shadow-lg border-y border-l border-r-0 transition-all duration-300 ${category === cat ? 'bg-purple-500 text-white border-purple-400 translate-x-0 w-12' : (isDarkMode ? 'bg-zinc-900 text-zinc-500 border-zinc-800 translate-x-2 hover:translate-x-0' : 'bg-zinc-200 text-zinc-400 border-zinc-300 translate-x-2 hover:translate-x-0')}`}>
                   <span className="text-[12px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}>{cat}</span>
               </button>
           ))}
       </div>
-      <h2 className={`text-xl font-bold mb-6 px-2 mt-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}><LayoutGrid size={20} className="text-emerald-600"/> Banca de Jornais</h2>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
-        {displayedItems.map((item) => (
-          <div key={item.id} onClick={() => openOutlet(item)} className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 group ${item.color}`}>
-            <div className="p-4 flex justify-center border-b border-white/20 relative z-20 bg-black/10 backdrop-blur-sm"><span className={`font-black tracking-tighter text-2xl uppercase ${item.id === 3 || item.id === 4 ? 'text-black' : 'text-white'}`}>{item.logo}</span></div>
-            <div className="flex-1 relative p-4 flex flex-col justify-end"><h3 className={`font-serif font-bold leading-tight text-lg ${item.id === 3 || item.id === 4 ? 'text-black' : 'text-white'}`}>{item.headline}</h3></div>
+      
+      <h2 className={`text-xl font-bold mb-6 px-2 mt-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+        <LayoutGrid size={20} className="text-emerald-600"/> Sua Banca Pessoal
+      </h2>
+      
+      {displayedItems.length === 0 && (
+          <div className="flex flex-col items-center justify-center text-center py-20 opacity-60 px-4">
+              <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+                  <LayoutGrid size={24} className="text-zinc-400"/>
+              </div>
+              <h3 className="font-bold text-lg mb-2">Sua banca está vazia</h3>
+              <p className="text-sm max-w-xs">Vá em Configurações → Fontes e clique no ícone de banca <LayoutGrid size={12} className="inline-block -mt-1"/> ao lado de suas fontes favoritas para adicioná-las aqui.</p>
           </div>
-        ))}
+      )}
+
+     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
+        {displayedItems.map((item) => {
+          // A variável é definida aqui, de forma segura
+          const mainHeadline = item.latestHeadlines?.[0];
+
+          return (
+            <div key={item.id} onClick={() => openOutlet(item)} 
+                 className={`relative aspect-[3/4] rounded-2xl flex flex-col cursor-pointer overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group`}>
+              
+              {/* SEU CABEÇALHO (INTOCADO) */}
+              <div className={`h-1/3 flex items-center justify-center p-4 ${isDarkMode ? 'bg-zinc-700' : 'bg-gray-100'}`}>
+                  <img 
+                      src={item.logo} 
+                      alt={item.name} 
+                      className="max-h-full max-w-full object-contain drop-shadow-lg p-2"
+                  />
+              </div>
+              
+              {/* O NOVO "TEASER VISUAL" SUBSTITUINDO A LISTA DE TEXTO */}
+              <div className="flex-1 flex flex-col justify-end relative bg-white dark:bg-zinc-800">
+                {mainHeadline?.img ? (
+                    <>
+                        <img src={mainHeadline.img} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" onError={(e) => {e.target.style.display='none'}} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent"></div>
+                    </>
+                ) : (
+                    <div className={`absolute inset-0 ${isDarkMode ? 'bg-zinc-800' : 'bg-white'}`}></div>
+                )}
+                
+                <div className="relative p-3">
+                    <h3 className={`font-serif font-bold leading-tight text-lg line-clamp-3 ${mainHeadline?.img ? 'text-white drop-shadow-lg' : (isDarkMode ? 'text-zinc-200' : 'text-zinc-800')}`}>
+                        {mainHeadline ? mainHeadline.title : `Destaques de ${item.name}`}
+                    </h3>
+                    <p className={`text-xs mt-1 opacity-80 ${mainHeadline?.img ? 'text-white/80' : 'text-zinc-500'}`}>
+                        {item.latestHeadlines && item.latestHeadlines.length > 1 
+                            ? `Leia a matéria principal e +${item.latestHeadlines.length - 1} destaques` 
+                            : 'Leia a matéria principal'
+                        }
+                    </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
-  ); 
+  );
 }
 
 // --- NOVO FILTRO MODERNO E MINIMALISTA (PARA A ABA SALVOS) ---
@@ -5007,26 +5167,21 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 
   // --- HANDLER DE FECHAR (FORÇA BRUTA) ---
   const handleClose = (e) => {
-      // 1. Para propagação imediatamente
-      if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      
-      // 2. Tenta limpar o áudio, mas se falhar, ignora e fecha mesmo assim
-      try {
-          if (audioRef.current) {
-              audioRef.current.pause();
-              audioRef.current.currentTime = 0;
-              audioRef.current.src = ""; // Mata o download
-          }
-      } catch (err) {
-          console.warn("Erro ao limpar áudio no fechamento (ignorado):", err);
-      }
-      
-      // 3. FECHA O COMPONENTE PAI (Isso é o mais importante)
-      if (onClose) onClose();
-  };
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    // Apenas para o áudio e chama o pai para desmontar o componente.
+    // Não precisa mais mexer no src.
+    try {
+        if (audioRef.current) {
+            audioRef.current.pause();
+        }
+    } catch (err) {
+        console.warn("Erro ao pausar áudio no fechamento (ignorado):", err);
+    }
+    if (onClose) onClose();
+};
 
   // --- RENDERIZAÇÃO ---
   if (!track) return null;
@@ -5549,6 +5704,128 @@ const StoryOverlay = ({ story, onClose, onRead, onMarkAsSeen, allStories, onNavi
 
 
 
+const generateSmartStories = (news, allClusters) => {
+    if (!news || news.length === 0) return [];
+
+    // --- CONFIGURAÇÕES DA LÓGICA ---
+    const BREAKING_NEWS_SOURCES = new Set(['Terra', 'Extra', 'Veja', 'CNN Brasil', 'Times Brasil', 'UOL', 'Jovem Pan', 'Istoé', 'G1 Mundo', 'G1 Nacional', 'Metropoles', 'Leo Dias', 'Fox News']);
+    const BREAKING_NEWS_KEYWORDS = ['urgente', 'agora', 'ao vivo', 'última hora', 'alerta', 'plantão', 'acontece', 'acaba de', 'últimas informações', 'exclusivo', 'bomba', 'morre', 'desastre', 'acabou de', 'breaking news', 'ultimos acontecimentos', 'operação', 'deflagra', 'deflagrada', 'crise', 'explosão'];
+    const BREAKING_NEWS_TIMESPAN_MS = 45 * 60 * 1000;
+    const ANCHOR_CACHE_TTL_MS = 40 * 60 * 1000;
+    const ANCHOR_CACHE_KEY = 'newsos_anchor_story_cache';
+
+    const now = Date.now();
+    let breakingNewsArticle = null;
+    let anchorArticle = null;
+
+    // --- ETAPA 1: TENTAR RESTAURAR A ÂNCORA DO CACHE ---
+    try {
+        const cachedAnchorRaw = localStorage.getItem(ANCHOR_CACHE_KEY);
+        if (cachedAnchorRaw) {
+            const cachedAnchor = JSON.parse(cachedAnchorRaw);
+            // Verifica se o cache ainda é válido (tempo não expirou)
+            if (now - cachedAnchor.timestamp < ANCHOR_CACHE_TTL_MS) {
+                // Procura o artigo exato do cache na lista de notícias ATUAIS.
+                // Isso garante que a âncora só persiste se ainda for relevante no feed.
+                const foundArticle = news.find(n => n && n.id === cachedAnchor.article.id);
+                if (foundArticle) {
+                    anchorArticle = foundArticle; // Usa a versão "fresca" do artigo
+                }
+            } else {
+                localStorage.removeItem(ANCHOR_CACHE_KEY); // Limpa o cache se expirou
+            }
+        }
+    } catch (e) {
+        localStorage.removeItem(ANCHOR_CACHE_KEY); // Limpa se o cache estiver corrompido
+    }
+
+    // --- ETAPA 2: SE NÃO HÁ ÂNCORA NO CACHE, CALCULA UMA NOVA ---
+    if (!anchorArticle) {
+        if (allClusters && allClusters.length > 0 && allClusters[0].related_articles && allClusters[0].related_articles.length > 0) {
+            anchorArticle = allClusters[0].related_articles[0];
+        } else if (news.length > 0) {
+            // Fallback: A âncora é a notícia mais recente de todas se não houver clusters
+            anchorArticle = news.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())[0];
+        }
+        
+        // Salva a nova âncora no cache, se encontrada
+        if (anchorArticle) {
+            try {
+                localStorage.setItem(ANCHOR_CACHE_KEY, JSON.stringify({ article: anchorArticle, timestamp: now }));
+            } catch (e) {
+                console.warn("Falha ao salvar âncora no cache:", e);
+            }
+        }
+    }
+
+    // --- ETAPA 3: IDENTIFICA A BREAKING NEWS ---
+    const potentialBreaking = news.filter(article => {
+        if (!article) return false;
+        const articleTime = new Date(article.rawDate).getTime();
+        if (now - articleTime > BREAKING_NEWS_TIMESPAN_MS) return false;
+        if (!BREAKING_NEWS_SOURCES.has(article.source)) return false;
+        const titleLower = article.title.toLowerCase();
+        return BREAKING_NEWS_KEYWORDS.some(keyword => titleLower.includes(keyword));
+    });
+
+    if (potentialBreaking.length > 0) {
+        breakingNewsArticle = potentialBreaking.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())[0];
+    }
+
+    // --- ETAPA 4: MONTAGEM DA LISTA FINAL COM RECONCILIAÇÃO ---
+    const finalStoryList = [];
+    const usedIds = new Set();
+    const usedSources = new Set(); // <<< NOVO: Para garantir que a fonte da âncora não se repita
+
+    if (breakingNewsArticle) {
+        finalStoryList.push({ ...breakingNewsArticle, isBreaking: true });
+        usedIds.add(breakingNewsArticle.id);
+        usedSources.add(breakingNewsArticle.source);
+    }
+    if (anchorArticle && !usedIds.has(anchorArticle.id)) {
+        finalStoryList.push({ ...anchorArticle, isAnchor: true });
+        usedIds.add(anchorArticle.id);
+        usedSources.add(anchorArticle.source);
+    }
+    
+    // --- ETAPA 5: GERAÇÃO DOS STORIES RESTANTES (EMBARALHADOS) ---
+    const latestBySource = new Map();
+    news.forEach(item => {
+        if (item && !latestBySource.has(item.source)) {
+            latestBySource.set(item.source, item);
+        }
+    });
+
+    let remainingCandidates = Array.from(latestBySource.values()).filter(article => {
+        if (!article) return false;
+        // Garante que não vamos adicionar um story de uma fonte que já é Âncora ou Breaking News
+        return !usedIds.has(article.id) && !usedSources.has(article.source);
+    });
+
+    const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+    remainingCandidates.sort(() => (Math.sin(dayOfYear + remainingCandidates.length) - 0.5));
+    
+    finalStoryList.push(...remainingCandidates);
+
+    // --- ETAPA 6: FORMATAÇÃO FINAL PARA A UI ---
+    return finalStoryList
+        .filter(Boolean)
+        .map(item => {
+            const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
+            const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
+
+            return {
+                id: item.id,
+                name: item.source,
+                avatar: item.logo || `https://ui-avatars.com/api/?name=${item.source}&background=random&color=fff`,
+                isBreaking: !!item.isBreaking,
+                isAnchor: !!item.isAnchor,
+                items: [{ ...item, img: finalImg, origin: 'story' }]
+            };
+    });
+};
+
+
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
 export default function NewsOS_V12() {
   const [showSplash, setShowSplash] = useState(true);
@@ -5558,6 +5835,8 @@ export default function NewsOS_V12() {
   const [selectedOutlet, setSelectedOutlet] = useState(null); 
   const [selectedStory, setSelectedStory] = useState(null);
   const navTimerRef = useRef(null); 
+  const [isPodcastOpen, setIsPodcastOpen] = useState(false);
+  const handleOpenPodNews = () => setIsPodcastOpen(true);
   
   // --- ESTADOS DE DADOS (Iniciam vazios e são preenchidos pelo Load) ---
   const [isDarkMode, setIsDarkMode] = useState(false); 
@@ -5702,7 +5981,9 @@ const [apiKeys, setApiKeys] = useState([
 
   // --- ÍNDICES DE ROTAÇÃO (PERSISTENTES) ---
   // Usamos useRef para que o índice não resete a cada renderização
-  const widgetRotationIndex = useRef(0);
+  const widgetRotationIndex = useRef(
+  typeof window !== 'undefined' ? parseInt(localStorage.getItem('widgetRotationIndex') || '0', 10) : 0
+);
   // 1. Inicializa o ref lendo o valor salvo no localStorage. Se não houver, começa em 0.
 const heavyRotationIndex = useRef(
   typeof window !== 'undefined' ? parseInt(localStorage.getItem('heavyRotationIndex') || '0', 10) : 0
@@ -5724,6 +6005,20 @@ useEffect(() => {
     window.removeEventListener('beforeunload', saveIndex);
   };
 }, []); // Roda apenas uma vez, na montagem do componente.
+
+
+useEffect(() => {
+  const saveWidgetIndex = () => {
+    localStorage.setItem('widgetRotationIndex', widgetRotationIndex.current.toString());
+  };
+
+  window.addEventListener('beforeunload', saveWidgetIndex);
+
+  return () => {
+    saveWidgetIndex(); 
+    window.removeEventListener('beforeunload', saveWidgetIndex);
+  };
+}, []);
   const chatRotationIndex = useRef(0);
 
   // --- O DISTRIBUIDOR DE CHAVES (ROTAÇÃO SEQUENCIAL OTIMIZADA) ---
@@ -5735,6 +6030,7 @@ useEffect(() => {
         if (freeKeys.length === 0) return null; 
         const key = freeKeys[widgetRotationIndex.current % freeKeys.length];
         widgetRotationIndex.current += 1; 
+        console.log(`[Rotação Widgets] Usando chave ID: ${key.id}`);
         return key.value;
     }
 
@@ -5806,6 +6102,19 @@ const [userFeeds, setUserFeeds] = useState([]);
   const [askSources, setAskSources] = useState([]);
   const [isAskLoading, setIsAskLoading] = useState(false);
   const [viewedInStoryId, setViewedInStoryId] = useState(null);
+
+
+const heuristicClusters = useMemo(() => {
+    console.log("LOG: Recalculando clusters heurísticos..."); // Adicione este log para depurar
+    return generateHeuristicClusters(realNews);
+}, [realNews]); // A dependência crucial: recalcula sempre que 'realNews' mudar
+
+const storiesForHappeningTab = useMemo(() => {
+    console.log("LOG: Recalculando stories inteligentes..."); // Adicione este log para depurar
+    const allClusters = globalClusters || heuristicClusters;
+    return generateSmartStories(realNews, allClusters);
+}, [realNews, globalClusters, heuristicClusters]); // Adicione heuristicClusters aqui
+
 
  const handleAskAI = async (query) => {
       setAskQuestion(query);
@@ -5897,49 +6206,49 @@ const handleStoryNavigation = (direction) => {
           if (data.saved_items) setSavedItems(data.saved_items);
           if (data.read_history) setReadHistory(data.read_history);
           if (data.liked_items) setLikedItems(data.liked_items);
-       if (data.api_key) {
-    try {
-        const parsedFromDB = JSON.parse(data.api_key);
+          
+          if (data.api_key) {
+              try {
+                  const parsedFromDB = JSON.parse(data.api_key);
 
-        if (Array.isArray(parsedFromDB)) {
-            // Cria uma cópia do estado inicial para usar como base
-            const defaultKeysStructure = [
-                { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
-                { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
-                { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
-                { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
-                { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
-                { id: 11, value: '', type: 'heavy_rotation' },
-                { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
-            ];
+                  if (Array.isArray(parsedFromDB)) {
+                      const defaultKeysStructure = [
+                          { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
+                          { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
+                          { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
+                          { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
+                          { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
+                          { id: 11, value: '', type: 'heavy_rotation' }, { id: 15, value: '', type: 'heavy_rotation' },
+                          { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
+                      ];
 
-            // Mapeia a estrutura padrão e preenche com os valores do banco, se existirem
-            const mergedKeys = defaultKeysStructure.map(defaultKey => {
-                const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
-                // Se a chave existe no banco, usa o valor dela. Senão, usa o valor padrão (vazio).
-                return keyFromDB ? keyFromDB : defaultKey;
-            });
-            
-            // Garante que não haja duplicatas e que todas as 13 chaves estejam presentes
-            const finalKeys = Array.from(new Map(mergedKeys.map(key => [key.id, key])).values());
-            
-            setApiKeys(finalKeys);
+                      // ==========================================================
+                      // === A MUDANÇA CRÍTICA ESTÁ AQUI ===
+                      // ==========================================================
+                      const mergedKeys = defaultKeysStructure.map(defaultKey => {
+                          const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
+                          
+                          // LÓGICA DE FUSÃO SEGURA E EXPLÍCITA
+                          return {
+                              id: defaultKey.id,           // Usa o ID do padrão, sempre.
+                              type: defaultKey.type,         // Usa o TYPE do padrão, sempre.
+                              value: keyFromDB?.value || ''  // Pega o VALUE do banco, ou retorna '' se não existir.
+                          };
+                      });
+                      
+                      setApiKeys(mergedKeys);
 
-        } else {
-            // Se o dado do banco não for uma array, ignora e mantém o estado padrão
-            console.warn("Formato de chaves antigo no banco. Mantendo estado padrão.");
-        }
-    } catch (e) {
-        console.error("Erro ao fazer parse das chaves do banco:", e);
-    }
-}
+                  } else {
+                      console.warn("Formato de chaves antigo no banco. Mantendo estado padrão.");
+                  }
+              } catch (e) {
+                  console.error("Erro ao fazer parse das chaves do banco:", e);
+              }
+          }
           if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
           if (data.seen_story_ids) setSeenStoryIds(data.seen_story_ids);
-          
-          // --- NOVO: Carrega o histórico de horários corrigidos ---
           if (data.article_history) setArticleHistory(data.article_history);
       } else if (!error) {
-          // Se não tem dados, cria a primeira entrada
           await supabase.from('user_preferences').insert([{ user_id: userId }]);
       }
       setIsSyncing(false);
@@ -5972,7 +6281,7 @@ const handleStoryNavigation = (direction) => {
 
       const timer = setTimeout(() => {
           saveData();
-      }, 2000);
+      }, 5000);
 
       return () => clearTimeout(timer);
   }, [user, userFeeds, savedItems, readHistory, likedItems, apiKeys, isDarkMode, seenStoryIds, articleHistory]);
@@ -6062,8 +6371,10 @@ const handleStoryNavigation = (direction) => {
     const CACHE_TTL = 20 * 60 * 1000; 
 
     const promises = userFeeds.map(async (feed) => {
-        if (!feed.url) return;
-
+        if (!feed.url || !feed.url.trim()) {
+    console.warn(`[AVISO DE DADOS] Fonte ignorada por não ter URL:`, feed);
+    return; // Pula para a próxima fonte
+}
         let feedItems = [];
         let currentFeedTitle = feed.name; 
         let detectedXmlTitle = "";
@@ -6155,7 +6466,7 @@ const handleStoryNavigation = (direction) => {
 
                 } else {
                     // Supabase (Pago)
-                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
+                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
                     if (!error && data && data.items) {
                         feedItems = data.items;
                         detectedXmlTitle = data.title;
@@ -6251,7 +6562,7 @@ const handleStoryNavigation = (direction) => {
                 finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6uiO4AtPH2uxKoEbqmsLXA5qR0voQ7Dd3xg&s';
             }
             else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) {
-                finalLogo = 'https://cdn.motor1.com/custom/share/motor1_loadimage.png';
+                finalLogo = 'https://motor1.uol.com.br/logo_square.png';
             }
             else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) {
                 finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
@@ -6292,6 +6603,7 @@ const handleStoryNavigation = (direction) => {
                    finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`;
                }
             }
+
 
         let LIMIT = 20; 
         if (feed.type === 'podcast') LIMIT = 1; 
@@ -6634,52 +6946,6 @@ const handleReadNative = useCallback(async (article) => {
 
 
 
-  // Adicione este bloco de código dentro de NewsOS_V12, antes do `return (`
-
-const storiesForHappeningTab = useMemo(() => {
-    if (!realNews || realNews.length === 0) return [];
-
-    const latestBySource = new Map();
-    // Ordena cronologicamente
-    const chronologicalNews = [...realNews].sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
-    
-    chronologicalNews.forEach(item => {
-        const sourceName = (item.source || "Fonte").trim();
-        // Pega a mais recente de cada fonte (SEM FILTRAR OS VISTOS AQUI)
-        if (!latestBySource.has(sourceName)) {
-            latestBySource.set(sourceName, item);
-        }
-    });
-
-    let storyCandidates = Array.from(latestBySource.values());
-
-    // EMBARALHAMENTO ESTÁVEL (Semente baseada no tamanho para não pular toda hora)
-    // Para evitar que a lista mude a cada clique, vamos apenas inverter ou manter fixa por enquanto,
-    // ou usar um shuffle simples que só roda quando a lista de notícias muda.
-    const BUCKET_SIZE = 5;
-    const shuffledStories = [];
-
-    for (let i = 0; i < storyCandidates.length; i += BUCKET_SIZE) {
-        let chunk = storyCandidates.slice(i, i + BUCKET_SIZE);
-        // Shuffle simples
-        chunk = chunk.sort(() => Math.random() - 0.5);
-        shuffledStories.push(...chunk);
-    }
-
-    return shuffledStories.map(item => {
-         const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
-         const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
-
-         return {
-            id: item.id,
-            name: item.source,
-            avatar: item.logo || `https://ui-avatars.com/api/?name=${item.source}&background=random&color=fff`,
-            items: [{ ...item, img: finalImg, origin: 'story' }]
-         };
-    });
-
-  }, [realNews]); // REMOVIDO 'seenStoryIds' DAS DEPENDÊNCIAS
-
 // ==========================================================
   // ALTERAÇÃO 1: LÓGICA DE "CONGELAMENTO" E GATILHO
   // ==========================================================
@@ -6765,12 +7031,9 @@ return (
                    }}
                     isDarkMode={isDarkMode} 
                     newsData={realNews}
+                    heuristicClusters={heuristicClusters}
                     // AÇÃO 1: Pull-to-Refresh
-                    onRefresh={async () => {
-                        await handleHappeningRefresh();
-                        // Aciona o gatilho para pegar uma nova chave de widget
-                        setWidgetTrigger(prev => prev + 1); 
-                    }}
+                    onRefresh={handleHappeningRefresh}
                     seenStoryIds={seenStoryIds} 
                     onMarkAsSeen={markStoryAsSeen}
                     
@@ -6837,7 +7100,7 @@ return (
                 />
             )}
             
-            {activeTab === 'banca' && <BancaTab openOutlet={setSelectedOutlet} isDarkMode={isDarkMode} />}
+            {activeTab === 'banca' && <BancaTab openOutlet={setSelectedOutlet} isDarkMode={isDarkMode} userFeeds={userFeeds} realNews={realNews} />}
             
             {activeTab === 'youtube' && (
                 <YouTubeTab 
@@ -6968,9 +7231,9 @@ return (
       {/* --- MODAIS GLOBAIS (FORA DAS COLUNAS) --- */}
       {askQuestion && (<AskAIModal question={askQuestion} answer={askAnswer} sources={askSources} isLoading={isAskLoading} onClose={() => setAskQuestion(null)} isDarkMode={isDarkMode} />)}
       {isSettingsOpen && (<SettingsModal onClose={() => setIsSettingsOpen(false)} isDarkMode={isDarkMode} feeds={userFeeds} setFeeds={setUserFeeds} apiKeys={apiKeys} setApiKeys={setApiKeys} user={user} />)}
-      {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleReadNative} isDarkMode={isDarkMode} />}
-      {selectedStory && (<StoryOverlay story={selectedStory} onClose={closeStory} onRead={handleReadNative} onMarkAsSeen={markStoryAsSeen} allStories={storiesForHappeningTab} onNavigate={handleStoryNavigation} />)}
-      {playingAudio && (<GlobalAudioPlayer track={playingAudio} onClose={() => handlePlayAudio(null)} isDarkMode={isDarkMode} />)}
+      {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleReadNative} isDarkMode={isDarkMode} realNews={realNews} />}
+      {selectedStory && (<StoryOverlay key={selectedStory.id} story={selectedStory} onClose={closeStory} onRead={handleReadNative} onMarkAsSeen={markStoryAsSeen} allStories={storiesForHappeningTab} onNavigate={handleStoryNavigation} />)}
+{playingAudio && (<GlobalAudioPlayer track={playingAudio} onClose={() => setPlayingAudio(null)} isDarkMode={isDarkMode} />)}      {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
   );
 }
@@ -6978,26 +7241,56 @@ return (
 
 
 
-function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
+
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "OutletDetail" INTEIRA POR ESTA ===
+// ==========================================================
+
+// ==========================================================
+// === SUBSTITUA SUA FUNÇÃO "OutletDetail" INTEIRA POR ESTA ===
+// ==========================================================
+
+function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
+
+  const outletNews = useMemo(() => {
+    if (!realNews || !outlet) return [];
+    return realNews.filter(news => news.source === outlet.name).slice(0, 10);
+  }, [realNews, outlet]);
+
+  const mainArticle = outletNews[0];
+  const secondaryArticles = outletNews.slice(1);
+
+  const stripTags = (html = "") => {
+    if (!html) return "";
+    return html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+  };
+  
   const renderLayout = () => {
     const layout = outlet.layoutType;
-    const articles = [1, 2, 3, 4, 5, 6];
+    
+    if (!mainArticle) {
+        return (
+            <div className="text-center py-20 opacity-60">
+                <h3 className="font-bold">Nenhuma notícia recente encontrada para esta fonte.</h3>
+            </div>
+        );
+    }
 
     if (layout === 'standard') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="md:col-span-8 cursor-pointer group" onClick={() => openArticle({ title: 'Manchete do Jornal', source: outlet.name, category: 'Capa', img: `https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80` })}>
-            <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-              <img src={`https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200&q=80`} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt="Cover" />
+          <div className="md:col-span-8 group">
+            <div className={`aspect-video mb-4 rounded-xl overflow-hidden shadow-sm cursor-pointer ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`} onClick={() => openArticle(mainArticle)}>
+              <img src={mainArticle.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" alt={mainArticle.title} onError={(e) => e.target.style.display='none'} />
             </div>
-            <h2 className={`text-4xl font-serif font-black mb-3 leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>A Manchete Principal do Dia</h2>
-            <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>Um resumo detalhado sobre o principal acontecimento do mercado global e político.</p>
+            <h2 onClick={() => openArticle(mainArticle)} className={`text-4xl font-serif font-black mb-3 leading-tight cursor-pointer ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>{mainArticle.title}</h2>
+            <p className={`font-serif text-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(mainArticle.summary)}</p>
           </div>
-          <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`}>
-            {articles.slice(0, 4).map((i) => (
-              <div key={i} className="cursor-pointer" onClick={() => openArticle({ title: `Notícia Secundária ${i}`, source: outlet.name, category: 'Geral', img: null })}>
-                <span className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Política</span>
-                <h4 className={`font-serif font-bold text-xl leading-tight ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Notícia secundária de grande impacto no cenário nacional.</h4>
+          <div className={`md:col-span-4 space-y-6 border-l pl-6 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+            {secondaryArticles.slice(0, 4).map((article) => (
+              <div key={article.id} className="cursor-pointer group" onClick={() => openArticle(article)}>
+                <span className="text-[10px] font-bold text-blue-500 uppercase mb-1 block group-hover:underline">{article.category || 'Geral'}</span>
+                <h4 className={`font-serif font-bold text-xl leading-tight ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{article.title}</h4>
               </div>
             ))}
           </div>
@@ -7008,13 +7301,13 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
     if (layout === 'magazine') {
       return (
         <div className={`space-y-12 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {articles.slice(0, 3).map((i) => (
-            <div key={i} className={`flex gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'}`} onClick={() => openArticle({ title: 'Artigo da Revista', source: outlet.name, category: 'Feature', img: `https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=800&q=80` })}>
-              <span className={`text-8xl font-black transition-colors ${isDarkMode ? 'text-zinc-800 group-hover:text-blue-500/20' : 'text-zinc-100 group-hover:text-blue-500/20'}`}>0{i}</span>
+          {outletNews.slice(0, 3).map((article, i) => (
+            <div key={article.id} className={`flex flex-col md:flex-row gap-8 group cursor-pointer border-b pb-8 items-center ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`} onClick={() => openArticle(article)}>
+              <span className={`text-8xl font-black transition-colors opacity-25 md:opacity-100 ${isDarkMode ? 'text-zinc-700 group-hover:text-purple-500/20' : 'text-zinc-200 group-hover:text-purple-500/20'}`}>0{i+1}</span>
               <div className="w-full">
-                <span className="text-blue-500 font-bold tracking-widest uppercase text-xs mb-2 block">Destaque da Semana</span>
-                <h3 className={`text-4xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white group-hover:text-blue-400' : 'text-zinc-900 group-hover:text-blue-600'}`}>O Futuro da Tecnologia e da Humanidade.</h3>
-                <p className="opacity-70 text-lg line-clamp-2 font-serif">Uma análise profunda, visual e detalhada sobre os próximos passos da IA.</p>
+                <span className="text-purple-500 font-bold tracking-widest uppercase text-xs mb-2 block">{article.category || 'Destaque'}</span>
+                <h3 className={`text-4xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white group-hover:text-purple-400' : 'text-zinc-900 group-hover:text-purple-600'}`}>{article.title}</h3>
+                <p className="opacity-70 text-lg line-clamp-2 font-serif">{stripTags(article.summary)}</p>
               </div>
             </div>
           ))}
@@ -7024,13 +7317,16 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
     
     if (layout === 'visual') {
       return (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {articles.map((i) => (
-            <div key={i} onClick={() => openArticle({ title: 'Visual Story', source: outlet.name, category: 'Photo', img: `https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80` })} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square ${i === 1 ? 'md:col-span-2 md:row-span-2' : ''}`}>
-              <img src={`https://images.unsplash.com/photo-${1500000000000 + i}?w=800&q=80`} className="w-full h-full object-cover group-hover:scale-110 transition duration-700 bg-zinc-200" alt="Visual" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {outletNews.map((article, i) => (
+            <div key={article.id} onClick={() => openArticle(article)} className={`relative group cursor-pointer rounded-xl overflow-hidden aspect-square
+              ${i === 0 ? 'md:col-span-2 md:row-span-2 aspect-video md:aspect-square' : ''}
+              ${i === 3 ? 'md:col-span-2' : ''}
+            `}>
+              <img src={article.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-700 bg-zinc-200" alt={article.title} onError={(e) => e.target.style.display='none'} />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
               <div className="absolute bottom-0 left-0 p-4">
-                <h3 className="text-white font-bold text-lg leading-tight">Uma história contada através de imagens impactantes.</h3>
+                <h3 className="text-white font-bold text-base leading-tight drop-shadow-lg line-clamp-2">{article.title}</h3>
               </div>
             </div>
           ))}
@@ -7041,55 +7337,93 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode }) {
     if (layout === 'minimal') {
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-          {articles.map((i) => (
-            <div key={i} className="flex gap-4 cursor-pointer group" onClick={() => openArticle({ title: 'Quick Read', source: outlet.name, category: 'Brief', img: null })}>
-              <div className={`w-16 h-16 rounded bg-zinc-200 flex-shrink-0 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`} />
+          {outletNews.map((article) => (
+            <div key={article.id} className="flex gap-4 cursor-pointer group" onClick={() => openArticle(article)}>
+              <div className={`w-20 h-20 rounded-lg flex-shrink-0 overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+                <img src={article.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
+              </div>
               <div>
-                <h4 className={`font-bold text-lg mb-1 group-hover:underline decoration-blue-500 underline-offset-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>Manchete rápida e direta número {i}</h4>
-                <p className="text-sm opacity-60 line-clamp-2">Um breve resumo do que aconteceu, sem imagens grandes para leitura rápida.</p>
+                <h4 className={`font-bold text-lg mb-1 group-hover:underline decoration-purple-500 underline-offset-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>{article.title}</h4>
+                <p className="text-sm opacity-60 line-clamp-2">{stripTags(article.summary)}</p>
               </div>
             </div>
           ))}
         </div>
       );
     }
+    
+    if (layout === 'impact') {
+        return (
+            <div className="space-y-4">
+                {mainArticle && (
+                    <div className="relative rounded-2xl overflow-hidden cursor-pointer group" onClick={() => openArticle(mainArticle)}>
+                        <img src={mainArticle.img} className="w-full h-96 object-cover" alt={mainArticle.title} onError={(e) => e.target.style.display='none'} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                        <div className="absolute bottom-0 left-0 p-8">
+                            <span className="px-3 py-1 rounded-full bg-red-600 text-white text-xs font-bold uppercase tracking-wider mb-2 inline-block">Manchete</span>
+                            <h2 className="text-5xl font-black text-white leading-none drop-shadow-xl">{mainArticle.title}</h2>
+                        </div>
+                    </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {secondaryArticles.slice(0, 3).map(article => (
+                        <div key={article.id} className={`p-4 rounded-xl cursor-pointer group ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`} onClick={() => openArticle(article)}>
+                             <h3 className={`font-bold text-lg leading-tight mb-2 group-hover:underline ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{article.title}</h3>
+                             <p className={`text-sm opacity-60 line-clamp-3 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{stripTags(article.summary)}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+    
+    if (layout === 'grid') {
+        return (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {outletNews.map((article, i) => (
+                    <div key={article.id} onClick={() => openArticle(article)} 
+                        className={`relative group cursor-pointer rounded-xl overflow-hidden ${i === 0 ? 'col-span-2 row-span-2' : ''}`}>
+                         <img src={article.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-500 bg-zinc-200" alt={article.title} onError={(e) => e.target.style.display='none'} />
+                         <div className="absolute inset-0 bg-black/40"></div>
+                         <div className="absolute bottom-0 left-0 p-4">
+                            <h3 className={`font-bold leading-tight text-white drop-shadow-lg ${i === 0 ? 'text-2xl' : 'text-base'}`}>{article.title}</h3>
+                         </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
   };
 
   return (
     <div className={`fixed inset-0 z-[65] overflow-y-auto animate-in slide-in-from-bottom-10 duration-500 ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
       
-      {/* Header Sticky */}
-      <div className={`sticky top-0 z-10 px-6 py-4 flex items-center justify-between backdrop-blur-md border-b ${isDarkMode ? 'bg-zinc-950/80 border-white/10' : 'bg-white/80 border-zinc-200'}`}>
+      <div className={`sticky top-0 z-20 px-6 py-4 flex items-center justify-between backdrop-blur-md border-b ${isDarkMode ? 'bg-zinc-950/80 border-white/10' : 'bg-white/80 border-zinc-200'}`}>
         <button onClick={onClose} className={`flex items-center gap-1 text-sm font-bold transition ${isDarkMode ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-black'}`}>
           <ChevronLeft size={20} /> Voltar
         </button>
         <span className={`font-bold text-lg tracking-tight ${isDarkMode ? 'text-white' : 'text-black'}`}>{outlet.name}</span>
-        <div className="w-6" />
+        <div className="w-16" />
       </div>
 
-      {/* Hero Section (Capa) */}
-      <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl`}>
-        <div className={`absolute inset-0 ${outlet.color}`} />
-        <div className="absolute inset-0 bg-black/20" />
-        <div className="absolute bottom-0 left-0 p-8 max-w-5xl mx-auto w-full flex items-end justify-between">
-          <div>
-            <h1 className="text-6xl md:text-8xl font-black text-white tracking-tighter mb-2 drop-shadow-lg">{outlet.logo}</h1>
-            <p className="text-white/90 uppercase tracking-widest text-sm font-bold">Edição de Hoje • Exclusivo NewsOS</p>
-          </div>
-          <div className="hidden md:block">
-            <span className="text-white/80 text-xs font-mono border border-white/30 px-2 py-1 rounded">Layout: {outlet.layoutType?.toUpperCase()}</span>
-          </div>
+    <div className={`relative w-full h-[35vh] overflow-hidden shadow-xl ${isDarkMode ? 'bg-zinc-800' : 'bg-gray-100'}`}>
+        <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-black/5"></div>
+        <div className="w-full h-full flex items-center justify-center p-8">
+            <img 
+                src={outlet.logo} 
+                className="max-h-full max-w-full object-contain"
+            />
         </div>
+        
       </div>
 
-      {/* Conteúdo Dinâmico */}
       <div className={`max-w-5xl mx-auto p-4 md:p-8 min-h-screen ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
         {renderLayout()}
       </div>
     </div>
   );
 }
-
 
 // --- FUNÇÃO AUXILIAR DE TRADUÇÃO (FORA DO COMPONENTE) ---
 // Usa a API 'gtx' do Google (gratuita/pública) para traduzir textos mantendo estrutura
@@ -7585,7 +7919,7 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
 
 
 // --- NOVO COMPONENTE: WHATSAPP CHAT INTERFACE ---
-const WhatsappChat = ({ articleText, apiKey, isDarkMode, getChatApiKey }) => {
+const WhatsappChat = ({ articleText, apiKey, isDarkMode }) => {
   const [history, setHistory] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -7612,14 +7946,19 @@ const WhatsappChat = ({ articleText, apiKey, isDarkMode, getChatApiKey }) => {
     setInputValue('');
     setIsAiTyping(true);
 
-        const chatApiKey = getChatApiKey(); // Pega uma chave rotacionada
-    if (!chatApiKey) {
+   // O CÓDIGO ANTIGO BUSCAVA UMA NOVA CHAVE:
+    // const chatApiKey = getChatApiKey(); 
+    // if (!chatApiKey) { ... }
+    // const aiResponse = await generateChatResponse(newHistory, articleText, chatApiKey);
+
+    // O NOVO CÓDIGO APENAS USA A CHAVE RECEBIDA:
+    if (!apiKey) {
       setHistory(prev => [...prev, { from: 'ai', text: 'Erro: Nenhuma chave de API para o chat está configurada.' }]);
       setIsAiTyping(false);
       return;
     }
 
-    const aiResponse = await generateChatResponse(newHistory, articleText, chatApiKey);
+    const aiResponse = await generateChatResponse(newHistory, articleText, apiKey);
 
     setHistory(prev => [...prev, { from: 'ai', text: aiResponse }]);
     setIsAiTyping(false);
@@ -7686,6 +8025,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [highlightRequest, setHighlightRequest] = useState(null); 
   const [readerContent, setReaderContent] = useState(null); 
   const [showCenterModal, setShowCenterModal] = useState(false);
+  const [currentChatApiKey, setCurrentChatApiKey] = useState(null);
 
 
 // 1. Estado de Etapas (Começa em -1 para 'nenhum')
@@ -7851,13 +8191,19 @@ return (
               <h1 className="text-2xl md:text-3xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
             </div>
             {viewMode !== 'chat' && (
-              <button 
-                onClick={() => setViewMode('chat')}
-                className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
-              >
-                <MessageCircle size={20} />
-                <span className="text-sm font-bold">Chat</span>
-              </button>
+   <button 
+    onClick={() => {
+        const newKey = getChatApiKey(); 
+        setCurrentChatApiKey(newKey);   
+        setViewMode('chat');             
+    }}
+    // AS CLASSES DE ESTILO FORAM RESTAURADAS AQUI
+    className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
+>
+    <MessageCircle size={26} />
+    <span className="text-sm font-bold">Chat</span>
+</button>
+
             )}
           </div>
         </div>
@@ -7894,12 +8240,12 @@ return (
           )}
           
           {viewMode === 'chat' && (
-            <WhatsappChat 
-              articleText={readerContent?.textContent || article.summary}
-         getChatApiKey={getChatApiKey}
-              isDarkMode={isDarkMode}
-            />
-          )}
+    <WhatsappChat 
+        articleText={readerContent?.textContent || article.summary}
+        apiKey={currentChatApiKey} // Agora passa a CHAVE que foi armazenada
+        isDarkMode={isDarkMode}
+    />
+)}
         </div>
 
         {/* MODAIS (Renderizados por cima de tudo, mas dentro da condição 'complete') */}
@@ -8081,7 +8427,8 @@ function PodNewsModal({ onClose, isDarkMode }) {
 // --- MODAL DE CONFIGURAÇÕES (V3 - FINAL - COM LOGIN VIA CÓDIGO/OTP) ---
 function SettingsModal({ onClose, isDarkMode, feeds, setFeeds, apiKeys, setApiKeys, user }) {
 const [activeTab, setActiveTab] = useState(user ? 'sources' : 'account'); 
-  
+const [isWidgetPoolOpen, setIsWidgetPoolOpen] = useState(true); // Começa aberto por padrão
+
   // Auth States
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState(''); // O código de 6 dígitos
@@ -8198,7 +8545,7 @@ const [activeTab, setActiveTab] = useState(user ? 'sources' : 'account');
     if (!targetFeed && !targetBanca) { alert("Selecione onde exibir."); return; }
     let formattedUrl = newUrl.trim();
     if (!formattedUrl.startsWith('http')) formattedUrl = 'https://' + formattedUrl;
-    const newFeed = { id: Date.now(), name: 'Nova Fonte', url: formattedUrl, type: feedType, category: feedType === 'podcast' ? 'Podcast' : 'Geral', display: { feed: targetFeed, banca: targetBanca } };
+    const newFeed = { id: Date.now(), name: 'Nova Fonte', url: formattedUrl, type: feedType, category: feedType === 'podcast' ? 'Podcast' : 'Geral', display: { feed: true, banca: false } };
     setFeeds(prev => [...prev, newFeed]);
     setNewUrl(''); setTargetFeed(true); setTargetBanca(false); setFeedType('news');
   };
@@ -8407,6 +8754,24 @@ const handleKeyChange = (targetId, newValue) => {
                                         </div>
                                         
                                         <div className="flex items-center gap-1">
+                                           <button 
+                    onClick={() => {
+                        // Esta função irá alternar o estado 'display.banca'
+                        setFeeds(prev => prev.map(f => 
+                            f.id === feed.id 
+                                ? { ...f, display: { ...f.display, banca: !f.display?.banca } } 
+                                : f
+                        ));
+                    }}
+                    className={`p-1.5 rounded-full transition-colors ${
+                        feed.display?.banca 
+                            ? 'text-emerald-500 bg-emerald-500/10' 
+                            : 'text-zinc-400 hover:text-emerald-500'
+                    }`}
+                    title="Adicionar/Remover da Banca"
+                >
+                    <LayoutGrid size={14}/>
+                </button>
                                             {editingId === feed.id ? (
                                                 <><button onClick={() => saveName(feed.id)} className="text-green-500 p-1.5"><Check size={16}/></button><button onClick={cancelEditing} className="text-zinc-500 p-1.5"><X size={16}/></button></>
                                             ) : (
@@ -8454,26 +8819,25 @@ const handleKeyChange = (targetId, newValue) => {
             {activeTab === 'api' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                      
-                     {/* POOL 1: WIDGETS (Leve) */}
-                     <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Activity size={14} className="text-blue-500"/>
-                            <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
-                        </div>
-                        <div className="space-y-2">
-                            {/* CORREÇÃO PARA O POOL 1: Filtrar por 'type' */}
-                            {apiKeys.filter(k => k.type === 'free_widget').map((key) => (
-                                <input 
-                                    key={key.id}
-                                    type="text" 
-                                    value={key.value} 
-                                    onChange={(e) => handleKeyChange(key.id, e.target.value)} 
-                                    placeholder={`Chave Gratuita #${key.id}`} 
-                                    className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-blue-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
-                                />
-                            ))}
-                        </div>
-                     </div>
+               {/* POOL 1: WIDGETS (Leve) - VERSÃO FINAL, SEM ACORDEÃO */}
+<div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
+   <div className="flex items-center gap-2 mb-3">
+       <Activity size={14} className="text-blue-500"/>
+       <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
+   </div>
+   <div className="space-y-2">
+       {apiKeys.filter(k => k.type === 'free_widget').map((key) => (
+           <input 
+               key={key.id}
+               type="text" 
+               value={key.value} 
+               onChange={(e) => handleKeyChange(key.id, e.target.value)} 
+               placeholder={`Chave Gratuita #${key.id}`} 
+               className={`w-full px-3 py-2 rounded-lg border font-mono text-[10px] outline-none focus:border-blue-500 ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white border-zinc-300'}`} 
+           />
+       ))}
+   </div>
+</div>
 
                      {/* POOL 2: USINA DE IA (Pesado) */}
                      <div className={`p-4 rounded-xl border border-purple-500/30 ${isDarkMode ? 'bg-purple-900/10' : 'bg-purple-50'}`}>
