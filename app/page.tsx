@@ -6210,84 +6210,67 @@ useEffect(() => {
 
   // 2. Função para Carregar Dados do Banco
 const loadUserData = async (userId) => {
-      setIsSyncing(true);
-      
-      // 1. Tenta buscar os dados
-      const { data, error } = await supabase
-          .from('user_preferences')
-          .select('*')
-          .eq('user_id', userId);
+    setIsSyncing(true);
+    
+    console.log("🚨 [DEBUG] 1. Iniciando loadUserData.");
+    console.log("🚨 [DEBUG] 2. Meu User ID atual é:", userId);
 
-      if (error) {
-          console.error("Erro ao buscar dados:", error);
-          setIsSyncing(false);
-          return;
-      }
-      
-      // 2. Se achou dados, carrega tudo
-      if (data && data.length > 0) {
-          console.log("LOG: Dados encontrados. Carregando...");
-          const userData = data[0];
+    // Tenta buscar os dados
+    const { data, error } = await supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', userId);
 
-          // Garante que os valores não sejam null antes de setar
-          setUserFeeds(userData.feeds || []);
-          setSavedItems(userData.saved_items || []);
-          setReadHistory(userData.read_history || []);
-          setLikedItems(userData.liked_items || []);
-          
-          if (userData.api_key) {
-              try {
+    console.log("🚨 [DEBUG] 3. Resposta do Supabase:", { data, error });
+
+    if (error) {
+        console.error("❌ [DEBUG] Erro retornado pelo Supabase:", error);
+        setIsSyncing(false);
+        return;
+    }
+    
+    // Se data for um array vazio, isso confirma minha teoria
+    if (data && data.length === 0) {
+        console.warn("⚠️ [DEBUG] O Supabase retornou SUCESSO, mas NENHUMA LINHA (Array vazio).");
+        console.warn("⚠️ [DEBUG] Isso significa que não existe linha no banco com user_id =", userId);
+        
+        // Tenta criar
+        console.log("🚨 [DEBUG] 4. Tentando criar linha padrão...");
+        const { error: insertError } = await supabase
+            .from('user_preferences')
+            .insert([{ user_id: userId }]);
+        
+        if (insertError) {
+             console.error("❌ [DEBUG] Erro ao criar:", insertError);
+        } else {
+             console.log("✅ [DEBUG] Linha criada! Recarregue a página.");
+        }
+    } 
+    
+    else if (data && data.length > 0) {
+        console.log("✅ [DEBUG] DADOS ENCONTRADOS! Carregando no App...");
+        const userData = data[0];
+        
+        // Vamos ver o que tem dentro
+        console.log("🚨 [DEBUG] Conteúdo:", userData);
+
+        setUserFeeds(userData.feeds || []);
+        setSavedItems(userData.saved_items || []);
+        // ... (resto dos sets)
+        if (userData.api_key) {
+            // ... (logica da api key)
+            // (Para economizar espaço, mantenha sua lógica de parse aqui ou deixe vazio pro teste)
+             try {
                   const parsedFromDB = JSON.parse(userData.api_key);
                   if (Array.isArray(parsedFromDB)) {
-                      const defaultKeysStructure = [
-                          { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
-                          { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
-                          { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
-                          { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
-                          { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
-                          { id: 11, value: '', type: 'heavy_rotation' }, { id: 15, value: '', type: 'heavy_rotation' },
-                          { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
-                      ];
-
-                      const mergedKeys = defaultKeysStructure.map(defaultKey => {
-                          const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
-                          return {
-                              id: defaultKey.id,
-                              type: defaultKey.type,
-                              value: keyFromDB?.value || ''
-                          };
-                      });
-                      setApiKeys(mergedKeys);
+                      setApiKeys(parsedFromDB); // Simplificado para teste
                   }
-              } catch (e) { console.error("Erro ao parsear chaves:", e); }
-          }
-          if (userData.is_dark_mode !== null) setIsDarkMode(userData.is_dark_mode);
-          if (userData.seen_story_ids) setSeenStoryIds(userData.seen_story_ids);
-          if (userData.article_history) setArticleHistory(userData.article_history);
-      
-      } else {
-          // 3. Se NÃO achou dados (array vazio), tenta criar a linha inicial.
-          console.log("LOG: Usuário novo detectado. Inicializando...");
-          
-          const { error: insertError } = await supabase
-              .from('user_preferences')
-              .insert([{ user_id: userId }]);
-
-          // AQUI ESTÁ O SEGREDO:
-          // Se der erro 23505 (chave duplicada), significa que o saveData já criou a linha.
-          // Nesse caso, ignoramos o erro e seguimos a vida.
-          if (insertError) {
-              if (insertError.code === '23505') {
-                  console.log("LOG: Conflito de criação resolvido (linha já existe).");
-                  // Opcional: Poderíamos tentar ler de novo, mas na próxima renderização o dado virá.
-              } else {
-                  console.error("Erro ao criar registro:", insertError);
-              }
-          }
-      }
-      
-      setIsSyncing(false);
-  };
+              } catch (e) {}
+        }
+    }
+    
+    setIsSyncing(false);
+};
 
   // 3. Função para Salvar (Debounced effect)
   useEffect(() => {
