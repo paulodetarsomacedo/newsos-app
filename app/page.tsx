@@ -3902,10 +3902,13 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [activeIndex, setActiveIndex] = useState(null);
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  // Filtros novos
+  // Filtros
   const [timeWindow, setTimeWindow] = useState("24h"); // "6h" | "24h" | "7d" | "all"
   const [rangeMinimum, setRangeMinimum] = useState(0);
   const [rangeMaximum, setRangeMaximum] = useState(10);
+
+  // Clique direto no termômetro por nível 0..10 (quando selecionado, força min=max)
+  const [selectedTemperature, setSelectedTemperature] = useState(null);
 
   // Cache
   const STORAGE_KEY_CURRENT = "newsos_trend_radar_data_v6";
@@ -3919,14 +3922,6 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     if (score >= 3) return { color: "#22c55e", bandLabel: "🟢 LEVE" };
     return { color: "#3b82f6", bandLabel: "🧊 FRIO" };
   };
-
-  const temperatureBands = [
-    { label: "🧊 FRIO", minimum: 0, maximum: 2 },
-    { label: "🟢 LEVE", minimum: 2, maximum: 4 },
-    { label: "🟡 MÉDIO", minimum: 4, maximum: 6 },
-    { label: "🟠 QUENTE", minimum: 6, maximum: 8 },
-    { label: "🔥 MUITO QUENTE", minimum: 8, maximumInclusive: 10 },
-  ];
 
   const clampNumber = (value, minimum, maximum) => {
     return Math.min(maximum, Math.max(minimum, value));
@@ -3946,12 +3941,12 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   };
 
   const getConfidenceValue = (trendItem) => {
-    // Heurística simples e consistente:
-    // - quanto mais fontes relacionadas, maior a confiança
-    // - um pouco de peso extra para scores altos
+    // Heurística simples:
+    // - mais fontes relacionadas => mais confiança
+    // - score alto também aumenta um pouco
     const relatedCount = Array.isArray(trendItem.related_articles) ? trendItem.related_articles.length : 0;
     const normalizedRelated = clampNumber(relatedCount / 8, 0, 1); // 0..1
-    const normalizedScore = clampNumber(trendItem.score / 10, 0, 1); // 0..1
+    const normalizedScore = clampNumber(Number(trendItem.score || 0) / 10, 0, 1); // 0..1
     const confidence = clampNumber(0.65 * normalizedRelated + 0.35 * normalizedScore, 0, 1);
     return confidence;
   };
@@ -3961,7 +3956,6 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   };
 
   const parseArticleDate = (article) => {
-    // Tenta achar uma data em campos comuns
     const candidate =
       article?.publishedAt ||
       article?.pubDate ||
@@ -3991,7 +3985,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
 
     const cutoff = new Date(now.getTime() - windowMilliseconds);
 
-    // Se não houver datas válidas, não filtra para não “sumir” com tudo
+    // Se não houver datas válidas, não filtra
     let foundAnyValidDate = false;
 
     const filtered = allNews.filter((article) => {
@@ -4028,27 +4022,42 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
 
   const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
 
-  // --------- Termômetro interativo (range) ---------
+  // --------- Termômetro interativo (range + clique por nível) ---------
   const handleRangeMinimumChange = (value) => {
     const numeric = clampNumber(Number(value), 0, 10);
     const correctedMinimum = Math.min(numeric, rangeMaximum);
     setRangeMinimum(correctedMinimum);
+    setSelectedTemperature(null); // se mexeu no range, sai do modo “clique fixo”
   };
 
   const handleRangeMaximumChange = (value) => {
     const numeric = clampNumber(Number(value), 0, 10);
     const correctedMaximum = Math.max(numeric, rangeMinimum);
     setRangeMaximum(correctedMaximum);
+    setSelectedTemperature(null); // se mexeu no range, sai do modo “clique fixo”
   };
 
-  // --------- Radar Map (posicionamento) ---------
-  const getBandIndexByScore = (score) => {
-    for (let index = 0; index < temperatureBands.length; index++) {
-      const band = temperatureBands[index];
-      const maximum = band.maximumInclusive ?? band.maximum;
-      if (score >= band.minimum && score <= maximum) return index;
-    }
-    return temperatureBands.length - 1;
+  const pickTemperature = (value) => {
+    const numeric = clampNumber(Number(value), 0, 10);
+    setSelectedTemperature(numeric);
+    setRangeMinimum(numeric);
+    setRangeMaximum(numeric);
+    setActiveIndex(null);
+  };
+
+  const clearTemperaturePick = () => {
+    setSelectedTemperature(null);
+    setRangeMinimum(0);
+    setRangeMaximum(10);
+    setActiveIndex(null);
+  };
+
+  const handleThermometerBarClick = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = clampNumber(event.clientX - rect.left, 0, rect.width);
+    const ratio = rect.width === 0 ? 0 : x / rect.width;
+    const value = Math.round(ratio * 10);
+    pickTemperature(value);
   };
 
   // --------- Run Analysis (com deltas) ---------
@@ -4135,76 +4144,31 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     setLoading(false);
   };
 
-  // --------- Tendências filtradas (range) + Top 1 e Top 4 ---------
-  const filteredTrendsByRange = useMemo(() => {
+  // --------- Tendências filtradas ---------
+  const filteredTrends = useMemo(() => {
     if (!Array.isArray(trends)) return null;
+
+    // Se clicou no nível 0..10: mostra apenas aquele score
+    if (selectedTemperature !== null) {
+      return trends.filter((trend) => Number(trend.score || 0) === Number(selectedTemperature));
+    }
+
+    // Caso contrário: range
     return trends.filter((trend) => {
       const score = Number(trend.score || 0);
       return score >= rangeMinimum && score <= rangeMaximum;
     });
-  }, [trends, rangeMinimum, rangeMaximum]);
+  }, [trends, rangeMinimum, rangeMaximum, selectedTemperature]);
 
   const featuredTrend = useMemo(() => {
-    if (!Array.isArray(filteredTrendsByRange) || filteredTrendsByRange.length === 0) return null;
-    return filteredTrendsByRange[0];
-  }, [filteredTrendsByRange]);
+    if (!Array.isArray(filteredTrends) || filteredTrends.length === 0) return null;
+    return filteredTrends[0];
+  }, [filteredTrends]);
 
-  const topFourTrends = useMemo(() => {
-    if (!Array.isArray(filteredTrendsByRange) || filteredTrendsByRange.length <= 1) return [];
-    return filteredTrendsByRange.slice(1, 5);
-  }, [filteredTrendsByRange]);
-
-  // --------- Radar map layout ---------
-  const radarPoints = useMemo(() => {
-    if (!Array.isArray(filteredTrendsByRange) || filteredTrendsByRange.length === 0) return [];
-
-    const maximumPoints = Math.min(filteredTrendsByRange.length, 18);
-    const candidates = filteredTrendsByRange.slice(0, maximumPoints);
-
-    // Radar settings
-    const centerX = 80;
-    const centerY = 80;
-    const minimumRadius = 18;
-    const maximumRadius = 70;
-
-    return candidates.map((trend, index) => {
-      const score = clampNumber(Number(trend.score || 0), 0, 10);
-      const bandIndex = getBandIndexByScore(score);
-
-      // Ângulo por faixa + espalhamento interno
-      const baseAngleDegrees = 270; // topo
-      const bandSpreadDegrees = 60;  // cada faixa ocupa "um setor" visual
-      const withinBandOffset = (index % 6) * 8; // espalha dots
-      const angleDegrees = baseAngleDegrees + bandIndex * bandSpreadDegrees + withinBandOffset;
-
-      const angleRadians = (angleDegrees * Math.PI) / 180;
-
-      // Raio proporcional ao score
-      const radius = minimumRadius + (score / 10) * (maximumRadius - minimumRadius);
-
-      const x = centerX + radius * Math.cos(angleRadians);
-      const y = centerY + radius * Math.sin(angleRadians);
-
-      const { color } = getTrendStyle(score);
-
-      // Precisa do índice no array "trends" para abrir item correto no detalhe
-      // Vamos localizar por referência (topic + score) no array original
-      let originalIndex = null;
-      if (Array.isArray(trends)) {
-        const foundIndex = trends.findIndex((item) => item?.topic === trend?.topic && Number(item?.score || 0) === Number(trend?.score || 0));
-        originalIndex = foundIndex >= 0 ? foundIndex : null;
-      }
-
-      return {
-        x,
-        y,
-        color,
-        score,
-        topic: trend.topic,
-        originalIndex,
-      };
-    });
-  }, [filteredTrendsByRange, trends]);
+  const topTrends = useMemo(() => {
+    if (!Array.isArray(filteredTrends) || filteredTrends.length <= 1) return [];
+    return filteredTrends.slice(1, 11); // lista maior (sem radar)
+  }, [filteredTrends]);
 
   // --------- UI helpers ---------
   const commonPanelBackground = isDarkMode ? "rgba(24,24,27,0.55)" : "rgba(255,255,255,0.75)";
@@ -4244,11 +4208,51 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     );
   };
 
+  const ImpactPill = ({ score }) => {
+    const style = getTrendStyle(score);
+    const pct = clampNumber(Number(score || 0), 0, 10) * 10;
+
+    return (
+      <div
+        className="flex items-center gap-2 px-2.5 py-1 rounded-full"
+        style={{
+          background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+          border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <span
+          className="text-[10px] font-black uppercase tracking-widest"
+          style={{ color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(0,0,0,0.70)" }}
+        >
+          Impacto
+        </span>
+
+        <div
+          className="relative w-16 h-[6px] rounded-full overflow-hidden"
+          style={{ background: isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)" }}
+        >
+          <div
+            className="absolute left-0 top-0 h-full"
+            style={{
+              width: `${pct}%`,
+              background: style.color,
+              boxShadow: `0 0 12px ${style.color}66`,
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
   const WindowButton = ({ label, value }) => {
     const isActive = timeWindow === value;
     return (
       <button
-        onClick={() => setTimeWindow(value)}
+        onClick={() => {
+          setTimeWindow(value);
+          setActiveIndex(null);
+        }}
         className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
         style={{
           background: isActive
@@ -4274,34 +4278,19 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   // --------- Render ---------
   return (
     <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 px-4">
-      <style jsx="true">{`
-        @keyframes radar-sweep {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes radar-pulse {
-          0%, 100% { transform: scale(0.5); opacity: 0; }
-          50% { transform: scale(1.2); opacity: 0.10; }
-        }
-      `}</style>
-
       {/* Header */}
       {hasGenerated && (
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 opacity-70">
             <Activity size={14} className="text-orange-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-              Trend Radar AI
-            </span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Trend Radar AI</span>
           </div>
 
           <button
             onClick={runTrendAnalysis}
             disabled={loading}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${
-              isDarkMode
-                ? "bg-zinc-800 text-zinc-400 hover:text-white"
-                : "bg-zinc-200 text-zinc-600 hover:text-black"
+              isDarkMode ? "bg-zinc-800 text-zinc-400 hover:text-white" : "bg-zinc-200 text-zinc-600 hover:text-black"
             }`}
           >
             {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
@@ -4316,19 +4305,11 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
           <div className="relative h-40 w-40 flex items-center justify-center">
             <div className="absolute w-full h-full rounded-full border border-dashed border-orange-500/20"></div>
             <div className="absolute w-2/3 h-2/3 rounded-full border border-dashed border-orange-500/20"></div>
-            <div
-              className="absolute w-full h-full rounded-full bg-orange-500"
-              style={{ animation: "radar-pulse 2s ease-out infinite" }}
-            />
-            <div className="absolute w-full h-full origin-center" style={{ animation: "radar-sweep 2s linear infinite" }}>
-              <div className="w-1/2 h-px bg-gradient-to-r from-transparent to-orange-400 absolute top-1/2" />
-            </div>
+            <div className="absolute w-full h-full rounded-full bg-orange-500" style={{ opacity: 0.08 }} />
             <Activity size={24} className="text-orange-400 z-10" />
           </div>
 
-          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
-            Analisando tendências...
-          </p>
+          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Analisando tendências...</p>
         </div>
       ) : (
         <div className="w-full">
@@ -4365,8 +4346,20 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/40" : "text-black/40"}`}>
-                        Termômetro (filtro)
+                        Termômetro (clique para filtrar por nível)
                       </span>
+                      {selectedTemperature !== null && (
+                        <span
+                          className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full"
+                          style={{
+                            background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                            border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                            color: getTrendStyle(selectedTemperature).color,
+                          }}
+                        >
+                          {selectedTemperature}/10
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -4377,21 +4370,26 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                     </div>
                   </div>
 
-                  {/* Termômetro visual + sliders de range */}
+                  {/* Termômetro visual clicável + sliders */}
                   <div className="relative">
-                    <div
-                      className="h-3 w-full rounded-full overflow-hidden"
+                    <button
+                      type="button"
+                      onClick={handleThermometerBarClick}
+                      className="h-3 w-full rounded-full overflow-hidden block"
                       style={{
                         background: "linear-gradient(90deg, #3b82f6, #22c55e, #eab308, #f97316, #ef4444)",
                         boxShadow: isDarkMode
                           ? "0 10px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.20)"
                           : "0 10px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.35)",
+                        border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+                        cursor: "pointer",
                       }}
+                      aria-label="Selecionar temperatura clicando na régua"
                     />
 
                     {/* Highlight do range selecionado */}
                     <div
-                      className="absolute top-0 h-3 rounded-full"
+                      className="absolute top-0 h-3 rounded-full pointer-events-none"
                       style={{
                         left: `${(rangeMinimum / 10) * 100}%`,
                         width: `${((rangeMaximum - rangeMinimum) / 10) * 100}%`,
@@ -4409,9 +4407,23 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                           <Chip label="Máximo" value={`${rangeMaximum}`} subtle />
                         </div>
 
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/35" : "text-black/35"}`}>
-                          Clique nos cards ou no radar para detalhes
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/35" : "text-black/35"}`}>
+                            Clique nos números 0–10 para filtrar
+                          </span>
+                          <button
+                            type="button"
+                            onClick={clearTemperaturePick}
+                            className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
+                            style={{
+                              background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                              border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                              color: isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)",
+                            }}
+                          >
+                            Limpar
+                          </button>
+                        </div>
                       </div>
 
                       <div className="relative h-8">
@@ -4436,30 +4448,40 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                           aria-label="Filtro máximo"
                         />
 
-                        {/* Marcadores 0..10 */}
-                        <div className="absolute inset-0 flex justify-between items-center pointer-events-none">
-    {Array.from({ length: 11 }).map((_, number) => (
-                            <div
-                              key={number}
-                              className="flex flex-col items-center gap-1"
-                              style={{ width: "1px" }}
-                            >
+                        {/* Marcadores 0..10 (CLICÁVEIS) */}
+                        <div className="absolute inset-0 flex justify-between items-center">
+                          {Array.from({ length: 11 }).map((_, number) => (
+                            <div key={number} className="flex flex-col items-center gap-1" style={{ width: "1px" }}>
                               <div
                                 style={{
                                   height: "6px",
                                   width: "1px",
-                                  background: isDarkMode
-                                    ? "rgba(255,255,255,0.25)"
-                                    : "rgba(0,0,0,0.25)",
+                                  background: isDarkMode ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)",
                                 }}
                               />
-                              <span
-                                className={`text-[9px] font-black ${
-                                  isDarkMode ? "text-white/40" : "text-black/40"
-                                }`}
+                              <button
+                                type="button"
+                                onClick={() => pickTemperature(number)}
+                                className="text-[9px] font-black px-1 rounded active:scale-95"
+                                style={{
+                                  color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)",
+                                  background:
+                                    selectedTemperature === number
+                                      ? isDarkMode
+                                        ? "rgba(255,255,255,0.10)"
+                                        : "rgba(0,0,0,0.06)"
+                                      : "transparent",
+                                  border:
+                                    selectedTemperature === number
+                                      ? isDarkMode
+                                        ? `1px solid ${getTrendStyle(number).color}66`
+                                        : `1px solid ${getTrendStyle(number).color}55`
+                                      : "1px solid transparent",
+                                }}
+                                aria-label={`Filtrar temperatura ${number}/10`}
                               >
                                 {number}
-                              </span>
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -4468,114 +4490,96 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                   </div>
                 </div>
 
-                {/* ================= FEATURED + TOP 4 ================= */}
+                {/* ================= FEATURED + LISTA (SEM RADAR) ================= */}
                 <div className="grid grid-cols-12 gap-4 mt-6">
                   {/* FEATURED */}
                   {featuredTrend && (
                     <div className="col-span-12 lg:col-span-7">
-                      <div
-                        className="rounded-2xl p-5 h-full"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const originalIndex = Array.isArray(trends)
+                            ? trends.findIndex((item) => item?.topic === featuredTrend?.topic && Number(item?.score || 0) === Number(featuredTrend?.score || 0))
+                            : -1;
+                          if (originalIndex >= 0) handleToggle(originalIndex);
+                        }}
+                        className="w-full text-left rounded-2xl p-5 h-full transition-transform active:scale-[0.99]"
                         style={{
-                          background: isDarkMode
-                            ? "rgba(0,0,0,0.45)"
-                            : "rgba(255,255,255,0.95)",
-                          border: `2px solid ${getTrendStyle(featuredTrend.score).color}`,
-                          boxShadow: `0 20px 40px ${getTrendStyle(featuredTrend.score).color}33`,
+                          background: isDarkMode ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.95)",
+                          border: `4px solid ${getTrendStyle(featuredTrend.score).color}`,
+                          boxShadow: `0 22px 50px ${getTrendStyle(featuredTrend.score).color}44`,
                         }}
                       >
                         <div className="flex items-start justify-between gap-4 mb-3">
-                          <h3 className="text-lg font-black leading-tight">
-                            {featuredTrend.topic}
-                          </h3>
-                          <span
-                            className="text-sm font-black"
-                            style={{ color: getTrendStyle(featuredTrend.score).color }}
-                          >
+                          <h3 className="text-lg font-black leading-tight">{featuredTrend.topic}</h3>
+                          <span className="text-sm font-black" style={{ color: getTrendStyle(featuredTrend.score).color }}>
                             {featuredTrend.score}/10
                           </span>
                         </div>
 
-                        <p className="text-sm opacity-80 leading-relaxed mb-4">
-                          {featuredTrend.summary}
-                        </p>
-
-                        <div className="flex flex-wrap gap-2 mb-4">
+                        {/* APENAS: temperatura + indicadores (sem resumo no card) */}
+                        <div className="flex flex-wrap gap-2">
+                          <Chip label="Temp" value={`${featuredTrend.score}/10`} toneColor={getTrendStyle(featuredTrend.score).color} />
+                          <ImpactPill score={featuredTrend.score} />
                           <Chip
                             label="Confiança"
                             value={getConfidenceLabel(featuredTrend.confidence_value)}
                             toneColor={getTrendStyle(featuredTrend.score).color}
                           />
-                          <Chip
-                            label="Volume"
-                            value={featuredTrend.volume_value}
-                          />
+                          <Chip label="Volume" value={featuredTrend.volume_value} />
                           <Chip
                             label="Delta"
                             value={formatDelta(featuredTrend.delta_score)}
-                            toneColor={
-                              featuredTrend.delta_score > 0
-                                ? "#22c55e"
-                                : "#ef4444"
-                            }
+                            toneColor={featuredTrend.delta_score > 0 ? "#22c55e" : "#ef4444"}
                           />
                         </div>
-
-                        {featuredTrend.related_articles?.length > 0 && (
-                          <div className="flex gap-2 flex-wrap">
-                            {featuredTrend.related_articles.slice(0, 6).map((article) => (
-                              <button
-                                key={article.id}
-                                onClick={() => openArticle(article)}
-                                className="hover:scale-110 transition-transform"
-                                title={article.title}
-                              >
-                                <img
-                                  src={article.logo}
-                                  alt=""
-                                  className="w-7 h-7 rounded-full border border-black/10"
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      </button>
                     </div>
                   )}
 
-                  {/* TOP 4 */}
+                  {/* LISTA (substitui radar + top4) */}
                   <div className="col-span-12 lg:col-span-5 flex flex-col gap-3">
-                    {topFourTrends.map((trend, index) => {
+                    {topTrends.map((trend) => {
                       const style = getTrendStyle(trend.score);
-                      const originalIndex = trends.findIndex(
-                        (item) => item.topic === trend.topic
-                      );
+                      const originalIndex = Array.isArray(trends)
+                        ? trends.findIndex((item) => item?.topic === trend?.topic && Number(item?.score || 0) === Number(trend?.score || 0))
+                        : -1;
 
                       return (
                         <button
-                          key={trend.topic}
-                          onClick={() => handleToggle(originalIndex)}
-                          className="text-left rounded-xl p-3 transition-all hover:scale-[1.01]"
+                          key={`${trend.topic}-${trend.score}`}
+                          type="button"
+                          onClick={() => {
+                            if (originalIndex >= 0) handleToggle(originalIndex);
+                          }}
+                          className="text-left rounded-2xl p-4 transition-transform active:scale-[0.99]"
                           style={{
-                            background: isDarkMode
-                              ? "rgba(0,0,0,0.35)"
-                              : "rgba(255,255,255,0.90)",
-                            border: `1px solid ${style.color}55`,
+                            background: isDarkMode ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.90)",
+                            border: `3px solid ${style.color}`,
+                            boxShadow: `0 16px 30px ${style.color}22, inset 0 1px 0 rgba(255,255,255,0.10)`,
                           }}
                         >
                           <div className="flex justify-between items-start gap-3">
-                            <div>
-                              <div className="text-sm font-black leading-tight">
-                                {trend.topic}
-                              </div>
-                              <div className="text-[11px] opacity-60 line-clamp-2">
-                                {trend.summary}
+                            <div className="min-w-0">
+                              {/* APENAS: notícia (topic) */}
+                              <div className="text-sm font-black leading-tight truncate">{trend.topic}</div>
+
+                              {/* APENAS: temperatura + indicadores modernos */}
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                <Chip label="Temp" value={`${trend.score}/10`} toneColor={style.color} />
+                                <ImpactPill score={trend.score} />
+                                <Chip label="Confiança" value={getConfidenceLabel(trend.confidence_value)} toneColor={style.color} />
+                                <Chip label="Volume" value={trend.volume_value} />
+                                <Chip
+                                  label="Delta"
+                                  value={formatDelta(trend.delta_score)}
+                                  toneColor={trend.delta_score > 0 ? "#22c55e" : "#ef4444"}
+                                />
                               </div>
                             </div>
-                            <span
-                              className="text-xs font-black"
-                              style={{ color: style.color }}
-                            >
-                              {trend.score}
+
+                            <span className="text-xs font-black" style={{ color: style.color }}>
+                              {trend.score}/10
                             </span>
                           </div>
                         </button>
@@ -4583,61 +4587,132 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                     })}
                   </div>
                 </div>
-
-                {/* ================= RADAR MAP ================= */}
-                <div className="mt-8 flex justify-center">
-                  <div className="relative w-40 h-40">
-                    <div className="absolute inset-0 rounded-full border border-dashed border-orange-500/30" />
-                    <div className="absolute inset-4 rounded-full border border-dashed border-orange-500/20" />
-                    <div className="absolute inset-8 rounded-full border border-dashed border-orange-500/10" />
-
-                    {radarPoints.map((point, index) => (
-                      <button
-                        key={index}
-                        onClick={() =>
-                          point.originalIndex !== null &&
-                          handleToggle(point.originalIndex)
-                        }
-                        className="absolute rounded-full transition-transform hover:scale-125"
-                        style={{
-                          left: `${point.x}px`,
-                          top: `${point.y}px`,
-                          width: `${6 + point.score}px`,
-                          height: `${6 + point.score}px`,
-                          background: point.color,
-                          transform: "translate(-50%, -50%)",
-                          boxShadow: `0 0 10px ${point.color}`,
-                        }}
-                        title={point.topic}
-                      />
-                    ))}
-                  </div>
-                </div>
               </div>
 
-              {/* ================= DETALHE EXPANDIDO ================= */}
+              {/* ================= BALÃO (DETALHE) ================= */}
               <AnimatePresence>
                 {activeItem && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
+                    transition={{ duration: 0.25 }}
                     className="mt-6"
                   >
                     <div
                       className="rounded-2xl p-5"
                       style={{
-                        background: isDarkMode ? "#09090b" : "#ffffff",
-                        border: `2px solid ${getTrendStyle(activeItem.score).color}`,
+                        background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.98)",
+                        border: `3px solid ${getTrendStyle(activeItem.score).color}`,
+                        boxShadow: isDarkMode ? "0 22px 60px rgba(0,0,0,0.55)" : "0 22px 60px rgba(0,0,0,0.18)",
+                        backdropFilter: "blur(14px)",
                       }}
                     >
-                      <h4 className="font-black text-base mb-2">
-                        {activeItem.topic}
-                      </h4>
-                      <p className="text-sm opacity-80 leading-relaxed">
-                        {activeItem.summary}
-                      </p>
+                      {/* Header do balão (retangular com bordas arredondadas) */}
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="min-w-0">
+                          {/* TÍTULO DA NOTÍCIA (topic) */}
+                          <h4 className="font-black text-base leading-tight">{activeItem.topic}</h4>
+
+                          {/* Linha de indicadores + temperatura */}
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <Chip
+                              label="Temp"
+                              value={`${activeItem.score}/10`}
+                              toneColor={getTrendStyle(activeItem.score).color}
+                            />
+                            <ImpactPill score={activeItem.score} />
+                            <Chip
+                              label="Confiança"
+                              value={getConfidenceLabel(activeItem.confidence_value)}
+                              toneColor={getTrendStyle(activeItem.score).color}
+                            />
+                            <Chip label="Volume" value={activeItem.volume_value} />
+                            <Chip
+                              label="Delta"
+                              value={formatDelta(activeItem.delta_score)}
+                              toneColor={activeItem.delta_score > 0 ? "#22c55e" : "#ef4444"}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Botão fechar */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveIndex(null)}
+                          className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest active:scale-95"
+                          style={{
+                            background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                            border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                            color: isDarkMode ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.65)",
+                          }}
+                        >
+                          Fechar
+                        </button>
+                      </div>
+
+                      {/* RESUMO (aparece SÓ no balão) */}
+                      <p className="text-sm leading-relaxed opacity-85">{activeItem.summary}</p>
+
+                      {/* FONTES (logos + clique abre artigo) */}
+                      {Array.isArray(activeItem.related_articles) && activeItem.related_articles.length > 0 && (
+                        <div className="mt-4">
+                          <div
+                            className={`text-[10px] font-black uppercase tracking-widest mb-2 ${
+                              isDarkMode ? "text-white/45" : "text-black/45"
+                            }`}
+                          >
+                            Fontes
+                          </div>
+
+                          <div className="flex gap-2 flex-wrap">
+                            {activeItem.related_articles.slice(0, 10).map((article, idx) => {
+                              const title = typeof article?.title === "string" ? article.title : "Abrir fonte";
+                              const logo = article?.logo || article?.image || article?.favicon || "";
+
+                              return (
+                                <button
+                                  key={`${article?.id || idx}-${title}`}
+                                  type="button"
+                                  onClick={() => openArticle(article)}
+                                  className="flex items-center gap-2 px-2.5 py-2 rounded-xl active:scale-95 hover:scale-[1.02] transition"
+                                  style={{
+                                    background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                                    border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                                  }}
+                                  title={title}
+                                >
+                                  {logo ? (
+                                    <img
+                                      src={logo}
+                                      alt=""
+                                      className="w-6 h-6 rounded-lg"
+                                      style={{
+                                        border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                                      }}
+                                    />
+                                  ) : (
+                                    <div
+                                      className="w-6 h-6 rounded-lg"
+                                      style={{
+                                        background: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                                        border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                                      }}
+                                    />
+                                  )}
+
+                                  <span
+                                    className="text-[11px] font-bold max-w-[220px] truncate"
+                                    style={{ color: isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)" }}
+                                  >
+                                    {title}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -4649,6 +4724,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     </div>
   );
 };
+
+
+
 
 
 
