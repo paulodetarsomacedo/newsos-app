@@ -6212,26 +6212,28 @@ useEffect(() => {
 const loadUserData = async (userId) => {
       setIsSyncing(true);
       
+      // 1. Tenta buscar os dados
       const { data, error } = await supabase
           .from('user_preferences')
           .select('*')
           .eq('user_id', userId);
 
-      // Se houver erro de conexão, loga e sai
       if (error) {
           console.error("Erro ao buscar dados:", error);
           setIsSyncing(false);
           return;
       }
       
-      // Se encontrou dados, carrega no App
+      // 2. Se achou dados, carrega tudo
       if (data && data.length > 0) {
-          const userData = data[0]; 
+          console.log("LOG: Dados encontrados. Carregando...");
+          const userData = data[0];
 
-          if (userData.feeds) setUserFeeds(userData.feeds);
-          if (userData.saved_items) setSavedItems(userData.saved_items);
-          if (userData.read_history) setReadHistory(userData.read_history);
-          if (userData.liked_items) setLikedItems(userData.liked_items);
+          // Garante que os valores não sejam null antes de setar
+          setUserFeeds(userData.feeds || []);
+          setSavedItems(userData.saved_items || []);
+          setReadHistory(userData.read_history || []);
+          setLikedItems(userData.liked_items || []);
           
           if (userData.api_key) {
               try {
@@ -6257,16 +6259,32 @@ const loadUserData = async (userId) => {
                       });
                       setApiKeys(mergedKeys);
                   }
-              } catch (e) { console.error("Erro ao fazer parse das chaves:", e); }
+              } catch (e) { console.error("Erro ao parsear chaves:", e); }
           }
           if (userData.is_dark_mode !== null) setIsDarkMode(userData.is_dark_mode);
           if (userData.seen_story_ids) setSeenStoryIds(userData.seen_story_ids);
           if (userData.article_history) setArticleHistory(userData.article_history);
-      } 
       
-      // REMOVIDO O BLOCO 'ELSE' COM O INSERT.
-      // Se não tiver dados (novo usuário), não faz nada aqui.
-      // A função 'saveData' vai rodar logo em seguida e criar a linha automaticamente via upsert.
+      } else {
+          // 3. Se NÃO achou dados (array vazio), tenta criar a linha inicial.
+          console.log("LOG: Usuário novo detectado. Inicializando...");
+          
+          const { error: insertError } = await supabase
+              .from('user_preferences')
+              .insert([{ user_id: userId }]);
+
+          // AQUI ESTÁ O SEGREDO:
+          // Se der erro 23505 (chave duplicada), significa que o saveData já criou a linha.
+          // Nesse caso, ignoramos o erro e seguimos a vida.
+          if (insertError) {
+              if (insertError.code === '23505') {
+                  console.log("LOG: Conflito de criação resolvido (linha já existe).");
+                  // Opcional: Poderíamos tentar ler de novo, mas na próxima renderização o dado virá.
+              } else {
+                  console.error("Erro ao criar registro:", insertError);
+              }
+          }
+      }
       
       setIsSyncing(false);
   };
