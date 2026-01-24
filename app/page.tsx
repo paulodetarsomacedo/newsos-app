@@ -6212,23 +6212,21 @@ useEffect(() => {
 const loadUserData = async (userId) => {
       setIsSyncing(true);
       
-      // MUDANÇA 1: REMOVEMOS o .single() daqui
       const { data, error } = await supabase
           .from('user_preferences')
           .select('*')
           .eq('user_id', userId);
 
-      // Se houver um erro REAL (de rede, RLS, etc.), pare a execução.
+      // Se houver erro de conexão, loga e sai
       if (error) {
-          console.error("Erro crítico ao buscar dados do usuário:", error);
+          console.error("Erro ao buscar dados:", error);
           setIsSyncing(false);
           return;
       }
       
-      // MUDANÇA 2: A nova lógica de verificação
-      // Se 'data' existe e o array tem pelo menos um item, o usuário existe.
+      // Se encontrou dados, carrega no App
       if (data && data.length > 0) {
-          const userData = data[0]; // Usamos o primeiro (e único) item do array
+          const userData = data[0]; 
 
           if (userData.feeds) setUserFeeds(userData.feeds);
           if (userData.saved_items) setSavedItems(userData.saved_items);
@@ -6264,24 +6262,15 @@ const loadUserData = async (userId) => {
           if (userData.is_dark_mode !== null) setIsDarkMode(userData.is_dark_mode);
           if (userData.seen_story_ids) setSeenStoryIds(userData.seen_story_ids);
           if (userData.article_history) setArticleHistory(userData.article_history);
-
-      } else {
-          // Se 'data' é um array vazio, significa que é um novo usuário.
-          console.log("LOG: Nenhum dado encontrado. Criando novo registro de preferências...");
-          const { error: insertError } = await supabase
-              .from('user_preferences')
-              .insert([{ user_id: userId }]);
-              
-          if (insertError) {
-              console.error("Erro fatal ao criar o primeiro registro do usuário:", insertError);
-          } else {
-              console.log("LOG: Novo registro criado com sucesso.");
-          }
-      }
+      } 
+      
+      // REMOVIDO O BLOCO 'ELSE' COM O INSERT.
+      // Se não tiver dados (novo usuário), não faz nada aqui.
+      // A função 'saveData' vai rodar logo em seguida e criar a linha automaticamente via upsert.
+      
       setIsSyncing(false);
   };
 
-  
   // 3. Função para Salvar (Debounced effect)
   useEffect(() => {
       if (!user || isSyncing) return;
