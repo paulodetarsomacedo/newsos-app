@@ -17,7 +17,7 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, Telescope,
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, 
 } from 'lucide-react';
 
 
@@ -1117,7 +1117,7 @@ const NewsCard = React.memo(({
           </div>
           
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
-            <div className={`relative flex items-center p-1 rounded-full border shadow-2xl ${isDarkMode ? 'bg-zinc-800/60 border-white/10 backdrop-blur-xl' : 'bg-white/70 backdrop-blur-md border border-white/70 shadow-lg'}`}>
+            <div className={`relative flex items-center p-0 rounded-full border shadow-2xl ${isDarkMode ? 'bg-zinc-800/60 border-white/10 backdrop-blur-xl' : 'bg-white/70 backdrop-blur-md border border-white/70 shadow-lg'}`}>
                 <AnimatePresence>
                     {activePill && (
                         <motion.div
@@ -3726,31 +3726,29 @@ const WhileYouWereAwayWidget = ({ news, openArticle, isDarkMode, getApiKey, clus
   return (
     <div className="relative">
       
-      <div className="absolute top-[-4.5rem] right-4 z-20">
+      <div className="absolute top-[-3rem] right-4 z-20">
         <button
           onClick={runAI}
           className="group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/30"
         >
           {loading ? ( <div className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /><span>Analisando</span></div> ) 
           : clusters ? ( <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar</span></div> ) 
-          : ( <div className="flex items-center gap-2"><Sparkles size={14} className="text-yellow-300" /><span>Analisar</span></div> )}
+          : ( <div className="flex items-center gap-2"><Sparkles size={20} className="text-yellow-300" /><span>Analisar</span></div> )}
         </button>
       </div>
 
-      <div
+        <div
         ref={scrollRef}
         onScroll={handleScroll}
+        // O carrossel em si não tem mais padding
         className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
       >
-        {displayClusters.map((cluster, idx) => (
-          <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
-            <div className={`
-              w-full rounded-2xl overflow-hidden flex flex-col
-              ${isDarkMode 
-                ? 'bg-zinc-900 border border-zinc-800 shadow-2xl shadow-black/20' 
-                : 'bg-white ring-1 ring-black/5 shadow-xl shadow-black/5'}
-            `}>
+      {displayClusters.map((cluster, idx) => (
+          // A CORREÇÃO: p-2 foi removido desta div
+          <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center">
+            <div className={`w-full rounded-[2.5rem] overflow-hidden flex flex-col ${isDarkMode ? 'bg-zinc-900 border-x border-b border-zinc-800' : 'bg-white ring-1 ring-black/5'}`}>
 
+              {/* O conteúdo do card (imagem, texto, etc.) permanece o mesmo */}
               <div className="relative w-full flex-grow h-[535px] bg-zinc-800">
                 <img
                   src={cluster.representative_image}
@@ -4397,12 +4395,11 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     setStartY(0);
   };
 
-  // LÓGICA DE DECISÃO CENTRALIZADA: Define qual lista de clusters será exibida
   const displayClusters = savedClusters && savedClusters.length > 0 ? savedClusters : heuristicClusters;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y relative" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-      
+    // A classe 'px-4' foi REMOVIDA daqui para permitir largura total
+    <div className="animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y space-y-8" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>      
       <style jsx="true">{`
         @keyframes gradient-flow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         @keyframes shimmer-text { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
@@ -4416,7 +4413,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
          </div>
       </div>
       
-       <div className="flex items-center gap-4 px-2 pt-2 relative z-10">
+       {/* ÁREA DE STORIES (agora com seu próprio padding 'px-4') */}
+       <div className="flex items-center gap-4 px-4 pt-2 relative z-10">
         <div className="flex-1 min-w-0"> 
             <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[100px]">
                 {storiesToDisplay && storiesToDisplay
@@ -4454,8 +4452,12 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
       
-      <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} openArticle={openArticle} />
+      {/* TREND RADAR (agora com seu próprio padding 'px-4') */}
+      <div className="px-4">
+        <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} openArticle={openArticle} />
+      </div>
       
+      {/* A GRANDE MANCHETE (SEM PADDING LATERAL) */}
       <div className="space-y-4">
         <div className="flex items-center gap-3 px-4">
             <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
@@ -4479,15 +4481,19 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         />
       </div>
     
-      <SmartDigestWidget 
-          newsData={newsData} 
-          getApiKey={getApiKey}
-          isDarkMode={isDarkMode} 
-          refreshTrigger={refreshTrigger} 
-      />
+      {/* SMART DIGEST (agora com seu próprio padding 'px-4') */}
+      <div className="px-4">
+        <SmartDigestWidget 
+            newsData={newsData} 
+            getApiKey={getApiKey}
+            isDarkMode={isDarkMode} 
+            refreshTrigger={refreshTrigger} 
+        />
+      </div>
       
-      <div className="space-y-4 px-2">
-          <div className="flex items-center gap-3 px-4">
+      {/* MARKET PULSE (agora com seu próprio padding 'px-4') */}
+      <div className="space-y-4 px-4 pt-4">
+          <div className="flex items-center gap-3">
               <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
                   <TrendingUp size={18} />
               </div>
@@ -4509,6 +4515,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     </div>
   );
 }
+
 
 // ==========================================================
 // === SUBSTITUA SUA FUNÇÃO "BancaTab" INTEIRA POR ESTA ===
@@ -7020,8 +7027,7 @@ return (
              onSearch={handleAskAI} 
           />
 
-          <main ref={mainRef} className="flex-1 overflow-y-auto pb-40 px-4 md:px-6 scrollbar-hide pt-2">
-            
+<main ref={mainRef} className="flex-1 overflow-y-auto pb-40 scrollbar-hide pt-2">            
        {activeTab === 'happening' && (
                 <HappeningTab 
                    openArticle={handleReadNative}
