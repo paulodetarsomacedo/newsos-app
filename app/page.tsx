@@ -791,7 +791,7 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
              <button
                onClick={() => { onSelect('all'); setIsOpen(false); }}
                className={`
-                 w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center transition-all
+                 w-10 h-10 rounded-md flex-shrink-0 flex items-center justify-center transition-all
                  ${selectedSource === 'all' 
                     ? 'bg-purple-600 text-white shadow-lg' 
                     : (isDarkMode ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600')}
@@ -809,8 +809,9 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
                    <button
                      key={item.source}
                      onClick={() => { onSelect(item.source); setIsOpen(false); }}
+                     // MUDANÇA 1: rounded-full -> rounded-md aqui
                      className={`
-                       relative w-10 h-10 rounded-full p-[2px] transition-transform hover:scale-110 flex-shrink-0
+                       relative w-10 h-10 rounded-md p-[2px] transition-transform hover:scale-110 flex-shrink-0
                        ${selectedSource === item.source ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}
                      `}
                      title={item.source}
@@ -818,7 +819,8 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
                      <img 
                        src={item.logo} 
                        alt={item.source} 
-                       className="w-full h-full rounded-full object-cover border border-black/10 bg-white"
+                       // MUDANÇA 2: rounded-full -> rounded-md aqui também
+                       className="w-full h-full rounded-md object-cover border border-black/10 bg-white"
                        onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${item.source}&background=random`}
                      />
                    </button>
