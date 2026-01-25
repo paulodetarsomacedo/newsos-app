@@ -1016,7 +1016,7 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 
 
 // ====================================================================
-// === NewsCard: CÓDIGO COMPLETO (SEM ABREVIAÇÕES) ===
+// === NewsCard: Botões Isolados e Hook Seguro ===
 // ====================================================================
 const NewsCard = React.memo(({ 
   news, 
@@ -1035,25 +1035,24 @@ const NewsCard = React.memo(({
 }) => {
   const [activePill, setActivePill] = useState(null);
 
-  // --- 1. AÇÃO DO CLIQUE NORMAL ---
-  // Esta função é chamada quando o hook detecta que foi um toque rápido (não long press)
+  // Ação do Clique Rápido no CARD
   const handleCardClick = () => {
     setActivePill('read');
     onClick(news); 
   };
   
-  // --- 2. HOOK DE GESTOS (WRAPPER) ---
-  // Aplica a lógica de Long Press vs Scroll vs Click
+  // Hook aplicado ao Container Principal
+  // Note que passamos uma arrow function para o onLongPress para injetar o 'news'
   const cardHandlers = useLongPress(
-      onLongPress ? () => onLongPress(news) : null, 
+      () => onLongPress && onLongPress(news), 
       handleCardClick, 
       { threshold: 600 } 
   );
 
-  // --- 3. FUNÇÃO DE BLINDAGEM (STOP PROPAGATION) ---
-  // Impede que toques nos botões pequenos ativem o clique do card ou o long press
+  // --- BLINDAGEM DOS BOTÕES ---
+  // Função para parar a propagação IMEDIATAMENTE no toque
   const stopProp = (e) => {
-      e.stopPropagation();
+      e.stopPropagation(); 
   };
 
   const displayTime = news.rawDate ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
@@ -1061,12 +1060,12 @@ const NewsCard = React.memo(({
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
 
-  // --- 4. COMPONENTE INTERNO: PLAYER DE ÁUDIO ---
   const InlinePlayer = () => (
     <>
         <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
             <div className="p-4 flex items-center gap-4">
                 <button 
+                    // BLINDAGEM: onPointerDown pega mouse e touch antes de qualquer coisa
                     onPointerDown={stopProp}
                     onClick={(e) => { stopProp(e); onPlay(news); }}
                     className="w-12 h-12 flex-shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform"
@@ -1100,10 +1099,11 @@ const NewsCard = React.memo(({
     </>
   );
 
-  // --- 5. RENDERIZAÇÃO DO CARD ---
   return (
     <div 
-      {...cardHandlers} // AQUI ESTÁ A MÁGICA DOS EVENTOS
+      // Aplicamos o hook aqui. Ele gerencia TouchStart, TouchMove, TouchEnd, etc.
+      // E ele NÃO tem preventDefault, então o scroll da página vai funcionar.
+      {...cardHandlers}
       style={{ zIndex: isSelected ? 40 : 1 }}
       className={`group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer transition-all duration-500 ease-out will-change-transform ${isSelected ? 'scale-[1.02]' : 'active:scale-[0.98]'}`}
     >
@@ -1117,13 +1117,11 @@ const NewsCard = React.memo(({
 
       <div className={`relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'} ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}`}>
       
-          {/* IMAGEM E CABEÇALHO */}
           <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
             <img src={news.img} alt={news.title} className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6" onError={(e) => e.target.style.display='none'} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
-            {/* Cabeçalho da Fonte */}
             <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-white p-1 shadow-lg border-2 border-white/80">
                     <img 
@@ -1143,7 +1141,6 @@ const NewsCard = React.memo(({
                 </div>
             </div>
 
-            {/* Botões de Ação (Superior Direito) */}
             <div className="absolute top-20 right-5 z-20 flex flex-col items-end gap-2">
                 {isRead && (
                     <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
@@ -1151,6 +1148,7 @@ const NewsCard = React.memo(({
                     </div>
                 )}
                 <div className="flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/60 shadow-lg">
+                    {/* Botões com STOP PROPAGATION */}
                     <button 
                         onPointerDown={stopProp}
                         onClick={(e) => { stopProp(e); onToggleLike(news); }} 
@@ -1158,6 +1156,7 @@ const NewsCard = React.memo(({
                     >
                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                     </button>
+                    
                     <button 
                         onPointerDown={stopProp}
                         onClick={(e) => { stopProp(e); onToggleSave(news); }} 
@@ -1165,6 +1164,7 @@ const NewsCard = React.memo(({
                     >
                         <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
                     </button>
+                    
                     {isPlayable && (
                         <button 
                             onPointerDown={stopProp}
@@ -1178,7 +1178,6 @@ const NewsCard = React.memo(({
             </div>
           </div>
           
-          {/* Pílulas Centrais (Ler / Analisar) */}
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
             <div className={`relative flex items-center p-0 rounded-full border shadow-2xl ${isDarkMode ? 'bg-zinc-800/60 border-white/10 backdrop-blur-xl' : 'bg-white/70 backdrop-blur-md border border-white/70 shadow-lg'}`}>
                 <AnimatePresence>
@@ -1202,6 +1201,8 @@ const NewsCard = React.memo(({
                         </motion.div>
                     )}
                 </AnimatePresence>
+                
+                {/* Botões Centrais (Ler / Analisar) - Também precisam de blindagem */}
                 <button 
                     onPointerDown={stopProp}
                     onClick={(e) => { stopProp(e); setActivePill('read'); onClick(news); }} 
@@ -1224,7 +1225,6 @@ const NewsCard = React.memo(({
             </div>
           </div>
 
-          {/* Área de Texto (Título e Resumo) */}
           <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
                  <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
@@ -1236,7 +1236,6 @@ const NewsCard = React.memo(({
             </div>
           </div>
 
-          {/* Player de Áudio Inline */}
           {isCurrentPlaying && <InlinePlayer />}
       </div>
     </div>
@@ -6495,73 +6494,83 @@ const [apiKeys, setApiKeys] = useState([
 
 
 // =======================================================================
-// === HOOK CORRIGIDO: DETECTA SCROLL E CANCELA O LONG PRESS ===
+// === HOOK CORRIGIDO V3: SEM preventDefault EM TOQUES (SCROLL LIVRE) ===
 // =======================================================================
 const useLongPress = (onLongPress, onClick, { threshold = 500 } = {}) => {
   const timerRef = useRef(null);
   const isLongPress = useRef(false);
+  const isScrolling = useRef(false);
   const startPos = useRef({ x: 0, y: 0 });
 
-  // Inicia a contagem
   const start = useCallback((event) => {
-    // Se for toque, guarda a posição inicial para detectar scroll depois
-    if (event.touches) {
-        startPos.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
-    }
+    // NÃO CHAMAMOS preventDefault() AQUI. O navegador gerencia o scroll.
     
+    // Reseta estados
     isLongPress.current = false;
+    isScrolling.current = false;
+    
+    // Pega coordenadas (compatível com mouse e touch)
+    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+    
+    startPos.current = { x: clientX, y: clientY };
+
     timerRef.current = setTimeout(() => {
-      isLongPress.current = true;
-      if (onLongPress) onLongPress(event);
+      // Se não moveu o dedo (não é scroll), ativa o Long Press
+      if (!isScrolling.current) {
+        isLongPress.current = true;
+        if (onLongPress) onLongPress();
+      }
     }, threshold);
   }, [onLongPress, threshold]);
 
-  // Se mover o dedo (Scroll), cancela tudo
   const move = useCallback((event) => {
-      if (timerRef.current && event.touches) {
-          const x = event.touches[0].clientX;
-          const y = event.touches[0].clientY;
-          
-          // Se moveu mais de 10px, é scroll, não clique longo
-          const diffX = Math.abs(x - startPos.current.x);
-          const diffY = Math.abs(y - startPos.current.y);
-          
-          if (diffX > 10 || diffY > 10) {
-              clearTimeout(timerRef.current);
-              timerRef.current = null;
-          }
+    // Se já detectou scroll, ignora
+    if (isScrolling.current) return;
+
+    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+
+    // Calcula distância (Teorema de Pitágoras é mais preciso que box diff)
+    const diffX = Math.abs(clientX - startPos.current.x);
+    const diffY = Math.abs(clientY - startPos.current.y);
+
+    // Se moveu mais que 10px, consideramos que o usuário quer rolar a tela (SCROLL)
+    if (diffX > 10 || diffY > 10) {
+      isScrolling.current = true;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
+    }
   }, []);
 
-  // Limpa o timer
-  const clear = useCallback(() => {
+  const end = useCallback((event) => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-  }, []);
 
-  // Finaliza: Decide se foi clique normal
-  const end = useCallback((event) => {
-    clear();
-    // Se não foi long press, e o evento existe, dispara o click normal
-    if (!isLongPress.current && onClick) {
-      onClick(event);
+    // Se não foi long press E não estava rolando a tela...
+    if (!isLongPress.current && !isScrolling.current) {
+      // ...então foi um clique rápido. Executa a ação de abrir.
+      if (onClick) onClick();
     }
-  }, [onClick, clear]);
+  }, [onClick]);
 
   return {
     onMouseDown: start,
     onTouchStart: start,
-    onMouseMove: move,   // Monitora movimento do mouse
-    onTouchMove: move,   // Monitora movimento do dedo (Scroll)
+    onMouseMove: move,
+    onTouchMove: move,
     onMouseUp: end,
-    onMouseLeave: clear,
     onTouchEnd: end,
-    onContextMenu: (e) => e.preventDefault(), // Bloqueia menu nativo no desktop
+    // Bloqueia apenas o menu de contexto (clique direito) no desktop
+    onContextMenu: (e) => e.preventDefault() 
   };
 };
-  
+
+
   // ==============================================================================
   // === INÍCIO DO BLOCO DE OTIMIZAÇÃO DE RESIZE (NOVO E COMPLETO) ===
   // ==============================================================================
