@@ -988,9 +988,8 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // ==========================================================
 
 // ==========================================================
-// === SUBSTITUA SUA FUNÇÃO "NewsCard" INTEIRA POR ESTA ===
+// === CÓDIGO 100% COMPLETO E CORRIGIDO PARA O NewsCard ===
 // ==========================================================
-
 const NewsCard = React.memo(({ 
   news, 
   isSelected, 
@@ -1007,48 +1006,58 @@ const NewsCard = React.memo(({
   playingAudio 
 }) => {
   const [activePill, setActivePill] = useState(null);
-  const readButtonRef = useRef(null);
-  const analyzeButtonRef = useRef(null);
+
+  // Função que encapsula a lógica do clique normal, incluindo a mudança da pílula.
+  const handleNormalClick = () => {
+    setActivePill('read');
+    onClick(news); 
+  };
+  
+  // Hook que gerencia os eventos de mouse/touch para diferenciar clique normal de longo.
+  const longPressEvents = useLongPress(onLongPress, handleNormalClick, { threshold: 500 });
 
   const displayTime = news.rawDate ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
   const isPlayable = !!news.title;
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
 
-  const longPressEvents = useLongPress(onLongPress, onClick, { threshold: 500 });
-
+  // Definição do sub-componente InlinePlayer (com a correção do fragmento).
   const InlinePlayer = () => (
-    <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
-        <div className="p-4 flex items-center gap-4">
-            <button 
-                onClick={(e) => { e.stopPropagation(); onPlay(news); }}
-                className="w-12 h-12 flex-shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform"
-            >
-                {isGenerating ? <Loader2 size={20} className="animate-spin"/> : (
-                    <div className="flex gap-1 items-end h-4">
-                        <div className="w-1 bg-white animate-[music-bar_0.6s_ease-in-out_infinite]"></div>
-                        <div className="w-1 bg-white animate-[music-bar_0.8s_ease-in-out_infinite]"></div>
-                        <div className="w-1 bg-white animate-[music-bar_0.5s_ease-in-out_infinite]"></div>
+    <>
+        <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
+            <div className="p-4 flex items-center gap-4">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onPlay(news); }}
+                    className="w-12 h-12 flex-shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                >
+                    {isGenerating ? <Loader2 size={20} className="animate-spin"/> : (
+                        <div className="flex gap-1 items-end h-4">
+                            <div className="w-1 bg-white animate-[music-bar_0.6s_ease-in-out_infinite]"></div>
+                            <div className="w-1 bg-white animate-[music-bar_0.8s_ease-in-out_infinite]"></div>
+                            <div className="w-1 bg-white animate-[music-bar_0.5s_ease-in-out_infinite]"></div>
+                        </div>
+                    )}
+                </button>
+                <div className="flex-1 min-w-0">
+                    <h4 className={`text-xs font-bold uppercase tracking-wider mb-1 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
+                        {isGenerating ? 'Gerando Áudio Neural...' : 'Ouvindo Agora'}
+                    </h4>
+                    <div className="h-1 w-full bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 w-1/3 animate-pulse"></div>
                     </div>
-                )}
-            </button>
-            <div className="flex-1 min-w-0">
-                <h4 className={`text-xs font-bold uppercase tracking-wider mb-1 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
-                    {isGenerating ? 'Gerando Áudio Neural...' : 'Ouvindo Agora'}
-                </h4>
-                <div className="h-1 w-full bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-500 w-1/3 animate-pulse"></div>
                 </div>
+                <button onClick={(e) => { e.stopPropagation(); onPlay(null); }} className="p-2 text-zinc-400 hover:text-red-500 transition-colors">
+                    <X size={20} />
+                </button>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); onPlay(null); }} className="p-2 text-zinc-400 hover:text-red-500 transition-colors">
-                <X size={20} />
-            </button>
         </div>
         <style jsx="true">{`@keyframes music-bar { 0%, 100% { height: 20%; } 50% { height: 100%; } }`}</style>
-    </div>
+    </>
   );
 
-  <div 
+  // --- A CORREÇÃO PRINCIPAL: ADICIONANDO O 'return' ---
+  return (
+    <div 
       {...longPressEvents}
       style={{ zIndex: isSelected ? 40 : 1 }}
       className={`group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer transition-all duration-500 ease-out will-change-transform ${isSelected ? 'scale-[1.02]' : 'active:scale-[0.98]'}`}
@@ -1064,36 +1073,28 @@ const NewsCard = React.memo(({
       <div className={`relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'} ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}`}>
       
           <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
-            {/* A CORREÇÃO ESTÁ NA LINHA ABAIXO */}
             <img src={news.img} alt={news.title} className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6" onError={(e) => e.target.style.display='none'} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
-{/* NOVO CABEÇALHO DESCONSTRUÍDO (VERSÃO FINAL CORRIGIDA) */}
-<div className="absolute top-4 left-4 z-20 flex items-center gap-3">
-    
-    {/* 1. LOGO INDEPENDENTE */}
-    <div className="w-12 h-12 rounded-2xl bg-white p-1 shadow-lg border-2 border-white/80">
-        <img 
-            src={news.logo} 
-            className="w-full h-full object-contain rounded-lg" 
-            onError={(e) => e.target.style.display = 'none'} 
-            alt={news.source}
-        />
-    </div>
-    
-    {/* 2. UMA ÚNICA PÍLULA DE INFORMAÇÕES */}
-    <div className="flex items-center gap-4 px-4 py-2 rounded-full bg-black/30 backdrop-blur-md border border-white/70">
-        {/* Nome da Fonte */}
-        <span className="text-[13px] font-black text-white uppercase tracking-widest truncate">
-            {news.source}
-        </span>
-        {/* Hora */}
-        <span className="text-sm font-mono font-bold text-white/70 tracking-wider">
-            {displayTime}
-        </span>
-    </div>
-</div>
+            <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-white p-1 shadow-lg border-2 border-white/80">
+                    <img 
+                        src={news.logo} 
+                        className="w-full h-full object-contain rounded-lg" 
+                        onError={(e) => e.target.style.display = 'none'} 
+                        alt={news.source}
+                    />
+                </div>
+                <div className="flex items-center gap-4 px-4 py-2 rounded-full bg-black/30 backdrop-blur-md border border-white/70">
+                    <span className="text-[13px] font-black text-white uppercase tracking-widest truncate">
+                        {news.source}
+                    </span>
+                    <span className="text-sm font-mono font-bold text-white/70 tracking-wider">
+                        {displayTime}
+                    </span>
+                </div>
+            </div>
 
             <div className="absolute top-20 right-5 z-20 flex flex-col items-end gap-2">
                 {isRead && (
@@ -1141,7 +1142,7 @@ const NewsCard = React.memo(({
                     )}
                 </AnimatePresence>
                 <button 
-                    onClick={(e) => { e.stopPropagation(); setActivePill('read'); onClick(news); }} 
+                    onClick={(e) => { e.stopPropagation(); handleNormalClick(); }} 
                     className="relative z-10 w-[68px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
                 >
                     <span className={activePill === 'read' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}>
@@ -1159,8 +1160,8 @@ const NewsCard = React.memo(({
                 </button>
             </div>
           </div>
-{/* ÁREA DE TEXTO (COM PADDING E LAYOUT CORRIGIDOS PARA APARECER) */}
- <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
+
+          <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
                  <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
