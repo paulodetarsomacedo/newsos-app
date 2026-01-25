@@ -3705,20 +3705,47 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
   );
 }
 
-// --- MODAL: ENTENDA O CASO ---
+// ==============================================================================
+// === LÓGICA HEURÍSTICA: ENTENDA O CASO (Resumo Automático + IA Opcional) ===
+// ==============================================================================
 function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiKey }) {
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // REMOVIDO O useEffect QUE GERAVA AUTOMATICAMENTE
+  // --- HEURÍSTICA ROBUSTA: Construção de Resumo Automático ---
+  // Pega o resumo da matéria mais relevante + um ponto extra da segunda matéria
+  const heuristicSummary = useMemo(() => {
+      if (!cluster.related_articles || cluster.related_articles.length === 0) return "Sem dados suficientes.";
+      
+      const mainArticle = cluster.related_articles[0];
+      const secondArticle = cluster.related_articles[1];
+      
+      let text = mainArticle.summary || "";
+      // Limpa tags HTML simples se houver
+      text = text.replace(/<[^>]*>?/gm, '');
+      
+      // Se tiver uma segunda matéria com título diferente, adiciona como contexto
+      if (secondArticle && secondArticle.title !== mainArticle.title) {
+          text += `\n\nOutra perspectiva (${secondArticle.source}): ${secondArticle.title}.`;
+      }
+      
+      return text;
+  }, [cluster]);
 
   const handleGenerateSummary = async () => {
     setIsLoading(true);
     const apiKey = getApiKey('analysis');
     const generatedSummary = await generateNeutralSummaryForCluster(cluster.related_articles, apiKey);
-    setSummary(generatedSummary);
+    if (generatedSummary) {
+        setSummary(generatedSummary);
+    } else {
+        alert("A IA está indisponível. Exibindo resumo original.");
+    }
     setIsLoading(false);
   };
+
+  // Texto final: IA (se gerado) ou Heurística (padrão)
+  const displayContent = summary || heuristicSummary;
 
   return (
     <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -3736,28 +3763,33 @@ function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiK
           <h2 className="text-lg font-bold font-serif leading-tight">{cluster.ai_title}</h2>
         </div>
         
-        {/* Área do Resumo IA (AGORA COM BOTÃO) */}
+        {/* Área do Resumo (Híbrido: Heurístico -> IA) */}
         <div className={`p-6 shrink-0 border-b ${isDarkMode ? 'border-zinc-800 bg-zinc-800/30' : 'border-zinc-200 bg-zinc-50'}`}>
-          {!summary ? (
-             <div className="flex flex-col items-center gap-3 py-2">
-                 <p className="text-sm text-center opacity-60">Gostaria que a IA analisasse as {cluster.related_articles.length} fontes e criasse um resumo unificado?</p>
-                 <button 
-                    onClick={handleGenerateSummary} 
-                    disabled={isLoading}
-                    className="flex items-center gap-2 px-6 py-3 rounded-full bg-purple-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-500/30 hover:bg-purple-500 transition active:scale-95 disabled:opacity-50"
-                 >
-                    {isLoading ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
-                    {isLoading ? "Analisando..." : "Gerar Resumo"}
-                 </button>
-             </div>
-          ) : (
-             <div className="relative animate-in fade-in slide-in-from-bottom-2">
-                 <Sparkles size={16} className="absolute -top-1 -left-1 text-purple-500 opacity-50" />
+             <div className="relative">
+                 {/* Ícone muda se for IA ou Original */}
+                 {summary ? (
+                    <Sparkles size={16} className="absolute -top-1 -left-1 text-purple-500 opacity-100 animate-pulse" />
+                 ) : (
+                    <FileText size={16} className="absolute -top-1 -left-1 text-zinc-400 opacity-100" />
+                 )}
+                 
                  <p className={`text-sm leading-relaxed pl-6 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                    {summary}
+                    {displayContent}
                  </p>
+
+                 {!summary && (
+                     <div className="mt-4 flex justify-end">
+                         <button 
+                            onClick={handleGenerateSummary} 
+                            disabled={isLoading}
+                            className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/10 text-purple-600 dark:text-purple-400 text-[10px] font-bold uppercase tracking-wider hover:bg-purple-600/20 transition active:scale-95 disabled:opacity-50"
+                         >
+                            {isLoading ? <Loader2 size={12} className="animate-spin"/> : <Sparkles size={12}/>}
+                            {isLoading ? "Melhorando..." : "Melhorar com IA"}
+                         </button>
+                     </div>
+                 )}
              </div>
-          )}
         </div>
 
         {/* Lista de Fontes */}
@@ -3781,74 +3813,106 @@ function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiK
   );
 }
 
-// --- MODAL: LINHA DO TEMPO ---
+// ==============================================================================
+// === LÓGICA HEURÍSTICA: LINHA DO TEMPO (Cronologia Real + IA Opcional) ===
+// ==============================================================================
 function ClusterTimelineModal({ cluster, onClose, isDarkMode, getApiKey }) {
-    const [timeline, setTimeline] = useState(null);
+    const [aiTimeline, setAiTimeline] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
 
-    // REMOVIDO O useEffect AUTOMÁTICO
+    // --- HEURÍSTICA ROBUSTA: Linha do Tempo baseada em Metadados ---
+    // Ordena as notícias do cluster da mais antiga para a mais recente e formata
+    const heuristicTimeline = useMemo(() => {
+        if (!cluster.related_articles) return [];
+        
+        // Clona e ordena: Mais antigo -> Mais novo
+        const sorted = [...cluster.related_articles].sort((a, b) => 
+            new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime()
+        );
+
+        return sorted.map(article => {
+            const dateObj = new Date(article.rawDate);
+            // Formata hora amigável (ex: "14:30" ou "Ontem")
+            const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            return {
+                time: timeStr,
+                event: article.title, // Usa o título da matéria como evento
+                source: article.source // Adiciona fonte para contexto
+            };
+        });
+    }, [cluster]);
 
     const handleGenerateTimeline = async () => {
         setIsLoading(true);
         const apiKey = getApiKey('analysis');
         const result = await generateTimelineForCluster(cluster.related_articles, apiKey);
-        setTimeline(result);
+        if (result) setAiTimeline(result);
+        else alert("A IA não conseguiu gerar uma timeline melhor.");
         setIsLoading(false);
     };
+
+    // Dados finais: Se tiver IA, usa IA. Se não, usa a heurística (Cronologia das Notícias)
+    const displayData = aiTimeline || heuristicTimeline;
+    const isUsingAI = !!aiTimeline;
 
     return (
         <div className="fixed inset-0 z-[8000] flex items-center justify-center p-4 animate-in fade-in">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
             <div className={`relative w-full max-w-lg rounded-3xl shadow-2xl border overflow-hidden flex flex-col max-h-[80vh] ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white'}`}>
-                <div className={`p-5 border-b shrink-0 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
-                    <div className="flex justify-between items-center mb-1">
+                
+                {/* Header */}
+                <div className={`p-5 border-b shrink-0 flex flex-col gap-3 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                    <div className="flex justify-between items-center">
                         <span className="text-[10px] font-bold uppercase tracking-widest text-blue-500 flex items-center gap-1">
-                            <History size={12}/> Linha do Tempo
+                            <History size={12}/> Linha do Tempo {isUsingAI ? '(IA)' : '(Cronológica)'}
                         </span>
                         <button onClick={onClose} className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><X size={18}/></button>
                     </div>
-                    <h2 className="text-lg font-bold font-serif leading-tight truncate">{cluster.ai_title}</h2>
-                </div>
-                
-                <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-                    {!timeline ? (
-                        <div className="flex items-center justify-center h-full flex-col gap-4 opacity-80">
-                            <History size={40} className="text-blue-500/50 mb-2"/>
-                            <p className="text-sm text-center max-w-xs">Organize os eventos desta história em ordem cronológica com IA.</p>
+                    
+                    {/* Botão de Upgrade para IA */}
+                    {!isUsingAI && (
+                        <div className={`p-3 rounded-xl flex items-center justify-between ${isDarkMode ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
+                            <span className="text-[10px] opacity-70 leading-tight pr-2">Esta é a ordem de publicação. <br/>Quer que a IA organize os fatos narrativamente?</span>
                             <button 
                                 onClick={handleGenerateTimeline} 
                                 disabled={isLoading}
-                                className="flex items-center gap-2 px-6 py-3 rounded-full bg-blue-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/30 hover:bg-blue-500 transition active:scale-95 disabled:opacity-50"
+                                className="flex-shrink-0 px-3 py-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-lg uppercase tracking-wide hover:bg-blue-500 transition disabled:opacity-50"
                             >
-                                {isLoading ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
-                                {isLoading ? "Construindo..." : "Gerar Cronologia"}
+                                {isLoading ? <Loader2 size={10} className="animate-spin"/> : "Gerar com IA"}
                             </button>
                         </div>
-                    ) : timeline.length > 0 ? (
-                        <div className="relative pl-2 animate-in fade-in slide-in-from-bottom-4">
-                            <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-zinc-200 dark:bg-zinc-800"></div>
-                            
-                            <div className="space-y-8">
-                                {timeline.map((item, i) => (
-                                    <div key={i} className="flex gap-5 relative">
-                                        <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center z-10 text-xs font-bold shadow-sm border-4 ${isDarkMode ? 'bg-zinc-800 border-zinc-900 text-white' : 'bg-white border-white text-blue-600'}`}>
-                                            {i + 1}
-                                        </div>
-                                        <div className="pt-1 pb-2">
-                                            <div className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-500 text-[10px] font-bold w-max mb-1 uppercase tracking-wide">
+                    )}
+                </div>
+                
+                {/* Timeline Body */}
+                <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+                    <div className="relative pl-2">
+                        {/* Linha vertical */}
+                        <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-zinc-200 dark:bg-zinc-800"></div>
+                        
+                        <div className="space-y-8">
+                            {displayData.map((item, i) => (
+                                <div key={i} className="flex gap-5 relative">
+                                    <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center z-10 text-xs font-bold shadow-sm border-4 ${isDarkMode ? 'bg-zinc-800 border-zinc-900 text-white' : 'bg-white border-white text-blue-600'}`}>
+                                        {i + 1}
+                                    </div>
+                                    <div className="pt-1 pb-2">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-500 text-[10px] font-bold uppercase tracking-wide w-max">
                                                 {item.time}
                                             </div>
-                                            <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{item.event}</p>
+                                            {/* Mostra a fonte na versão heurística para contexto */}
+                                            {item.source && (
+                                                <span className="text-[9px] font-bold opacity-40 uppercase">{item.source}</span>
+                                            )}
                                         </div>
+                                        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{item.event}</p>
                                     </div>
-                                ))}
-                            </div>
+                                </div>
+                            ))}
                         </div>
-                    ) : (
-                        <div className="text-center py-10 opacity-50">
-                            <p className="text-sm">Não foi possível gerar a linha do tempo.</p>
-                        </div>
-                    )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -6398,33 +6462,47 @@ const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
   const timerRef = useRef();
   const isLongPress = useRef(false);
 
-  const start = useCallback((event) => {
-    // NÃO chamamos preventDefault() aqui para não travar o scroll inicial
+  const start = useCallback(() => {
+    // REMOVIDO: event.preventDefault() 
+    // Motivo: Isso travava o scroll em dispositivos móveis e causava o erro "passive listener".
     isLongPress.current = false;
     timerRef.current = setTimeout(() => {
-      onLongPress(event);
+      if (onLongPress) {
+        onLongPress();
+      }
       isLongPress.current = true;
     }, threshold);
   }, [onLongPress, threshold]);
 
   const clear = useCallback(() => {
-    timerRef.current && clearTimeout(timerRef.current);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
   }, []);
 
   const handleClick = useCallback((event) => {
-    if (!isLongPress.current) {
-      onClick(event);
+    if (isLongPress.current) {
+      // Se foi um clique longo, prevenimos o clique normal
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+    } else {
+      // Se foi rápido, executa o clique normal
+      if (onClick) onClick(event);
     }
   }, [onClick]);
   
   return {
-    onMouseDown: (e) => start(e),
-    onTouchStart: (e) => start(e),
-    onMouseUp: (e) => { clear(); handleClick(e); },
-    onMouseLeave: () => clear(),
-    onTouchEnd: (e) => { clear(); handleClick(e); },
-    // Apenas prevenimos o menu de contexto (clique direito)
-    onContextMenu: (e) => e.preventDefault(),
+    onMouseDown: start,
+    onTouchStart: start,
+    onMouseUp: clear,
+    onMouseLeave: clear,
+    onTouchEnd: (e) => {
+      clear();
+      // Pequeno delay para garantir que a flag isLongPress não seja limpa antes do click
+      handleClick(e);
+    },
+    onContextMenu: (e) => e.preventDefault(), // Bloqueia menu apenas no desktop/clique direito
   };
 };
   
