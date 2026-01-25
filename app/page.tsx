@@ -702,7 +702,7 @@ function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
                 // ==========================================================
                 // 'py-5' (40px) foi trocado por 'py-3' (24px)
                 className={`
-                  relative flex items-center justify-center w-10 py-3 rounded-lg
+                  relative flex items-center justify-center w-8 py-2 rounded-lg
                   transition-all duration-300
                   ${isActive 
                       ? 'bg-purple-600 text-white shadow-lg' 
@@ -713,7 +713,7 @@ function FeedVerticalFilter({ categories, active, onChange, isDarkMode }) {
               >
                   {/* O tamanho da fonte foi ajustado para melhor encaixe */}
                   <span 
-                    className="text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap" 
+                    className="text-[12px] font-black uppercase tracking-[0.2em] whitespace-nowrap" 
                     style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
                   >
                       {cat}
