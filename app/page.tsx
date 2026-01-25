@@ -1015,47 +1015,60 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
 
-// ==========================================================
-// === SUBSTITUA SUA FUNÇÃO "NewsCard" INTEIRA POR ESTA ===
-// ==========================================================
-// ==========================================================
-// === SUBSTITUA SUA FUNÇÃO "NewsCard" INTEIRA POR ESTA ===
-// ==========================================================
-
-// ==========================================================
-// === CÓDIGO 100% COMPLETO E CORRIGIDO PARA O NewsCard ===
-// ==========================================================
+// ====================================================================
+// === NewsCard: CÓDIGO COMPLETO (SEM ABREVIAÇÕES) ===
+// ====================================================================
 const NewsCard = React.memo(({ 
-  news, isSelected, isRead, isSaved, isLiked, isDarkMode, 
-  onClick, onAnalyze, onLongPress, onToggleSave, onToggleLike, onPlay, playingAudio 
+  news, 
+  isSelected, 
+  isRead, 
+  isSaved, 
+  isLiked, 
+  isDarkMode, 
+  onClick, 
+  onAnalyze, 
+  onLongPress,
+  onToggleSave, 
+  onToggleLike, 
+  onPlay, 
+  playingAudio 
 }) => {
   const [activePill, setActivePill] = useState(null);
 
-  // 1. Hook configurado com a função de clique normal e a de longo
-  const handlers = useLongPress(
-    // Ação do Long Press (Passada via prop)
-    onLongPress, 
-    // Ação do Clique Normal (Define a pílula e abre)
-    () => {
-        setActivePill('read');
-        onClick(news);
-    }, 
-    { threshold: 500 }
+  // --- 1. AÇÃO DO CLIQUE NORMAL ---
+  // Esta função é chamada quando o hook detecta que foi um toque rápido (não long press)
+  const handleCardClick = () => {
+    setActivePill('read');
+    onClick(news); 
+  };
+  
+  // --- 2. HOOK DE GESTOS (WRAPPER) ---
+  // Aplica a lógica de Long Press vs Scroll vs Click
+  const cardHandlers = useLongPress(
+      onLongPress ? () => onLongPress(news) : null, 
+      handleCardClick, 
+      { threshold: 600 } 
   );
 
+  // --- 3. FUNÇÃO DE BLINDAGEM (STOP PROPAGATION) ---
+  // Impede que toques nos botões pequenos ativem o clique do card ou o long press
+  const stopProp = (e) => {
+      e.stopPropagation();
+  };
 
   const displayTime = news.rawDate ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
   const isPlayable = !!news.title;
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
 
-  // Definição do sub-componente InlinePlayer (com a correção do fragmento).
+  // --- 4. COMPONENTE INTERNO: PLAYER DE ÁUDIO ---
   const InlinePlayer = () => (
     <>
         <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
             <div className="p-4 flex items-center gap-4">
                 <button 
-                    onClick={(e) => { e.stopPropagation(); onPlay(news); }}
+                    onPointerDown={stopProp}
+                    onClick={(e) => { stopProp(e); onPlay(news); }}
                     className="w-12 h-12 flex-shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                 >
                     {isGenerating ? <Loader2 size={20} className="animate-spin"/> : (
@@ -1074,7 +1087,11 @@ const NewsCard = React.memo(({
                         <div className="h-full bg-indigo-500 w-1/3 animate-pulse"></div>
                     </div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); onPlay(null); }} className="p-2 text-zinc-400 hover:text-red-500 transition-colors">
+                <button 
+                    onPointerDown={stopProp}
+                    onClick={(e) => { stopProp(e); onPlay(null); }} 
+                    className="p-2 text-zinc-400 hover:text-red-500 transition-colors"
+                >
                     <X size={20} />
                 </button>
             </div>
@@ -1083,10 +1100,10 @@ const NewsCard = React.memo(({
     </>
   );
 
-  // --- A CORREÇÃO PRINCIPAL: ADICIONANDO O 'return' ---
+  // --- 5. RENDERIZAÇÃO DO CARD ---
   return (
     <div 
-      {...handlers}
+      {...cardHandlers} // AQUI ESTÁ A MÁGICA DOS EVENTOS
       style={{ zIndex: isSelected ? 40 : 1 }}
       className={`group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer transition-all duration-500 ease-out will-change-transform ${isSelected ? 'scale-[1.02]' : 'active:scale-[0.98]'}`}
     >
@@ -1100,11 +1117,13 @@ const NewsCard = React.memo(({
 
       <div className={`relative z-10 w-full h-full flex flex-col overflow-hidden rounded-[2.5rem] ${isDarkMode ? 'bg-zinc-900' : 'bg-white shadow-xl'} ${!isSelected && (isDarkMode ? 'border border-white/5' : 'border border-zinc-100')}`}>
       
+          {/* IMAGEM E CABEÇALHO */}
           <div className="relative h-80 w-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
             <img src={news.img} alt={news.title} className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6" onError={(e) => e.target.style.display='none'} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
 
+            {/* Cabeçalho da Fonte */}
             <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-white p-1 shadow-lg border-2 border-white/80">
                     <img 
@@ -1124,6 +1143,7 @@ const NewsCard = React.memo(({
                 </div>
             </div>
 
+            {/* Botões de Ação (Superior Direito) */}
             <div className="absolute top-20 right-5 z-20 flex flex-col items-end gap-2">
                 {isRead && (
                     <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
@@ -1131,14 +1151,26 @@ const NewsCard = React.memo(({
                     </div>
                 )}
                 <div className="flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/60 shadow-lg">
-                    <button onClick={(e) => { e.stopPropagation(); onToggleLike(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                    <button 
+                        onPointerDown={stopProp}
+                        onClick={(e) => { stopProp(e); onToggleLike(news); }} 
+                        className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+                    >
                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); onToggleSave(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                    <button 
+                        onPointerDown={stopProp}
+                        onClick={(e) => { stopProp(e); onToggleSave(news); }} 
+                        className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+                    >
                         <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
                     </button>
                     {isPlayable && (
-                        <button onClick={(e) => { e.stopPropagation(); onPlay(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isCurrentPlaying ? 'text-green-400 bg-green-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                        <button 
+                            onPointerDown={stopProp}
+                            onClick={(e) => { stopProp(e); onPlay(news); }} 
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isCurrentPlaying ? 'text-green-400 bg-green-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+                        >
                             {isGenerating ? (<Loader2 size={20} className="animate-spin" />) : isCurrentPlaying ? (<Pause size={20} fill="currentColor"/>) : (<Play size={20} fill="currentColor" />)}
                         </button>
                     )}
@@ -1146,6 +1178,7 @@ const NewsCard = React.memo(({
             </div>
           </div>
           
+          {/* Pílulas Centrais (Ler / Analisar) */}
           <div className="absolute top-80 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-max">
             <div className={`relative flex items-center p-0 rounded-full border shadow-2xl ${isDarkMode ? 'bg-zinc-800/60 border-white/10 backdrop-blur-xl' : 'bg-white/70 backdrop-blur-md border border-white/70 shadow-lg'}`}>
                 <AnimatePresence>
@@ -1170,7 +1203,8 @@ const NewsCard = React.memo(({
                     )}
                 </AnimatePresence>
                 <button 
-                    onClick={(e) => { e.stopPropagation(); handleNormalClick(); }} 
+                    onPointerDown={stopProp}
+                    onClick={(e) => { stopProp(e); setActivePill('read'); onClick(news); }} 
                     className="relative z-10 w-[68px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
                 >
                     <span className={activePill === 'read' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}>
@@ -1178,7 +1212,8 @@ const NewsCard = React.memo(({
                     </span>
                 </button>
                 <button 
-                    onClick={(e) => { e.stopPropagation(); setActivePill('analyze'); onAnalyze(news); }} 
+                    onPointerDown={stopProp}
+                    onClick={(e) => { stopProp(e); setActivePill('analyze'); onAnalyze(news); }} 
                     className="relative z-10 w-[128px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
                 >
                     <div className={`flex items-center gap-2 ${activePill === 'analyze' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}`}>
@@ -1189,6 +1224,7 @@ const NewsCard = React.memo(({
             </div>
           </div>
 
+          {/* Área de Texto (Título e Resumo) */}
           <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
                  <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
@@ -1200,6 +1236,7 @@ const NewsCard = React.memo(({
             </div>
           </div>
 
+          {/* Player de Áudio Inline */}
           {isCurrentPlaying && <InlinePlayer />}
       </div>
     </div>
@@ -6457,23 +6494,46 @@ const [apiKeys, setApiKeys] = useState([
 ]);
 
 
-// ATUALIZE SEU HOOK useLongPress PARA ESTA VERSÃO MAIS SEGURA
-const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
-  const timerRef = useRef();
+// =======================================================================
+// === HOOK CORRIGIDO: DETECTA SCROLL E CANCELA O LONG PRESS ===
+// =======================================================================
+const useLongPress = (onLongPress, onClick, { threshold = 500 } = {}) => {
+  const timerRef = useRef(null);
   const isLongPress = useRef(false);
+  const startPos = useRef({ x: 0, y: 0 });
 
-  const start = useCallback(() => {
-    // REMOVIDO: event.preventDefault() 
-    // Motivo: Isso travava o scroll em dispositivos móveis e causava o erro "passive listener".
+  // Inicia a contagem
+  const start = useCallback((event) => {
+    // Se for toque, guarda a posição inicial para detectar scroll depois
+    if (event.touches) {
+        startPos.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+    }
+    
     isLongPress.current = false;
     timerRef.current = setTimeout(() => {
-      if (onLongPress) {
-        onLongPress();
-      }
       isLongPress.current = true;
+      if (onLongPress) onLongPress(event);
     }, threshold);
   }, [onLongPress, threshold]);
 
+  // Se mover o dedo (Scroll), cancela tudo
+  const move = useCallback((event) => {
+      if (timerRef.current && event.touches) {
+          const x = event.touches[0].clientX;
+          const y = event.touches[0].clientY;
+          
+          // Se moveu mais de 10px, é scroll, não clique longo
+          const diffX = Math.abs(x - startPos.current.x);
+          const diffY = Math.abs(y - startPos.current.y);
+          
+          if (diffX > 10 || diffY > 10) {
+              clearTimeout(timerRef.current);
+              timerRef.current = null;
+          }
+      }
+  }, []);
+
+  // Limpa o timer
   const clear = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -6481,28 +6541,24 @@ const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
     }
   }, []);
 
-  const handleClick = useCallback((event) => {
-    if (isLongPress.current) {
-      // Se foi um clique longo, prevenimos o clique normal
-      if (event.cancelable) event.preventDefault();
-      event.stopPropagation();
-    } else {
-      // Se foi rápido, executa o clique normal
-      if (onClick) onClick(event);
+  // Finaliza: Decide se foi clique normal
+  const end = useCallback((event) => {
+    clear();
+    // Se não foi long press, e o evento existe, dispara o click normal
+    if (!isLongPress.current && onClick) {
+      onClick(event);
     }
-  }, [onClick]);
-  
+  }, [onClick, clear]);
+
   return {
     onMouseDown: start,
     onTouchStart: start,
-    onMouseUp: clear,
+    onMouseMove: move,   // Monitora movimento do mouse
+    onTouchMove: move,   // Monitora movimento do dedo (Scroll)
+    onMouseUp: end,
     onMouseLeave: clear,
-    onTouchEnd: (e) => {
-      clear();
-      // Pequeno delay para garantir que a flag isLongPress não seja limpa antes do click
-      handleClick(e);
-    },
-    onContextMenu: (e) => e.preventDefault(), // Bloqueia menu apenas no desktop/clique direito
+    onTouchEnd: end,
+    onContextMenu: (e) => e.preventDefault(), // Bloqueia menu nativo no desktop
   };
 };
   
