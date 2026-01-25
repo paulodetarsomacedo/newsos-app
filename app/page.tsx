@@ -1026,30 +1026,23 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // === CÓDIGO 100% COMPLETO E CORRIGIDO PARA O NewsCard ===
 // ==========================================================
 const NewsCard = React.memo(({ 
-  news, 
-  isSelected, 
-  isRead, 
-  isSaved, 
-  isLiked, 
-  isDarkMode, 
-  onClick, 
-  onAnalyze, 
-  onLongPress,
-  onToggleSave, 
-  onToggleLike, 
-  onPlay, 
-  playingAudio 
+  news, isSelected, isRead, isSaved, isLiked, isDarkMode, 
+  onClick, onAnalyze, onLongPress, onToggleSave, onToggleLike, onPlay, playingAudio 
 }) => {
   const [activePill, setActivePill] = useState(null);
 
-  // Função que encapsula a lógica do clique normal, incluindo a mudança da pílula.
-  const handleNormalClick = () => {
-    setActivePill('read');
-    onClick(news); 
-  };
-  
-  // Hook que gerencia os eventos de mouse/touch para diferenciar clique normal de longo.
-  const longPressEvents = useLongPress(onLongPress, handleNormalClick, { threshold: 500 });
+  // 1. Hook configurado com a função de clique normal e a de longo
+  const handlers = useLongPress(
+    // Ação do Long Press (Passada via prop)
+    onLongPress, 
+    // Ação do Clique Normal (Define a pílula e abre)
+    () => {
+        setActivePill('read');
+        onClick(news);
+    }, 
+    { threshold: 500 }
+  );
+
 
   const displayTime = news.rawDate ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
   const isPlayable = !!news.title;
@@ -1093,7 +1086,7 @@ const NewsCard = React.memo(({
   // --- A CORREÇÃO PRINCIPAL: ADICIONANDO O 'return' ---
   return (
     <div 
-      {...longPressEvents}
+      {...handlers}
       style={{ zIndex: isSelected ? 40 : 1 }}
       className={`group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer transition-all duration-500 ease-out will-change-transform ${isSelected ? 'scale-[1.02]' : 'active:scale-[0.98]'}`}
     >
@@ -2633,107 +2626,77 @@ Você é um Editor de Primeira Página. Analise as notícias e identifique 8 ten
 // ==============================================================================
 // === COMPONENTE GLASSBROWSER (CORRIGIDO E COMPLETO) ===
 // ==============================================================================
+// ==============================================================================
+// === COMPONENTE GLASSBROWSER (CORRIGIDO PARA EXIBIR DADOS DO WORKER) ===
+// ==============================================================================
 const GlassBrowser = ({ article, onClose, isDarkMode }) => {
-  // URL do seu Worker que extrai o texto limpo
+  // URL do Worker
   const WORKER_BASE = 'https://newsos-extract.paulodetarsomacedo.workers.dev';
 
   const [excerpt, setExcerpt] = useState('');
-  const [excerptStatus, setExcerptStatus] = useState('idle'); // idle | loading | success | error
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const abortRef = useRef(null);
 
-  // Texto bruto que já veio no RSS (geralmente curto ou sujo)
+  // Resumo original do RSS (Garantia de que sempre teremos algo para mostrar)
   const summaryRaw = (article?.summary || '').trim();
 
-  // --- Lógica de Decisão: Devemos tentar extrair o texto completo? ---
-  const shouldExtract = useMemo(() => {
-    if (!article?.link) return false;
-    
-    // Normaliza para verificação
-    const s = summaryRaw.toLowerCase();
-    
-    // Sinais de que o resumo é inútil ou um menu de navegação
-    const boilerplateSignals = ['toque abaixo', 'leia a matéria', 'conteúdo restrito', 'assinantes', 'login'];
-    const isBoilerplate = boilerplateSignals.some(sig => s.includes(sig));
-    
-    // Se for muito curto (< 240 chars) ou parecer boilerplate, forçamos a extração
-    if (!summaryRaw || summaryRaw.length < 240 || isBoilerplate) {
-        return true;
-    }
-    return false;
-  }, [article?.link, summaryRaw]);
-
-  // --- Efeito para Buscar o Conteúdo ---
   useEffect(() => {
-    // Limpa requisições anteriores
-    if (abortRef.current) {
-      abortRef.current.abort();
-    }
-
-    // Se não tiver link, não faz nada
     if (!article?.link) return;
 
-    // Se a lógica diz que NÃO precisa extrair, usamos o resumo que já temos
-    if (!shouldExtract) {
-      setExcerpt(summaryRaw);
-      setExcerptStatus('success');
-      return;
-    }
-
-    // Caso contrário, iniciamos a busca
-    setExcerptStatus('loading');
+    // 1. Reset
+    setLoading(true);
+    setError(false);
     setExcerpt('');
-
-    // Verifica Cache de Sessão para economizar chamadas
-    const cacheKey = `newsos_excerpt_cache:${article.link}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      setExcerpt(cached);
-      setExcerptStatus('success');
-      return;
-    }
-
+    
+    if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const runFetch = async () => {
-      try {
-        const targetUrl = `${WORKER_BASE}/?url=${encodeURIComponent(article.link)}`;
-        
-        const res = await fetch(targetUrl, {
-          method: 'GET',
-          signal: controller.signal,
-          headers: { Accept: 'application/json' }
-        });
+    // 2. Tenta pegar do Cache primeiro
+    const cacheKey = `newsos_excerpt_cache:${article.link}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    
+    if (cached) {
+        setExcerpt(cached);
+        setLoading(false);
+        return;
+    }
 
-        if (!res.ok) throw new Error('Erro no worker');
+    // 3. Busca no Backend
+    const fetchContent = async () => {
+        try {
+            // Adiciona timeout para não ficar carregando infinitamente
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            
+            const url = `${WORKER_BASE}/?url=${encodeURIComponent(article.link)}`;
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
 
-        const data = await res.json();
-        
-        if (controller.signal.aborted) return;
-
-        if (data && data.excerpt) {
-          setExcerpt(data.excerpt);
-          setExcerptStatus('success');
-          sessionStorage.setItem(cacheKey, data.excerpt);
-        } else {
-          // Se o worker não retornou nada útil, usamos o resumo original como fallback
-          setExcerpt(summaryRaw);
-          setExcerptStatus('error'); // Marca como erro para mostrar aviso, mas exibe o texto
+            if (!res.ok) throw new Error("Erro no worker");
+            
+            const data = await res.json();
+            
+            if (data && data.excerpt && data.excerpt.length > 50) {
+                setExcerpt(data.excerpt);
+                sessionStorage.setItem(cacheKey, data.excerpt);
+            } else {
+                throw new Error("Conteúdo vazio ou inválido");
+            }
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.warn("Falha ao carregar leitura limpa:", err);
+                setError(true);
+            }
+        } finally {
+            if (!controller.signal.aborted) setLoading(false);
         }
-      } catch (e) {
-        if (!controller.signal.aborted) {
-          setExcerpt(summaryRaw);
-          setExcerptStatus('error');
-        }
-      }
     };
 
-    runFetch();
+    fetchContent();
 
-    return () => {
-      controller.abort();
-    };
-  }, [article?.link, shouldExtract, summaryRaw]);
+    return () => controller.abort();
+  }, [article?.link]);
 
   const openInNativeBrowser = async () => {
     try {
@@ -2748,30 +2711,8 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
     }
   };
 
-  // Renderização do Conteúdo de Texto
-  const renderBody = () => {
-      if (excerptStatus === 'loading') {
-          return (
-              <div className="flex flex-col items-center justify-center py-10 opacity-50 space-y-3">
-                  <Loader2 size={30} className="animate-spin text-purple-500" />
-                  <p className="text-xs font-bold uppercase tracking-widest">Lendo conteúdo original...</p>
-              </div>
-          );
-      }
-      
-      return (
-        <div className="space-y-4">
-            {excerptStatus === 'error' && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-xs font-bold mb-4">
-                    Não foi possível extrair o texto completo. Exibindo resumo disponível.
-                </div>
-            )}
-            <p className={`text-lg leading-relaxed whitespace-pre-line font-serif ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                {excerpt || "Conteúdo indisponível."}
-            </p>
-        </div>
-      );
-  };
+  // Texto final a ser exibido: O do backend (se tiver), ou o resumo original (fallback)
+  const textToDisplay = excerpt || summaryRaw;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
@@ -2780,18 +2721,15 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
         onClick={onClose}
       />
 
-      <div
-        className={`
+      <div className={`
           relative w-[95vw] h-[85vh] md:w-[800px] md:h-[90vh]
           rounded-[2.5rem] overflow-hidden shadow-2xl border flex flex-col 
           transition-all transform scale-100 animate-in zoom-in-95 duration-300
-          ${isDarkMode
-            ? 'bg-zinc-900/95 border-white/10 shadow-purple-500/20'
-            : 'bg-white/95 border-white/40 shadow-xl'}
+          ${isDarkMode ? 'bg-zinc-900/95 border-white/10 shadow-purple-500/20' : 'bg-white/95 border-white/40 shadow-xl'}
           backdrop-blur-2xl
         `}
       >
-        {/* Imagem de Capa (Hero) */}
+        {/* Header com Imagem */}
         <div className="relative h-64 w-full flex-shrink-0">
           <img
             src={article.img || article.logo}
@@ -2809,34 +2747,40 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
 
           <div className="absolute bottom-6 left-6 right-6">
              <div className="flex items-center gap-2 mb-3">
-                <img
-                src={article.logo}
-                className="w-6 h-6 rounded-full border border-white/50 bg-white"
-                />
+                <img src={article.logo} className="w-6 h-6 rounded-full border border-white/50 bg-white" />
                 <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black drop-shadow-md">
-                {article.source}
+                    {article.source}
                 </span>
             </div>
-            <h2 className={`text-2xl md:text-3xl font-black leading-tight font-serif text-white drop-shadow-md`}>
+            <h2 className={`text-2xl md:text-3xl font-black leading-tight font-serif text-white drop-shadow-md line-clamp-3`}>
                 {article.title}
             </h2>
           </div>
         </div>
 
-        {/* Conteúdo do Card */}
+        {/* Corpo do Texto */}
         <div className="p-6 md:p-8 flex flex-col flex-1 overflow-y-auto custom-scrollbar">
-          <div className="flex-1">
-            {renderBody()}
+          
+          {/* Status Bar */}
+          {loading && (
+              <div className="flex items-center gap-2 mb-4 opacity-60">
+                  <Loader2 size={14} className="animate-spin text-purple-500"/>
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Otimizando leitura...</span>
+              </div>
+          )}
+          
+          {/* O Texto em Si */}
+          <div className={`flex-1 text-lg leading-relaxed whitespace-pre-line font-serif ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+              {textToDisplay}
           </div>
 
-          <div className="mt-6 pt-4 border-t border-dashed border-zinc-500/20 flex-shrink-0">
+          {/* Botão Inferior */}
+          <div className="mt-8 pt-4 border-t border-dashed border-zinc-500/20 flex-shrink-0">
             <button
               onClick={openInNativeBrowser}
               className={`
                 w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-lg
-                ${isDarkMode
-                  ? 'bg-white text-black hover:bg-zinc-200'
-                  : 'bg-black text-white hover:bg-zinc-800'}
+                ${isDarkMode ? 'bg-white text-black hover:bg-zinc-200' : 'bg-black text-white hover:bg-zinc-800'}
               `}
             >
               Ler na Fonte Original <ArrowRight size={18} />
@@ -3766,17 +3710,15 @@ function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiK
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Gera o resumo automaticamente ao abrir, se não existir
-  useEffect(() => {
-      const load = async () => {
-          setIsLoading(true);
-          const apiKey = getApiKey('analysis');
-          const res = await generateNeutralSummaryForCluster(cluster.related_articles, apiKey);
-          setSummary(res);
-          setIsLoading(false);
-      };
-      load();
-  }, [cluster, getApiKey]);
+  // REMOVIDO O useEffect QUE GERAVA AUTOMATICAMENTE
+
+  const handleGenerateSummary = async () => {
+    setIsLoading(true);
+    const apiKey = getApiKey('analysis');
+    const generatedSummary = await generateNeutralSummaryForCluster(cluster.related_articles, apiKey);
+    setSummary(generatedSummary);
+    setIsLoading(false);
+  };
 
   return (
     <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -3794,18 +3736,25 @@ function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiK
           <h2 className="text-lg font-bold font-serif leading-tight">{cluster.ai_title}</h2>
         </div>
         
-        {/* Área do Resumo IA */}
+        {/* Área do Resumo IA (AGORA COM BOTÃO) */}
         <div className={`p-6 shrink-0 border-b ${isDarkMode ? 'border-zinc-800 bg-zinc-800/30' : 'border-zinc-200 bg-zinc-50'}`}>
-          {isLoading ? (
-             <div className="flex items-center gap-3 text-purple-500">
-                 <Loader2 size={18} className="animate-spin"/>
-                 <span className="text-xs font-bold animate-pulse">A IA está lendo e resumindo...</span>
+          {!summary ? (
+             <div className="flex flex-col items-center gap-3 py-2">
+                 <p className="text-sm text-center opacity-60">Gostaria que a IA analisasse as {cluster.related_articles.length} fontes e criasse um resumo unificado?</p>
+                 <button 
+                    onClick={handleGenerateSummary} 
+                    disabled={isLoading}
+                    className="flex items-center gap-2 px-6 py-3 rounded-full bg-purple-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-500/30 hover:bg-purple-500 transition active:scale-95 disabled:opacity-50"
+                 >
+                    {isLoading ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
+                    {isLoading ? "Analisando..." : "Gerar Resumo"}
+                 </button>
              </div>
           ) : (
-             <div className="relative">
+             <div className="relative animate-in fade-in slide-in-from-bottom-2">
                  <Sparkles size={16} className="absolute -top-1 -left-1 text-purple-500 opacity-50" />
                  <p className={`text-sm leading-relaxed pl-6 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                    {summary || "Não foi possível gerar o resumo."}
+                    {summary}
                  </p>
              </div>
           )}
@@ -3835,17 +3784,17 @@ function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiK
 // --- MODAL: LINHA DO TEMPO ---
 function ClusterTimelineModal({ cluster, onClose, isDarkMode, getApiKey }) {
     const [timeline, setTimeline] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
 
-    useEffect(() => {
-        const fetchTimeline = async () => {
-            const apiKey = getApiKey('analysis');
-            const result = await generateTimelineForCluster(cluster.related_articles, apiKey);
-            setTimeline(result);
-            setIsLoading(false);
-        };
-        fetchTimeline();
-    }, [cluster, getApiKey]);
+    // REMOVIDO O useEffect AUTOMÁTICO
+
+    const handleGenerateTimeline = async () => {
+        setIsLoading(true);
+        const apiKey = getApiKey('analysis');
+        const result = await generateTimelineForCluster(cluster.related_articles, apiKey);
+        setTimeline(result);
+        setIsLoading(false);
+    };
 
     return (
         <div className="fixed inset-0 z-[8000] flex items-center justify-center p-4 animate-in fade-in">
@@ -3862,14 +3811,21 @@ function ClusterTimelineModal({ cluster, onClose, isDarkMode, getApiKey }) {
                 </div>
                 
                 <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-                    {isLoading ? (
-                        <div className="flex items-center justify-center h-full flex-col gap-3 opacity-60">
-                            <Loader2 size={30} className="animate-spin text-blue-500"/>
-                            <p className="text-xs font-bold uppercase tracking-widest">Montando cronologia...</p>
+                    {!timeline ? (
+                        <div className="flex items-center justify-center h-full flex-col gap-4 opacity-80">
+                            <History size={40} className="text-blue-500/50 mb-2"/>
+                            <p className="text-sm text-center max-w-xs">Organize os eventos desta história em ordem cronológica com IA.</p>
+                            <button 
+                                onClick={handleGenerateTimeline} 
+                                disabled={isLoading}
+                                className="flex items-center gap-2 px-6 py-3 rounded-full bg-blue-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/30 hover:bg-blue-500 transition active:scale-95 disabled:opacity-50"
+                            >
+                                {isLoading ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
+                                {isLoading ? "Construindo..." : "Gerar Cronologia"}
+                            </button>
                         </div>
-                    ) : timeline && timeline.length > 0 ? (
-                        <div className="relative pl-2">
-                            {/* Linha vertical contínua */}
+                    ) : timeline.length > 0 ? (
+                        <div className="relative pl-2 animate-in fade-in slide-in-from-bottom-4">
                             <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-zinc-200 dark:bg-zinc-800"></div>
                             
                             <div className="space-y-8">
@@ -3898,6 +3854,7 @@ function ClusterTimelineModal({ cluster, onClose, isDarkMode, getApiKey }) {
         </div>
     );
 }
+
 
 // ==========================================================
 // FUNÇÃO DE IA: ANÁLISE DE MERCADO (VERSÃO CORRIGIDA)
@@ -6436,13 +6393,13 @@ const [apiKeys, setApiKeys] = useState([
 ]);
 
 
-// --- NOVO HOOK: useLongPress ---
-// Detecta um clique longo sem disparar o clique normal.
+// ATUALIZE SEU HOOK useLongPress PARA ESTA VERSÃO MAIS SEGURA
 const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
   const timerRef = useRef();
   const isLongPress = useRef(false);
 
   const start = useCallback((event) => {
+    // NÃO chamamos preventDefault() aqui para não travar o scroll inicial
     isLongPress.current = false;
     timerRef.current = setTimeout(() => {
       onLongPress(event);
@@ -6455,21 +6412,21 @@ const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
   }, []);
 
   const handleClick = useCallback((event) => {
-    // Só dispara o clique normal se o clique longo não ocorreu.
     if (!isLongPress.current) {
       onClick(event);
     }
   }, [onClick]);
-
+  
   return {
     onMouseDown: (e) => start(e),
     onTouchStart: (e) => start(e),
     onMouseUp: (e) => { clear(); handleClick(e); },
     onMouseLeave: () => clear(),
     onTouchEnd: (e) => { clear(); handleClick(e); },
+    // Apenas prevenimos o menu de contexto (clique direito)
+    onContextMenu: (e) => e.preventDefault(),
   };
 };
-
   
   // ==============================================================================
   // === INÍCIO DO BLOCO DE OTIMIZAÇÃO DE RESIZE (NOVO E COMPLETO) ===
