@@ -1295,7 +1295,7 @@ function FeedTab({
     if (startY === 0 || isRefreshing || (feedContainerRef.current && feedContainerRef.current.scrollTop > 5)) return;
     const diff = e.touches[0].clientY - startY;
     if (diff > 0) {
-      if (e.cancelable) e.preventDefault();
+      
       setPullDistance(Math.min(diff * 0.45, 140));
     }
   };
@@ -1863,20 +1863,21 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
 
 
 // --- NOVA FUNÇÃO DE IA: RESUMO NEUTRO PARA CLUSTER ---
+// --- 1. GERAR RESUMO NEUTRO (CHIP: ENTENDA O CASO) ---
 const generateNeutralSummaryForCluster = async (articles, apiKey) => {
-    if (!articles || articles.length < 2 || !apiKey) return null;
+    if (!articles || articles.length < 1 || !apiKey) return null;
 
-    // Envia apenas o essencial para a IA
-    const context = articles.map(a => `- ${a.title}`).join('\n');
+    // Prepara o contexto
+    const context = articles.map(a => `- ${a.title}`).slice(0, 10).join('\n');
 
     const prompt = `
-      Você é um editor de notícias sênior e imparcial. Sua tarefa é sintetizar as manchetes abaixo em um único parágrafo coeso e neutro.
-      - Resuma os fatos principais em 2-3 frases.
-      - Não adicione opiniões ou informações externas.
-      - Foque no "o quê", "quem" e "onde".
-      - A resposta deve ser em Português do Brasil.
+      Você é um editor sênior imparcial. Sintetize os fatos destas manchetes em um único parágrafo explicativo.
+      - Foco: O que aconteceu, Quem está envolvido, Onde e Por quê.
+      - Tom: Neutro, direto e jornalístico.
+      - Idioma: Português do Brasil.
+      - Tamanho: Mínimo 8 frases.
 
-      MANCHETES PARA SINTETIZAR:
+      MANCHETES:
       ${context}
     `;
 
@@ -1890,9 +1891,50 @@ const generateNeutralSummaryForCluster = async (articles, apiKey) => {
             })
         });
         const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "Não foi possível gerar um resumo no momento.";
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "Resumo indisponível.";
     } catch (error) {
-        console.error("Erro ao gerar resumo de cluster:", error);
+        console.error("Erro resumo cluster:", error);
+        return null;
+    }
+};
+
+// --- 2. GERAR LINHA DO TEMPO (CHIP: LINHA DO TEMPO) ---
+const generateTimelineForCluster = async (articles, apiKey) => {
+    if (!articles || articles.length < 1 || !apiKey) return null;
+
+    // Envia datas para a IA entender a cronologia
+    const context = articles.map(a => `[${a.date || 'Recente'}]: ${a.title}`).slice(0, 15).join('\n');
+
+    const prompt = `
+      Analise as manchetes e crie uma Linha do Tempo Cronológica dos eventos.
+      - Identifique de 3 a 5 momentos chave.
+      - Para cada item, defina um "time" (ex: "Ontem", "Há 2 horas", "Início do mês") e um "event" (o que houve).
+      - Ordene do mais antigo para o mais recente.
+      
+      RETORNE APENAS JSON:
+      [
+        { "time": "...", "event": "..." }
+      ]
+
+      DADOS:
+      ${context}
+    `;
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
+        });
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) return null;
+        
+        // Limpeza de segurança do JSON
+        const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(cleanJson);
+    } catch (error) {
+        console.error("Erro timeline cluster:", error);
         return null;
     }
 };
@@ -2588,228 +2630,110 @@ Você é um Editor de Primeira Página. Analise as notícias e identifique 8 ten
 
 
 
+// ==============================================================================
+// === COMPONENTE GLASSBROWSER (CORRIGIDO E COMPLETO) ===
+// ==============================================================================
 const GlassBrowser = ({ article, onClose, isDarkMode }) => {
-  // ✅ URL do seu Worker (troque se necessário)
+  // URL do seu Worker que extrai o texto limpo
   const WORKER_BASE = 'https://newsos-extract.paulodetarsomacedo.workers.dev';
 
   const [excerpt, setExcerpt] = useState('');
   const [excerptStatus, setExcerptStatus] = useState('idle'); // idle | loading | success | error
   const abortRef = useRef(null);
 
-  // --- Raw summary vindo do RSS (ou do seu pipeline)
+  // Texto bruto que já veio no RSS (geralmente curto ou sujo)
   const summaryRaw = (article?.summary || '').trim();
 
-  // --- Helpers (só lógica)
-  const normalize = (s) =>
-    (s || '')
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .trim();
-
-  const summaryNormalized = useMemo(() => normalize(summaryRaw), [summaryRaw]);
-
-  // --- Heurísticas: detectar boilerplate e "texto-lixo" (menus/breadcrumb)
-  const isBoilerplateSummary = useMemo(() => {
-    const s = summaryNormalized;
-    if (!s) return false;
-
-    const boilerplateSignals = [
-      'toque abaixo para ler',
-      'toque abaixo para abrir',
-      'toque abaixo',
-      'clique abaixo para ler',
-      'ler a matéria completa',
-      'ler notícia completa',
-      'diretamente na fonte original',
-      'não foi possível extrair automaticamente',
-      'nao foi possivel extrair automaticamente',
-      'abra na fonte',
-      'abrir na fonte',
-      'matéria completa na fonte',
-      'materia completa na fonte',
-      'veja na fonte',
-    ];
-
-    return boilerplateSignals.some((sig) => s.includes(sig));
-  }, [summaryNormalized]);
-
-  const looksLikeMenuOrBreadcrumb = useMemo(() => {
-    const s = summaryNormalized;
-    if (!s) return false;
-
-    const menuSignals = [
-      'home',
-      'buscar',
-      'menu',
-      'assine',
-      'assinante',
-      'entrar',
-      'login',
-      'cadastre',
-      'cadastre-se',
-      'carregando',
-      'princípios editoriais',
-      'principios editoriais',
-      'política',
-      'politica',
-      'economia',
-      'mundo',
-      'mercados',
-      'bolsas',
-      'moedas',
-      'commodities',
-      'índices',
-      'indices',
-      'voltar',
-      'sair',
-      'conta',
-    ];
-
-    // se tiver muitos desses termos, é breadcrumb/menu e não conteúdo
-    const hits = menuSignals.reduce((acc, term) => (s.includes(term) ? acc + 1 : acc), 0);
-
-    // “hits >= 2” já pega bem esses casos de prints que você mandou
-    return hits >= 2;
-  }, [summaryNormalized]);
-
-  const summaryLineCount = useMemo(() => {
-    if (!summaryRaw) return 0;
-    return summaryRaw
-      .split('\n')
-      .map((t) => t.trim())
-      .filter(Boolean).length;
-  }, [summaryRaw]);
-
-  // Ajuste fino: se quiser, altere isso
-  const MIN_CHARS = 240;
-
-  const summaryTooShortByLength =
-    !summaryRaw || summaryRaw.length < MIN_CHARS || summaryLineCount <= 1;
-
-  // “Densidade ruim”: se for texto “colado” com muitas palavras curtas repetidas
-  const summaryLowQualityByDensity = useMemo(() => {
-    if (!summaryNormalized) return true;
-
-    const tokens = summaryNormalized.split(' ').filter(Boolean);
-    if (tokens.length < 18) return true; // muito curto
-
-    const shortTokens = tokens.filter((t) => t.length <= 3).length;
-    const ratioShort = shortTokens / tokens.length;
-
-    // se tiver muita palavra curta, tende a ser breadcrumb/menu
-    if (ratioShort > 0.38) return true;
-
-    // repetição excessiva
-    const unique = new Set(tokens).size;
-    const repetitionRatio = unique / tokens.length;
-    if (repetitionRatio < 0.55) return true;
-
-    return false;
-  }, [summaryNormalized]);
-
-  // ✅ Regra final: quando extrair?
+  // --- Lógica de Decisão: Devemos tentar extrair o texto completo? ---
   const shouldExtract = useMemo(() => {
-    // sem link, não tem o que extrair
     if (!article?.link) return false;
-
-    // se summary é boilerplate/menu/lixo: extrai SEMPRE
-    if (isBoilerplateSummary) return true;
-    if (looksLikeMenuOrBreadcrumb) return true;
-
-    // se é curto/ruim: extrai
-    if (summaryTooShortByLength) return true;
-
-    // se tem cara de “texto ruim”: extrai
-    if (summaryLowQualityByDensity) return true;
-
-    // caso contrário, aceita o summary
+    
+    // Normaliza para verificação
+    const s = summaryRaw.toLowerCase();
+    
+    // Sinais de que o resumo é inútil ou um menu de navegação
+    const boilerplateSignals = ['toque abaixo', 'leia a matéria', 'conteúdo restrito', 'assinantes', 'login'];
+    const isBoilerplate = boilerplateSignals.some(sig => s.includes(sig));
+    
+    // Se for muito curto (< 240 chars) ou parecer boilerplate, forçamos a extração
+    if (!summaryRaw || summaryRaw.length < 240 || isBoilerplate) {
+        return true;
+    }
     return false;
-  }, [
-    article?.link,
-    isBoilerplateSummary,
-    looksLikeMenuOrBreadcrumb,
-    summaryTooShortByLength,
-    summaryLowQualityByDensity,
-  ]);
+  }, [article?.link, summaryRaw]);
 
-  // ✅ Cache key por URL (session)
-  const cacheKey = useMemo(() => {
-    return article?.link ? `newsos_excerpt_cache:${article.link}` : null;
-  }, [article?.link]);
-
+  // --- Efeito para Buscar o Conteúdo ---
   useEffect(() => {
-    // limpa qualquer request anterior
+    // Limpa requisições anteriores
     if (abortRef.current) {
       abortRef.current.abort();
-      abortRef.current = null;
     }
 
-    setExcerpt('');
-    setExcerptStatus('idle');
-
-    // sem link: não extrai
+    // Se não tiver link, não faz nada
     if (!article?.link) return;
 
-    // se não precisa extrair: para aqui
-    if (!shouldExtract) return;
+    // Se a lógica diz que NÃO precisa extrair, usamos o resumo que já temos
+    if (!shouldExtract) {
+      setExcerpt(summaryRaw);
+      setExcerptStatus('success');
+      return;
+    }
 
-    // tenta cache primeiro
-    if (cacheKey) {
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached && cached.trim().length > 0) {
-        setExcerpt(cached.trim());
-        setExcerptStatus('success');
-        return;
-      }
+    // Caso contrário, iniciamos a busca
+    setExcerptStatus('loading');
+    setExcerpt('');
+
+    // Verifica Cache de Sessão para economizar chamadas
+    const cacheKey = `newsos_excerpt_cache:${article.link}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      setExcerpt(cached);
+      setExcerptStatus('success');
+      return;
     }
 
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const run = async () => {
+    const runFetch = async () => {
       try {
-        setExcerptStatus('loading');
-        setExcerpt('');
-
-        const url = `${WORKER_BASE}/?url=${encodeURIComponent(article.link)}`;
-
-        const res = await fetch(url, {
+        const targetUrl = `${WORKER_BASE}/?url=${encodeURIComponent(article.link)}`;
+        
+        const res = await fetch(targetUrl, {
           method: 'GET',
           signal: controller.signal,
-          headers: { Accept: 'application/json' },
+          headers: { Accept: 'application/json' }
         });
 
-        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error('Erro no worker');
 
+        const data = await res.json();
+        
         if (controller.signal.aborted) return;
 
-        const extracted = data?.excerpt ? String(data.excerpt).trim() : '';
-
-        if (res.ok && extracted.length > 0) {
-          setExcerpt(extracted);
+        if (data && data.excerpt) {
+          setExcerpt(data.excerpt);
           setExcerptStatus('success');
-          if (cacheKey) sessionStorage.setItem(cacheKey, extracted);
+          sessionStorage.setItem(cacheKey, data.excerpt);
         } else {
-          setExcerpt('');
-          setExcerptStatus('error');
+          // Se o worker não retornou nada útil, usamos o resumo original como fallback
+          setExcerpt(summaryRaw);
+          setExcerptStatus('error'); // Marca como erro para mostrar aviso, mas exibe o texto
         }
       } catch (e) {
-        if (controller.signal.aborted) return;
-        setExcerpt('');
-        setExcerptStatus('error');
-      } finally {
-        if (!controller.signal.aborted) abortRef.current = null;
+        if (!controller.signal.aborted) {
+          setExcerpt(summaryRaw);
+          setExcerptStatus('error');
+        }
       }
     };
 
-    run();
+    runFetch();
 
     return () => {
       controller.abort();
-      abortRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [article?.link, shouldExtract]);
+  }, [article?.link, shouldExtract, summaryRaw]);
 
   const openInNativeBrowser = async () => {
     try {
@@ -2824,15 +2748,30 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
     }
   };
 
-  // ✅ Texto final exibido no card
-  // Regra:
-  // - se não precisa extrair => usa summary
-  // - se precisa extrair => usa excerpt (quando chegar)
-  // - se falhar => fallback
-  const finalText =
-    (!shouldExtract ? summaryRaw : '') ||
-    (excerpt && excerpt.length > 0 ? excerpt : '') ||
-    'Toque abaixo para ler a matéria completa diretamente na fonte original.';
+  // Renderização do Conteúdo de Texto
+  const renderBody = () => {
+      if (excerptStatus === 'loading') {
+          return (
+              <div className="flex flex-col items-center justify-center py-10 opacity-50 space-y-3">
+                  <Loader2 size={30} className="animate-spin text-purple-500" />
+                  <p className="text-xs font-bold uppercase tracking-widest">Lendo conteúdo original...</p>
+              </div>
+          );
+      }
+      
+      return (
+        <div className="space-y-4">
+            {excerptStatus === 'error' && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-xs font-bold mb-4">
+                    Não foi possível extrair o texto completo. Exibindo resumo disponível.
+                </div>
+            )}
+            <p className={`text-lg leading-relaxed whitespace-pre-line font-serif ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                {excerpt || "Conteúdo indisponível."}
+            </p>
+        </div>
+      );
+  };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
@@ -2853,7 +2792,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
         `}
       >
         {/* Imagem de Capa (Hero) */}
-        <div className="relative h-56 md:h-72 w-full flex-shrink-0">
+        <div className="relative h-64 w-full flex-shrink-0">
           <img
             src={article.img || article.logo}
             className="w-full h-full object-cover"
@@ -2868,59 +2807,29 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
             <X size={20} />
           </button>
 
-          <div className="absolute bottom-4 left-6 flex items-center gap-2">
-            <img
-              src={article.logo}
-              className="w-6 h-6 rounded-full border border-white/50 bg-white"
-            />
-            <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black drop-shadow-md">
-              {article.source}
-            </span>
+          <div className="absolute bottom-6 left-6 right-6">
+             <div className="flex items-center gap-2 mb-3">
+                <img
+                src={article.logo}
+                className="w-6 h-6 rounded-full border border-white/50 bg-white"
+                />
+                <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black drop-shadow-md">
+                {article.source}
+                </span>
+            </div>
+            <h2 className={`text-2xl md:text-3xl font-black leading-tight font-serif text-white drop-shadow-md`}>
+                {article.title}
+            </h2>
           </div>
         </div>
 
         {/* Conteúdo do Card */}
-        <div className="p-6 md:p-8 flex flex-col flex-1 overflow-y-auto">
-          <h2
-            className={`text-2xl md:text-3xl font-black leading-tight mb-4 font-serif ${
-              isDarkMode ? 'text-white' : 'text-zinc-900'
-            }`}
-          >
-            {article.title}
-          </h2>
-
+        <div className="p-6 md:p-8 flex flex-col flex-1 overflow-y-auto custom-scrollbar">
           <div className="flex-1">
-            <p
-              className={`text-base md:text-lg leading-relaxed ${
-                isDarkMode ? 'text-zinc-300' : 'text-zinc-700'
-              }`}
-            >
-              {finalText}
-            </p>
-
-            {/* ✅ Indicador discreto */}
-            {shouldExtract && excerptStatus === 'loading' && (
-              <p
-                className={`mt-3 text-[10px] font-mono uppercase tracking-widest ${
-                  isDarkMode ? 'text-white/30' : 'text-black/30'
-                }`}
-              >
-                extraindo 15 linhas da fonte…
-              </p>
-            )}
-
-            {shouldExtract && excerptStatus === 'error' && (
-              <p
-                className={`mt-3 text-[10px] font-mono uppercase tracking-widest ${
-                  isDarkMode ? 'text-white/30' : 'text-black/30'
-                }`}
-              >
-                não foi possível extrair automaticamente — abra na fonte.
-              </p>
-            )}
+            {renderBody()}
           </div>
 
-          <div className="mt-6 pt-4 border-t border-dashed border-zinc-500/20">
+          <div className="mt-6 pt-4 border-t border-dashed border-zinc-500/20 flex-shrink-0">
             <button
               onClick={openInNativeBrowser}
               className={`
@@ -2930,7 +2839,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
                   : 'bg-black text-white hover:bg-zinc-800'}
               `}
             >
-              Ler Notícia Completa <ArrowRight size={18} />
+              Ler na Fonte Original <ArrowRight size={18} />
             </button>
           </div>
         </div>
@@ -3657,29 +3566,30 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
   );
 };
 
+// ==============================================================================
+// === WIDGET DE CLUSTER FINAL (Carrossel + Imagem Grande + Chips + Logos Bonitos) ===
+// ==============================================================================
+
 function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters }) {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
-  const [modalCluster, setModalCluster] = useState(null); // Estado para o modal de detalhes
+  const [modalContent, setModalContent] = useState(null); // { type: 'details' | 'timeline', cluster: {...} }
 
-  // Lógica de decisão para quais clusters exibir
+  // Decide quais clusters mostrar
   const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
 
   const runAI = async () => {
     const currentApiKey = getApiKey('widgets');
     if (!currentApiKey || !news || news.length < 10) {
-      alert("Aguarde o carregamento de mais notícias ou configure a API Key.");
+      alert("Aguarde o carregamento ou configure a API Key.");
       return;
     }
     setLoading(true);
     setClusters(null);
     const result = await generateSmartClustering(news, currentApiKey, 300);
-    if (result) {
-      setClusters(result);
-    } else {
-      alert("A IA não encontrou correlações suficientes.");
-    }
+    if (result) setClusters(result);
+    else alert("IA indisponível no momento.");
     setLoading(false);
   };
 
@@ -3702,17 +3612,7 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
     return "AGORA";
   };
 
-  if (loading) {
-    return (
-        <div className="relative w-full h-[535px] flex items-center justify-center">
-            <div className="flex flex-col items-center gap-4 z-10">
-                <Loader2 size={48} className="animate-spin text-purple-500" />
-                <span className="text-xs font-bold uppercase tracking-[0.2em] animate-pulse opacity-60">Analisando Notícias...</span>
-            </div>
-        </div>
-    );
-  }
-
+  // Se não houver clusters, renderiza o Skeleton
   if (!displayClusters || displayClusters.length === 0) {
       return <WhileYouWereAwaySkeleton isDarkMode={isDarkMode} />;
   }
@@ -3720,19 +3620,19 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
   return (
     <div className="relative">
       
-      {/* Botão de Análise IA */}
+      {/* Botão de Análise IA (Canto Superior Direito) */}
       <div className="absolute top-[-3rem] right-4 z-20">
         <button
           onClick={runAI}
           className="group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/30"
         >
           {loading ? ( <div className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /><span>Analisando</span></div> ) 
-          : clusters ? ( <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar IA</span></div> ) 
+          : clusters ? ( <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar</span></div> ) 
           : ( <div className="flex items-center gap-2"><Sparkles size={16} /><span>Análise IA</span></div> )}
         </button>
       </div>
 
-      {/* O Carrossel */}
+      {/* CARROSSEL */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -3740,48 +3640,89 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
       >
         {displayClusters.map((cluster, idx) => (
           <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
-            <div className={`w-full rounded-[2.5rem] overflow-hidden flex flex-col relative ${isDarkMode ? 'bg-zinc-900 border border-zinc-800' : 'bg-white ring-1 ring-black/5'}`}>
+            <div className={`w-full rounded-[2.5rem] overflow-hidden flex flex-col relative shadow-2xl ${isDarkMode ? 'bg-zinc-900 border border-zinc-800' : 'bg-white ring-1 ring-black/5'}`}>
               
-              {/* Imagem Grande Representativa */}
-              <div className="relative w-full h-[535px] bg-zinc-800">
+              {/* IMAGEM GRANDE */}
+              <div className="relative w-full h-[500px] bg-zinc-800">
                 <img
                   src={cluster.representative_image}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform duration-700"
                   alt={cluster.ai_title}
                   onError={(e) => e.target.style.display = 'none'}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
                 
-                {/* Informações no Topo */}
-                <div className="absolute top-4 left-4 right-4 z-10 flex justify-between items-center">
-                  <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-                      <div className="flex items-center -space-x-2">
-                          {cluster.related_articles.slice(0, 3).map(article => (
-                              <img key={article.id} src={article.logo} title={article.source} className="w-5 h-5 rounded-full border-2 object-contain bg-white p-px border-black/50" />
-                          ))}
-                      </div>
-                      <span className="text-white text-[10px] font-bold uppercase tracking-wider">
-                          +{cluster.related_articles.length} FONTES
-                      </span>
+                {/* Degradê para leitura do texto */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                
+                {/* CABEÇALHO DO CARD (Logos + Tempo) */}
+                <div className="absolute top-5 left-5 right-5 z-10 flex justify-between items-start">
+                  
+                  {/* Logos das Fontes: Lado a Lado, Quadrados com cantos arredondados */}
+                  <div className="flex items-center gap-1.5 p-1.5 bg-black/40 backdrop-blur-md rounded-xl border border-white/10 shadow-lg">
+                      {/* Pega até 4 fontes únicas do cluster */}
+                      {(() => {
+                          // Extrai fontes únicas para exibir os logos
+                          const uniqueSources = [];
+                          const seen = new Set();
+                          cluster.related_articles.forEach(a => {
+                              if(!seen.has(a.source)) {
+                                  seen.add(a.source);
+                                  uniqueSources.push({ name: a.source, logo: a.logo });
+                              }
+                          });
+                          return uniqueSources.slice(0, 4).map((source, i) => (
+                              <div key={i} className="w-6 h-6 rounded-lg bg-white p-0.5 overflow-hidden shadow-sm" title={source.name}>
+                                  <img src={source.logo} className="w-full h-full object-contain" />
+                              </div>
+                          ));
+                      })()}
+                      
+                      {cluster.related_articles.length > 4 && (
+                          <div className="w-6 h-6 rounded-lg bg-zinc-800 text-white flex items-center justify-center text-[9px] font-bold border border-white/20">
+                              +{cluster.related_articles.length - 4}
+                          </div>
+                      )}
                   </div>
-                   <span className="text-white text-[10px] font-bold uppercase tracking-wider bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
+
+                  {/* Badge de Tempo */}
+                  <span className="text-white text-[10px] font-black uppercase tracking-wider bg-red-600/90 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-lg">
                       {timeAgo(cluster.related_articles[0]?.rawDate)}
                   </span>
                 </div>
 
-                {/* Conteúdo na Base */}
-                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                  <h2 className="text-3xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-4">
+                {/* CONTEÚDO INFERIOR */}
+                <div className="absolute bottom-0 left-0 right-0 p-6 z-20">
+                  
+                  {/* Título */}
+                  <h2 className="text-2xl md:text-3xl font-black text-white leading-tight drop-shadow-xl font-serif mb-5 line-clamp-3">
                     {cluster.ai_title}
                   </h2>
                   
-                  {/* OS NOVOS CHIPS MODERNOS */}
-                  <div className="flex flex-wrap gap-2">
-                      <button onClick={() => setModalCluster(cluster)} className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-xs font-bold hover:bg-white/20 transition active:scale-95 flex items-center gap-2">
-                          <Layers size={14}/> Entenda o Caso
+                  {/* CHIPS MODERNOS */}
+                  <div className="flex flex-wrap gap-3">
+                      {/* Chip: Entenda o Caso */}
+                      <button 
+                        onClick={() => setModalContent({ type: 'details', cluster })} 
+                        className="flex items-center gap-2 pl-1 pr-4 py-1 rounded-full bg-white text-black font-bold text-xs shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:scale-105 transition-transform active:scale-95"
+                      >
+                          <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center">
+                              <Layers size={12} />
+                          </div>
+                          Entenda o Caso
                       </button>
-                      {/* Adicione mais chips aqui se desejar */}
+
+                      {/* Chip: Linha do Tempo */}
+                      <button 
+                        onClick={() => setModalContent({ type: 'timeline', cluster })} 
+                        className="flex items-center gap-2 pl-1 pr-4 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white font-bold text-xs hover:bg-black/80 transition-colors active:scale-95"
+                      >
+                          <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                              <History size={12} />
+                          </div>
+                          Linha do Tempo
+                      </button>
                   </div>
+
                 </div>
               </div>
             </div>
@@ -3789,7 +3730,7 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
         ))}
       </div>
 
-      {/* Indicador de Paginação do Carrossel */}
+      {/* Paginação */}
       {displayClusters.length > 1 && (
         <div className="flex justify-center gap-2 mt-4 pb-4">
           {displayClusters.map((_, idx) => (
@@ -3798,62 +3739,90 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
         </div>
       )}
 
-      {/* O Modal de Detalhes (reutilizado da minha outra sugestão) */}
-      {modalCluster && (
+      {/* Renderização Condicional dos Modais */}
+      {modalContent?.type === 'details' && (
           <ClusterDetailModal 
-              cluster={modalCluster} 
-              onClose={() => setModalCluster(null)}
-              isDarkMode={isDarkMode}
-              openArticle={openArticle}
-              getApiKey={getApiKey}
+              cluster={modalContent.cluster} 
+              onClose={() => setModalContent(null)} 
+              isDarkMode={isDarkMode} 
+              openArticle={openArticle} 
+              getApiKey={getApiKey} 
+          />
+      )}
+      {modalContent?.type === 'timeline' && (
+          <ClusterTimelineModal 
+              cluster={modalContent.cluster} 
+              onClose={() => setModalContent(null)} 
+              isDarkMode={isDarkMode} 
+              getApiKey={getApiKey} 
           />
       )}
     </div>
   );
-};
+}
 
+// --- MODAL: ENTENDA O CASO ---
 function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiKey }) {
   const [summary, setSummary] = useState(null);
-  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleGenerateSummary = async () => {
-    setIsLoadingSummary(true);
-    const apiKey = getApiKey('analysis');
-    const generatedSummary = await generateNeutralSummaryForCluster(cluster.related_articles, apiKey);
-    setSummary(generatedSummary);
-    setIsLoadingSummary(false);
-  };
+  // Gera o resumo automaticamente ao abrir, se não existir
+  useEffect(() => {
+      const load = async () => {
+          setIsLoading(true);
+          const apiKey = getApiKey('analysis');
+          const res = await generateNeutralSummaryForCluster(cluster.related_articles, apiKey);
+          setSummary(res);
+          setIsLoading(false);
+      };
+      load();
+  }, [cluster, getApiKey]);
 
   return (
     <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
       <div className={`relative w-full max-w-lg h-[80vh] flex flex-col rounded-3xl shadow-2xl border overflow-hidden ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white'}`}>
-        <div className={`p-4 border-b shrink-0 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-xs font-bold uppercase tracking-widest text-purple-500">Análise de Tópico</span>
+        
+        {/* Header */}
+        <div className={`p-5 border-b shrink-0 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-purple-500 flex items-center gap-1">
+                <Layers size={12}/> Entenda o Caso
+            </span>
             <button onClick={onClose} className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><X size={18}/></button>
           </div>
-          <h2 className="text-xl font-bold font-serif">{cluster.ai_title}</h2>
+          <h2 className="text-lg font-bold font-serif leading-tight">{cluster.ai_title}</h2>
         </div>
         
-        <div className={`p-4 shrink-0 border-b ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
-          {summary ? (
-            <p className="text-sm text-zinc-400 italic">"{summary}"</p>
+        {/* Área do Resumo IA */}
+        <div className={`p-6 shrink-0 border-b ${isDarkMode ? 'border-zinc-800 bg-zinc-800/30' : 'border-zinc-200 bg-zinc-50'}`}>
+          {isLoading ? (
+             <div className="flex items-center gap-3 text-purple-500">
+                 <Loader2 size={18} className="animate-spin"/>
+                 <span className="text-xs font-bold animate-pulse">A IA está lendo e resumindo...</span>
+             </div>
           ) : (
-            <button onClick={handleGenerateSummary} disabled={isLoadingSummary} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition disabled:opacity-60">
-              {isLoadingSummary ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              {isLoadingSummary ? 'Gerando...' : 'Gerar Resumo Neutro com IA'}
-            </button>
+             <div className="relative">
+                 <Sparkles size={16} className="absolute -top-1 -left-1 text-purple-500 opacity-50" />
+                 <p className={`text-sm leading-relaxed pl-6 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                    {summary || "Não foi possível gerar o resumo."}
+                 </p>
+             </div>
           )}
         </div>
 
+        {/* Lista de Fontes */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <div className="px-4 py-2 text-[10px] font-bold uppercase opacity-40 tracking-widest">Cobertura Completa</div>
           {cluster.related_articles.map(article => (
             <button key={article.id} onClick={() => openArticle(article)} className={`w-full flex items-center gap-3 p-3 text-left rounded-xl transition-colors ${isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'}`}>
-              <img src={article.logo} className="w-8 h-8 rounded-md border border-black/10 shrink-0 object-contain bg-white p-0.5" />
+              <img src={article.logo} className="w-8 h-8 rounded-md border border-black/10 shrink-0 object-contain bg-white p-0.5" onError={(e) => e.target.style.display='none'}/>
               <div className="min-w-0">
-                <p className="text-sm font-bold line-clamp-2">{article.title}</p>
-                <span className="text-xs text-zinc-500">{article.source}</span>
+                <p className="text-sm font-bold line-clamp-2 leading-snug">{article.title}</p>
+                <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-bold text-purple-500 uppercase">{article.source}</span>
+                    <span className="text-[10px] opacity-50">{article.time}</span>
+                </div>
               </div>
             </button>
           ))}
@@ -3861,6 +3830,73 @@ function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiK
       </div>
     </div>
   );
+}
+
+// --- MODAL: LINHA DO TEMPO ---
+function ClusterTimelineModal({ cluster, onClose, isDarkMode, getApiKey }) {
+    const [timeline, setTimeline] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchTimeline = async () => {
+            const apiKey = getApiKey('analysis');
+            const result = await generateTimelineForCluster(cluster.related_articles, apiKey);
+            setTimeline(result);
+            setIsLoading(false);
+        };
+        fetchTimeline();
+    }, [cluster, getApiKey]);
+
+    return (
+        <div className="fixed inset-0 z-[8000] flex items-center justify-center p-4 animate-in fade-in">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
+            <div className={`relative w-full max-w-lg rounded-3xl shadow-2xl border overflow-hidden flex flex-col max-h-[80vh] ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white'}`}>
+                <div className={`p-5 border-b shrink-0 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+                    <div className="flex justify-between items-center mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-blue-500 flex items-center gap-1">
+                            <History size={12}/> Linha do Tempo
+                        </span>
+                        <button onClick={onClose} className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><X size={18}/></button>
+                    </div>
+                    <h2 className="text-lg font-bold font-serif leading-tight truncate">{cluster.ai_title}</h2>
+                </div>
+                
+                <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center h-full flex-col gap-3 opacity-60">
+                            <Loader2 size={30} className="animate-spin text-blue-500"/>
+                            <p className="text-xs font-bold uppercase tracking-widest">Montando cronologia...</p>
+                        </div>
+                    ) : timeline && timeline.length > 0 ? (
+                        <div className="relative pl-2">
+                            {/* Linha vertical contínua */}
+                            <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-zinc-200 dark:bg-zinc-800"></div>
+                            
+                            <div className="space-y-8">
+                                {timeline.map((item, i) => (
+                                    <div key={i} className="flex gap-5 relative">
+                                        <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center z-10 text-xs font-bold shadow-sm border-4 ${isDarkMode ? 'bg-zinc-800 border-zinc-900 text-white' : 'bg-white border-white text-blue-600'}`}>
+                                            {i + 1}
+                                        </div>
+                                        <div className="pt-1 pb-2">
+                                            <div className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-500 text-[10px] font-bold w-max mb-1 uppercase tracking-wide">
+                                                {item.time}
+                                            </div>
+                                            <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{item.event}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-center py-10 opacity-50">
+                            <p className="text-sm">Não foi possível gerar a linha do tempo.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 }
 
 // ==========================================================
@@ -4882,7 +4918,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     
     // Só atualiza o estado (e causa render) SE o usuário estiver puxando para baixo
     if (diff > 0 && window.scrollY <= 5) {
-      if (e.cancelable) e.preventDefault();
+     
       // Adiciona uma resistência para não descer demais
       const newPull = Math.min(diff * 0.5, 220);
       setPullDistance(newPull);
