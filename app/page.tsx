@@ -20,6 +20,41 @@ import {
   Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, 
 } from 'lucide-react';
 
+const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
+  const timerRef = useRef();
+  const isLongPress = useRef(false);
+
+  const start = useCallback((event) => {
+    // Previne o menu de contexto do navegador no desktop
+    event.preventDefault(); 
+    isLongPress.current = false;
+    timerRef.current = setTimeout(() => {
+      onLongPress(event);
+      isLongPress.current = true;
+    }, threshold);
+  }, [onLongPress, threshold]);
+
+  const clear = useCallback(() => {
+    timerRef.current && clearTimeout(timerRef.current);
+  }, []);
+
+  const handleClick = useCallback((event) => {
+    if (!isLongPress.current) {
+      onClick(event);
+    }
+  }, [onClick]);
+  
+  // Adiciona onContextMenu para garantir o bloqueio no desktop
+  return {
+    onMouseDown: (e) => start(e),
+    onTouchStart: (e) => start(e),
+    onMouseUp: (e) => { clear(); handleClick(e); },
+    onMouseLeave: () => clear(),
+    onTouchEnd: (e) => { clear(); handleClick(e); },
+    onContextMenu: (e) => e.preventDefault(),
+  };
+};
+
 
 const stripTags = (html = "") => {
     if (!html) return "";
@@ -3432,13 +3467,16 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) 
 // === COLE A PARTIR DAQUI, SUBSTITUINDO TUDO ATÉ O FIM DO WIDGET ===
 // ==========================================================
 
-const generateHeuristicClustersV2 = (news) => {
+const generateHeuristicClusters = (news) => {
     if (!news || news.length < 5) return [];
 
+    // --- CONFIGURAÇÕES DE QUALIDADE PERCEBIDA ---
     const SOURCE_WEIGHTS = { 'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, };
     const DEFAULT_WEIGHT = 1;
+    const IMAGE_PREFERRED_SOURCES = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT News', 'Times Brasil', 'Estadao', 'Fox News', '180graus']);
+    const IMAGE_BLOCKED_SOURCES = new Set(['Istoé', 'UOL Economia', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Notícias', 'Money Times']);
     const SIMILARITY_THRESHOLD = 0.58;
-    const CLUSTER_LIMIT = 4; // Agora são 4 clusters
+    const CLUSTER_LIMIT = 5;
 
     const articles = [...news.slice(0, 200)];
     let potentialClusters = [];
@@ -3452,7 +3490,11 @@ const generateHeuristicClustersV2 = (news) => {
         for (let j = i + 1; j < articles.length; j++) {
             if (articlesUsed.has(articles[j].id)) continue;
             const similarity = stringSimilarity.compareTwoStrings(articles[i].title, articles[j].title);
-            if (similarity >= SIMILARITY_THRESHOLD && !currentCluster.sourcesInCluster.has(articles[j].source)) {
+            let threshold = SIMILARITY_THRESHOLD;
+            if (currentCluster.sourcesInCluster.has(articles[j].source)) {
+                threshold = 0.85;
+            }
+            if (similarity >= threshold) {
                 currentCluster.related_articles.push(articles[j]);
                 currentCluster.sourcesInCluster.add(articles[j].source);
                 articlesUsed.add(articles[j].id);
@@ -3469,34 +3511,69 @@ const generateHeuristicClustersV2 = (news) => {
         uniqueSources.forEach(sourceName => {
             sourceImpact += (SOURCE_WEIGHTS[sourceName] || DEFAULT_WEIGHT);
         });
-        const impactScore = cluster.related_articles.length * sourceImpact;
+        const impactScore = cluster.related_articles.length * sourceImpact * uniqueSources.size;
         return { ...cluster, impactScore };
     });
 
     const topClusters = scoredClusters.sort((a, b) => b.impactScore - a.impactScore).slice(0, CLUSTER_LIMIT);
 
-    return topClusters.map(cluster => {
-        // Ordena para pegar o título e a data mais recentes
-        const sortedArticles = [...cluster.related_articles].sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
-        
-        // Pega as fontes únicas com seus logos
-        const uniqueSourcesMap = new Map();
-        sortedArticles.forEach(article => {
-            if (!uniqueSourcesMap.has(article.source)) {
-                uniqueSourcesMap.set(article.source, article.logo);
+    const finalClusters = topClusters.map(cluster => {
+        let bestArticleForTitle = cluster.related_articles[0];
+        let maxCentrality = 0;
+        cluster.related_articles.forEach(articleA => {
+            let currentCentrality = 0;
+            cluster.related_articles.forEach(articleB => {
+                if (articleA.id !== articleB.id) {
+                    currentCentrality += stringSimilarity.compareTwoStrings(articleA.title, articleB.title);
+                }
+            });
+            if (currentCentrality > maxCentrality) {
+                maxCentrality = currentCentrality;
+                bestArticleForTitle = articleA;
             }
         });
-        const uniqueSources = Array.from(uniqueSourcesMap, ([name, logo]) => ({ name, logo }));
+
+        const hasRealImageUrl = (url) => url && /\.(jpg|jpeg|png|webp)/i.test(url) && !url.includes('ui-avatars.com');
+        const imageCandidates = cluster.related_articles.filter(a => !IMAGE_BLOCKED_SOURCES.has(a.source) && hasRealImageUrl(a.img));
+        let representativeArticleForImage = imageCandidates.find(a => IMAGE_PREFERRED_SOURCES.has(a.source)) || imageCandidates[0] || bestArticleForTitle;
+
+        const extractKeyEntities = (articles) => {
+            const wordFrequency = {};
+            const stopWords = new Set(['a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em', 'no', 'na', 'dos', 'das', 'seu', 'sua']);
+            articles.forEach(article => {
+                const words = article.title.match(/\b[A-Z][a-zà-úA-Z]{2,}\b/g) || [];
+                words.forEach(word => {
+                    const cleanWord = word.toLowerCase();
+                    if (!stopWords.has(cleanWord)) {
+                        wordFrequency[word] = (wordFrequency[word] || 0) + 1;
+                    }
+                });
+            });
+            return Object.keys(wordFrequency).sort((a, b) => wordFrequency[b] - wordFrequency[a]).slice(0, 3);
+        };
+
+        const keyEntities = extractKeyEntities(cluster.related_articles);
+        const uniqueSourcesCount = new Set(cluster.related_articles.map(a => a.source)).size;
+        let summaryText = `Notícia coberta por ${uniqueSourcesCount} fontes diferentes.`;
+        if (keyEntities.length > 0) {
+            summaryText += ` A pauta envolve principalmente: ${keyEntities.join(', ')}.`;
+        }
+
+        const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
 
         return {
-            id: sortedArticles[0].id,
-            representativeTitle: sortedArticles[0].title,
-            latestArticleDate: sortedArticles[0].rawDate,
-            uniqueSources: uniqueSources,
+            ai_title: bestArticleForTitle.title,
+            ai_summary: summaryText,
+            representative_image: representativeArticleForImage.img,
             related_articles: sortedArticles,
+            keyEntities: keyEntities,
         };
     });
+
+    return finalClusters;
 };
+
+
 const HighlightedSummary = ({ text, keywords, onKeywordClick, isDarkMode }) => {
     if (!keywords || keywords.length === 0) {
         return <p className="text-base text-zinc-300 leading-relaxed drop-shadow-md">{text}</p>;
@@ -3551,48 +3628,189 @@ const KeywordFocusModal = ({ data, onClose, openArticle, isDarkMode }) => {
     );
 };
 
+
+
+
+
+function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters }) {
+  const [loading, setLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef(null);
+  const [modalCluster, setModalCluster] = useState(null); // Estado para o modal de detalhes
+
+  // Lógica de decisão para quais clusters exibir
+  const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
+
+  const runAI = async () => {
+    const currentApiKey = getApiKey('widgets');
+    if (!currentApiKey || !news || news.length < 10) {
+      alert("Aguarde o carregamento de mais notícias ou configure a API Key.");
+      return;
+    }
+    setLoading(true);
+    setClusters(null);
+    const result = await generateSmartClustering(news, currentApiKey, 300);
+    if (result) {
+      setClusters(result);
+    } else {
+      alert("A IA não encontrou correlações suficientes.");
+    }
+    setLoading(false);
+  };
+
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const scrollLeft = scrollRef.current.scrollLeft;
+      const cardWidth = scrollRef.current.offsetWidth;
+      const newIndex = Math.round(scrollLeft / cardWidth);
+      if (newIndex !== activeIndex) setActiveIndex(newIndex);
+    }
+  };
+  
+  const timeAgo = (date) => {
+    if(!date) return '';
+    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    let interval = seconds / 3600;
+    if (interval > 1) return `HÁ ${Math.floor(interval)}H`;
+    interval = seconds / 60;
+    if (interval > 1) return `HÁ ${Math.floor(interval)}MIN`;
+    return "AGORA";
+  };
+
+  if (loading) {
+    return (
+        <div className="relative w-full h-[535px] flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4 z-10">
+                <Loader2 size={48} className="animate-spin text-purple-500" />
+                <span className="text-xs font-bold uppercase tracking-[0.2em] animate-pulse opacity-60">Analisando Notícias...</span>
+            </div>
+        </div>
+    );
+  }
+
+  if (!displayClusters || displayClusters.length === 0) {
+      return <WhileYouWereAwaySkeleton isDarkMode={isDarkMode} />;
+  }
+
+  return (
+    <div className="relative">
+      
+      {/* Botão de Análise IA */}
+      <div className="absolute top-[-3rem] right-4 z-20">
+        <button
+          onClick={runAI}
+          className="group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/30"
+        >
+          {loading ? ( <div className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /><span>Analisando</span></div> ) 
+          : clusters ? ( <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar IA</span></div> ) 
+          : ( <div className="flex items-center gap-2"><Sparkles size={16} /><span>Análise IA</span></div> )}
+        </button>
+      </div>
+
+      {/* O Carrossel */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+      >
+        {displayClusters.map((cluster, idx) => (
+          <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
+            <div className={`w-full rounded-[2.5rem] overflow-hidden flex flex-col relative ${isDarkMode ? 'bg-zinc-900 border border-zinc-800' : 'bg-white ring-1 ring-black/5'}`}>
+              
+              {/* Imagem Grande Representativa */}
+              <div className="relative w-full h-[535px] bg-zinc-800">
+                <img
+                  src={cluster.representative_image}
+                  className="w-full h-full object-cover"
+                  alt={cluster.ai_title}
+                  onError={(e) => e.target.style.display = 'none'}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                
+                {/* Informações no Topo */}
+                <div className="absolute top-4 left-4 right-4 z-10 flex justify-between items-center">
+                  <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                      <div className="flex items-center -space-x-2">
+                          {cluster.related_articles.slice(0, 3).map(article => (
+                              <img key={article.id} src={article.logo} title={article.source} className="w-5 h-5 rounded-full border-2 object-contain bg-white p-px border-black/50" />
+                          ))}
+                      </div>
+                      <span className="text-white text-[10px] font-bold uppercase tracking-wider">
+                          +{cluster.related_articles.length} FONTES
+                      </span>
+                  </div>
+                   <span className="text-white text-[10px] font-bold uppercase tracking-wider bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
+                      {timeAgo(cluster.related_articles[0]?.rawDate)}
+                  </span>
+                </div>
+
+                {/* Conteúdo na Base */}
+                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                  <h2 className="text-3xl font-black leading-tight drop-shadow-lg tracking-tight font-serif mb-4">
+                    {cluster.ai_title}
+                  </h2>
+                  
+                  {/* OS NOVOS CHIPS MODERNOS */}
+                  <div className="flex flex-wrap gap-2">
+                      <button onClick={() => setModalCluster(cluster)} className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-xs font-bold hover:bg-white/20 transition active:scale-95 flex items-center gap-2">
+                          <Layers size={14}/> Entenda o Caso
+                      </button>
+                      {/* Adicione mais chips aqui se desejar */}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Indicador de Paginação do Carrossel */}
+      {displayClusters.length > 1 && (
+        <div className="flex justify-center gap-2 mt-4 pb-4">
+          {displayClusters.map((_, idx) => (
+            <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-6' : 'bg-zinc-400 dark:bg-zinc-700 w-1.5'}`} />
+          ))}
+        </div>
+      )}
+
+      {/* O Modal de Detalhes (reutilizado da minha outra sugestão) */}
+      {modalCluster && (
+          <ClusterDetailModal 
+              cluster={modalCluster} 
+              onClose={() => setModalCluster(null)}
+              isDarkMode={isDarkMode}
+              openArticle={openArticle}
+              getApiKey={getApiKey}
+          />
+      )}
+    </div>
+  );
+};
+
 function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiKey }) {
   const [summary, setSummary] = useState(null);
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
   const handleGenerateSummary = async () => {
     setIsLoadingSummary(true);
-    const apiKey = getApiKey('analysis'); // Usa o pool pesado
+    const apiKey = getApiKey('analysis');
     const generatedSummary = await generateNeutralSummaryForCluster(cluster.related_articles, apiKey);
     setSummary(generatedSummary);
     setIsLoadingSummary(false);
-  };
-
-  // Formata o tempo relativo
-  const timeAgo = (date) => {
-    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-    let interval = seconds / 31536000;
-    if (interval > 1) return Math.floor(interval) + " anos";
-    interval = seconds / 2592000;
-    if (interval > 1) return Math.floor(interval) + " meses";
-    interval = seconds / 86400;
-    if (interval > 1) return Math.floor(interval) + " dias";
-    interval = seconds / 3600;
-    if (interval > 1) return Math.floor(interval) + "h";
-    interval = seconds / 60;
-    if (interval > 1) return Math.floor(interval) + "min";
-    return "agora";
   };
 
   return (
     <div className="fixed inset-0 z-[7000] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
       <div className={`relative w-full max-w-lg h-[80vh] flex flex-col rounded-3xl shadow-2xl border overflow-hidden ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white'}`}>
-        {/* Header */}
         <div className={`p-4 border-b shrink-0 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs font-bold uppercase tracking-widest text-purple-500">Análise de Tópico</span>
             <button onClick={onClose} className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><X size={18}/></button>
           </div>
-          <h2 className="text-xl font-bold font-serif">{cluster.representativeTitle}</h2>
+          <h2 className="text-xl font-bold font-serif">{cluster.ai_title}</h2>
         </div>
         
-        {/* Resumo IA */}
         <div className={`p-4 shrink-0 border-b ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
           {summary ? (
             <p className="text-sm text-zinc-400 italic">"{summary}"</p>
@@ -3604,7 +3822,6 @@ function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiK
           )}
         </div>
 
-        {/* Lista de Artigos */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {cluster.related_articles.map(article => (
             <button key={article.id} onClick={() => openArticle(article)} className={`w-full flex items-center gap-3 p-3 text-left rounded-xl transition-colors ${isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'}`}>
@@ -3620,79 +3837,6 @@ function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiK
     </div>
   );
 }
-
-// --- NOVO WIDGET: TopStoriesWidget (Substitui WhileYouWereAwayWidget) ---
-function TopStoriesWidget({ clusters, openArticle, isDarkMode, getApiKey }) {
-    const [modalCluster, setModalCluster] = useState(null);
-
-    // Esqueleto de carregamento
-    if (!clusters || clusters.length === 0) {
-        return (
-            <div className="px-4 space-y-4 animate-pulse">
-                {[...Array(2)].map((_, i) => (
-                    <div key={i} className={`p-4 rounded-2xl h-36 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
-                ))}
-            </div>
-        );
-    }
-    
-    // Função para formatar o tempo relativo
-    const timeAgo = (date) => {
-        const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-        if (seconds < 60) return "agora";
-        const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) return `há ${minutes}min`;
-        const hours = Math.floor(minutes / 60);
-        return `há ${hours}h`;
-    };
-
-    return (
-        <div className="px-4 space-y-4">
-            {clusters.map(cluster => (
-                <div key={cluster.id} className={`p-4 rounded-2xl border transition-shadow hover:shadow-xl ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`}>
-                    {/* Cabeçalho com fontes e tempo */}
-                    <div className="flex justify-between items-center mb-3">
-                        <div className="flex items-center -space-x-2">
-                            {cluster.uniqueSources.slice(0, 4).map(source => (
-                                <img key={source.name} src={source.logo} title={source.name} className="w-6 h-6 rounded-md border-2 object-contain bg-white p-0.5 border-zinc-900 dark:border-zinc-800" />
-                            ))}
-                            {cluster.uniqueSources.length > 4 && (
-                                <div className="w-6 h-6 rounded-md border-2 border-zinc-900 dark:border-zinc-800 bg-zinc-700 text-white flex items-center justify-center text-[10px] font-bold">
-                                    +{cluster.uniqueSources.length - 4}
-                                </div>
-                            )}
-                        </div>
-                        <span className="text-[10px] font-bold uppercase text-zinc-500">{timeAgo(cluster.latestArticleDate)}</span>
-                    </div>
-                    
-                    {/* Título Principal */}
-                    <h3 className="font-bold text-lg leading-tight mb-4">{cluster.representativeTitle}</h3>
-
-                    {/* Botões de Ação */}
-                    <div className="flex gap-2">
-                        <button onClick={() => setModalCluster(cluster)} className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
-                           <Layers size={14}/> Entenda o Caso
-                        </button>
-                        {/* Outros botões podem ser adicionados aqui */}
-                    </div>
-                </div>
-            ))}
-            
-            {/* Modal */}
-            {modalCluster && (
-                <ClusterDetailModal 
-                    cluster={modalCluster} 
-                    onClose={() => setModalCluster(null)}
-                    isDarkMode={isDarkMode}
-                    openArticle={openArticle}
-                    getApiKey={getApiKey}
-                />
-            )}
-        </div>
-    );
-}
-
-
 
 // ==========================================================
 // FUNÇÃO DE IA: ANÁLISE DE MERCADO (VERSÃO CORRIGIDA)
@@ -4827,11 +4971,14 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
         
         {/* --- SUBSTITUA O WIDGET ANTIGO POR ESTE --- */}
-        <TopStoriesWidget 
-            clusters={heuristicClusters}
-            openArticle={openArticle}
-            isDarkMode={isDarkMode}
-            getApiKey={getApiKey}
+   <WhileYouWereAwayWidget 
+          news={newsData} 
+          openArticle={openArticle} 
+          isDarkMode={isDarkMode} 
+          getApiKey={getApiKey}
+          clusters={savedClusters}
+          setClusters={setSavedClusters}
+          heuristicClusters={heuristicClusters} // Esta é a chave!
         />
       </div>
     
@@ -6499,8 +6646,10 @@ const [userFeeds, setUserFeeds] = useState([]);
 
 
 const heuristicClusters = useMemo(() => {
-      return generateHeuristicClustersV2(realNews);
-  }, [realNews]);
+    console.log("LOG: Recalculando clusters heurísticos..."); // Adicione este log para depurar
+    return generateHeuristicClusters(realNews);
+}, [realNews]); // A dependência crucial: recalcula sempre que 'realNews' mudar
+
 
 const storiesForHappeningTab = useMemo(() => {
     console.log("LOG: Recalculando stories inteligentes..."); // Adicione este log para depurar
