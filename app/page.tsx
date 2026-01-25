@@ -3630,7 +3630,32 @@ const KeywordFocusModal = ({ data, onClose, openArticle, isDarkMode }) => {
 
 
 
-
+const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
+  return (
+    <div className="relative p-2">
+      <style jsx="true">{` @keyframes shimmer { 100% { transform: translateX(100%); } } .animate-shimmer::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; transform: translateX(-100%); background-image: linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, 0.05) 20%, rgba(255, 255, 255, 0.2) 60%, rgba(255, 255, 255, 0) 100%); animation: shimmer 2s infinite; } `}</style>
+      <div className={`w-full h-[535px] rounded-2xl overflow-hidden flex flex-col p-6 relative animate-shimmer ${isDarkMode ? 'bg-zinc-900 border border-zinc-800' : 'bg-zinc-200'}`}>
+        <div className={`absolute top-0 left-0 right-0 h-52 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+        <div className="relative z-10 mt-56">
+          <div className={`h-8 w-3/4 rounded-lg mb-4 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+          <div className={`h-8 w-1/2 rounded-lg mb-6 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+          <div className="flex items-start gap-3">
+            <div className={`w-1 h-12 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+            <div className="space-y-2 flex-1">
+              <div className={`h-4 w-full rounded-lg ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+              <div className={`h-4 w-5/6 rounded-lg ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-auto pt-6">
+            <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+            <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+            <div className={`w-8 h-8 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters }) {
   const [loading, setLoading] = useState(false);
