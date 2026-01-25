@@ -4253,6 +4253,16 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     );
   };
 
+const countsByBand = temperatureBands.map((band) => {
+  if (!Array.isArray(trends)) return 0;
+
+  return trends.reduce((acc, t) => {
+    const score = clampNumber(Number(t?.score || 0), 0, 10);
+    if (score >= band.minimum && score <= band.maximum) return acc + 1;
+    return acc;
+  }, 0);
+});
+
   const TemperatureSelector = () => {
     return (
       <div className="mt-2">
@@ -4344,14 +4354,18 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                     {band.label}
                   </span>
 
-                  <div
-                    className="w-8 h-8 rounded-xl"
-                    style={{
-                      background: `${band.color}22`,
-                      border: `1px solid ${band.color}66`,
-                      boxShadow: `0 0 18px ${band.color}33`,
-                    }}
-                  />
+                <div
+  className="min-w-[34px] h-8 px-2 rounded-xl flex items-center justify-center"
+  style={{
+    background: `${band.color}22`,
+    border: `1px solid ${band.color}66`,
+    boxShadow: `0 0 18px ${band.color}33`,
+  }}
+>
+  <span className="text-[12px] font-black" style={{ color: band.color }}>
+    {countsByBand[idx]}
+  </span>
+</div>
                 </div>
 
                 <div className="mt-1 text-[10px] font-black uppercase tracking-widest" style={{ color: isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)" }}>
