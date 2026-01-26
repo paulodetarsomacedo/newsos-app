@@ -2670,52 +2670,49 @@ Você é um Editor de Primeira Página. Analise as notícias e identifique 8 ten
 
 
 // ==============================================================================
-// === GLASSBROWSER V4: Com fetch para o Novo Endpoint de Corte Inteligente ===
+// === GLASSBROWSER V6: Com Prop e Botão Corrigido ===
 // ==============================================================================
-const GlassBrowser = ({ article, onClose, isDarkMode }) => {
+const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent }) => { // <--- RECEBE A PROP
   const [content, setContent] = useState(''); 
   const [status, setStatus] = useState('loading');
-  const abortRef = useRef(null);
 
   useEffect(() => {
     if (!article?.link) { setStatus('error'); return; }
 
-    let isMounted = true;
-    const controller = new AbortController();
-
     const fetchContent = async () => {
         setStatus('loading');
-
         try {
-            // Chamamos a função do Step 1 (que deve buscar e cortar o texto no Backend)
-            const resultText = await fetchOptimizedContent(article.link, article.id);
-
-            if (!isMounted) return;
+            // CHAMA A FUNÇÃO RECEBIDA POR PROP
+            const resultText = await onFetchContent(article.link, article.id);
 
             if (resultText && resultText.length > 50) {
-                // SUCESSO: O backend enviou o texto já cortado e otimizado (baixo Egress)
                 setContent(resultText);
                 setStatus('success');
             } else {
-                // FALHA: O backend enviou texto vazio.
-                throw new Error("Resumo otimizado não pôde ser gerado.");
+                throw new Error("Texto otimizado muito curto.");
             }
-
         } catch (error) {
-            if (isMounted && error.name !== 'AbortError') {
-                console.error("Erro ao buscar texto otimizado:", error);
-                setStatus('error');
-            }
+            console.error("Erro no GlassBrowser:", error);
+            setStatus('error');
         }
     };
-
     fetchContent();
-
-    return () => { isMounted = false; };
-  }, [article]);
+  }, [article, onFetchContent]); // Depende da prop de fetch
 
   const openOriginal = async () => {
-      // ... sua função openOriginal permanece a mesma ...
+      // 1. Garante que o evento de clique termine (para não conflitar)
+      // 2. Abre o link (usamos window.open como fallback mais seguro)
+      try {
+        await Browser.open({ 
+            url: article.link, 
+            presentationStyle: 'fullscreen', 
+            toolbarColor: isDarkMode ? '#000000' : '#FFFFFF' 
+        });
+        onClose();
+      } catch { 
+          window.open(article.link, '_blank'); 
+          onClose();
+      }
   };
 
   return (
@@ -2724,10 +2721,11 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
       
       <div className={`relative w-full max-w-2xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}>
         
-        {/* Header com Imagem */}
+        {/* ... (Header com Imagem - Mesma estrutura) ... */}
         <div className="relative h-64 shrink-0">
+            {/* ... JSX da Imagem e Título ... */}
             <img src={article.img} className="w-full h-full object-cover opacity-80" onError={(e) => (e.target.style.display='none')}/>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
             
             <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60"><X size={20}/></button>
             
@@ -2763,19 +2761,19 @@ const GlassBrowser = ({ article, onClose, isDarkMode }) => {
                     </div>
                     <div>
                         <h3 className="font-bold mb-1">Conteúdo indisponível</h3>
-                        <p className="text-sm opacity-60 max-w-xs mx-auto">Não foi possível buscar as 16 linhas otimizadas. Tente abrir no navegador.</p>
+                        <p className="text-sm opacity-60 max-w-xs mx-auto">Não foi possível buscar as 16 linhas otimizadas.</p>
                     </div>
                 </div>
             )}
 
-            {/* Rodapé (sempre visível) */}
+            {/* Rodapé e Botão Corrigido */}
             <div className="mt-8 pt-6 border-t border-dashed border-zinc-500/20">
+                {/* O onClick agora chama a função openOriginal de forma limpa */}
                 <button onClick={openOriginal} className={`w-full py-4 rounded-xl font-bold text-sm uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
                     Ler no site original <ArrowRight size={16}/>
                 </button>
             </div>
         </div>
-
       </div>
     </div>
   );
@@ -3296,6 +3294,7 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) 
               article={glassArticle}
               onClose={() => setGlassArticle(null)}
               isDarkMode={isDarkMode}
+              onFetchContent={fetchOptimizedContent} 
             />
           )}
         </div>
@@ -7009,27 +7008,7 @@ const useLongPress = (onLongPress, onClick, { threshold = 500 } = {}) => {
   // === FIM DO BLOCO DE OTIMIZAÇÃO DE RESIZE ===
   // ==============================================================================
 
-const fetchOptimizedContent = async (url, articleId) => {
-    const cacheKey = `newsos_fulltext_${articleId}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    
-    if (cached) return JSON.parse(cached);
 
-    // CHAMA A NOVA FUNÇÃO EDGE DO SUPABASE (você precisa criar!)
-    const { data, error } = await supabase.functions.invoke('fetch-text-summary', {
-        body: { url: url } 
-    });
-
-    if (error) throw new Error("Erro no serviço de resumo do Supabase.");
-
-    // Se o serviço do Supabase cortar e retornar o texto
-    if (data?.text) {
-        sessionStorage.setItem(cacheKey, JSON.stringify(data.text));
-        return data.text;
-    }
-    
-    throw new Error("Resumo otimizado não disponível.");
-};
 
   // --- ÍNDICES DE ROTAÇÃO (PERSISTENTES) ---
   // Usamos useRef para que o índice não resete a cada renderização
@@ -8053,6 +8032,29 @@ const allAvailableStories = useMemo(() => {
 
 
 const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
+
+const fetchOptimizedContent = useCallback(async (url, articleId) => {
+    // ESTA FUNÇÃO PRECISA DO 'supabase' QUE ESTÁ NO ESCOPO DO NewsOS_V12
+    const cacheKey = `newsos_fulltext_${articleId}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    
+    if (cached) return cached; // Retorna o texto, não o JSON parseado
+
+    // CHAMA A SUA FUNÇÃO EDGE NO SUPABASE
+    const { data, error } = await supabase.functions.invoke('fetch-text-summary', {
+        body: { url: url } 
+    });
+
+    if (error) throw new Error("Erro no serviço de resumo do Supabase: " + error.message);
+
+    // Salva e retorna APENAS O TEXTO CORTADO
+    if (data && data.text) {
+        sessionStorage.setItem(cacheKey, data.text);
+        return data.text;
+    }
+    
+    throw new Error("Resumo otimizado não disponível.");
+}, [supabase]); // Depende apenas da instância do supabase
 
 const handleOpenGlassBrowser = (article) => {
     if (article) {
