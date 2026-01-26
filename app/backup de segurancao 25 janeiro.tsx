@@ -1015,97 +1015,84 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
 
+// ====================================================================
+// === NewsCard: LÓGICA SIMPLIFICADA IN-LINE ===
+// ====================================================================
 const NewsCard = React.memo(({ 
-  news, 
-  isSelected, 
-  isRead, 
-  isSaved, 
-  isLiked, 
-  isDarkMode, 
-  onClick, 
-  onAnalyze, 
-  onSwipeLeft, // Prop para abrir GlassBrowser
-  onToggleSave, 
-  onToggleLike, 
-  onPlay, 
-  playingAudio 
+  news, isSelected, isRead, isSaved, isLiked, isDarkMode, 
+  onClick, onAnalyze, onLongPress, onToggleSave, onToggleLike, onPlay, playingAudio 
 }) => {
   const [activePill, setActivePill] = useState(null);
   
-  // --- NOVOS ESTADOS PARA O EFEITO VISUAL ---
-  const [translateX, setTranslateX] = useState(0); // Posição horizontal do card
-  
-  // Refs para a lógica do Swipe
-  const touchStart = useRef(null);
-  const minSwipeDistance = 50;
+  // Refs para controlar o Long Press sem travar o scroll
+  const timerRef = useRef(null);
+  const isLongPressRef = useRef(false);
+  const startPos = useRef({ x: 0, y: 0 });
 
-  // --- LÓGICA DE SWIPE COM FEEDBACK VISUAL ---
-  const onTouchStart = (e) => {
-    // Se tocou num botão, cancela a detecção de swipe
-    if (e.target.closest('button')) return; 
-    
-    if (e.touches && e.touches.length === 1) {
-        touchStart.current = e.targetTouches[0].clientX;
-        // Desliga a transição CSS para que o movimento seja instantâneo ao deslizar
-        e.currentTarget.style.transition = 'none';
-    } else {
-        touchStart.current = null;
+  // 1. Inicia o toque
+  const handleTouchStart = (e) => {
+    isLongPressRef.current = false; // Reseta
+    startPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; // Guarda posição
+
+    // Inicia cronômetro de 600ms
+    timerRef.current = setTimeout(() => {
+      isLongPressRef.current = true; // Marca que foi Long Press
+      if (onLongPress) onLongPress(news); // Executa a ação
+      // Vibrar se possível (feedback tátil)
+      if (window.navigator.vibrate) window.navigator.vibrate(50);
+    }, 600);
+  };
+
+  // 2. Detecta movimento (Scroll)
+  const handleTouchMove = (e) => {
+    // Se o dedo se mover mais que 10px, cancela o Long Press
+    if (timerRef.current) {
+        const moveX = Math.abs(e.touches[0].clientX - startPos.current.x);
+        const moveY = Math.abs(e.touches[0].clientY - startPos.current.y);
+        
+        if (moveX > 10 || moveY > 10) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+        }
     }
   };
 
-  const onTouchMove = (e) => {
-    if (!touchStart.current || !e.targetTouches[0]) return;
-    
-    const currentX = e.targetTouches[0].clientX;
-    const distance = touchStart.current - currentX; // Distância percorrida (positiva para swipe left)
-
-    // Bloqueia o scroll vertical no card (opcional, mas melhora o swipe)
-    // e.preventDefault(); 
-    
-    if (distance > 0) {
-        // Se estiver deslizando para a esquerda (distance > 0), move o card
-        // Limita a 50px de deslocamento para não sair da tela
-        const newX = Math.min(distance, 50); 
-        setTranslateX(-newX); // Move o estado de volta (-X)
-    } else {
-        // Se estiver deslizando para a direita (distance < 0), reseta a posição
-        setTranslateX(0);
+  // 3. Finaliza o toque
+  const handleTouchEnd = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
     }
   };
 
-  const onTouchEnd = (e) => {
-    if (!touchStart.current) return;
-    
-    // Liga a transição de volta para o reset ser suave
-    e.currentTarget.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-
-    const touchEndClientX = e.changedTouches[0].clientX;
-    const distance = touchStart.current - touchEndClientX;
-    
-    // Se deslizar mais que a distância mínima, dispara a ação
-    if (distance > minSwipeDistance) {
-        if (onSwipeLeft) onSwipeLeft(news);
+  // 4. O Clique final (que o React dispara depois do TouchEnd)
+  const handleClick = (e) => {
+    // Se o timer disparou antes (foi long press), a gente ignora esse clique
+    if (isLongPressRef.current) {
+        e.stopPropagation();
+        return;
     }
     
-    // Reseta a posição do card visualmente
-    setTranslateX(0);
-    touchStart.current = null;
+    // Se não foi long press, abre o artigo normalmente
+    setActivePill('read');
+    onClick(news);
   };
-  
-  // --- FUNÇÕES AUXILIARES E METADADOS ---
+
+  // Função para impedir que os botões (like/save) disparem o card
   const stopProp = (e) => e.stopPropagation();
+
   const displayTime = news.rawDate ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
   const isPlayable = !!news.title;
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
-  const estimatedRead = Math.max(2, Math.min(Math.ceil((news.title || '').length / 25), 5)) + ' min';
-
 
   const InlinePlayer = () => (
     <>
         <div className={`mt-0 border-t ${isDarkMode ? 'border-white/10 bg-black/40' : 'border-zinc-100 bg-zinc-50'} animate-in slide-in-from-top-2 duration-300`}>
             <div className="p-4 flex items-center gap-4">
-                <button onClick={(e) => { stopProp(e); onPlay(news); }} className="w-12 h-12 flex-shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform">
+                <button 
+                    onPointerDown={stopProp} onClick={(e) => { stopProp(e); onPlay(news); }}
+                    className="w-12 h-12 flex-shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                >
                     {isGenerating ? <Loader2 size={20} className="animate-spin"/> : (
                         <div className="flex gap-1 items-end h-4">
                             <div className="w-1 bg-white animate-[music-bar_0.6s_ease-in-out_infinite]"></div>
@@ -1115,37 +1102,36 @@ const NewsCard = React.memo(({
                     )}
                 </button>
                 <div className="flex-1 min-w-0">
-                    <h4 className={`text-xs font-bold uppercase tracking-wider mb-1 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>Ouvindo Agora</h4>
+                    <h4 className={`text-xs font-bold uppercase tracking-wider mb-1 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
+                        {isGenerating ? 'Gerando Áudio Neural...' : 'Ouvindo Agora'}
+                    </h4>
                     <div className="h-1 w-full bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                         <div className="h-full bg-indigo-500 w-1/3 animate-pulse"></div>
                     </div>
                 </div>
-                <button onClick={(e) => { stopProp(e); onPlay(null); }} className="p-2 text-zinc-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+                <button onPointerDown={stopProp} onClick={(e) => { stopProp(e); onPlay(null); }} className="p-2 text-zinc-400 hover:text-red-500 transition-colors">
+                    <X size={20} />
+                </button>
             </div>
         </div>
+        <style jsx="true">{`@keyframes music-bar { 0%, 100% { height: 20%; } 50% { height: 100%; } }`}</style>
     </>
   );
 
   return (
     <div 
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
+      // --- AQUI ESTÁ A MÁGICA SIMPLES ---
+      // 1. Detectamos o início do toque
+      onTouchStart={handleTouchStart}
+      // 2. Se mover, cancelamos o timer (o scroll funciona nativamente)
+      onTouchMove={handleTouchMove}
+      // 3. Limpamos timer no fim
+      onTouchEnd={handleTouchEnd}
+      // 4. O clique só acontece se NÃO foi long press
+      onClick={handleClick}
       
-      // Aplica a translação via style
-      style={{ 
-          zIndex: isSelected ? 40 : 1,
-          transform: `translateX(${translateX}px)`,
-          // Transição suave para o reset, desativada no touchstart
-          transition: translateX === 0 ? 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' : 'none'
-      }}
-      
-      // O clique normal do React (só dispara se não for SWIPE)
-      onClick={() => {
-        setActivePill('read');
-        onClick(news);
-      }}
-      className={`group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer will-change-transform ${isSelected ? 'scale-[1.02]' : 'active:scale-[0.98]'}`}
+      style={{ zIndex: isSelected ? 40 : 1 }}
+      className={`group relative flex flex-col rounded-[2.5rem] mb-12 cursor-pointer transition-all duration-500 ease-out will-change-transform ${isSelected ? 'scale-[1.02]' : 'active:scale-[0.98]'}`}
     >
       
       {isSelected && (
@@ -1164,21 +1150,42 @@ const NewsCard = React.memo(({
 
             <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-white p-1 shadow-lg border-2 border-white/80">
-                    <img src={news.logo} className="w-full h-full object-contain rounded-lg" onError={(e) => e.target.style.display = 'none'} alt={news.source} />
+                    <img 
+                        src={news.logo} 
+                        className="w-full h-full object-contain rounded-lg" 
+                        onError={(e) => e.target.style.display = 'none'} 
+                        alt={news.source}
+                    />
                 </div>
                 <div className="flex items-center gap-4 px-4 py-2 rounded-full bg-black/30 backdrop-blur-md border border-white/70">
-                    <span className="text-[13px] font-black text-white uppercase tracking-widest truncate">{news.source}</span>
-                    <span className="text-sm font-mono font-bold text-white/70 tracking-wider">{displayTime}</span>
+                    <span className="text-[13px] font-black text-white uppercase tracking-widest truncate">
+                        {news.source}
+                    </span>
+                    <span className="text-sm font-mono font-bold text-white/70 tracking-wider">
+                        {displayTime}
+                    </span>
                 </div>
             </div>
 
             <div className="absolute top-20 right-5 z-20 flex flex-col items-end gap-2">
-                {isRead && (<div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">Lida</div>)}
+                {isRead && (
+                    <div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">
+                        Lida
+                    </div>
+                )}
                 <div className="flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/60 shadow-lg">
-                    {/* Botões blindados */}
-                    <button onClick={(e) => { stopProp(e); onToggleLike(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}><Heart size={20} fill={isLiked ? "currentColor" : "none"} /></button>
-                    <button onClick={(e) => { stopProp(e); onToggleSave(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}><Bookmark size={20} fill={isSaved ? "currentColor" : "none"} /></button>
-                    {isPlayable && (<button onClick={(e) => { stopProp(e); onPlay(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isCurrentPlaying ? 'text-green-400 bg-green-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>{isGenerating ? (<Loader2 size={20} className="animate-spin" />) : isCurrentPlaying ? (<Pause size={20} fill="currentColor"/>) : (<Play size={20} fill="currentColor" />)}</button>)}
+                    {/* Botões protegidos com stopProp no pointerDown */}
+                    <button onPointerDown={stopProp} onClick={(e) => { stopProp(e); onToggleLike(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                        <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
+                    </button>
+                    <button onPointerDown={stopProp} onClick={(e) => { stopProp(e); onToggleSave(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                        <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
+                    </button>
+                    {isPlayable && (
+                        <button onPointerDown={stopProp} onClick={(e) => { stopProp(e); onPlay(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isCurrentPlaying ? 'text-green-400 bg-green-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                            {isGenerating ? (<Loader2 size={20} className="animate-spin" />) : isCurrentPlaying ? (<Pause size={20} fill="currentColor"/>) : (<Play size={20} fill="currentColor" />)}
+                        </button>
+                    )}
                 </div>
             </div>
           </div>
@@ -1206,10 +1213,20 @@ const NewsCard = React.memo(({
                         </motion.div>
                     )}
                 </AnimatePresence>
-                <button onClick={(e) => { stopProp(e); setActivePill('read'); onClick(news); }} className="relative z-10 w-[68px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300">
-                    <span className={activePill === 'read' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}>Ler</span>
+                <button 
+                    onPointerDown={stopProp}
+                    onClick={(e) => { stopProp(e); setActivePill('read'); onClick(news); }} 
+                    className="relative z-10 w-[68px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
+                >
+                    <span className={activePill === 'read' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}>
+                        Ler
+                    </span>
                 </button>
-                <button onClick={(e) => { stopProp(e); setActivePill('analyze'); onAnalyze(news); }} className="relative z-10 w-[128px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300">
+                <button 
+                    onPointerDown={stopProp}
+                    onClick={(e) => { stopProp(e); setActivePill('analyze'); onAnalyze(news); }} 
+                    className="relative z-10 w-[128px] h-[42px] flex items-center justify-center rounded-full text-base font-bold transition-colors duration-300"
+                >
                     <div className={`flex items-center gap-2 ${activePill === 'analyze' ? 'text-white' : (isDarkMode ? 'text-zinc-300' : 'text-zinc-700')}`}>
                         <Sparkles size={22} className={`animate-pulse ${activePill === 'analyze' ? 'text-white/80' : 'text-purple-400'}`} />
                         <span>Analisar</span>
@@ -1217,31 +1234,15 @@ const NewsCard = React.memo(({
                 </button>
             </div>
           </div>
-          
+
           <div className="relative px-6 pt-7.5 pb-2 flex-1 flex flex-col justify-end">
             <div className="cursor-pointer">
                  <h3 className={`text-xl font-black leading-tight mb-1.5 line-clamp-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
                      {news.title}
                  </h3>
-            </div>
-
-            {/* NOVO RODAPÉ DE AÇÃO / METADADOS */}
-            <div className={`mt-2 flex items-center justify-between`}>
-                {/* Lado Esquerdo: Dica Visual do Swipe */}
-                <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity text-indigo-500">
-                    <ArrowRight size={14} className="group-hover:-translate-x-1 transition-transform rotate-180"/> 
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Deslize para Ler o Resumo</span>
-                </div>
-
-                {/* Lado Direito: Categoria + Tempo de Leitura */}
-                <div className="flex items-center gap-3">
-                    <span className="px-2 py-1 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-black uppercase tracking-wider">
-                        {news.category || 'Geral'}
-                    </span>
-                    <span className="text-[10px] font-medium opacity-40 flex items-center gap-1">
-                        <Clock size={10} /> {estimatedRead}
-                    </span>
-                </div>
+                 <p className={`text-sm font-medium leading-relaxed opacity-80 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} line-clamp-2`}>
+                     {news.summary}
+                 </p>
             </div>
           </div>
 
@@ -1250,7 +1251,6 @@ const NewsCard = React.memo(({
     </div>
   );
 });
-
 
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 // --- TAB: FEED (VERSÃO FINAL, LIMPA E OTIMIZADA) ---
@@ -1269,7 +1269,7 @@ function FeedTab({
   onRefresh, 
   onReadArticle, 
   onGenerateAudio,
-  onSwipeLeftArticle,
+  onLongPressArticle,
   openArticle // Esta é a função que abre o painel de IA
 }) {
   
@@ -1401,7 +1401,7 @@ function FeedTab({
               isDarkMode={isDarkMode} onClick={onReadArticle} onAnalyze={openArticle}
               onToggleSave={onToggleSave} isLiked={likedItems?.includes(news.id)}
               onToggleLike={onToggleLike}
-              onSwipeLeft={onSwipeLeftArticle} 
+              onLongPress={() => onLongPressArticle(news)}
             />
         ))}
       </div>
@@ -2670,112 +2670,229 @@ Você é um Editor de Primeira Página. Analise as notícias e identifique 8 ten
 
 
 // ==============================================================================
-// === GLASSBROWSER V4: Com fetch para o Novo Endpoint de Corte Inteligente ===
+// === COMPONENTE GLASSBROWSER (LÓGICA CORRIGIDA E MAIS PERMISSIVA) ===
 // ==============================================================================
 const GlassBrowser = ({ article, onClose, isDarkMode }) => {
-  const [content, setContent] = useState(''); 
-  const [status, setStatus] = useState('loading');
+  // URL do Worker
+  const WORKER_BASE = 'https://newsos-extract.paulodetarsomacedo.workers.dev';
+
+  const [excerpt, setExcerpt] = useState('');
+  const [excerptStatus, setExcerptStatus] = useState('idle'); // idle | loading | success | error
   const abortRef = useRef(null);
 
+  // Resumo original do RSS
+  const summaryRaw = (article?.summary || '').trim();
+
+  // Função auxiliar para contar linhas visuais
+  const countLines = (text) => {
+    if (!text) return 0;
+    const splitLines = text.split(/\r\n|\r|\n/).filter(line => line.trim().length > 0).length;
+    // Estima linhas visuais baseado em caracteres (média de 80 chars por linha mobile)
+    const estimatedLines = Math.ceil(text.length / 80); 
+    return Math.max(splitLines, estimatedLines);
+  };
+
+  // --- Lógica de Decisão: Quando buscar no backend? ---
+  const shouldExtract = useMemo(() => {
+    if (!article?.link) return false;
+    
+    // Contagem de linhas do resumo original
+    const lines = countLines(summaryRaw);
+    
+    // Detecção de "lixo" no resumo original
+    const s = summaryRaw.toLowerCase();
+    const isBoilerplate = ['toque abaixo', 'leia a matéria', 'conteúdo restrito', 'assinantes', 'login', 'clique aqui'].some(sig => s.includes(sig));
+    
+    // REGRA: Se o resumo original for curto (< 8 linhas) OU parecer menu/lixo, busca no backend.
+    // Isso garante que tentaremos pegar as "20 linhas" do site.
+    if (lines < 8 || isBoilerplate) {
+        return true;
+    }
+    return false;
+  }, [article?.link, summaryRaw]);
+
+  // --- Efeito de Busca ---
   useEffect(() => {
-    if (!article?.link) { setStatus('error'); return; }
+    if (abortRef.current) abortRef.current.abort();
+    if (!article?.link) return;
 
-    let isMounted = true;
+    // Se o resumo original já é grande e bom, usa ele direto.
+    if (!shouldExtract) {
+      setExcerpt(summaryRaw);
+      setExcerptStatus('success');
+      return;
+    }
+
+    setExcerptStatus('loading');
+    setExcerpt('');
+
+    // 1. Tenta Cache
+    const cacheKey = `newsos_excerpt_cache:${article.link}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      setExcerpt(cached);
+      setExcerptStatus('success');
+      return;
+    }
+
     const controller = new AbortController();
+    abortRef.current = controller;
 
-    const fetchContent = async () => {
-        setStatus('loading');
+    const runFetch = async () => {
+      try {
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        
+        console.log("Iniciando fetch do worker para:", article.link); // DEBUG
+        const targetUrl = `${WORKER_BASE}/?url=${encodeURIComponent(article.link)}`;
+        
+        const res = await fetch(targetUrl, {
+          method: 'GET',
+          signal: controller.signal,
+          headers: { Accept: 'application/json' }
+        });
+        
+        clearTimeout(timeoutId);
 
-        try {
-            // Chamamos a função do Step 1 (que deve buscar e cortar o texto no Backend)
-            const resultText = await fetchOptimizedContent(article.link, article.id);
+        if (!res.ok) throw new Error(`Erro worker: ${res.status}`);
 
-            if (!isMounted) return;
+        const data = await res.json();
+        console.log("Dados recebidos do worker:", data); // DEBUG
 
-            if (resultText && resultText.length > 50) {
-                // SUCESSO: O backend enviou o texto já cortado e otimizado (baixo Egress)
-                setContent(resultText);
-                setStatus('success');
-            } else {
-                // FALHA: O backend enviou texto vazio.
-                throw new Error("Resumo otimizado não pôde ser gerado.");
-            }
+        if (controller.signal.aborted) return;
 
-        } catch (error) {
-            if (isMounted && error.name !== 'AbortError') {
-                console.error("Erro ao buscar texto otimizado:", error);
-                setStatus('error');
-            }
+        // Tenta pegar o texto de várias propriedades possíveis
+        // O worker deve retornar o texto limpo ou o HTML principal
+        let fetchedText = data.excerpt || data.content || data.textContent || "";
+        
+        // Remove tags HTML básicas se vierem sujas
+        fetchedText = fetchedText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+        if (fetchedText && fetchedText.length > 50) {
+            // SUCESSO: O backend retornou algo útil.
+            // Aceitamos se tiver mais de 50 caracteres (aprox 1 linha), 
+            // pois é melhor que um resumo quebrado.
+            setExcerpt(fetchedText);
+            setExcerptStatus('success');
+            sessionStorage.setItem(cacheKey, fetchedText);
+        } else {
+            // FALHA: Backend não conseguiu extrair nada útil
+            console.warn("Backend retornou texto vazio ou muito curto.");
+            setExcerpt(summaryRaw); // Fallback para o original
+            setExcerptStatus('success'); // Mostra o original sem erro vermelho
         }
+
+      } catch (e) {
+        if (!controller.signal.aborted) {
+          console.error("Erro na requisição do GlassBrowser:", e);
+          // Em caso de erro de rede, usa o resumo original
+          setExcerpt(summaryRaw);
+          setExcerptStatus('success'); 
+        }
+      }
     };
 
-    fetchContent();
+    runFetch();
 
-    return () => { isMounted = false; };
-  }, [article]);
+    return () => {
+      controller.abort();
+    };
+  }, [article?.link, shouldExtract, summaryRaw]);
 
-  const openOriginal = async () => {
-      // ... sua função openOriginal permanece a mesma ...
+  const openInNativeBrowser = async () => {
+    try {
+      await Browser.open({
+        url: article.link,
+        presentationStyle: 'fullscreen',
+        toolbarColor: isDarkMode ? '#000000' : '#FFFFFF',
+      });
+      onClose();
+    } catch (e) {
+      window.open(article.link, '_blank');
+    }
   };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
-      
-      <div className={`relative w-full max-w-2xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}>
-        
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity"
+        onClick={onClose}
+      />
+
+      <div
+        className={`
+          relative w-[95vw] h-[85vh] md:w-[800px] md:h-[90vh]
+          rounded-[2.5rem] overflow-hidden shadow-2xl border flex flex-col 
+          transition-all transform scale-100 animate-in zoom-in-95 duration-300
+          ${isDarkMode
+            ? 'bg-zinc-900/95 border-white/10 shadow-purple-500/20'
+            : 'bg-white/95 border-white/40 shadow-xl'}
+          backdrop-blur-2xl
+        `}
+      >
         {/* Header com Imagem */}
-        <div className="relative h-64 shrink-0">
-            <img src={article.img} className="w-full h-full object-cover opacity-80" onError={(e) => (e.target.style.display='none')}/>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
-            
-            <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60"><X size={20}/></button>
-            
-            <div className="absolute bottom-4 left-6 right-6">
-                <div className="flex items-center gap-2 mb-2">
-                    <img src={article.logo} className="w-6 h-6 rounded-full bg-white p-0.5" />
-                    <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black">{article.source}</span>
-                </div>
-                <h2 className="text-2xl font-black text-white leading-tight font-serif drop-shadow-md">{article.title}</h2>
+        <div className="relative h-64 w-full flex-shrink-0">
+          <img
+            src={article.img || article.logo}
+            className="w-full h-full object-cover"
+            onError={(e) => (e.target.style.display = 'none')}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 rounded-full bg-black/30 text-white backdrop-blur-md border border-white/20 hover:bg-black/50 transition active:scale-90"
+          >
+            <X size={20} />
+          </button>
+
+          <div className="absolute bottom-6 left-6 right-6">
+             <div className="flex items-center gap-2 mb-3">
+                <img
+                src={article.logo}
+                className="w-6 h-6 rounded-full border border-white/50 bg-white"
+                />
+                <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black drop-shadow-md">
+                {article.source}
+                </span>
             </div>
+            <h2 className={`text-2xl md:text-3xl font-black leading-tight font-serif text-white drop-shadow-md line-clamp-3`}>
+                {article.title}
+            </h2>
+          </div>
         </div>
 
-        {/* Corpo do Conteúdo Dinâmico */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
-            
-            {status === 'loading' && (
-                <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-60">
-                    <Loader2 size={32} className="animate-spin text-blue-500" />
-                    <p className="text-xs font-bold uppercase tracking-widest">Buscando e cortando as 16 linhas...</p>
-                </div>
-            )}
+        {/* Corpo do Texto */}
+        <div className="p-6 md:p-8 flex flex-col flex-1 overflow-y-auto custom-scrollbar">
+          
+          {/* Status Bar: Só aparece enquanto carrega o worker */}
+          {excerptStatus === 'loading' && (
+              <div className="flex items-center gap-2 mb-4 opacity-60">
+                  <Loader2 size={14} className="animate-spin text-purple-500"/>
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Carregando conteúdo completo...</span>
+              </div>
+          )}
+          
+          {/* O Texto em Si */}
+          <div className={`flex-1 text-lg leading-relaxed whitespace-pre-line font-serif ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+              {/* Se tiver excerpt (do worker ou fallback), mostra. Se estiver carregando, não mostra nada para não piscar */}
+              {excerptStatus !== 'loading' ? excerpt : null}
+          </div>
 
-            {status === 'success' && (
-                <div className={`text-lg leading-relaxed font-serif whitespace-pre-line ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
-                    {content}
-                </div>
-            )}
-
-            {status === 'error' && (
-                <div className="flex flex-col items-center justify-center py-10 gap-4 text-center">
-                    <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
-                        <FileText size={24} />
-                    </div>
-                    <div>
-                        <h3 className="font-bold mb-1">Conteúdo indisponível</h3>
-                        <p className="text-sm opacity-60 max-w-xs mx-auto">Não foi possível buscar as 16 linhas otimizadas. Tente abrir no navegador.</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Rodapé (sempre visível) */}
-            <div className="mt-8 pt-6 border-t border-dashed border-zinc-500/20">
-                <button onClick={openOriginal} className={`w-full py-4 rounded-xl font-bold text-sm uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
-                    Ler no site original <ArrowRight size={16}/>
-                </button>
-            </div>
+          {/* Botão Inferior */}
+          <div className="mt-8 pt-4 border-t border-dashed border-zinc-500/20 flex-shrink-0">
+            <button
+              onClick={openInNativeBrowser}
+              className={`
+                w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-lg
+                ${isDarkMode
+                  ? 'bg-white text-black hover:bg-zinc-200'
+                  : 'bg-black text-white hover:bg-zinc-800'}
+              `}
+            >
+              Ler na Fonte Original <ArrowRight size={18} />
+            </button>
+          </div>
         </div>
-
       </div>
     </div>
   );
@@ -7009,27 +7126,7 @@ const useLongPress = (onLongPress, onClick, { threshold = 500 } = {}) => {
   // === FIM DO BLOCO DE OTIMIZAÇÃO DE RESIZE ===
   // ==============================================================================
 
-const fetchOptimizedContent = async (url, articleId) => {
-    const cacheKey = `newsos_fulltext_${articleId}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    
-    if (cached) return JSON.parse(cached);
 
-    // CHAMA A NOVA FUNÇÃO EDGE DO SUPABASE (você precisa criar!)
-    const { data, error } = await supabase.functions.invoke('fetch-text-summary', {
-        body: { url: url } 
-    });
-
-    if (error) throw new Error("Erro no serviço de resumo do Supabase.");
-
-    // Se o serviço do Supabase cortar e retornar o texto
-    if (data?.text) {
-        sessionStorage.setItem(cacheKey, JSON.stringify(data.text));
-        return data.text;
-    }
-    
-    throw new Error("Resumo otimizado não disponível.");
-};
 
   // --- ÍNDICES DE ROTAÇÃO (PERSISTENTES) ---
   // Usamos useRef para que o índice não resete a cada renderização
@@ -8138,7 +8235,7 @@ return (
             
             {activeTab === 'feed' && (
                 <FeedTab 
-               onSwipeLeftArticle={handleOpenGlassBrowser}  
+                onLongPressArticle={handleOpenGlassBrowser}    
                 openArticle={handleOpenArticle} 
                     onReadArticle={handleReadNative}
                     onGenerateAudio={handlePlayAudio} 
