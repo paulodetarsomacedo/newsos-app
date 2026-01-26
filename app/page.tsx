@@ -2670,19 +2670,26 @@ Você é um Editor de Primeira Página. Analise as notícias e identifique 8 ten
 
 
 // ==============================================================================
-// === GLASSBROWSER V6: Com Prop e Botão Corrigido ===
+// === GLASSBROWSER V7: Com Proteção Contra TypeError e Botão OK ===
 // ==============================================================================
 const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent }) => { // <--- RECEBE A PROP
   const [content, setContent] = useState(''); 
   const [status, setStatus] = useState('loading');
 
   useEffect(() => {
+    // 1. PRIMEIRA PROTEÇÃO: Se a função não foi passada, marca erro e para.
+    if (!onFetchContent || typeof onFetchContent !== 'function') {
+        console.error("ERRO CRÍTICO: onFetchContent não é uma função. Verifique o NewsOS_V12.");
+        setStatus('error');
+        return;
+    }
     if (!article?.link) { setStatus('error'); return; }
 
+    let isMounted = true;
     const fetchContent = async () => {
         setStatus('loading');
         try {
-            // CHAMA A FUNÇÃO RECEBIDA POR PROP
+            // 2. CHAMA A FUNÇÃO RECEBIDA POR PROP
             const resultText = await onFetchContent(article.link, article.id);
 
             if (resultText && resultText.length > 50) {
@@ -2692,17 +2699,19 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent }) => { // 
                 throw new Error("Texto otimizado muito curto.");
             }
         } catch (error) {
-            console.error("Erro no GlassBrowser:", error);
-            setStatus('error');
+            if (isMounted) {
+                console.error("Erro no GlassBrowser (Fetch):", error);
+                setStatus('error');
+            }
         }
     };
     fetchContent();
+    return () => { isMounted = false; };
   }, [article, onFetchContent]); // Depende da prop de fetch
 
   const openOriginal = async () => {
-      // 1. Garante que o evento de clique termine (para não conflitar)
-      // 2. Abre o link (usamos window.open como fallback mais seguro)
       try {
+        // CORREÇÃO DO BOTÃO: Usamos o método mais seguro de abertura
         await Browser.open({ 
             url: article.link, 
             presentationStyle: 'fullscreen', 
@@ -2721,9 +2730,8 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent }) => { // 
       
       <div className={`relative w-full max-w-2xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}>
         
-        {/* ... (Header com Imagem - Mesma estrutura) ... */}
+        {/* Header com Imagem */}
         <div className="relative h-64 shrink-0">
-            {/* ... JSX da Imagem e Título ... */}
             <img src={article.img} className="w-full h-full object-cover opacity-80" onError={(e) => (e.target.style.display='none')}/>
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
             
@@ -2743,7 +2751,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent }) => { // 
             
             {status === 'loading' && (
                 <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-60">
-                    <Loader2 size={32} className="animate-spin text-blue-500" />
+                    <Loader2 size={32} className="animate-spin text-purple-500" />
                     <p className="text-xs font-bold uppercase tracking-widest">Buscando e cortando as 16 linhas...</p>
                 </div>
             )}
@@ -2761,19 +2769,19 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent }) => { // 
                     </div>
                     <div>
                         <h3 className="font-bold mb-1">Conteúdo indisponível</h3>
-                        <p className="text-sm opacity-60 max-w-xs mx-auto">Não foi possível buscar as 16 linhas otimizadas.</p>
+                        <p className="text-sm opacity-60 max-w-xs mx-auto">Não foi possível buscar as 16 linhas otimizadas. Isso pode ser um problema de rede ou o site está bloqueando o acesso.</p>
                     </div>
                 </div>
             )}
 
-            {/* Rodapé e Botão Corrigido */}
+            {/* Rodapé (sempre visível) */}
             <div className="mt-8 pt-6 border-t border-dashed border-zinc-500/20">
-                {/* O onClick agora chama a função openOriginal de forma limpa */}
                 <button onClick={openOriginal} className={`w-full py-4 rounded-xl font-bold text-sm uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
                     Ler no site original <ArrowRight size={16}/>
                 </button>
             </div>
         </div>
+
       </div>
     </div>
   );
