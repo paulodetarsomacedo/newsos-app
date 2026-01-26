@@ -7960,6 +7960,30 @@ const handleReadNative = useCallback(async (article) => {
   }, []);
 
 
+  const fetchOptimizedContent = useCallback(async (url, articleId) => {
+    // ESTA FUNÇÃO PRECISA DO 'supabase' QUE ESTÁ NO ESCOPO DO NewsOS_V12
+    const cacheKey = `newsos_fulltext_${articleId}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    
+    if (cached) return cached; // Retorna o texto, não o JSON parseado
+
+    // CHAMA A SUA FUNÇÃO EDGE NO SUPABASE
+    const { data, error } = await supabase.functions.invoke('fetch-text-summary', {
+        body: { url: url } 
+    });
+
+    if (error) throw new Error("Erro no serviço de resumo do Supabase: " + error.message);
+
+    // Salva e retorna APENAS O TEXTO CORTADO
+    if (data && data.text) {
+        sessionStorage.setItem(cacheKey, data.text);
+        return data.text;
+    }
+    
+    throw new Error("Resumo otimizado não disponível.");
+}, [supabase]); // Depende apenas da instância do supabase
+
+
   useEffect(() => {
     const resetInactivityTimer = () => {
       if (navTimerRef.current) clearTimeout(navTimerRef.current);
@@ -8041,28 +8065,7 @@ const allAvailableStories = useMemo(() => {
 
 const isMainViewReceded = !!selectedArticle || !!selectedOutlet || !!selectedStory;
 
-const fetchOptimizedContent = useCallback(async (url, articleId) => {
-    // ESTA FUNÇÃO PRECISA DO 'supabase' QUE ESTÁ NO ESCOPO DO NewsOS_V12
-    const cacheKey = `newsos_fulltext_${articleId}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    
-    if (cached) return cached; // Retorna o texto, não o JSON parseado
 
-    // CHAMA A SUA FUNÇÃO EDGE NO SUPABASE
-    const { data, error } = await supabase.functions.invoke('fetch-text-summary', {
-        body: { url: url } 
-    });
-
-    if (error) throw new Error("Erro no serviço de resumo do Supabase: " + error.message);
-
-    // Salva e retorna APENAS O TEXTO CORTADO
-    if (data && data.text) {
-        sessionStorage.setItem(cacheKey, data.text);
-        return data.text;
-    }
-    
-    throw new Error("Resumo otimizado não disponível.");
-}, [supabase]); // Depende apenas da instância do supabase
 
 const handleOpenGlassBrowser = (article) => {
     if (article) {
@@ -8248,6 +8251,7 @@ return (
           article={glassArticle}
           onClose={() => setGlassArticle(null)}
           isDarkMode={isDarkMode}
+          onFetchContent={fetchOptimizedContent} 
         />
       )}
 
