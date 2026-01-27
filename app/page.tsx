@@ -2549,94 +2549,46 @@ const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
 
 
 
-const WordCloudWidget = ({ words, isDarkMode }) => {
-    if (!words || words.length === 0) return null;
-
-    // A biblioteca react-d3-cloud espera uma prop 'data' com array de { text, value }
-    const data = words;
-
-    // Função para determinar o tamanho da fonte (Logarítmica para evitar palavras gigantes)
-    const fontSizeMapper = (word) => Math.log2(word.value) * 12 + 10;
-    
-    // Função para rotação (0 = horizontal)
-    const rotate = () => 0;
-
-    // Cores modernas para o tema
-    const scheme = isDarkMode 
-        ? ["#a78bfa", "#f472b6", "#fb923c", "#38bdf8", "#4ade80"] // Cores vivas para fundo escuro
-        : ["#7c3aed", "#db2777", "#ea580c", "#0284c7", "#16a34a"]; // Cores mais escuras para fundo claro
-
-    return (
-        <div className={`mt-8 p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900/50 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-             <h4 className={`text-[10px] font-black uppercase tracking-widest opacity-50 mb-6 px-2 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                <CloudSun size={14}/> Termômetro de Tópicos
-            </h4>
-            
-            <div className="w-full h-[280px] flex items-center justify-center overflow-hidden">
-                <WordCloud
-                    data={data}
-                    width={500}
-                    height={280}
-                    font="Inter"
-                    fontWeight="bold"
-                    fontSize={fontSizeMapper}
-                    spiral="archimedean"
-                    rotate={rotate}
-                    padding={4}
-                    fill={(d, i) => scheme[i % scheme.length]}
-                    onWordClick={(event, d) => {
-                        console.log(`Tópico clicado: ${d.text}`);
-                    }}
-                />
-            </div>
-            <p className="text-center text-[10px] opacity-30 mt-2 uppercase tracking-wider">Baseado nos títulos de hoje</p>
-        </div>
-    );
-};
-
-
-
+// --- FUNÇÃO TREND RADAR (MODELO 2.5 FLASH) ---
 // --- FUNÇÃO TREND RADAR (VOLTANDO A USAR O POOL) ---
-// --- FUNÇÃO TREND RADAR (V6 - ADAPTADA PARA TÍTULOS E MAIS FIEL) ---
-
 const generateTrendRadar = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
 
-  // MUDANÇA 1: Aumentamos a amostragem de títulos para 80 para compensar a falta do resumo.
-  const context = news.slice(0, 100).map((n, index) => 
-    `${index}|${n.title}` // MUDANÇA 2: Enviamos APENAS o título.
+  const context = news.slice(0, 40).map((n, index) => 
+    `${index}|${n.title}|${n.summary ? n.summary.slice(0, 60) : ''}`
   ).join('\n');
 
-  // MUDANÇA 3: O prompt foi totalmente reescrito para a nova realidade.
+  // ==========================================================
+  // === INÍCIO DA ALTERAÇÃO: O NOVO PROMPT ===
+  // ==========================================================
   const prompt = `
-  Você é um Analista de Dados especialista em identificar tendências emergentes a partir de feeds de notícias.
-  Você receberá uma lista de TÍTULOS de notícias. O resumo não está disponível.
+Você é um Editor de Primeira Página. Analise as notícias e identifique 8 tendências com diferentes níveis de impacto.
 
-  SUA MISSÃO:
-  1. Agrupar TÍTULOS semanticamente semelhantes para identificar as 8 tendências mais importantes.
-  2. Para cada tendência, criar uma micro-manchete curta e dinâmica (máx. 5 palavras) no campo "topic".
-  3. Atribuir um score de impacto (1-10) e uma cor.
-  4. Indicar os índices das notícias que formam cada tendência.
-
-  REGRAS:
-  - O campo "topic" DEVE ser uma manchete (ex: "Avanço da IA na Saúde"), NUNCA uma palavra única (ex: "IA").
-  - Sua resposta DEVE incluir tópicos em diferentes faixas de score.
-  - RETORNE APENAS um array JSON com 8 objetos.
+  REGRAS OBRIGATÓRIAS:
+  1.  **TÓPICO COMO MANCHETE:** O campo "topic" DEVE ser uma micro-manchete curta e dinâmica (máx. 5 palavras) que explique a tendência.
+      - NÃO FAÇA: "Inflação"
+      - FAÇA: "Inflação Preocupa Mercados Globais"
+      - FAÇA: "Avanço da IA na Saúde"
+  2.  **VARIEDADE DE SCORES:** Sua resposta DEVE incluir tópicos em diferentes faixas de score (quente, médio, frio).
+  3.  **JSON ESTRITO:** Retorne APENAS um array JSON com 8 objetos.
 
   FORMATO DO JSON:
   [
     {
-      "topic": "Micro-Manchete da Tendência",
-      "score": 1, 
-      "hex": "#3b82f6",
-      "summary": "Um fato curto e direto sobre este tópico, inferido dos títulos.",
+      "topic": "Micro-Manchete da Tendência", // <<-- A GRANDE MUDANÇA
+      "score": 1, // Número de 1 a 10
+      "hex": "#3b82f6", // Cor correspondente
+      "summary": "Um fato curto e direto sobre este tópico."
       "source_indices": [0, 5, 12]
     }
   ]
 
-  DADOS PARA ANÁLISE (APENAS TÍTULOS):
+  DADOS PARA ANÁLISE:
   ${context}
   `;
+  // ==========================================================
+  // === FIM DA ALTERAÇÃO ===
+  // ==========================================================
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
@@ -2649,6 +2601,7 @@ const generateTrendRadar = async (news, apiKey) => {
     });
 
     const data = await response.json();
+    
     if (!response.ok || data.error) return null;
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -2664,6 +2617,8 @@ const generateTrendRadar = async (news, apiKey) => {
     return []; 
   }
 };
+
+// --- WIDGET: SMART DIGEST (DESIGN EDITORIAL PREMIUM) ---
 
 
 
@@ -4026,10 +3981,10 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [activeIndex, setActiveIndex] = useState(null);
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  // Janela de tempo (6h ou 24h)
-  const [timeWindow, setTimeWindow] = useState("24h"); 
+  // Janela de tempo (somente 6h e 24h)
+  const [timeWindow, setTimeWindow] = useState("24h"); // "6h" | "24h"
 
-  // Faixa selecionada na régua
+  // Faixa selecionada
   const [selectedBandIndex, setSelectedBandIndex] = useState(null);
 
   // Para reiniciar animação de snap ao selecionar faixa
@@ -4038,49 +3993,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   // Modo comparação (dois índices originais)
   const [compareSelection, setCompareSelection] = useState([]);
 
-  // Cache Keys
-  const STORAGE_KEY_CURRENT = "newsos_trend_radar_data_v7";
+  // Cache
+  const STORAGE_KEY_CURRENT = "newsos_trend_radar_data_v6";
   const STORAGE_KEY_PREVIOUS = "newsos_trend_radar_previous_v1";
-
-  // --- LÓGICA DA NUVEM DE PALAVRAS (PROCESSAMENTO LOCAL) ---
-  const wordCloudData = useMemo(() => {
-    if (!newsData || newsData.length === 0) return [];
-
-    // Lista expandida de Stop Words em Português
-    const stopWords = new Set([
-      'a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em', 'no', 'na', 
-      'dos', 'das', 'seu', 'sua', 'mas', 'foi', 'ser', 'por', 'são', 'como', 'se', 'ao', 'sobre', 'após', 
-      'disse', 'pelo', 'pela', 'entre', 'quando', 'muito', 'nos', 'nas', 'está', 'este', 'essa', 'isso', 
-      'tem', 'mais', 'pode', 'vai', 'anos', 'hoje', 'agora', 'contra', 'novo', 'nova', 'quem', 'ele', 'ela',
-      'ter', 'fazer', 'onde', 'porque', 'todos', 'parte', 'fim', 'diz', 'veja', 'lista', 'video', 'fotos'
-    ]);
-    
-    const frequencies = {};
-
-    newsData.forEach(news => {
-      if (!news.title) return;
-      // Normalização: Remove acentos, pontuação e deixa minúsculo
-      const normalizedTitle = news.title
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-        .replace(/[^a-z0-9\s]/g, '');    // Remove caracteres especiais
-
-      normalizedTitle.split(/\s+/).forEach(word => {
-        // Filtra palavras curtas e stop words
-        if (word.length > 3 && !stopWords.has(word) && isNaN(word)) {
-          frequencies[word] = (frequencies[word] || 0) + 1;
-        }
-      });
-    });
-
-    // Transforma em array, ordena por frequência e pega o top 40
-    return Object.entries(frequencies)
-      .map(([text, value]) => ({ text, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 40);
-
-  }, [newsData]); // Recalcula apenas quando as notícias mudam
 
   // --------- Helpers de estilo ---------
   const getTrendStyle = (score) => {
@@ -4113,32 +4028,41 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     const relatedCount = Array.isArray(trendItem.related_articles) ? trendItem.related_articles.length : 0;
     const normalizedRelated = clampNumber(relatedCount / 8, 0, 1);
     const normalizedScore = clampNumber(Number(trendItem.score || 0) / 10, 0, 1);
-    return clampNumber(0.65 * normalizedRelated + 0.35 * normalizedScore, 0, 1);
+    const confidence = clampNumber(0.65 * normalizedRelated + 0.35 * normalizedScore, 0, 1);
+    return confidence;
   };
 
-  const getBandIndexByScore = (score) => {
-    const numeric = clampNumber(Number(score || 0), 0, 10);
-    if (numeric >= 9) return 4;
-    if (numeric >= 7) return 3;
-    if (numeric >= 5) return 2;
-    if (numeric >= 3) return 1;
-    return 0;
+  const getVolumeValue = (trendItem) => {
+    return Array.isArray(trendItem.related_articles) ? trendItem.related_articles.length : 0;
   };
 
   const parseArticleDate = (article) => {
-    const candidate = article?.rawDate || article?.publishedAt || article?.pubDate || article?.date;
+    const candidate =
+      article?.publishedAt ||
+      article?.pubDate ||
+      article?.date ||
+      article?.createdAt ||
+      article?.isoDate ||
+      article?.published ||
+      null;
+
     if (!candidate) return null;
+
     const parsed = new Date(candidate);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed;
   };
 
   const filterNewsByTimeWindow = (allNews, windowKey) => {
     if (!Array.isArray(allNews) || allNews.length === 0) return [];
     const now = new Date();
     let windowMilliseconds = 24 * 60 * 60 * 1000;
+
     if (windowKey === "6h") windowMilliseconds = 6 * 60 * 60 * 1000;
-    
+    if (windowKey === "24h") windowMilliseconds = 24 * 60 * 60 * 1000;
+
     const cutoff = new Date(now.getTime() - windowMilliseconds);
+
     let foundAnyValidDate = false;
 
     const filtered = allNews.filter((article) => {
@@ -4148,7 +4072,17 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       return articleDate >= cutoff;
     });
 
-    return foundAnyValidDate ? filtered : allNews;
+    if (!foundAnyValidDate) return allNews;
+    return filtered;
+  };
+
+  const getBandIndexByScore = (score) => {
+    const numeric = clampNumber(Number(score || 0), 0, 10);
+    if (numeric >= 9) return 4;
+    if (numeric >= 7) return 3;
+    if (numeric >= 5) return 2;
+    if (numeric >= 3) return 1;
+    return 0;
   };
 
   // --------- Carrega cache ao abrir ---------
@@ -4161,6 +4095,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
           const sorted = parsed.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
           setTrends(sorted);
           setHasGenerated(true);
+          setSelectedBandIndex(null);
+          setActiveIndex(null);
+          setCompareSelection([]);
         }
       } catch (error) {
         console.error("Erro ao ler Trend Radar salvo", error);
@@ -4186,6 +4123,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     setSelectionStamp((p) => p + 1);
   };
 
+  // --------- Comparação (SHIFT + clique) ---------
   const clearComparison = () => {
     setCompareSelection([]);
   };
@@ -4193,13 +4131,21 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const handleCompareClick = (event, index) => {
     if (event && event.shiftKey) {
       setActiveIndex(null);
+
       setCompareSelection((current) => {
         if (current.includes(index)) return current;
-        if (current.length === 2) return [current[1], index];
+
+        if (current.length === 2) {
+          return [current[1], index];
+        }
+
         return [...current, index];
       });
+
       return;
     }
+
+    // Clique normal: abre/fecha balão de fontes
     setCompareSelection([]);
     handleToggle(index);
   };
@@ -4209,7 +4155,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     const currentApiKey = getApiKey("widgets");
 
     if (!currentApiKey || !Array.isArray(newsData) || newsData.length === 0) {
-      alert("Aguarde o carregamento das notícias ou configure as chaves de IA.");
+      alert("Aguarde o carregamento das notícias ou configure as chaves de IA do Pool 1.");
       return;
     }
 
@@ -4220,6 +4166,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     const filteredNews = filterNewsByTimeWindow(newsData, timeWindow);
+
     const data = await generateTrendRadar(filteredNews, currentApiKey);
 
     if (data && Array.isArray(data) && data.length > 0) {
@@ -4231,66 +4178,471 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
         return {
           ...trend,
           related_articles: relatedArticles,
-          confidence_value: getConfidenceValue({ ...trend, related_articles: relatedArticles }),
         };
       });
 
-      const sortedData = hydratedData.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+      let previousData = null;
+      try {
+        const savedPrevious = localStorage.getItem(STORAGE_KEY_PREVIOUS);
+        if (savedPrevious) {
+          const parsedPrevious = JSON.parse(savedPrevious);
+          if (Array.isArray(parsedPrevious)) previousData = parsedPrevious;
+        }
+      } catch (error) {
+        previousData = null;
+      }
+
+      const previousScoreByTopic = new Map();
+      if (Array.isArray(previousData)) {
+        previousData.forEach((trend) => {
+          if (trend && typeof trend.topic === "string") {
+            previousScoreByTopic.set(trend.topic.trim().toLowerCase(), Number(trend.score || 0));
+          }
+        });
+      }
+
+      const enriched = hydratedData.map((trend) => {
+        const topicKey = typeof trend.topic === "string" ? trend.topic.trim().toLowerCase() : "";
+        const previousScore = previousScoreByTopic.has(topicKey) ? previousScoreByTopic.get(topicKey) : null;
+        const delta = previousScore === null ? null : Number(trend.score || 0) - Number(previousScore || 0);
+
+        const confidenceValue = getConfidenceValue({ ...trend, related_articles: trend.related_articles });
+        const volumeValue = getVolumeValue({ ...trend, related_articles: trend.related_articles });
+
+        return {
+          ...trend,
+          delta_score: delta,
+          confidence_value: confidenceValue,
+          volume_value: volumeValue,
+        };
+      });
+
+      const sortedData = enriched.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
 
       setTrends(sortedData);
       setHasGenerated(true);
+
+      // NÃO mostrar cards automaticamente
       setSelectedBandIndex(null);
+      setActiveIndex(null);
+      setCompareSelection([]);
+
       localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(sortedData));
+      localStorage.setItem(STORAGE_KEY_PREVIOUS, JSON.stringify(sortedData));
     } else {
-      alert("A IA não identificou tendências claras no momento.");
+      alert("A IA não identificou tendências claras no momento. Tente novamente mais tarde.");
     }
 
     setLoading(false);
   };
 
-  // --------- Filtros de Exibição ---------
+  // --------- Tendências filtradas pela faixa selecionada ---------
   const bandFilteredTrends = useMemo(() => {
     if (!Array.isArray(trends)) return null;
     if (selectedBandIndex === null) return [];
+
     const band = temperatureBands[selectedBandIndex];
+    if (!band) return [];
+
     return trends.filter((trend) => {
       const score = clampNumber(Number(trend.score || 0), 0, 10);
       return score >= band.minimum && score <= band.maximum;
     });
   }, [trends, selectedBandIndex]);
 
-  const featuredTrend = useMemo(() => bandFilteredTrends?.[0] || null, [bandFilteredTrends]);
-  const topTrends = useMemo(() => bandFilteredTrends?.slice(1, 11) || [], [bandFilteredTrends]);
+  const featuredTrend = useMemo(() => {
+    if (!Array.isArray(bandFilteredTrends) || bandFilteredTrends.length === 0) return null;
+    return bandFilteredTrends[0];
+  }, [bandFilteredTrends]);
 
-  const countsByBand = temperatureBands.map((band) => {
-    if (!Array.isArray(trends)) return 0;
-    return trends.reduce((acc, t) => {
-      const score = clampNumber(Number(t?.score || 0), 0, 10);
-      return (score >= band.minimum && score <= band.maximum) ? acc + 1 : acc;
-    }, 0);
-  });
+  const topTrends = useMemo(() => {
+    if (!Array.isArray(bandFilteredTrends) || bandFilteredTrends.length <= 1) return [];
+    return bandFilteredTrends.slice(1, 11);
+  }, [bandFilteredTrends]);
 
-  // --------- Sub-Componentes de UI ---------
+  // --------- UI tokens ---------
+  const commonPanelBackground = isDarkMode ? "rgba(24,24,27,0.55)" : "rgba(255,255,255,0.75)";
+  const commonPanelBorder = isDarkMode ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)";
+  const commonPanelShadow = isDarkMode
+    ? "0 18px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12)"
+    : "0 18px 40px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.30)";
+
   const ImpactPill = ({ score }) => {
     const style = getTrendStyle(score);
     const pct = clampNumber(Number(score || 0), 0, 10) * 10;
+
     return (
-      <div className="flex items-center gap-2 px-2.5 py-1 rounded-full" style={{ background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)", border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)" }}>
-        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(0,0,0,0.70)" }}>Impacto</span>
-        <div className="relative w-16 h-[6px] rounded-full overflow-hidden" style={{ background: isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)" }}>
-          <div className="absolute left-0 top-0 h-full" style={{ width: `${pct}%`, background: style.color, boxShadow: `0 0 12px ${style.color}66` }} />
+      <div
+        className="flex items-center gap-2 px-2.5 py-1 rounded-full"
+        style={{
+          background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+          border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <span
+          className="text-[10px] font-black uppercase tracking-widest"
+          style={{ color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(0,0,0,0.70)" }}
+        >
+          Impacto
+        </span>
+
+        <div
+          className="relative w-16 h-[6px] rounded-full overflow-hidden"
+          style={{ background: isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)" }}
+        >
+          <div
+            className="absolute left-0 top-0 h-full"
+            style={{
+              width: `${pct}%`,
+              background: style.color,
+              boxShadow: `0 0 12px ${style.color}66`,
+            }}
+          />
         </div>
       </div>
     );
   };
 
-  // --------- Render Principal ---------
+  const WindowButton = ({ label, value }) => {
+    const isActive = timeWindow === value;
+    return (
+      <button
+        onClick={() => {
+          setTimeWindow(value);
+          setActiveIndex(null);
+          setCompareSelection([]);
+        }}
+        className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+        style={{
+          background: isActive
+            ? isDarkMode
+              ? "rgba(249,115,22,0.18)"
+              : "rgba(249,115,22,0.14)"
+            : isDarkMode
+            ? "rgba(255,255,255,0.06)"
+            : "rgba(0,0,0,0.05)",
+          border: isActive
+            ? "1px solid rgba(249,115,22,0.35)"
+            : isDarkMode
+            ? "1px solid rgba(255,255,255,0.08)"
+            : "1px solid rgba(0,0,0,0.08)",
+          color: isActive ? "#f97316" : isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)",
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  const countsByBand = temperatureBands.map((band) => {
+    if (!Array.isArray(trends)) return 0;
+
+    return trends.reduce((acc, t) => {
+      const score = clampNumber(Number(t?.score || 0), 0, 10);
+      if (score >= band.minimum && score <= band.maximum) return acc + 1;
+      return acc;
+    }, 0);
+  });
+
+  // --------- Temperature Selector ---------
+  const TemperatureSelector = () => {
+    const SEGMENTS = temperatureBands.length;
+
+    const segmentLeftPct = (idx) => `${(idx / SEGMENTS) * 100}%`;
+    const segmentWidthPct = () => `${(1 / SEGMENTS) * 100}%`;
+    const segmentCenterPct = (idx) => `${((idx + 0.5) / SEGMENTS) * 100}%`;
+
+    return (
+      <div className="mt-2">
+        <div className="flex items-center justify-end mb-2">
+          <button
+            type="button"
+            onClick={() => {
+              clearBandSelection();
+              clearComparison();
+            }}
+            className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
+            style={{
+              background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+              border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+              color: isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)",
+            }}
+          >
+            Limpar
+          </button>
+        </div>
+
+        <div className="relative pt-6">
+          {/* Régua (mais moderna) */}
+          <div
+            className="w-full rounded-full relative overflow-hidden"
+            style={{
+              height: "30px",
+              background:
+                "linear-gradient(90deg, rgba(59,130,246,0.85), rgba(34,197,94,0.85), rgba(234,179,8,0.85), rgba(249,115,22,0.85), rgba(239,68,68,0.85))",
+              boxShadow: isDarkMode
+                ? "0 18px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)"
+                : "0 18px 40px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.35)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              backdropFilter: "blur(14px)",
+            }}
+          />
+
+          {/* Shine overlay (micro brilho) */}
+          <div
+            className="absolute left-0 right-0 top-6 rounded-full pointer-events-none overflow-hidden"
+            style={{
+              height: "30px",
+              background: isDarkMode
+                ? "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.00))"
+                : "linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0.00))",
+              opacity: 0.65,
+              mixBlendMode: isDarkMode ? "screen" : "overlay",
+            }}
+          />
+
+          {/* Divisórias invisíveis */}
+          <div
+            className="absolute left-0 right-0 top-6 rounded-full pointer-events-none overflow-hidden"
+            style={{
+              height: "30px",
+              background: `repeating-linear-gradient(
+                90deg,
+                rgba(255,255,255,0.00),
+                rgba(255,255,255,0.00) calc((100% / ${SEGMENTS}) - 1px),
+                ${isDarkMode ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.12)"} calc((100% / ${SEGMENTS}) - 1px),
+                ${isDarkMode ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.12)"} calc((100% / ${SEGMENTS}))
+              )`,
+              opacity: 0.55,
+              mixBlendMode: isDarkMode ? "screen" : "multiply",
+            }}
+          />
+
+          {/* Destaque da faixa selecionada */}
+          {selectedBandIndex !== null && (
+            <div
+              key={`highlight-${selectedBandIndex}-${selectionStamp}`}
+              className="absolute top-6 rounded-full pointer-events-none trendradar-snapglow"
+              style={{
+                left: segmentLeftPct(selectedBandIndex),
+                width: segmentWidthPct(),
+                height: "30px",
+                background: `${temperatureBands[selectedBandIndex].color}22`,
+                border: `2px solid ${temperatureBands[selectedBandIndex].color}`,
+                boxShadow: `0 0 26px ${temperatureBands[selectedBandIndex].color}66`,
+                backdropFilter: "blur(10px)",
+              }}
+            />
+          )}
+
+          {/* Click layer na régua */}
+          <button
+            type="button"
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              const x = clampNumber(event.clientX - rect.left, 0, rect.width);
+              const ratio = rect.width === 0 ? 0 : x / rect.width;
+              const score = Math.round(ratio * 10);
+              const bandIdx = getBandIndexByScore(score);
+              selectBandIndex(bandIdx);
+            }}
+            className="absolute left-0 right-0 top-6 rounded-full"
+            style={{ cursor: "pointer", background: "transparent", height: "30px" }}
+            aria-label="Selecionar faixa de temperatura clicando na régua"
+          />
+
+          {/* Contagens (somente número) */}
+          {temperatureBands.map((band, idx) => {
+            const active = selectedBandIndex === idx;
+
+            return (
+              <button
+                key={`count-${band.label}`}
+                type="button"
+                onClick={() => selectBandIndex(idx)}
+                className="absolute -top-1"
+                style={{
+                  left: segmentCenterPct(idx),
+                  transform: "translateX(-50%)",
+                }}
+                aria-label={`Selecionar ${band.label}`}
+                title={band.label}
+              >
+                <span
+                  className={`text-[14px] font-black transition-all ${active ? "scale-110" : "opacity-75"}`}
+                  style={{
+                    color: band.color,
+                    textShadow: active ? `0 0 14px ${band.color}AA` : `0 0 8px ${band.color}55`,
+                  }}
+                >
+                  {countsByBand[idx]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // --------- Painel de comparação ---------
+  const ComparisonPanel = () => {
+    if (!Array.isArray(trends)) return null;
+    if (!Array.isArray(compareSelection) || compareSelection.length !== 2) return null;
+
+    const left = trends[compareSelection[0]];
+    const right = trends[compareSelection[1]];
+    if (!left || !right) return null;
+
+    return (
+      <div
+        className="mt-6 rounded-2xl p-5"
+        style={{
+          background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.98)",
+          border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+          boxShadow: isDarkMode ? "0 30px 80px rgba(0,0,0,0.45)" : "0 30px 80px rgba(0,0,0,0.18)",
+          backdropFilter: "blur(16px)",
+        }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col">
+            <span className="text-xs font-black uppercase tracking-widest opacity-70">Comparação</span>
+            <span className="text-[10px] uppercase tracking-widest opacity-45">
+              Dica: SHIFT + clique em dois cards
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={clearComparison}
+            className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
+            style={{
+              background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+              border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+              color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(0,0,0,0.70)",
+            }}
+          >
+            Limpar comparação
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* LEFT */}
+          <div
+            className="rounded-2xl p-4"
+            style={{
+              background: isDarkMode ? "rgba(0,0,0,0.30)" : "rgba(255,255,255,0.75)",
+              border: `1px solid ${getTrendStyle(left.score).color}44`,
+              boxShadow: `0 18px 40px ${getTrendStyle(left.score).color}22`,
+            }}
+          >
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h4 className="text-base font-black leading-tight">{left.topic}</h4>
+              <span className="text-xs font-black" style={{ color: getTrendStyle(left.score).color }}>
+                {left.score}/10
+              </span>
+            </div>
+
+            <p className="text-sm leading-relaxed opacity-80 line-clamp-5 mb-4">{left.summary}</p>
+
+            <div className="flex items-center justify-between pt-3" style={{ borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)" }}>
+              <ImpactPill score={left.score} />
+
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[10px] uppercase tracking-widest opacity-60">Confiança</span>
+                <div className="w-28 h-[4px] rounded-full overflow-hidden" style={{ background: isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)" }}>
+                  <div
+                    className="h-full"
+                    style={{
+                      width: `${clampNumber(Number(left.confidence_value || 0), 0, 1) * 100}%`,
+                      background: getTrendStyle(left.score).color,
+                      boxShadow: `0 0 12px ${getTrendStyle(left.score).color}88`,
+                    }}
+                  />
+                </div>
+                <span className="text-[10px] font-black" style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}>
+                  {getConfidenceLabel(left.confidence_value)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT */}
+          <div
+            className="rounded-2xl p-4"
+            style={{
+              background: isDarkMode ? "rgba(0,0,0,0.30)" : "rgba(255,255,255,0.75)",
+              border: `1px solid ${getTrendStyle(right.score).color}44`,
+              boxShadow: `0 18px 40px ${getTrendStyle(right.score).color}22`,
+            }}
+          >
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h4 className="text-base font-black leading-tight">{right.topic}</h4>
+              <span className="text-xs font-black" style={{ color: getTrendStyle(right.score).color }}>
+                {right.score}/10
+              </span>
+            </div>
+
+            <p className="text-sm leading-relaxed opacity-80 line-clamp-5 mb-4">{right.summary}</p>
+
+            <div className="flex items-center justify-between pt-3" style={{ borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)" }}>
+              <ImpactPill score={right.score} />
+
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[10px] uppercase tracking-widest opacity-60">Confiança</span>
+                <div className="w-28 h-[4px] rounded-full overflow-hidden" style={{ background: isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)" }}>
+                  <div
+                    className="h-full"
+                    style={{
+                      width: `${clampNumber(Number(right.confidence_value || 0), 0, 1) * 100}%`,
+                      background: getTrendStyle(right.score).color,
+                      boxShadow: `0 0 12px ${getTrendStyle(right.score).color}88`,
+                    }}
+                  />
+                </div>
+                <span className="text-[10px] font-black" style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}>
+                  {getConfidenceLabel(right.confidence_value)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // --------- Render ---------
   return (
     <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 px-4">
       <style jsx="true">{`
-        @keyframes glow-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes pulse { 0%, 100% { transform: scale(0.9); opacity: 0.25; } 50% { transform: scale(1.05); opacity: 0.45; } }
-        .trendradar-snapglow { transition: all 0.3s cubic-bezier(.2,.9,.2,1); }
+        @keyframes glow-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes sweep {
+          0% { transform: rotate(0deg); opacity: 0.55; }
+          100% { transform: rotate(360deg); opacity: 0.55; }
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(0.9); opacity: 0.25; }
+          50% { transform: scale(1.05); opacity: 0.45; }
+        }
+        @keyframes dots {
+          0% { opacity: 0.25; transform: translateY(0px); }
+          50% { opacity: 0.9; transform: translateY(-3px); }
+          100% { opacity: 0.25; transform: translateY(0px); }
+        }
+        @keyframes snapGlow {
+          0%   { transform: scale(0.96); filter: brightness(1); opacity: 0.75; }
+          35%  { transform: scale(1.03); filter: brightness(1.25); opacity: 1; }
+          70%  { transform: scale(0.995); filter: brightness(1.10); opacity: 1; }
+          100% { transform: scale(1); filter: brightness(1); opacity: 1; }
+        }
+        .trendradar-snapglow {
+          animation: snapGlow 360ms cubic-bezier(.2,.9,.2,1);
+          transform-origin: center;
+        }
       `}</style>
 
       {/* Header */}
@@ -4300,116 +4652,599 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
             <Activity size={14} className="text-orange-500" />
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Trend Radar AI</span>
           </div>
-          <button onClick={runTrendAnalysis} disabled={loading} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${isDarkMode ? "bg-zinc-800 text-zinc-400 hover:text-white" : "bg-zinc-200 text-zinc-600 hover:text-black"}`}>
+
+          <button
+            onClick={runTrendAnalysis}
+            disabled={loading}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${
+              isDarkMode ? "bg-zinc-800 text-zinc-400 hover:text-white" : "bg-zinc-200 text-zinc-600 hover:text-black"
+            }`}
+          >
             {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
             {loading ? "Analisando..." : "Atualizar"}
           </button>
         </div>
       )}
 
-      {/* Loading State */}
+      {/* Loading */}
       {loading ? (
         <div className="h-56 flex flex-col items-center justify-center text-center gap-4">
           <div className="relative h-44 w-44 flex items-center justify-center">
-            <div className="absolute inset-0 rounded-full" style={{ background: "conic-gradient(from 90deg, rgba(59,130,246,0.9), rgba(239,68,68,0.9))", filter: "blur(20px)", opacity: 0.3, animation: "glow-spin 1.6s linear infinite" }} />
-            <Activity size={32} className="text-orange-500 animate-pulse" />
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background:
+                  "conic-gradient(from 90deg, rgba(59,130,246,0.9), rgba(34,197,94,0.9), rgba(234,179,8,0.9), rgba(249,115,22,0.9), rgba(239,68,68,0.9), rgba(59,130,246,0.9))",
+                filter: "blur(1px)",
+                opacity: 0.35,
+                animation: "glow-spin 1.6s linear infinite",
+              }}
+            />
+            <div
+              className="absolute inset-2 rounded-full"
+              style={{
+                background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.92)",
+                border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+              }}
+            />
+            <div
+              className="absolute inset-4 rounded-full"
+              style={{
+                background: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                animation: "pulse 1.1s ease-in-out infinite",
+              }}
+            />
+            <div className="absolute inset-0 origin-center" style={{ animation: "sweep 1.2s linear infinite" }}>
+              <div
+                className="absolute left-1/2 top-1/2"
+                style={{
+                  width: "50%",
+                  height: "2px",
+                  transform: "translateY(-50%)",
+                  background: "linear-gradient(90deg, transparent, rgba(249,115,22,0.95))",
+                }}
+              />
+            </div>
+
+            <div className="relative z-10 flex flex-col items-center">
+              <Activity size={26} className="text-orange-400" />
+              <div className="flex gap-1 mt-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" style={{ animation: "dots 0.8s ease-in-out infinite" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" style={{ animation: "dots 0.8s ease-in-out infinite", animationDelay: "0.15s" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" style={{ animation: "dots 0.8s ease-in-out infinite", animationDelay: "0.30s" }} />
+              </div>
+            </div>
           </div>
-          <p className="text-xs font-black text-zinc-500 uppercase tracking-widest">Escaneando Títulos...</p>
+
+          <p className="text-xs font-black text-zinc-500 uppercase tracking-widest">Analisando tendências...</p>
         </div>
       ) : (
         <div className="w-full">
-          {/* Empty State */}
+          {/* Empty state */}
           {!hasGenerated ? (
             <div className="h-56 flex flex-col items-center justify-center text-center">
               <p className="font-bold text-lg mb-4">Ative o Radar de Tendências</p>
-              <button onClick={runTrendAnalysis} className="group relative px-8 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-orange-500 text-white hover:bg-orange-400 shadow-orange-500/30">
-                <span className="flex items-center gap-2"><Sparkles size={16} className="text-yellow-300" /> Ativar Radar</span>
+              <p className="text-base text-zinc-500 max-w-xs mb-6">
+                Clique para escanear as notícias e revelar as trends mais importantes de agora.
+              </p>
+              <button
+                onClick={runTrendAnalysis}
+                className="group relative px-8 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-orange-500 text-white hover:bg-orange-400 shadow-orange-500/30"
+              >
+                <span className="flex items-center gap-2">
+                  <Sparkles size={16} className="text-yellow-300" /> Ativar Radar
+                </span>
               </button>
             </div>
           ) : (
             <>
-              {/* Painel de Controle e Régua */}
-              <div className="relative w-full rounded-2xl p-4" style={{ background: isDarkMode ? "rgba(24,24,27,0.55)" : "rgba(255,255,255,0.75)", border: isDarkMode ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(12px)" }}>
-                
-                {/* Botões de Tempo */}
-                <div className="flex justify-end gap-2 mb-4">
-                    <button onClick={() => setTimeWindow("6h")} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${timeWindow === "6h" ? "bg-orange-500 text-white" : "bg-zinc-100 dark:bg-zinc-800 opacity-50"}`}>6h</button>
-                    <button onClick={() => setTimeWindow("24h")} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${timeWindow === "24h" ? "bg-orange-500 text-white" : "bg-zinc-100 dark:bg-zinc-800 opacity-50"}`}>24h</button>
-                </div>
-
-                {/* Régua de Temperatura */}
-                <div className="relative pt-6 pb-2">
-                  <div className="w-full h-[30px] rounded-full relative overflow-hidden" style={{ background: "linear-gradient(90deg, rgba(59,130,246,0.8), rgba(34,197,94,0.8), rgba(234,179,8,0.8), rgba(249,115,22,0.8), rgba(239,68,68,0.8))" }} />
-                  
-                  {/* Click Areas */}
-                  <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); const x = clampNumber(e.clientX - rect.left, 0, rect.width); const score = Math.round((x / rect.width) * 10); selectBandIndex(getBandIndexByScore(score)); }} className="absolute left-0 right-0 top-6 h-[30px] rounded-full bg-transparent cursor-pointer" />
-
-                  {/* Indicadores de Contagem */}
-                  {temperatureBands.map((band, idx) => (
-                    <button key={band.label} onClick={() => selectBandIndex(idx)} className="absolute -top-1 transition-transform" style={{ left: `${((idx + 0.5) / 5) * 100}%`, transform: "translateX(-50%)" }}>
-                        <span className={`text-[14px] font-black ${selectedBandIndex === idx ? "scale-125" : "opacity-70"}`} style={{ color: band.color }}>{countsByBand[idx]}</span>
-                    </button>
-                  ))}
-
-                  {/* Highlight da Seleção */}
-                  {selectedBandIndex !== null && (
-                    <div className="absolute top-6 h-[30px] border-2 shadow-[0_0_20px_rgba(255,255,255,0.5)] rounded-full pointer-events-none trendradar-snapglow" style={{ left: `${(selectedBandIndex / 5) * 100}%`, width: '20%', borderColor: temperatureBands[selectedBandIndex].color }} />
-                  )}
-                </div>
-
-                {/* Botão Limpar Seleção */}
-                {selectedBandIndex !== null && (
-                    <div className="flex justify-center mt-4">
-                        <button onClick={clearBandSelection} className="text-[10px] font-bold uppercase text-zinc-500 hover:text-zinc-300">Limpar Seleção</button>
+              {/* Painel principal */}
+              <div
+                className="relative w-full rounded-2xl p-4"
+                style={{
+                  background: commonPanelBackground,
+                  border: commonPanelBorder,
+                  boxShadow: commonPanelShadow,
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                {/* Controles */}
+                <div className="flex flex-col gap-3 mb-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/40" : "text-black/40"}`}>
+                        Temperatura
+                      </span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/30" : "text-black/30"}`}>
+                        (SHIFT para comparar)
+                      </span>
                     </div>
-                )}
 
-                {/* Cards de Tendência (Só aparecem se uma faixa for selecionada) */}
-                {selectedBandIndex !== null && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 animate-in slide-in-from-bottom-4">
-                    {/* Destaque */}
-                    {featuredTrend && (
-                        <div onClick={() => handleToggle(trends.indexOf(featuredTrend))} className={`col-span-1 md:col-span-2 p-5 rounded-2xl border-l-4 cursor-pointer hover:scale-[1.01] transition-transform shadow-xl ${isDarkMode ? 'bg-zinc-800 border-l-orange-500' : 'bg-white border-l-orange-500'}`}>
-                            <h3 className={`text-lg font-black leading-tight mb-2 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{featuredTrend.topic}</h3>
-                            <p className={`text-sm opacity-80 mb-4 ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{featuredTrend.summary}</p>
-                            <div className="flex justify-between items-center">
-                                <ImpactPill score={featuredTrend.score} />
-                                <span className="text-xs font-bold opacity-50">{featuredTrend.score}/10</span>
-                            </div>
-                        </div>
-                    )}
-                    {/* Lista */}
-                    {topTrends.map((trend, i) => (
-                        <div key={i} onClick={() => handleToggle(trends.findIndex(t => t.topic === trend.topic))} className={`p-4 rounded-xl border-l-4 cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${isDarkMode ? 'bg-zinc-900/50' : 'bg-white/80'}`} style={{ borderLeftColor: getTrendStyle(trend.score).color }}>
-                            <h4 className={`text-sm font-bold leading-tight mb-2 ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{trend.topic}</h4>
-                            <p className="text-xs opacity-60 line-clamp-2">{trend.summary}</p>
-                        </div>
-                    ))}
+                    <div className="flex items-center gap-2">
+                      <WindowButton label="6h" value="6h" />
+                      <WindowButton label="24h" value="24h" />
+                    </div>
                   </div>
+
+                  <TemperatureSelector />
+                </div>
+
+                {/* Cards apenas quando selecionar faixa */}
+                {selectedBandIndex === null ? null : (
+                  <>
+                    <div className="grid grid-cols-12 gap-4 mt-6">
+                      {/* FEATURED */}
+                      {featuredTrend && Array.isArray(trends) && (
+                        <div className="col-span-12 lg:col-span-7">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              const originalIndex = trends.findIndex(
+                                (item) =>
+                                  item?.topic === featuredTrend?.topic &&
+                                  Number(item?.score || 0) === Number(featuredTrend?.score || 0)
+                              );
+                              if (originalIndex >= 0) handleCompareClick(event, originalIndex);
+                            }}
+                            className="w-full text-left rounded-2xl p-5 h-full transition-transform active:scale-[0.99]"
+                            style={{
+                              background: isDarkMode ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.95)",
+                                                            border: (() => {
+                                const originalIndex = trends.findIndex(
+                                  (item) =>
+                                    item?.topic === featuredTrend?.topic &&
+                                    Number(item?.score || 0) === Number(featuredTrend?.score || 0)
+                                );
+                                const isCompared = Array.isArray(compareSelection) && compareSelection.includes(originalIndex);
+                                if (isCompared) return "2px solid #22c55e";
+                                return `4px solid ${getTrendStyle(featuredTrend.score).color}`;
+                              })(),
+                              boxShadow: (() => {
+                                const originalIndex = trends.findIndex(
+                                  (item) =>
+                                    item?.topic === featuredTrend?.topic &&
+                                    Number(item?.score || 0) === Number(featuredTrend?.score || 0)
+                                );
+                                const isCompared = Array.isArray(compareSelection) && compareSelection.includes(originalIndex);
+                                if (isCompared) return "0 0 0 3px rgba(34,197,94,0.35), 0 22px 60px rgba(0,0,0,0.25)";
+                                return `0 22px 50px ${getTrendStyle(featuredTrend.score).color}44`;
+                              })(),
+                            }}
+                          >
+                            {/* CONTEÚDO DO FEATURED CARD (TÍTULO + RESUMO + RODAPÉ) */}
+                            <div className="flex flex-col h-full">
+                              <h3 className="text-lg font-black leading-tight mb-2">
+                                {featuredTrend.topic}
+                              </h3>
+
+                              {/* RESUMO NO CARD */}
+                              <p
+                                className="text-sm leading-relaxed opacity-80 mb-4"
+                                style={{
+                                  display: "-webkit-box",
+                                  WebkitLineClamp: 3,
+                                  WebkitBoxOrient: "vertical",
+                                  overflow: "hidden",
+                                }}
+                              >
+                                {featuredTrend.summary}
+                              </p>
+
+                              {/* RODAPÉ FIXO (Impacto + Confiança) */}
+                              <div
+                                className="mt-auto flex items-end justify-between gap-4 pt-3"
+                                style={{
+                                  borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+                                }}
+                              >
+                                <ImpactPill score={featuredTrend.score} />
+
+                                {/* Confiança visual (barra) */}
+                                <div className="flex flex-col items-end gap-1">
+                                  <span
+                                    className="text-[10px] font-black uppercase tracking-widest"
+                                    style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+                                  >
+                                    Confiança
+                                  </span>
+
+                                  <div
+                                    className="w-24 h-[4px] rounded-full overflow-hidden"
+                                    style={{
+                                      background: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+                                    }}
+                                  >
+                                    <div
+                                      className="h-full"
+                                      style={{
+                                        width: `${clampNumber(Number(featuredTrend.confidence_value || 0), 0, 1) * 100}%`,
+                                        background: getTrendStyle(featuredTrend.score).color,
+                                        boxShadow: `0 0 12px ${getTrendStyle(featuredTrend.score).color}88`,
+                                      }}
+                                    />
+                                  </div>
+
+                                  {/* Score discreto (9/10) no canto inferior direito */}
+                                  <span
+                                    className="text-[11px] font-black"
+                                    style={{ color: getTrendStyle(featuredTrend.score).color }}
+                                  >
+                                    {featuredTrend.score}/10
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* LISTA */}
+                      <div className="col-span-12 lg:col-span-5 flex flex-col gap-3">
+                        {topTrends.map((trend) => {
+                          const style = getTrendStyle(trend.score);
+
+                          const originalIndex = Array.isArray(trends)
+                            ? trends.findIndex(
+                                (item) =>
+                                  item?.topic === trend?.topic &&
+                                  Number(item?.score || 0) === Number(trend?.score || 0)
+                              )
+                            : -1;
+
+                          const isCompared =
+                            originalIndex >= 0 && Array.isArray(compareSelection)
+                              ? compareSelection.includes(originalIndex)
+                              : false;
+
+                          return (
+                            <button
+                              key={`${trend.topic}-${trend.score}`}
+                              type="button"
+                              onClick={(event) => {
+                                if (originalIndex >= 0) handleCompareClick(event, originalIndex);
+                              }}
+                              className="text-left rounded-2xl p-4 transition-transform active:scale-[0.99]"
+                              style={{
+                                background: isDarkMode ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.90)",
+                                border: isCompared ? "2px solid #22c55e" : `3px solid ${style.color}`,
+                                boxShadow: isCompared
+                                  ? "0 0 0 3px rgba(34,197,94,0.35), 0 16px 36px rgba(0,0,0,0.18)"
+                                  : `0 16px 30px ${style.color}22, inset 0 1px 0 rgba(255,255,255,0.10)`,
+                              }}
+                            >
+                              <div className="flex flex-col">
+                                {/* TÍTULO */}
+                                <div className="text-sm font-black leading-tight mb-2">
+                                  {trend.topic}
+                                </div>
+
+                                {/* RESUMO (curto) */}
+                                <p
+                                  className="text-[13px] leading-relaxed opacity-80 mb-3"
+                                  style={{
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: "vertical",
+                                    overflow: "hidden",
+                                  }}
+                                >
+                                  {trend.summary}
+                                </p>
+
+                                {/* RODAPÉ (Impacto + Confiança + Score) */}
+                                <div
+                                  className="mt-auto flex items-end justify-between gap-4 pt-3"
+                                  style={{
+                                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+                                  }}
+                                >
+                                  <ImpactPill score={trend.score} />
+
+                                  <div className="flex flex-col items-end gap-1">
+                                    <span
+                                      className="text-[10px] font-black uppercase tracking-widest"
+                                      style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+                                    >
+                                      Confiança
+                                    </span>
+
+                                    <div
+                                      className="w-20 h-[4px] rounded-full overflow-hidden"
+                                      style={{
+                                        background: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+                                      }}
+                                    >
+                                      <div
+                                        className="h-full"
+                                        style={{
+                                          width: `${clampNumber(Number(trend.confidence_value || 0), 0, 1) * 100}%`,
+                                          background: style.color,
+                                          boxShadow: `0 0 12px ${style.color}88`,
+                                        }}
+                                      />
+                                    </div>
+
+                                    <span className="text-[11px] font-black" style={{ color: style.color }}>
+                                      {trend.score}/10
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* PAINEL DE COMPARAÇÃO (aparece quando SHIFT+clique selecionar 2 trends) */}
+                    {compareSelection.length === 2 && Array.isArray(trends) && (
+                      <div
+                        className="mt-6 rounded-2xl p-5"
+                        style={{
+                          background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.98)",
+                          border: isDarkMode ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.10)",
+                          boxShadow: isDarkMode ? "0 30px 80px rgba(0,0,0,0.45)" : "0 30px 80px rgba(0,0,0,0.20)",
+                          backdropFilter: "blur(16px)",
+                        }}
+                      >
+                        {(() => {
+                          const left = trends[compareSelection[0]];
+                          const right = trends[compareSelection[1]];
+
+                          if (!left || !right) return null;
+
+                          return (
+                            <>
+                              <div className="flex items-center justify-between mb-4">
+                                <span
+                                  className="text-xs font-black uppercase tracking-widest"
+                                  style={{ color: isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)" }}
+                                >
+                                  Comparação de Trends
+                                </span>
+
+                                <button
+                                  type="button"
+                                  onClick={clearComparison}
+                                  className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
+                                  style={{
+                                    background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                                    border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                                    color: isDarkMode ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.65)",
+                                  }}
+                                >
+                                  Limpar comparação
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* LEFT */}
+                                <div
+                                  className="rounded-2xl p-4"
+                                  style={{
+                                    background: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                                    border: `2px solid ${getTrendStyle(left.score).color}`,
+                                    boxShadow: `0 18px 45px ${getTrendStyle(left.score).color}22`,
+                                  }}
+                                >
+                                  <h4 className="text-base font-black mb-2">
+                                    {left.topic}
+                                  </h4>
+
+                                  <p className="text-sm opacity-80 leading-relaxed mb-4">
+                                    {left.summary}
+                                  </p>
+
+                                  <div
+                                    className="flex items-end justify-between gap-4 pt-3"
+                                    style={{
+                                      borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+                                    }}
+                                  >
+                                    <ImpactPill score={left.score} />
+
+                                    <div className="flex flex-col items-end gap-1">
+                                      <span
+                                        className="text-[10px] font-black uppercase tracking-widest"
+                                        style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+                                      >
+                                        Confiança
+                                      </span>
+
+                                      <div
+                                        className="w-24 h-[4px] rounded-full overflow-hidden"
+                                        style={{
+                                          background: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+                                        }}
+                                      >
+                                        <div
+                                          className="h-full"
+                                          style={{
+                                            width: `${clampNumber(Number(left.confidence_value || 0), 0, 1) * 100}%`,
+                                            background: getTrendStyle(left.score).color,
+                                            boxShadow: `0 0 12px ${getTrendStyle(left.score).color}88`,
+                                          }}
+                                        />
+                                      </div>
+
+                                      <span
+                                        className="text-[11px] font-black"
+                                        style={{ color: getTrendStyle(left.score).color }}
+                                      >
+                                        {left.score}/10
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* RIGHT */}
+                                <div
+                                  className="rounded-2xl p-4"
+                                  style={{
+                                    background: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                                    border: `2px solid ${getTrendStyle(right.score).color}`,
+                                    boxShadow: `0 18px 45px ${getTrendStyle(right.score).color}22`,
+                                  }}
+                                >
+                                  <h4 className="text-base font-black mb-2">
+                                    {right.topic}
+                                  </h4>
+
+                                  <p className="text-sm opacity-80 leading-relaxed mb-4">
+                                    {right.summary}
+                                  </p>
+
+                                  <div
+                                    className="flex items-end justify-between gap-4 pt-3"
+                                    style={{
+                                      borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+                                    }}
+                                  >
+                                    <ImpactPill score={right.score} />
+
+                                    <div className="flex flex-col items-end gap-1">
+                                      <span
+                                        className="text-[10px] font-black uppercase tracking-widest"
+                                        style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+                                      >
+                                        Confiança
+                                      </span>
+
+                                      <div
+                                        className="w-24 h-[4px] rounded-full overflow-hidden"
+                                        style={{
+                                          background: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+                                        }}
+                                      >
+                                        <div
+                                          className="h-full"
+                                          style={{
+                                            width: `${clampNumber(Number(right.confidence_value || 0), 0, 1) * 100}%`,
+                                            background: getTrendStyle(right.score).color,
+                                            boxShadow: `0 0 12px ${getTrendStyle(right.score).color}88`,
+                                          }}
+                                        />
+                                      </div>
+
+                                      <span
+                                        className="text-[11px] font-black"
+                                        style={{ color: getTrendStyle(right.score).color }}
+                                      >
+                                        {right.score}/10
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
-              {/* Balão de Fontes */}
+              {/* BALÃO (AGORA SÓ FONTES) */}
               <AnimatePresence>
                 {activeItem && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="mt-4 p-5 rounded-2xl border bg-black/80 backdrop-blur-xl border-white/10 shadow-2xl">
-                    <div className="flex justify-between items-center mb-3">
-                        <span className="text-xs font-bold uppercase text-zinc-400">Fontes Relacionadas</span>
-                        <button onClick={() => setActiveIndex(null)} className="p-1 hover:bg-white/10 rounded-full"><X size={14} className="text-white"/></button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        {activeItem.related_articles?.map((article, idx) => (
-                            <button key={idx} onClick={() => openArticle(article)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition text-xs text-white truncate max-w-[200px]">
-                                <img src={article.logo} className="w-4 h-4 rounded-full bg-white"/> {article.title}
-                            </button>
-                        ))}
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.25 }}
+                    className="mt-6"
+                  >
+                    <div
+                      className="rounded-2xl p-5"
+                      style={{
+                        background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.98)",
+                        border: `2px solid ${getTrendStyle(activeItem.score).color}`,
+                        boxShadow: isDarkMode ? "0 22px 60px rgba(0,0,0,0.55)" : "0 22px 60px rgba(0,0,0,0.18)",
+                        backdropFilter: "blur(14px)",
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <span
+                          className="text-xs font-black uppercase tracking-widest"
+                          style={{ color: isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)" }}
+                        >
+                          Fontes
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => setActiveIndex(null)}
+                          className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
+                          style={{
+                            background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                            border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                            color: isDarkMode ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.65)",
+                          }}
+                        >
+                          Fechar
+                        </button>
+                      </div>
+
+                      {Array.isArray(activeItem.related_articles) && activeItem.related_articles.length > 0 ? (
+                        <div className="flex gap-2 flex-wrap">
+                          {activeItem.related_articles.slice(0, 12).map((article, idx) => {
+                            const title = typeof article?.title === "string" ? article.title : "Abrir fonte";
+                            const logo = article?.logo || article?.image || article?.favicon || "";
+
+                            return (
+                              <button
+                                key={`${article?.id || idx}-${title}`}
+                                type="button"
+                                onClick={() => openArticle(article)}
+                                className="flex items-center gap-2 px-2.5 py-2 rounded-xl active:scale-95 hover:scale-[1.02] transition"
+                                style={{
+                                  background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                                  border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                                }}
+                                title={title}
+                              >
+                                {logo ? (
+                                  <img
+                                    src={logo}
+                                    alt=""
+                                    className="w-6 h-6 rounded-lg"
+                                    style={{
+                                      border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-6 h-6 rounded-lg"
+                                    style={{
+                                      background: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                                      border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+                                    }}
+                                  />
+                                )}
+
+                                <span
+                                  className="text-[11px] font-bold max-w-[240px] truncate"
+                                  style={{ color: isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)" }}
+                                >
+                                  {title}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div
+                          className="text-sm"
+                          style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+                        >
+                          Sem fontes associadas nesta trend.
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {/* AQUI ESTÁ A NUVEM DE PALAVRAS (INTEGRADA APÓS O RADAR) */}
-              <WordCloudWidget words={wordCloudData} isDarkMode={isDarkMode} />
             </>
           )}
         </div>
@@ -4417,6 +5252,8 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     </div>
   );
 };
+
+
 
 
 
