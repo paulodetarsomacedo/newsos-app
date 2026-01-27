@@ -5981,7 +5981,21 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         const linkNode = node.querySelector("link");
         let link = linkNode?.getAttribute("href") || linkNode?.textContent || "";
 
-        const ytId = getTxt("yt:videoId") || getTxt("videoId");
+        // --- CORREÇÃO DE SEGURANÇA AQUI ---
+        // 1. Tenta pegar o ID oficial do YouTube (yt:videoId)
+        let ytId = getTxt("yt:videoId"); 
+        
+        // 2. Se não achou, olha a tag genérica 'videoId'
+        if (!ytId) {
+            const rawId = getTxt("videoId");
+            // A MÁGICA: Só aceita se tiver EXATAMENTE 11 caracteres (Padrão YouTube)
+            // O Cidade Verde manda IDs com tamanhos diferentes (ex: 6 ou 8 números), então será ignorado.
+            if (rawId && rawId.length === 11) {
+                ytId = rawId;
+            }
+        }
+
+        // Só transforma em link de vídeo se passou no teste acima
         if (ytId) link = `https://www.youtube.com/watch?v=${ytId}`;
         
         const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated");
@@ -6006,6 +6020,11 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         if (!img) img = extractImageFromContent(contentEncoded);
         if (!img) img = extractImageFromContent(description);
 
+        // Correção extra para o erro amarelo (Mixed Content)
+        if (img && img.startsWith('http:')) {
+            img = img.replace('http:', 'https:');
+        }
+
         const title = getTxt("title");
         const stableId = stringToHash(title + link);
 
@@ -6013,7 +6032,6 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           id: `${feedId}-${stableId}`,
           source: detectedTitle,
           logo: autoLogo,
-          // A LINHA 'time:' FOI REMOVIDA DAQUI
           rawDate: rawDateValue,
           title: title,
           summary: description.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
@@ -6022,7 +6040,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           readTime: '3 min',
           link: link,
           origin: 'rss',
-          videoId: ytId
+          videoId: ytId // Passa null se não for um ID de YouTube válido
         };
       });
 
@@ -6033,7 +6051,6 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       return { items: [], realTitle: feedSource, realLogo: null };
   }
 };
-
 
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL (BLINDADO) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
