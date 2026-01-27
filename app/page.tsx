@@ -1014,7 +1014,6 @@ const NewsCardSkeleton = ({ isDarkMode }) => {
 
 // --- TAB: FEED (COMPLETA E FUNCIONAL) ---
 
-
 const NewsCard = React.memo(({ 
   news, 
   isSelected, 
@@ -1024,29 +1023,59 @@ const NewsCard = React.memo(({
   isDarkMode, 
   onClick, 
   onAnalyze, 
-  onSwipeLeft, // Prop para abrir GlassBrowser
+  onSwipeLeft,
   onToggleSave, 
   onToggleLike, 
   onPlay, 
   playingAudio 
 }) => {
   const [activePill, setActivePill] = useState(null);
-  
-  // --- NOVOS ESTADOS PARA O EFEITO VISUAL ---
-  const [translateX, setTranslateX] = useState(0); // Posição horizontal do card
-  
-  // Refs para a lógica do Swipe
+  const [translateX, setTranslateX] = useState(0);
   const touchStart = useRef(null);
   const minSwipeDistance = 50;
 
-  // --- LÓGICA DE SWIPE COM FEEDBACK VISUAL ---
+  // --- LÓGICA DE KEYWORDS REFEITA E MELHORADA ---
+  const generateFakeKeywords = (title) => {
+    if (!title) return ['#Notícias'];
+
+    const stopWords = new Set([
+      'a', 'o', 'e', 'de', 'do', 'da', 'para', 'com', 'um', 'uma', 'os', 'as', 'que', 'em', 'no', 'na',
+      'dos', 'das', 'seu', 'sua', 'mas', 'foi', 'ser', 'por', 'são', 'como', 'também', 'se', 'ao', 'à',
+      'pelo', 'pela', 'suas', 'seus', 'nos', 'nas', 'este', 'esta', 'esse', 'essa', 'disse', 'afirma',
+      'sobre', 'após', 'ter', 'tem', 'terá', 'pode', 'deve', 'anuncia', 'divulga', 'vai', 'está', 'era'
+    ]);
+
+    // 1. NORMALIZAÇÃO: Remove acentos e converte 'ç' para 'c', mantendo a palavra.
+    const normalizedTitle = title
+      .toLowerCase()
+      .normalize('NFD') // Separa os caracteres dos seus acentos (ex: 'á' -> 'a' + '´')
+      .replace(/[\u0300-\u036f]/g, '') // Remove os acentos (diacríticos)
+      .replace(/[^a-z0-9\s]/g, ''); // Remove qualquer pontuação restante
+
+    // 2. EXTRAÇÃO E RELEVÂNCIA:
+    const keywords = Array.from(new Set( // Usa Set para garantir palavras únicas
+      normalizedTitle
+        .split(/\s+/) // Divide em palavras
+        // Filtra palavras curtas e stop words
+        .filter(word => word.length >= 4 && !stopWords.has(word)) 
+    ))
+    // Ordena as palavras candidatas pela mais longa primeiro (maior relevância)
+    .sort((a, b) => b.length - a.length); 
+
+    // 3. SELEÇÃO E FORMATAÇÃO:
+    const finalKeywords = keywords
+      .slice(0, 4) // Pega as 4 mais relevantes (as mais longas)
+      .map(word => `#${word}`); // Formata com hashtag
+
+    return finalKeywords.length > 0 ? finalKeywords : ['#Notícias'];
+  };
+  
+  // --- O RESTO DO COMPONENTE CONTINUA IGUAL ---
+
   const onTouchStart = (e) => {
-    // Se tocou num botão, cancela a detecção de swipe
     if (e.target.closest('button')) return; 
-    
     if (e.touches && e.touches.length === 1) {
         touchStart.current = e.targetTouches[0].clientX;
-        // Desliga a transição CSS para que o movimento seja instantâneo ao deslizar
         e.currentTarget.style.transition = 'none';
     } else {
         touchStart.current = null;
@@ -1055,51 +1084,36 @@ const NewsCard = React.memo(({
 
   const onTouchMove = (e) => {
     if (!touchStart.current || !e.targetTouches[0]) return;
-    
     const currentX = e.targetTouches[0].clientX;
-    const distance = touchStart.current - currentX; // Distância percorrida (positiva para swipe left)
-
-    // Bloqueia o scroll vertical no card (opcional, mas melhora o swipe)
-    // e.preventDefault(); 
-    
+    const distance = touchStart.current - currentX;
     if (distance > 0) {
-        // Se estiver deslizando para a esquerda (distance > 0), move o card
-        // Limita a 50px de deslocamento para não sair da tela
         const newX = Math.min(distance, 50); 
-        setTranslateX(-newX); // Move o estado de volta (-X)
+        setTranslateX(-newX);
     } else {
-        // Se estiver deslizando para a direita (distance < 0), reseta a posição
         setTranslateX(0);
     }
   };
 
   const onTouchEnd = (e) => {
     if (!touchStart.current) return;
-    
-    // Liga a transição de volta para o reset ser suave
     e.currentTarget.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-
     const touchEndClientX = e.changedTouches[0].clientX;
     const distance = touchStart.current - touchEndClientX;
-    
-    // Se deslizar mais que a distância mínima, dispara a ação
     if (distance > minSwipeDistance) {
         if (onSwipeLeft) onSwipeLeft(news);
     }
-    
-    // Reseta a posição do card visualmente
     setTranslateX(0);
     touchStart.current = null;
   };
   
-  // --- FUNÇÕES AUXILIARES E METADADOS ---
   const stopProp = (e) => e.stopPropagation();
   const displayTime = news.rawDate ? new Date(news.rawDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
   const isPlayable = !!news.title;
   const isCurrentPlaying = playingAudio?.id === news.id;
   const isGenerating = isCurrentPlaying && playingAudio?.isGenerating;
   const estimatedRead = Math.max(2, Math.min(Math.ceil((news.title || '').length / 25), 5)) + ' min';
-
+  
+  const fakeKeywords = generateFakeKeywords(news.title);
 
   const InlinePlayer = () => (
     <>
@@ -1131,16 +1145,11 @@ const NewsCard = React.memo(({
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      
-      // Aplica a translação via style
       style={{ 
           zIndex: isSelected ? 40 : 1,
           transform: `translateX(${translateX}px)`,
-          // Transição suave para o reset, desativada no touchstart
           transition: translateX === 0 ? 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' : 'none'
       }}
-      
-      // O clique normal do React (só dispara se não for SWIPE)
       onClick={() => {
         setActivePill('read');
         onClick(news);
@@ -1161,7 +1170,6 @@ const NewsCard = React.memo(({
             <img src={news.img} alt={news.title} className="absolute w-full h-[calc(100%+1.5rem)] object-cover transition-transform duration-700 group-hover:scale-105 -bottom-6" onError={(e) => e.target.style.display='none'} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute top-0 left-0 right-0 h-0 bg-gradient-to-b from-white via-white/95 to-transparent pointer-events-none" />
-
             <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-white p-1 shadow-lg border-2 border-white/80">
                     <img src={news.logo} className="w-full h-full object-contain rounded-lg" onError={(e) => e.target.style.display = 'none'} alt={news.source} />
@@ -1171,11 +1179,9 @@ const NewsCard = React.memo(({
                     <span className="text-sm font-mono font-bold text-white/70 tracking-wider">{displayTime}</span>
                 </div>
             </div>
-
             <div className="absolute top-20 right-5 z-20 flex flex-col items-end gap-2">
                 {isRead && (<div className="bg-red-600/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg shadow-md border border-red-500 animate-in fade-in zoom-in duration-300">Lida</div>)}
                 <div className="flex flex-col items-center gap-1 p-1 rounded-full bg-white/40 backdrop-blur-md border border-white/60 shadow-lg">
-                    {/* Botões blindados */}
                     <button onClick={(e) => { stopProp(e); onToggleLike(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isLiked ? 'text-rose-500 bg-rose-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}><Heart size={20} fill={isLiked ? "currentColor" : "none"} /></button>
                     <button onClick={(e) => { stopProp(e); onToggleSave(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isSaved ? 'text-purple-500 bg-purple-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}><Bookmark size={20} fill={isSaved ? "currentColor" : "none"} /></button>
                     {isPlayable && (<button onClick={(e) => { stopProp(e); onPlay(news); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isCurrentPlaying ? 'text-green-400 bg-green-500/10' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>{isGenerating ? (<Loader2 size={20} className="animate-spin" />) : isCurrentPlaying ? (<Pause size={20} fill="currentColor"/>) : (<Play size={20} fill="currentColor" />)}</button>)}
@@ -1225,19 +1231,23 @@ const NewsCard = React.memo(({
                  </h3>
             </div>
 
-            {/* NOVO RODAPÉ DE AÇÃO / METADADOS */}
             <div className={`mt-2 flex items-center justify-between`}>
-                {/* Lado Esquerdo: Dica Visual do Swipe */}
                 <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity text-indigo-500">
                     <ArrowRight size={14} className="group-hover:-translate-x-1 transition-transform rotate-180"/> 
                     <span className="text-[10px] font-bold uppercase tracking-widest">Deslize para Ler o Resumo</span>
                 </div>
 
-                {/* Lado Direito: Categoria + Tempo de Leitura */}
                 <div className="flex items-center gap-3">
-                    <span className="px-2 py-1 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-black uppercase tracking-wider">
-                        {news.category || 'Geral'}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                        {fakeKeywords.map((keyword, index) => (
+                          <span 
+                            key={index}
+                            className="px-2 py-1 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-bold tracking-wider normal-case"
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                    </div>
                     <span className="text-[10px] font-medium opacity-40 flex items-center gap-1">
                         <Clock size={10} /> {estimatedRead}
                     </span>
@@ -3402,9 +3412,9 @@ const generateHeuristicClusters = (news) => {
 
         const keyEntities = extractKeyEntities(cluster.related_articles);
         const uniqueSourcesCount = new Set(cluster.related_articles.map(a => a.source)).size;
-        let summaryText = `Notícia coberta por ${uniqueSourcesCount} fontes diferentes.`;
+      let summaryText = ` ${uniqueSourcesCount}`;
         if (keyEntities.length > 0) {
-            summaryText += ` A pauta envolve principalmente: ${keyEntities.join(', ')}.`;
+            summaryText += ` Keywords: ${keyEntities.join(', ')}.`;
         }
 
         const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
@@ -3509,13 +3519,20 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
 // === WIDGET DE CLUSTER FINAL (Carrossel + Imagem Grande + Chips + Logos Bonitos) ===
 // ==============================================================================
 
+// ==============================================================================
+// === WIDGET DE CLUSTER FINAL (Carrossel + Imagem Grande + Chips + Logos Bonitos) ===
+// ==============================================================================
+
 function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters }) {
+  
+  console.log('Fontes de Notícias Recebidas:', new Set(news.map(item => item.source)));
+  
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
   const [modalContent, setModalContent] = useState(null); // { type: 'details' | 'timeline', cluster: {...} }
+  const [keywordModalData, setKeywordModalData] = useState(null);
 
-  // Decide quais clusters mostrar
   const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
 
   const runAI = async () => {
@@ -3551,7 +3568,16 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
     return "AGORA";
   };
 
-  // Se não houver clusters, renderiza o Skeleton
+  // CORREÇÃO APLICADA AQUI: A função agora busca em TODAS as notícias.
+  const handleKeywordClick = (keyword) => {
+    // Filtra a lista completa de notícias (`news`) recebida pelo widget.
+    const relatedArticles = news.filter(article => 
+        article.title.toLowerCase().includes(keyword.toLowerCase())
+    );
+    // Define os dados para abrir o modal com a lista completa.
+    setKeywordModalData({ keyword: keyword, articles: relatedArticles });
+  };
+
   if (!displayClusters || displayClusters.length === 0) {
       return <WhileYouWereAwaySkeleton isDarkMode={isDarkMode} />;
   }
@@ -3590,16 +3616,12 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
                   onError={(e) => e.target.style.display = 'none'}
                 />
                 
-                {/* Degradê para leitura do texto */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                 
-             {/* CABEÇALHO DO CARD (Logos + Tempo) */}
+                {/* CABEÇALHO DO CARD (Logos + Tempo) */}
                 <div className="absolute top-5 left-5 right-5 z-10 flex justify-between items-center">
                   
-                  {/* Logos das Fontes: Circulares e Maiores */}
-                  {/* Aumentei o padding do container (p-2) para acomodar os ícones maiores */}
                   <div className="flex items-center gap-2 p-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 shadow-lg">
-                      {/* Pega até 4 fontes únicas do cluster */}
                       {(() => {
                           const uniqueSources = [];
                           const seen = new Set();
@@ -3611,10 +3633,6 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
                           });
                           
                           return uniqueSources.slice(0, 4).map((source, i) => (
-                              // ALTERAÇÕES AQUI:
-                              // 1. w-10 h-10 (Aumentado de w-6 h-6)
-                              // 2. rounded-full (Circular)
-                              // 3. border-2 border-white/20 (Borda para destacar)
                               <div key={i} className="w-8 h-8 rounded-full bg-white p-0.5 overflow-hidden shadow-md border-1 border-white/20" title={source.name}>
                                   <img src={source.logo} className="w-full h-full object-contain rounded-full" />
                               </div>
@@ -3622,14 +3640,12 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
                       })()}
                       
                       {cluster.related_articles.length > 4 && (
-                          // Ajuste do contador (+X) para ficar igual aos logos
                           <div className="w-10 h-10 rounded-full bg-zinc-800 text-white flex items-center justify-center text-xs font-bold border-2 border-white/20">
                               +{cluster.related_articles.length - 4}
                           </div>
                       )}
                   </div>
 
-                  {/* Badge de Tempo */}
                   <span className="text-white text-[10px] font-black uppercase tracking-wider bg-red-600/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-white/10">
                       {timeAgo(cluster.related_articles[0]?.rawDate)}
                   </span>
@@ -3638,14 +3654,22 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
                 {/* CONTEÚDO INFERIOR */}
                 <div className="absolute bottom-0 left-0 right-0 p-6 z-20">
                   
-                  {/* Título */}
-                  <h2 className="text-2xl md:text-3xl font-black text-white leading-tight drop-shadow-xl font-serif mb-5 line-clamp-3">
+                  <h2 className="text-2xl md:text-3xl font-black text-white leading-tight drop-shadow-xl font-serif mb-3 line-clamp-3">
                     {cluster.ai_title}
                   </h2>
                   
+                  <div className="mb-5">
+                    <HighlightedSummary 
+                      text={cluster.ai_summary}
+                      keywords={cluster.keyEntities}
+                      // A chamada agora não precisa mais passar o cluster
+                      onKeywordClick={handleKeywordClick}
+                      isDarkMode={isDarkMode}
+                    />
+                  </div>
+                  
                   {/* CHIPS MODERNOS */}
                   <div className="flex flex-wrap gap-3">
-                      {/* Chip: Entenda o Caso */}
                       <button 
                         onClick={() => setModalContent({ type: 'details', cluster })} 
                         className="flex items-center gap-2 pl-1 pr-4 py-1 rounded-full bg-white text-black font-bold text-xs shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:scale-105 transition-transform active:scale-95"
@@ -3656,7 +3680,6 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
                           Entenda o Caso
                       </button>
 
-                      {/* Chip: Linha do Tempo */}
                       <button 
                         onClick={() => setModalContent({ type: 'timeline', cluster })} 
                         className="flex items-center gap-2 pl-1 pr-4 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white font-bold text-xs hover:bg-black/80 transition-colors active:scale-95"
@@ -3700,6 +3723,16 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
               onClose={() => setModalContent(null)} 
               isDarkMode={isDarkMode} 
               getApiKey={getApiKey} 
+          />
+      )}
+      
+      {/* Renderização do Modal de Foco em Palavra-Chave */}
+      {keywordModalData && (
+          <KeywordFocusModal 
+              data={keywordModalData}
+              onClose={() => setKeywordModalData(null)}
+              openArticle={openArticle}
+              isDarkMode={isDarkMode}
           />
       )}
     </div>
@@ -5417,10 +5450,10 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
           {/* Manchete e o NOVO Widget */}
       <div className="space-y-4">
         <div className="flex items-center gap-3 px-4">
-            <div className={`p-2 rounded-xl ...`}>
-                <Sparkles size={18} />
+            <div className={"text-pink-500 animate-pulse"}> 
+                <Sparkles size={25} />
             </div>
-            <h3 className="text-lg font-bold ...">
+            <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
                 As principais notícias de agora, em múltiplos ângulos.
             </h3>
         </div>
