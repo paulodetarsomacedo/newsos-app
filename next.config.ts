@@ -1,10 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',  // <--- OBRIGATÓRIO: Gera HTML estático
+  // Se a variável de ambiente IS_CAPACITOR existir, exporta como estático
+  // Caso contrário (na Vercel), funciona como servidor dinâmico
+  output: process.env.IS_CAPACITOR ? 'export' : undefined,
+  
   images: {
-    unoptimized: true, // <--- OBRIGATÓRIO: O Next não pode otimizar imagens sem servidor
+    unoptimized: true, // Obrigatório para Capacitor e export estático
   },
-  // -----------------------------------
 
   images: {
     domains: [
