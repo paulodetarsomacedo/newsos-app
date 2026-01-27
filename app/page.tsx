@@ -2554,38 +2554,43 @@ const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
 const generateTrendRadar = async (news, apiKey) => {
   if (!news || news.length === 0) return null;
 
-  const context = news.slice(0, 40).map((n, index) => 
-    `${index}|${n.title}|${n.summary ? n.summary.slice(0, 60) : ''}`
+const context = news.slice(0, 100).map((n, index) => 
+    `${index}|${n.title}` // MUDANÇA 2: Enviamos APENAS o título.
   ).join('\n');
 
   // ==========================================================
   // === INÍCIO DA ALTERAÇÃO: O NOVO PROMPT ===
   // ==========================================================
   const prompt = `
-Você é um Editor de Primeira Página. Analise as notícias e identifique 8 tendências com diferentes níveis de impacto.
+Você é um Analista de Dados especialista em identificar tendências emergentes a partir de feeds de notícias.
+  Você receberá uma lista de TÍTULOS de notícias. O resumo não está disponível.
 
-  REGRAS OBRIGATÓRIAS:
-  1.  **TÓPICO COMO MANCHETE:** O campo "topic" DEVE ser uma micro-manchete curta e dinâmica (máx. 5 palavras) que explique a tendência.
-      - NÃO FAÇA: "Inflação"
-      - FAÇA: "Inflação Preocupa Mercados Globais"
-      - FAÇA: "Avanço da IA na Saúde"
-  2.  **VARIEDADE DE SCORES:** Sua resposta DEVE incluir tópicos em diferentes faixas de score (quente, médio, frio).
-  3.  **JSON ESTRITO:** Retorne APENAS um array JSON com 8 objetos.
+  SUA MISSÃO:
+  1. Agrupar TÍTULOS semanticamente semelhantes para identificar as 8 tendências mais importantes.
+  2. Para cada tendência, criar uma micro-manchete  dinâmica (máx. 9 palavras) no campo "topic".
+  3. Atribuir um score de impacto (1-10) e uma cor.
+  4. Indicar os índices das notícias que formam cada tendência.
+
+  REGRAS:
+  - O campo "topic" DEVE ser uma manchete (ex: "Avanço da IA na Saúde"), NUNCA uma palavra única (ex: "IA").
+  - Sua resposta DEVE incluir tópicos em diferentes faixas de score.
+  - RETORNE APENAS um array JSON com 8 objetos.
 
   FORMATO DO JSON:
   [
     {
-      "topic": "Micro-Manchete da Tendência", // <<-- A GRANDE MUDANÇA
-      "score": 1, // Número de 1 a 10
-      "hex": "#3b82f6", // Cor correspondente
-      "summary": "Um fato curto e direto sobre este tópico."
+      "topic": "Micro-Manchete da Tendência",
+      "score": 1, 
+      "hex": "#3b82f6",
+      "summary": "Um fato curto e direto sobre este tópico, inferido dos títulos.",
       "source_indices": [0, 5, 12]
     }
   ]
 
-  DADOS PARA ANÁLISE:
+  DADOS PARA ANÁLISE (APENAS TÍTULOS):
   ${context}
   `;
+
   // ==========================================================
   // === FIM DA ALTERAÇÃO ===
   // ==========================================================
@@ -3277,7 +3282,7 @@ const generateHeuristicClusters = (news) => {
     const SOURCE_WEIGHTS = { 'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, };
     const DEFAULT_WEIGHT = 1;
     const IMAGE_PREFERRED_SOURCES = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT News', 'Times Brasil', 'Estadao', 'Fox News', '180graus']);
-    const IMAGE_BLOCKED_SOURCES = new Set(['ISTOÉ', 'ISTOÉ DINHEIRO', 'UOL Economia', 'Estadão E-Investidor', 'F5', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Noticias', 'Money Times', 'Estadão | As Últimas Notícias ']);
+    const IMAGE_BLOCKED_SOURCES = new Set(['ISTOÉ', 'ISTOÉ DINHEIRO', 'UOL Economia', 'Estadão E-Investidor', 'F5', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Noticias', 'Money Times', 'Estadão | As Últimas Notícias']);
     const SIMILARITY_THRESHOLD = 0.58;
     const CLUSTER_LIMIT = 5;
 
@@ -5981,21 +5986,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         const linkNode = node.querySelector("link");
         let link = linkNode?.getAttribute("href") || linkNode?.textContent || "";
 
-        // --- CORREÇÃO DE SEGURANÇA AQUI ---
-        // 1. Tenta pegar o ID oficial do YouTube (yt:videoId)
-        let ytId = getTxt("yt:videoId"); 
-        
-        // 2. Se não achou, olha a tag genérica 'videoId'
-        if (!ytId) {
-            const rawId = getTxt("videoId");
-            // A MÁGICA: Só aceita se tiver EXATAMENTE 11 caracteres (Padrão YouTube)
-            // O Cidade Verde manda IDs com tamanhos diferentes (ex: 6 ou 8 números), então será ignorado.
-            if (rawId && rawId.length === 11) {
-                ytId = rawId;
-            }
-        }
-
-        // Só transforma em link de vídeo se passou no teste acima
+        const ytId = getTxt("yt:videoId") || getTxt("videoId");
         if (ytId) link = `https://www.youtube.com/watch?v=${ytId}`;
         
         const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated");
@@ -6020,11 +6011,6 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         if (!img) img = extractImageFromContent(contentEncoded);
         if (!img) img = extractImageFromContent(description);
 
-        // Correção extra para o erro amarelo (Mixed Content)
-        if (img && img.startsWith('http:')) {
-            img = img.replace('http:', 'https:');
-        }
-
         const title = getTxt("title");
         const stableId = stringToHash(title + link);
 
@@ -6032,6 +6018,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           id: `${feedId}-${stableId}`,
           source: detectedTitle,
           logo: autoLogo,
+          // A LINHA 'time:' FOI REMOVIDA DAQUI
           rawDate: rawDateValue,
           title: title,
           summary: description.replace(/<[^>]*>?/gm, '').slice(0, 150) + '...',
@@ -6040,7 +6027,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           readTime: '3 min',
           link: link,
           origin: 'rss',
-          videoId: ytId // Passa null se não for um ID de YouTube válido
+          videoId: ytId
         };
       });
 
@@ -6051,6 +6038,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       return { items: [], realTitle: feedSource, realLogo: null };
   }
 };
+
 
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL (BLINDADO) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
