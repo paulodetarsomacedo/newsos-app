@@ -3978,16 +3978,19 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 
 
 
-// Requer: generateTrendRadar(filteredNews, apiKey)
 
+
+// ==============================
+// TrendRadar (COM NUVEM + FILTRO + SEM BOTÕES 6h/24h)
+// ==============================
 const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(null);
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  // Janela de tempo (somente 6h e 24h)
-  const [timeWindow, setTimeWindow] = useState("24h"); // "6h" | "24h"
+  // ✅ Janela fixa em 24h (sem botões)
+  const timeWindow = "24h";
 
   // Faixa selecionada
   const [selectedBandIndex, setSelectedBandIndex] = useState(null);
@@ -3997,6 +4000,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
 
   // Modo comparação (dois índices originais)
   const [compareSelection, setCompareSelection] = useState([]);
+
+  // ✅ Filtro ativo da nuvem de palavras
+  const [wordFilter, setWordFilter] = useState(null);
 
   // Cache
   const STORAGE_KEY_CURRENT = "newsos_trend_radar_data_v6";
@@ -4030,10 +4036,16 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   };
 
   const getConfidenceValue = (trendItem) => {
-    const relatedCount = Array.isArray(trendItem.related_articles) ? trendItem.related_articles.length : 0;
+    const relatedCount = Array.isArray(trendItem.related_articles)
+      ? trendItem.related_articles.length
+      : 0;
     const normalizedRelated = clampNumber(relatedCount / 8, 0, 1);
     const normalizedScore = clampNumber(Number(trendItem.score || 0) / 10, 0, 1);
-    const confidence = clampNumber(0.65 * normalizedRelated + 0.35 * normalizedScore, 0, 1);
+    const confidence = clampNumber(
+      0.65 * normalizedRelated + 0.35 * normalizedScore,
+      0,
+      1
+    );
     return confidence;
   };
 
@@ -4090,6 +4102,241 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     return 0;
   };
 
+  // ============================================================
+  // ✅ WORD CLOUD (COM FUNÇÕES COMPLETAS + CLIQUE PARA FILTRAR)
+  // ============================================================
+
+  const STOPWORDS = new Set([
+    "a","o","os","as","um","uma","uns","umas","de","da","do","das","dos","em","no","na","nos","nas",
+    "por","para","pra","pro","e","ou","com","sem","sobre","entre","até","após","antes","contra",
+    "que","quem","quando","onde","como","mais","menos","muito","muita","muitos","muitas",
+    "já","ainda","também","não","sim","ser","ter","foi","era","são","está","estão","vai","vão",
+    "ao","à","às","aos","se","sua","seu","suas","seus","meu","minha","meus","minhas","isso","essa","esse","isto",
+    "the","and","or","to","of","in","on","for","with","from","by","at","as","is","are","was","were","be","been",
+    "this","that","these","those"
+  ]);
+
+  const stripAccents = (s) => {
+    return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  };
+
+  const tokenize = (text) => {
+    const base = stripAccents(String(text || "").toLowerCase());
+    return base
+      .replace(/[^\p{L}\p{N}\s-]+/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .map((w) => w.trim())
+      .filter(Boolean);
+  };
+
+  const hashString = (str) => {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  };
+
+  const trendMatchesWord = (trendItem, rawWord) => {
+    if (!trendItem || !rawWord) return true;
+
+    const w = stripAccents(String(rawWord).toLowerCase()).trim();
+    if (!w) return true;
+
+    const haystackParts = [];
+    if (typeof trendItem.topic === "string") haystackParts.push(trendItem.topic);
+    if (typeof trendItem.summary === "string") haystackParts.push(trendItem.summary);
+
+    if (Array.isArray(trendItem.related_articles)) {
+      trendItem.related_articles.slice(0, 12).forEach((article) => {
+        if (typeof article?.title === "string") haystackParts.push(article.title);
+      });
+    }
+
+    const hay = stripAccents(haystackParts.join(" ").toLowerCase());
+    return hay.includes(w);
+  };
+
+  const buildWordCloudTokens = (trendList) => {
+    if (!Array.isArray(trendList) || trendList.length === 0) return [];
+
+    const counts = new Map();
+
+    const pushText = (text, weightBoost = 1) => {
+      const words = tokenize(text);
+      for (const w of words) {
+        if (w.length < 3) continue;
+        if (STOPWORDS.has(w)) continue;
+        if (/^\d+$/.test(w)) continue;
+
+        const prev = counts.get(w) || 0;
+        counts.set(w, prev + 1 * weightBoost);
+      }
+    };
+
+    for (const t of trendList) {
+      const score = Math.max(0, Math.min(10, Number(t?.score || 0)));
+      const boost = 1 + score / 10;
+
+      pushText(t?.topic, 2.2 * boost);
+      pushText(t?.summary, 1.2 * boost);
+
+      if (Array.isArray(t?.related_articles)) {
+        t.related_articles.slice(0, 12).forEach((a) => pushText(a?.title, 0.9 * boost));
+      }
+    }
+
+    const arr = Array.from(counts.entries())
+      .map(([word, weight]) => ({ word, weight }))
+      .sort((a, b) => b.weight - a.weight);
+
+    const top = arr.slice(0, 26);
+    if (top.length === 0) return [];
+
+    const maxW = top[0].weight || 1;
+    const minW = top[top.length - 1].weight || 0;
+
+    return top.map((item) => {
+      const norm = maxW === minW ? 0.6 : (item.weight - minW) / (maxW - minW);
+      const h = hashString(item.word);
+      const tilt = (h % 9) - 4;
+
+      return {
+        text: item.word,
+        weight: item.weight,
+        norm,
+        tilt,
+        seed: h % 1000,
+      };
+    });
+  };
+
+  const WordCloud = ({ items, activeWord, onSelect, onClear }) => {
+    if (!Array.isArray(items) || items.length === 0) return null;
+
+    return (
+      <div
+        className="w-full rounded-2xl px-4 py-3 mb-3"
+        style={{
+          background: isDarkMode ? "rgba(0,0,0,0.28)" : "rgba(255,255,255,0.70)",
+          border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+          boxShadow: isDarkMode
+            ? "0 18px 45px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)"
+            : "0 18px 45px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.35)",
+          backdropFilter: "blur(14px)",
+        }}
+      >
+        <div className="flex items-center justify-between mb-2 gap-3">
+          <div className="flex flex-col">
+            <span
+              className="text-[10px] font-black uppercase tracking-widest"
+              style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+            >
+              Nuvem de Assuntos
+            </span>
+            <span
+              className="text-[10px] font-black uppercase tracking-widest"
+              style={{ color: isDarkMode ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.30)" }}
+            >
+              clique para filtrar os cards
+            </span>
+          </div>
+
+          {activeWord ? (
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
+              style={{
+                background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                border: isDarkMode ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.10)",
+                color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(0,0,0,0.65)",
+              }}
+              title="Limpar filtro da nuvem"
+            >
+              Limpar filtro
+            </button>
+          ) : (
+            <span
+              className="text-[10px] font-black uppercase tracking-widest"
+              style={{ color: isDarkMode ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)" }}
+            >
+              ao vivo do radar
+            </span>
+          )}
+        </div>
+
+        {activeWord && (
+          <div className="mb-2">
+            <span
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-black"
+              style={{
+                background: isDarkMode ? "rgba(249,115,22,0.14)" : "rgba(249,115,22,0.10)",
+                border: "1px solid rgba(249,115,22,0.32)",
+                color: "#f97316",
+                boxShadow: "0 10px 22px rgba(249,115,22,0.18)",
+              }}
+            >
+              Filtro ativo: <span className="uppercase tracking-widest">{activeWord}</span>
+            </span>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {items.map((w) => {
+            const isActive = activeWord && w.text === activeWord;
+
+            const styleColor = getTrendStyle(Math.round(w.norm * 10)).color;
+            const fontSize = 11 + w.norm * 8;
+            const glow = 0.22 + w.norm * 0.35;
+
+            const glowAlphaHex = Math.round(glow * 255)
+              .toString(16)
+              .padStart(2, "0");
+
+            return (
+              <button
+                key={w.text}
+                type="button"
+                onClick={() => {
+                  if (isActive) onClear();
+                  else onSelect(w.text);
+                }}
+                className="select-none px-3 py-1.5 rounded-full font-black tracking-wide active:scale-95 transition"
+                style={{
+                  fontSize: `${fontSize}px`,
+                  transform: `rotate(${w.tilt}deg)`,
+                  color: isDarkMode ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.78)",
+                  background: isActive
+                    ? isDarkMode
+                      ? "rgba(255,255,255,0.10)"
+                      : "rgba(0,0,0,0.07)"
+                    : isDarkMode
+                    ? "rgba(255,255,255,0.06)"
+                    : "rgba(0,0,0,0.05)",
+                  border: isActive ? `2px solid ${styleColor}` : `1px solid ${styleColor}55`,
+                  boxShadow: isActive
+                    ? `0 0 0 3px ${styleColor}22, 0 16px 34px ${styleColor}33`
+                    : `0 0 0 2px ${styleColor}11, 0 10px 24px ${styleColor}${glowAlphaHex}`,
+                  textShadow: isDarkMode ? `0 0 18px ${styleColor}55` : "none",
+                  backdropFilter: "blur(10px)",
+                  opacity: isActive ? 1 : 0.84 + w.norm * 0.16,
+                  cursor: "pointer",
+                }}
+                title={`peso: ${w.weight.toFixed(2)} | clique para filtrar`}
+              >
+                {w.text}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // --------- Carrega cache ao abrir ---------
   useEffect(() => {
     const savedCurrent = localStorage.getItem(STORAGE_KEY_CURRENT);
@@ -4103,6 +4350,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
           setSelectedBandIndex(null);
           setActiveIndex(null);
           setCompareSelection([]);
+          setWordFilter(null);
         }
       } catch (error) {
         console.error("Erro ao ler Trend Radar salvo", error);
@@ -4139,18 +4387,13 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
 
       setCompareSelection((current) => {
         if (current.includes(index)) return current;
-
-        if (current.length === 2) {
-          return [current[1], index];
-        }
-
+        if (current.length === 2) return [current[1], index];
         return [...current, index];
       });
 
       return;
     }
 
-    // Clique normal: abre/fecha balão de fontes
     setCompareSelection([]);
     handleToggle(index);
   };
@@ -4167,11 +4410,11 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     setLoading(true);
     setActiveIndex(null);
     setCompareSelection([]);
+    setWordFilter(null);
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     const filteredNews = filterNewsByTimeWindow(newsData, timeWindow);
-
     const data = await generateTrendRadar(filteredNews, currentApiKey);
 
     if (data && Array.isArray(data) && data.length > 0) {
@@ -4208,7 +4451,10 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
 
       const enriched = hydratedData.map((trend) => {
         const topicKey = typeof trend.topic === "string" ? trend.topic.trim().toLowerCase() : "";
-        const previousScore = previousScoreByTopic.has(topicKey) ? previousScoreByTopic.get(topicKey) : null;
+        const previousScore = previousScoreByTopic.has(topicKey)
+          ? previousScoreByTopic.get(topicKey)
+          : null;
+
         const delta = previousScore === null ? null : Number(trend.score || 0) - Number(previousScore || 0);
 
         const confidenceValue = getConfidenceValue({ ...trend, related_articles: trend.related_articles });
@@ -4227,10 +4473,10 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       setTrends(sortedData);
       setHasGenerated(true);
 
-      // NÃO mostrar cards automaticamente
       setSelectedBandIndex(null);
       setActiveIndex(null);
       setCompareSelection([]);
+      setWordFilter(null);
 
       localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(sortedData));
       localStorage.setItem(STORAGE_KEY_PREVIOUS, JSON.stringify(sortedData));
@@ -4241,7 +4487,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     setLoading(false);
   };
 
-  // --------- Tendências filtradas pela faixa selecionada ---------
+  // --------- Tendências filtradas pela faixa selecionada + filtro da nuvem ---------
   const bandFilteredTrends = useMemo(() => {
     if (!Array.isArray(trends)) return null;
     if (selectedBandIndex === null) return [];
@@ -4249,11 +4495,14 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     const band = temperatureBands[selectedBandIndex];
     if (!band) return [];
 
-    return trends.filter((trend) => {
+    const byBand = trends.filter((trend) => {
       const score = clampNumber(Number(trend.score || 0), 0, 10);
       return score >= band.minimum && score <= band.maximum;
     });
-  }, [trends, selectedBandIndex]);
+
+    if (!wordFilter) return byBand;
+    return byBand.filter((t) => trendMatchesWord(t, wordFilter));
+  }, [trends, selectedBandIndex, wordFilter]);
 
   const featuredTrend = useMemo(() => {
     if (!Array.isArray(bandFilteredTrends) || bandFilteredTrends.length === 0) return null;
@@ -4264,6 +4513,10 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     if (!Array.isArray(bandFilteredTrends) || bandFilteredTrends.length <= 1) return [];
     return bandFilteredTrends.slice(1, 11);
   }, [bandFilteredTrends]);
+
+  const wordCloudItems = useMemo(() => {
+    return buildWordCloudTokens(trends);
+  }, [trends]);
 
   // --------- UI tokens ---------
   const commonPanelBackground = isDarkMode ? "rgba(24,24,27,0.55)" : "rgba(255,255,255,0.75)";
@@ -4309,37 +4562,6 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     );
   };
 
-  const WindowButton = ({ label, value }) => {
-    const isActive = timeWindow === value;
-    return (
-      <button
-        onClick={() => {
-          setTimeWindow(value);
-          setActiveIndex(null);
-          setCompareSelection([]);
-        }}
-        className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
-        style={{
-          background: isActive
-            ? isDarkMode
-              ? "rgba(249,115,22,0.18)"
-              : "rgba(249,115,22,0.14)"
-            : isDarkMode
-            ? "rgba(255,255,255,0.06)"
-            : "rgba(0,0,0,0.05)",
-          border: isActive
-            ? "1px solid rgba(249,115,22,0.35)"
-            : isDarkMode
-            ? "1px solid rgba(255,255,255,0.08)"
-            : "1px solid rgba(0,0,0,0.08)",
-          color: isActive ? "#f97316" : isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)",
-        }}
-      >
-        {label}
-      </button>
-    );
-  };
-
   const countsByBand = temperatureBands.map((band) => {
     if (!Array.isArray(trends)) return 0;
 
@@ -4350,7 +4572,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     }, 0);
   });
 
-  // --------- Temperature Selector ---------
+  // --------- Temperature Selector (com WordCloud acima da régua) ---------
   const TemperatureSelector = () => {
     const SEGMENTS = temperatureBands.length;
 
@@ -4366,6 +4588,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
             onClick={() => {
               clearBandSelection();
               clearComparison();
+              setWordFilter(null);
             }}
             className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
             style={{
@@ -4378,8 +4601,24 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
           </button>
         </div>
 
+        {/* ✅ Nuvem de palavras (acima da régua) */}
+        <WordCloud
+          items={wordCloudItems}
+          activeWord={wordFilter}
+          onSelect={(w) => {
+            setWordFilter(w);
+            setActiveIndex(null);
+            setCompareSelection([]);
+          }}
+          onClear={() => {
+            setWordFilter(null);
+            setActiveIndex(null);
+            setCompareSelection([]);
+          }}
+        />
+
         <div className="relative pt-6">
-          {/* Régua (mais moderna) */}
+          {/* Régua (termômetro) */}
           <div
             className="w-full rounded-full relative overflow-hidden"
             style={{
@@ -4394,7 +4633,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
             }}
           />
 
-          {/* Shine overlay (micro brilho) */}
+          {/* Shine overlay */}
           <div
             className="absolute left-0 right-0 top-6 rounded-full pointer-events-none overflow-hidden"
             style={{
@@ -4457,7 +4696,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
             aria-label="Selecionar faixa de temperatura clicando na régua"
           />
 
-          {/* Contagens (somente número) */}
+          {/* Contagens (número) */}
           {temperatureBands.map((band, idx) => {
             const active = selectedBandIndex === idx;
 
@@ -4475,7 +4714,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                 title={band.label}
               >
                 <span
-                  className={`text-[14px] font-black transition-all ${active ? "scale-110" : "opacity-75"}`}
+                  className={`text-[14px] font-black transition-all ${
+                    active ? "scale-110" : "opacity-75"
+                  }`}
                   style={{
                     color: band.color,
                     textShadow: active ? `0 0 14px ${band.color}AA` : `0 0 8px ${band.color}55`,
@@ -4486,132 +4727,6 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
               </button>
             );
           })}
-        </div>
-      </div>
-    );
-  };
-
-  // --------- Painel de comparação ---------
-  const ComparisonPanel = () => {
-    if (!Array.isArray(trends)) return null;
-    if (!Array.isArray(compareSelection) || compareSelection.length !== 2) return null;
-
-    const left = trends[compareSelection[0]];
-    const right = trends[compareSelection[1]];
-    if (!left || !right) return null;
-
-    return (
-      <div
-        className="mt-6 rounded-2xl p-5"
-        style={{
-          background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.98)",
-          border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-          boxShadow: isDarkMode ? "0 30px 80px rgba(0,0,0,0.45)" : "0 30px 80px rgba(0,0,0,0.18)",
-          backdropFilter: "blur(16px)",
-        }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex flex-col">
-            <span className="text-xs font-black uppercase tracking-widest opacity-70">Comparação</span>
-            <span className="text-[10px] uppercase tracking-widest opacity-45">
-              Dica: SHIFT + clique em dois cards
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={clearComparison}
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
-            style={{
-              background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
-              border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-              color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(0,0,0,0.70)",
-            }}
-          >
-            Limpar comparação
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* LEFT */}
-          <div
-            className="rounded-2xl p-4"
-            style={{
-              background: isDarkMode ? "rgba(0,0,0,0.30)" : "rgba(255,255,255,0.75)",
-              border: `1px solid ${getTrendStyle(left.score).color}44`,
-              boxShadow: `0 18px 40px ${getTrendStyle(left.score).color}22`,
-            }}
-          >
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <h4 className="text-base font-black leading-tight">{left.topic}</h4>
-              <span className="text-xs font-black" style={{ color: getTrendStyle(left.score).color }}>
-                {left.score}/10
-              </span>
-            </div>
-
-            <p className="text-sm leading-relaxed opacity-80 line-clamp-5 mb-4">{left.summary}</p>
-
-            <div className="flex items-center justify-between pt-3" style={{ borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)" }}>
-              <ImpactPill score={left.score} />
-
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[10px] uppercase tracking-widest opacity-60">Confiança</span>
-                <div className="w-28 h-[4px] rounded-full overflow-hidden" style={{ background: isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)" }}>
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${clampNumber(Number(left.confidence_value || 0), 0, 1) * 100}%`,
-                      background: getTrendStyle(left.score).color,
-                      boxShadow: `0 0 12px ${getTrendStyle(left.score).color}88`,
-                    }}
-                  />
-                </div>
-                <span className="text-[10px] font-black" style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}>
-                  {getConfidenceLabel(left.confidence_value)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT */}
-          <div
-            className="rounded-2xl p-4"
-            style={{
-              background: isDarkMode ? "rgba(0,0,0,0.30)" : "rgba(255,255,255,0.75)",
-              border: `1px solid ${getTrendStyle(right.score).color}44`,
-              boxShadow: `0 18px 40px ${getTrendStyle(right.score).color}22`,
-            }}
-          >
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <h4 className="text-base font-black leading-tight">{right.topic}</h4>
-              <span className="text-xs font-black" style={{ color: getTrendStyle(right.score).color }}>
-                {right.score}/10
-              </span>
-            </div>
-
-            <p className="text-sm leading-relaxed opacity-80 line-clamp-5 mb-4">{right.summary}</p>
-
-            <div className="flex items-center justify-between pt-3" style={{ borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)" }}>
-              <ImpactPill score={right.score} />
-
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[10px] uppercase tracking-widest opacity-60">Confiança</span>
-                <div className="w-28 h-[4px] rounded-full overflow-hidden" style={{ background: isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)" }}>
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${clampNumber(Number(right.confidence_value || 0), 0, 1) * 100}%`,
-                      background: getTrendStyle(right.score).color,
-                      boxShadow: `0 0 12px ${getTrendStyle(right.score).color}88`,
-                    }}
-                  />
-                </div>
-                <span className="text-[10px] font-black" style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}>
-                  {getConfidenceLabel(right.confidence_value)}
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -4655,7 +4770,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 opacity-70">
             <Activity size={14} className="text-orange-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Trend Radar AI</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+              Trend Radar AI
+            </span>
           </div>
 
           <button
@@ -4757,17 +4874,30 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                 <div className="flex flex-col gap-3 mb-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/40" : "text-black/40"}`}>
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-widest ${
+                          isDarkMode ? "text-white/40" : "text-black/40"
+                        }`}
+                      >
                         Temperatura
                       </span>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? "text-white/30" : "text-black/30"}`}>
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-widest ${
+                          isDarkMode ? "text-white/30" : "text-black/30"
+                        }`}
+                      >
                         (SHIFT para comparar)
                       </span>
                     </div>
 
+                    {/* ✅ Sem botões 6h/24h */}
                     <div className="flex items-center gap-2">
-                      <WindowButton label="6h" value="6h" />
-                      <WindowButton label="24h" value="24h" />
+                      <span
+                        className="text-[10px] font-black uppercase tracking-widest"
+                        style={{ color: isDarkMode ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0,0.25)" }}
+                      >
+                        janela fixa: 24h
+                      </span>
                     </div>
                   </div>
 
@@ -4794,13 +4924,15 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                             className="w-full text-left rounded-2xl p-5 h-full transition-transform active:scale-[0.99]"
                             style={{
                               background: isDarkMode ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.95)",
-                                                            border: (() => {
+                              border: (() => {
                                 const originalIndex = trends.findIndex(
                                   (item) =>
                                     item?.topic === featuredTrend?.topic &&
                                     Number(item?.score || 0) === Number(featuredTrend?.score || 0)
                                 );
-                                const isCompared = Array.isArray(compareSelection) && compareSelection.includes(originalIndex);
+                                const isCompared =
+                                  Array.isArray(compareSelection) && compareSelection.includes(originalIndex);
+
                                 if (isCompared) return "2px solid #22c55e";
                                 return `4px solid ${getTrendStyle(featuredTrend.score).color}`;
                               })(),
@@ -4810,19 +4942,21 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                     item?.topic === featuredTrend?.topic &&
                                     Number(item?.score || 0) === Number(featuredTrend?.score || 0)
                                 );
-                                const isCompared = Array.isArray(compareSelection) && compareSelection.includes(originalIndex);
-                                if (isCompared) return "0 0 0 3px rgba(34,197,94,0.35), 0 22px 60px rgba(0,0,0,0.25)";
+                                const isCompared =
+                                  Array.isArray(compareSelection) && compareSelection.includes(originalIndex);
+
+                                if (isCompared)
+                                  return "0 0 0 3px rgba(34,197,94,0.35), 0 22px 60px rgba(0,0,0,0.25)";
+
                                 return `0 22px 50px ${getTrendStyle(featuredTrend.score).color}44`;
                               })(),
                             }}
                           >
-                            {/* CONTEÚDO DO FEATURED CARD (TÍTULO + RESUMO + RODAPÉ) */}
                             <div className="flex flex-col h-full">
                               <h3 className="text-lg font-black leading-tight mb-2">
                                 {featuredTrend.topic}
                               </h3>
 
-                              {/* RESUMO NO CARD */}
                               <p
                                 className="text-sm leading-relaxed opacity-80 mb-4"
                                 style={{
@@ -4835,20 +4969,24 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                 {featuredTrend.summary}
                               </p>
 
-                              {/* RODAPÉ FIXO (Impacto + Confiança) */}
                               <div
                                 className="mt-auto flex items-end justify-between gap-4 pt-3"
                                 style={{
-                                  borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+                                  borderTop: isDarkMode
+                                    ? "1px solid rgba(255,255,255,0.10)"
+                                    : "1px solid rgba(0,0,0,0.08)",
                                 }}
                               >
                                 <ImpactPill score={featuredTrend.score} />
 
-                                {/* Confiança visual (barra) */}
                                 <div className="flex flex-col items-end gap-1">
                                   <span
                                     className="text-[10px] font-black uppercase tracking-widest"
-                                    style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+                                    style={{
+                                      color: isDarkMode
+                                        ? "rgba(255,255,255,0.55)"
+                                        : "rgba(0,0,0,0.55)",
+                                    }}
                                   >
                                     Confiança
                                   </span>
@@ -4856,20 +4994,23 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                   <div
                                     className="w-24 h-[4px] rounded-full overflow-hidden"
                                     style={{
-                                      background: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+                                      background: isDarkMode
+                                        ? "rgba(255,255,255,0.14)"
+                                        : "rgba(0,0,0,0.12)",
                                     }}
                                   >
                                     <div
                                       className="h-full"
                                       style={{
-                                        width: `${clampNumber(Number(featuredTrend.confidence_value || 0), 0, 1) * 100}%`,
+                                        width: `${
+                                          clampNumber(Number(featuredTrend.confidence_value || 0), 0, 1) * 100
+                                        }%`,
                                         background: getTrendStyle(featuredTrend.score).color,
                                         boxShadow: `0 0 12px ${getTrendStyle(featuredTrend.score).color}88`,
                                       }}
                                     />
                                   </div>
 
-                                  {/* Score discreto (9/10) no canto inferior direito */}
                                   <span
                                     className="text-[11px] font-black"
                                     style={{ color: getTrendStyle(featuredTrend.score).color }}
@@ -4918,12 +5059,10 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                               }}
                             >
                               <div className="flex flex-col">
-                                {/* TÍTULO */}
                                 <div className="text-sm font-black leading-tight mb-2">
                                   {trend.topic}
                                 </div>
 
-                                {/* RESUMO (curto) */}
                                 <p
                                   className="text-[13px] leading-relaxed opacity-80 mb-3"
                                   style={{
@@ -4936,11 +5075,12 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                   {trend.summary}
                                 </p>
 
-                                {/* RODAPÉ (Impacto + Confiança + Score) */}
                                 <div
                                   className="mt-auto flex items-end justify-between gap-4 pt-3"
                                   style={{
-                                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+                                    borderTop: isDarkMode
+                                      ? "1px solid rgba(255,255,255,0.10)"
+                                      : "1px solid rgba(0,0,0,0.08)",
                                   }}
                                 >
                                   <ImpactPill score={trend.score} />
@@ -4948,7 +5088,11 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                   <div className="flex flex-col items-end gap-1">
                                     <span
                                       className="text-[10px] font-black uppercase tracking-widest"
-                                      style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+                                      style={{
+                                        color: isDarkMode
+                                          ? "rgba(255,255,255,0.55)"
+                                          : "rgba(0,0,0,0.55)",
+                                      }}
                                     >
                                       Confiança
                                     </span>
@@ -4956,13 +5100,17 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                     <div
                                       className="w-20 h-[4px] rounded-full overflow-hidden"
                                       style={{
-                                        background: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+                                        background: isDarkMode
+                                          ? "rgba(255,255,255,0.14)"
+                                          : "rgba(0,0,0,0.12)",
                                       }}
                                     >
                                       <div
                                         className="h-full"
                                         style={{
-                                          width: `${clampNumber(Number(trend.confidence_value || 0), 0, 1) * 100}%`,
+                                          width: `${
+                                            clampNumber(Number(trend.confidence_value || 0), 0, 1) * 100
+                                          }%`,
                                           background: style.color,
                                           boxShadow: `0 0 12px ${style.color}88`,
                                         }}
@@ -4981,14 +5129,18 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                       </div>
                     </div>
 
-                    {/* PAINEL DE COMPARAÇÃO (aparece quando SHIFT+clique selecionar 2 trends) */}
+                    {/* PAINEL DE COMPARAÇÃO */}
                     {compareSelection.length === 2 && Array.isArray(trends) && (
                       <div
                         className="mt-6 rounded-2xl p-5"
                         style={{
                           background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.98)",
-                          border: isDarkMode ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.10)",
-                          boxShadow: isDarkMode ? "0 30px 80px rgba(0,0,0,0.45)" : "0 30px 80px rgba(0,0,0,0.20)",
+                          border: isDarkMode
+                            ? "1px solid rgba(255,255,255,0.12)"
+                            : "1px solid rgba(0,0,0,0.10)",
+                          boxShadow: isDarkMode
+                            ? "0 30px 80px rgba(0,0,0,0.45)"
+                            : "0 30px 80px rgba(0,0,0,0.20)",
                           backdropFilter: "blur(16px)",
                         }}
                       >
@@ -5003,7 +5155,11 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                               <div className="flex items-center justify-between mb-4">
                                 <span
                                   className="text-xs font-black uppercase tracking-widest"
-                                  style={{ color: isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)" }}
+                                  style={{
+                                    color: isDarkMode
+                                      ? "rgba(255,255,255,0.60)"
+                                      : "rgba(0,0,0,0.60)",
+                                  }}
                                 >
                                   Comparação de Trends
                                 </span>
@@ -5013,9 +5169,15 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                   onClick={clearComparison}
                                   className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
                                   style={{
-                                    background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
-                                    border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-                                    color: isDarkMode ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.65)",
+                                    background: isDarkMode
+                                      ? "rgba(255,255,255,0.06)"
+                                      : "rgba(0,0,0,0.05)",
+                                    border: isDarkMode
+                                      ? "1px solid rgba(255,255,255,0.10)"
+                                      : "1px solid rgba(0,0,0,0.10)",
+                                    color: isDarkMode
+                                      ? "rgba(255,255,255,0.65)"
+                                      : "rgba(0,0,0,0.65)",
                                   }}
                                 >
                                   Limpar comparação
@@ -5023,27 +5185,26 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* LEFT */}
                                 <div
                                   className="rounded-2xl p-4"
                                   style={{
-                                    background: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                                    background: isDarkMode
+                                      ? "rgba(255,255,255,0.04)"
+                                      : "rgba(0,0,0,0.04)",
                                     border: `2px solid ${getTrendStyle(left.score).color}`,
                                     boxShadow: `0 18px 45px ${getTrendStyle(left.score).color}22`,
                                   }}
                                 >
-                                  <h4 className="text-base font-black mb-2">
-                                    {left.topic}
-                                  </h4>
+                                  <h4 className="text-base font-black mb-2">{left.topic}</h4>
 
-                                  <p className="text-sm opacity-80 leading-relaxed mb-4">
-                                    {left.summary}
-                                  </p>
+                                  <p className="text-sm opacity-80 leading-relaxed mb-4">{left.summary}</p>
 
                                   <div
                                     className="flex items-end justify-between gap-4 pt-3"
                                     style={{
-                                      borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+                                      borderTop: isDarkMode
+                                        ? "1px solid rgba(255,255,255,0.10)"
+                                        : "1px solid rgba(0,0,0,0.08)",
                                     }}
                                   >
                                     <ImpactPill score={left.score} />
@@ -5051,7 +5212,11 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                     <div className="flex flex-col items-end gap-1">
                                       <span
                                         className="text-[10px] font-black uppercase tracking-widest"
-                                        style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+                                        style={{
+                                          color: isDarkMode
+                                            ? "rgba(255,255,255,0.55)"
+                                            : "rgba(0,0,0,0.55)",
+                                        }}
                                       >
                                         Confiança
                                       </span>
@@ -5059,13 +5224,17 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                       <div
                                         className="w-24 h-[4px] rounded-full overflow-hidden"
                                         style={{
-                                          background: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+                                          background: isDarkMode
+                                            ? "rgba(255,255,255,0.14)"
+                                            : "rgba(0,0,0,0.12)",
                                         }}
                                       >
                                         <div
                                           className="h-full"
                                           style={{
-                                            width: `${clampNumber(Number(left.confidence_value || 0), 0, 1) * 100}%`,
+                                            width: `${
+                                              clampNumber(Number(left.confidence_value || 0), 0, 1) * 100
+                                            }%`,
                                             background: getTrendStyle(left.score).color,
                                             boxShadow: `0 0 12px ${getTrendStyle(left.score).color}88`,
                                           }}
@@ -5082,27 +5251,26 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                   </div>
                                 </div>
 
-                                {/* RIGHT */}
                                 <div
                                   className="rounded-2xl p-4"
                                   style={{
-                                    background: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                                    background: isDarkMode
+                                      ? "rgba(255,255,255,0.04)"
+                                      : "rgba(0,0,0,0.04)",
                                     border: `2px solid ${getTrendStyle(right.score).color}`,
                                     boxShadow: `0 18px 45px ${getTrendStyle(right.score).color}22`,
                                   }}
                                 >
-                                  <h4 className="text-base font-black mb-2">
-                                    {right.topic}
-                                  </h4>
+                                  <h4 className="text-base font-black mb-2">{right.topic}</h4>
 
-                                  <p className="text-sm opacity-80 leading-relaxed mb-4">
-                                    {right.summary}
-                                  </p>
+                                  <p className="text-sm opacity-80 leading-relaxed mb-4">{right.summary}</p>
 
                                   <div
                                     className="flex items-end justify-between gap-4 pt-3"
                                     style={{
-                                      borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
+                                      borderTop: isDarkMode
+                                        ? "1px solid rgba(255,255,255,0.10)"
+                                        : "1px solid rgba(0,0,0,0.08)",
                                     }}
                                   >
                                     <ImpactPill score={right.score} />
@@ -5110,7 +5278,11 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                     <div className="flex flex-col items-end gap-1">
                                       <span
                                         className="text-[10px] font-black uppercase tracking-widest"
-                                        style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+                                        style={{
+                                          color: isDarkMode
+                                            ? "rgba(255,255,255,0.55)"
+                                            : "rgba(0,0,0,0.55)",
+                                        }}
                                       >
                                         Confiança
                                       </span>
@@ -5118,13 +5290,17 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                                       <div
                                         className="w-24 h-[4px] rounded-full overflow-hidden"
                                         style={{
-                                          background: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+                                          background: isDarkMode
+                                            ? "rgba(255,255,255,0.14)"
+                                            : "rgba(0,0,0,0.12)",
                                         }}
                                       >
                                         <div
                                           className="h-full"
                                           style={{
-                                            width: `${clampNumber(Number(right.confidence_value || 0), 0, 1) * 100}%`,
+                                            width: `${
+                                              clampNumber(Number(right.confidence_value || 0), 0, 1) * 100
+                                            }%`,
                                             background: getTrendStyle(right.score).color,
                                             boxShadow: `0 0 12px ${getTrendStyle(right.score).color}88`,
                                           }}
@@ -5150,7 +5326,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                 )}
               </div>
 
-              {/* BALÃO (AGORA SÓ FONTES) */}
+              {/* BALÃO (SÓ FONTES) */}
               <AnimatePresence>
                 {activeItem && (
                   <motion.div
@@ -5165,14 +5341,20 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                       style={{
                         background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.98)",
                         border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-                        boxShadow: isDarkMode ? "0 22px 60px rgba(0,0,0,0.55)" : "0 22px 60px rgba(0,0,0,0.18)",
+                        boxShadow: isDarkMode
+                          ? "0 22px 60px rgba(0,0,0,0.55)"
+                          : "0 22px 60px rgba(0,0,0,0.18)",
                         backdropFilter: "blur(14px)",
                       }}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <span
                           className="text-xs font-black uppercase tracking-widest"
-                          style={{ color: isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)" }}
+                          style={{
+                            color: isDarkMode
+                              ? "rgba(255,255,255,0.60)"
+                              : "rgba(0,0,0,0.60)",
+                          }}
                         >
                           Fontes
                         </span>
@@ -5230,7 +5412,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
 
                                 <span
                                   className="text-[11px] font-bold max-w-[240px] truncate"
-                                  style={{ color: isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)" }}
+                                  style={{
+                                    color: isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)",
+                                  }}
                                 >
                                   {title}
                                 </span>
@@ -5241,7 +5425,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                       ) : (
                         <div
                           className="text-sm"
-                          style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
+                          style={{
+                            color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)",
+                          }}
                         >
                           Sem fontes associadas nesta trend.
                         </div>
@@ -5257,6 +5443,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     </div>
   );
 };
+
 
 
 
