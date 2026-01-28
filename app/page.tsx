@@ -17,7 +17,7 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, Telescope,
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, ExternalLink,
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, ExternalLink, ArrowUpRight,
 } from 'lucide-react';
 
 const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
@@ -3996,40 +3996,30 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [wordCloudItems, setWordCloudItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
-  
-  // Estado para expandir fontes
   const [activeIndex, setActiveIndex] = useState(null);
-  
-  // Estado da Régua
   const [selectedBandIndex, setSelectedBandIndex] = useState(null);
-  
-  // Estado do Modal da Palavra
   const [selectedWordData, setSelectedWordData] = useState(null);
 
   const STORAGE_KEY = "newsos_trend_radar_v9_fixed";
 
   // --- Definição das Faixas ---
-const temperatureBands = [
+  const temperatureBands = [
     { id: 0, min: 0, max: 2, color: "#3b82f6" }, // Frio (Azul)
     { id: 1, min: 3, max: 4, color: "#22c55e" }, // Leve (Verde)
     { id: 2, min: 5, max: 6, color: "#facc15" }, // Médio (Amarelo)
     { id: 3, min: 7, max: 8, color: "#f97316" }, // Quente (Laranja)
     { id: 4, min: 9, max: 10, color: "#dc2626" }, // Muito Quente (Vermelho)
-];
+  ];
 
   const getTrendStyle = (score) => {
     const s = Number(score || 0);
-    if (s >= 9) return { color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" };
-    if (s >= 7) return { color: "#f97316", bg: "rgba(249, 115, 22, 0.1)" };
-    if (s >= 5) return { color: "#eab308", bg: "rgba(234, 179, 8, 0.1)" };
-    if (s >= 3) return { color: "#22c55e", bg: "rgba(34, 197, 94, 0.1)" };
-    return { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" };
+    const band = temperatureBands.find(b => s >= b.min && s <= b.max) || temperatureBands[0];
+    return { color: band.color, bg: `${band.color}1A` }; // Ex: #dc26261A para o fundo
   };
 
   const getBandIndexByScore = (score) => {
     const s = Number(score || 0);
-    if (s >= 9) return 4; if (s >= 7) return 3; if (s >= 5) return 2; if (s >= 3) return 1;
-    return 0;
+    return temperatureBands.findIndex(b => s >= b.min && s <= b.max);
   };
 
   // --- Lógica de Drill-down ---
@@ -4079,10 +4069,18 @@ const temperatureBands = [
 
   // --- Filtros ---
   const filteredTrends = useMemo(() => {
-    if (!trends) return [];
-    if (selectedBandIndex === null) return [];
+    if (!trends || selectedBandIndex === null) return [];
     return trends.filter(t => getBandIndexByScore(t.score) === selectedBandIndex);
   }, [trends, selectedBandIndex]);
+
+  const countsByBand = useMemo(() => {
+    return temperatureBands.map(band => {
+      if (!trends) return 0;
+      return trends.filter(t => t.score >= band.min && t.score <= band.max).length;
+    });
+  }, [trends]);
+
+  const maxNewsInAnyBand = useMemo(() => Math.max(...countsByBand, 1), [countsByBand]);
 
   // --- UI Tokens ---
   const panelBg = isDarkMode ? "rgba(24, 24, 27, 0.85)" : "rgba(255, 255, 255, 0.95)";
@@ -4137,9 +4135,9 @@ const temperatureBands = [
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
           
           {/* NUVEM DE PALAVRAS */}
-          <div className="p-5 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
-            <h4 className="text-[15px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-5">Termos em Alta</h4>
-            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-2">
+          <div className="p-8 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-8">Termos em Alta</h4>
+            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-4">
               {wordCloudItems.map((item, i) => {
                 const style = getTrendStyle(item.relevance);
                 const tilt = (i % 3 === 0) ? "rotate-2" : (i % 2 === 0) ? "-rotate-2" : "rotate-0";
@@ -4147,7 +4145,7 @@ const temperatureBands = [
                   <button
                     key={i}
                     onClick={() => handleWordClick(item.word)}
-                    className={`px-5 py-2 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
+                    className={`px-5 py-2.5 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
                     style={{
                       fontSize: `${12 + (item.relevance * 1.5)}px`,
                       color: style.color,
@@ -4162,7 +4160,7 @@ const temperatureBands = [
             </div>
           </div>
 
-          {/* RÉGUA DE TEMPERATURA */}
+          {/* RÉGUA DE TEMPERATURA COM BRILHO DINÂMICO */}
           <div className="space-y-4">
             <div className="flex justify-between px-6 text-[10px] font-black uppercase tracking-widest opacity-40">
               <span>Frio</span>
@@ -4174,6 +4172,11 @@ const temperatureBands = [
               {temperatureBands.map((band, idx) => {
                 const isActive = selectedBandIndex === idx;
                 const isSomethingSelected = selectedBandIndex !== null;
+                const newsCount = countsByBand[idx];
+                
+                // LÓGICA DO BRILHO: Proporcional à contagem de notícias
+                const baseBrightness = 0.6 + (newsCount / maxNewsInAnyBand) * 0.8; // Varia de 0.6 (escuro) a 1.4 (brilhante)
+                const finalBrightness = isActive ? 1.5 : (isSomethingSelected ? 0.4 : baseBrightness);
                 
                 return (
                   <motion.div
@@ -4183,9 +4186,9 @@ const temperatureBands = [
                     style={{ 
                       flex: isActive ? 3 : 1,
                       background: band.color,
-                      opacity: isActive ? 1 : (isSomethingSelected ? 0.3 : 0.8),
-                      filter: isActive ? 'brightness(1.2)' : 'grayscale(0.3)',
+                      filter: `brightness(${finalBrightness})`,
                     }}
+                    title={`${newsCount} temas nesta faixa`}
                   >
                     {isActive && (
                       <motion.div layoutId="activeGlow" className="absolute inset-0 z-10" style={{ boxShadow: `inset 0 0 30px rgba(255,255,255,0.6), 0 0 40px ${band.color}` }} />
@@ -4214,7 +4217,7 @@ const temperatureBands = [
                     return (
                       <motion.div key={trend.topic} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
                         <button onClick={() => setActiveIndex(open ? null : idx)} 
-                                className={`w-full text-left p-7 rounded-[2.5rem] transition-all border ${open ? 'shadow-2xl' : ''}`}
+                                className={`w-full text-left p-7 rounded-[2.5rem] transition-all border ${open ? 'shadow-2xl' : 'shadow-md'}`}
                                 style={{ background: panelBg, borderColor: open ? style.color : borderColor }}>
                           <div className="flex justify-between items-center mb-3">
                             <div className="flex items-center gap-2 px-3 py-1 rounded-lg" style={{ background: style.bg }}>
@@ -4237,7 +4240,12 @@ const temperatureBands = [
                                       <div key={i} onClick={(e) => { e.stopPropagation(); openArticle(art); }} 
                                            className="p-3 rounded-2xl bg-zinc-500/5 hover:bg-orange-500/10 transition-colors flex items-center justify-between group cursor-pointer">
                                         <span className="text-[11px] font-bold truncate pr-4">{art.title}</span>
-                                        <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 text-orange-500" />
+                                        {/* CORREÇÃO DO LOGO E DO ERRO DE REFERÊNCIA */}
+                                        <img 
+                                            src={art.logo} 
+                                            alt="" 
+                                            className="w-5 h-5 rounded-md flex-shrink-0 border border-white/10 bg-white object-contain"
+                                        />
                                       </div>
                                     ))}
                                   </div>
@@ -4260,8 +4268,8 @@ const temperatureBands = [
         </motion.div>
       )}
 
-      {/* MODAL DE DRILL-DOWN */}
-       <AnimatePresence>
+      {/* MODAL DE DRILL-DOWN (COM O LOGO JÁ CORRIGIDO) */}
+      <AnimatePresence>
         {selectedWordData && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-5">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setSelectedWordData(null)} />
@@ -4276,39 +4284,19 @@ const temperatureBands = [
                   <button onClick={() => setSelectedWordData(null)} className="p-4 bg-zinc-500/10 rounded-full active:scale-90 transition-all"><X size={24} /></button>
                 </div>
                 
-                {/* LISTA DE ARTIGOS COM O NOVO LAYOUT */}
                 <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-3 custom-scrollbar">
                   {selectedWordData.articles.map((art, i) => (
                     <button 
                       key={i} 
                       onClick={() => openArticle(art)} 
-                      className={`
-                        w-full text-left p-4 rounded-[1.5rem] transition-all border 
-                        flex items-center justify-between gap-4 group
-                        ${isDarkMode 
-                            ? 'bg-white/5 hover:bg-white/10 border-transparent hover:border-white/10' 
-                            : 'bg-black/5 hover:bg-black/10 border-transparent hover:border-black/10'
-                        }
-                      `}
+                      className={`w-full text-left p-4 rounded-[1.5rem] transition-all border flex items-center justify-between gap-4 group ${isDarkMode ? 'bg-white/5 hover:bg-white/10 border-transparent hover:border-white/10' : 'bg-black/5 hover:bg-black/10 border-transparent hover:border-black/10'}`}
                       title={art.title}
                     >
-                      {/* Lado Esquerdo: Título e Fonte */}
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold leading-tight line-clamp-2 group-hover:text-purple-400 transition-colors">
-                          {art.title}
-                        </p>
-                        <span className="text-[9px] font-black uppercase opacity-40 mt-1 block">
-                          {art.source?.name || art.source || "Fonte Geral"}
-                        </span>
+                        <p className="text-sm font-bold leading-tight line-clamp-2 group-hover:text-purple-400 transition-colors">{art.title}</p>
+                        <span className="text-[9px] font-black uppercase opacity-40 mt-1 block">{art.source?.name || art.source || "Fonte Geral"}</span>
                       </div>
-                      
-                      {/* Lado Direito: Logo Quadrado Arredondado */}
-                      <img
-                        src={art.logo}
-                        alt=""
-                        className="w-8 h-8 rounded-lg flex-shrink-0 border border-white/10 bg-white object-contain"
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
+                      <img src={art.logo} alt="" className="w-8 h-8 rounded-lg flex-shrink-0 border border-white/10 bg-white object-contain" onError={(e) => { e.target.style.display = 'none'; }}/>
                     </button>
                   ))}
                 </div>
@@ -4320,7 +4308,6 @@ const temperatureBands = [
     </div>
   );
 };
-
 
 
 
