@@ -3996,31 +3996,35 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [wordCloudItems, setWordCloudItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
+  
+  // Estado para expandir fontes (se desejar ver mais detalhes)
   const [activeIndex, setActiveIndex] = useState(null);
+  
+  // Estado da Régua (Controle de Visibilidade dos Cards)
   const [selectedBandIndex, setSelectedBandIndex] = useState(null);
+  
+  // Estado do Modal da Palavra
   const [selectedWordData, setSelectedWordData] = useState(null);
 
-  const STORAGE_KEY = "newsos_trend_radar_v8_integral";
+  const STORAGE_KEY = "newsos_trend_radar_v9_visual";
 
-  // --- Helpers de Estilo ---
+  // --- Definição das Faixas (Cores contínuas) ---
   const temperatureBands = [
-    { label: "🧊 FRIO", minimum: 0, maximum: 2, color: "#3b82f6" },
-    { label: "🟢 LEVE", minimum: 3, maximum: 4, color: "#22c55e" },
-    { label: "🟡 MÉDIO", minimum: 5, maximum: 6, color: "#eab308" },
-    { label: "🟠 QUENTE", minimum: 7, maximum: 8, color: "#f97316" },
-    { label: "🔥 MUITO QUENTE", minimum: 9, maximum: 10, color: "#ef4444" },
+    { id: 0, min: 0, max: 2, color: "#3b82f6" }, // Azul (Frio)
+    { id: 1, min: 3, max: 4, color: "#22c55e" }, // Verde (Leve)
+    { id: 2, min: 5, max: 6, color: "#eab308" }, // Amarelo (Médio)
+    { id: 3, min: 7, max: 8, color: "#f97316" }, // Laranja (Quente)
+    { id: 4, min: 9, max: 10, color: "#ef4444" }, // Vermelho (Muito Quente)
   ];
 
   const getTrendStyle = (score) => {
     const s = Number(score || 0);
-    if (s >= 9) return { color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)", label: "MUITO QUENTE" };
-    if (s >= 7) return { color: "#f97316", bg: "rgba(249, 115, 22, 0.1)", label: "QUENTE" };
-    if (s >= 5) return { color: "#eab308", bg: "rgba(234, 179, 8, 0.1)", label: "MÉDIO" };
-    if (s >= 3) return { color: "#22c55e", bg: "rgba(34, 197, 94, 0.1)", label: "LEVE" };
-    return { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)", label: "FRIO" };
+    if (s >= 9) return { color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" };
+    if (s >= 7) return { color: "#f97316", bg: "rgba(249, 115, 22, 0.1)" };
+    if (s >= 5) return { color: "#eab308", bg: "rgba(234, 179, 8, 0.1)" };
+    if (s >= 3) return { color: "#22c55e", bg: "rgba(34, 197, 94, 0.1)" };
+    return { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" };
   };
-
-  const clampNumber = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
 
   const getBandIndexByScore = (score) => {
     const s = Number(score || 0);
@@ -4028,20 +4032,16 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     return 0;
   };
 
-  // --- Lógica de Drill-down (Modal de Notícias da Palavra) ---
+  // --- Lógica de Drill-down (Modal da Palavra) ---
   const handleWordClick = (word) => {
     if (!newsData) return;
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const searchTerm = normalize(word);
-    
-    const related = newsData.filter(art => 
-      normalize(art.title || "").includes(searchTerm)
-    ).slice(0, 15);
-
+    const search = normalize(word);
+    const related = newsData.filter(art => normalize(art.title || "").includes(search)).slice(0, 15);
     setSelectedWordData({ word, articles: related });
   };
 
-  // --- Cache e Inicialização ---
+  // --- Ciclo de Vida e Cache ---
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -4050,94 +4050,73 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
         setTrends(parsed.trends);
         setWordCloudItems(parsed.cloud);
         setHasGenerated(true);
-      } catch (e) { console.error("Cache reset."); }
+      } catch (e) { console.error("Cache reset"); }
     }
   }, []);
 
   const runTrendAnalysis = async () => {
     const apiKey = getApiKey("widgets");
-    if (!apiKey || !newsData?.length) return alert("IA não configurada ou sem dados.");
+    if (!apiKey || !newsData?.length) return alert("IA não configurada ou sem notícias.");
     
     setLoading(true);
     setActiveIndex(null);
-    setSelectedBandIndex(null);
+    setSelectedBandIndex(null); // Reseta a seleção ao gerar novo radar
 
     const data = await generateTrendRadar(newsData, apiKey);
 
     if (data?.trends?.length > 0) {
-      const hydrated = data.trends.map(t => ({
+      const enriched = data.trends.map(t => ({
         ...t,
         related_articles: (t.source_indices || []).map(i => newsData[i]).filter(Boolean)
       }));
-
-      setTrends(hydrated);
+      setTrends(enriched);
       setWordCloudItems(data.word_cloud || []);
       setHasGenerated(true);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ trends: hydrated, cloud: data.word_cloud }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ trends: enriched, cloud: data.word_cloud }));
     }
     setLoading(false);
   };
 
+  // --- Filtros ---
   const filteredTrends = useMemo(() => {
     if (!trends) return [];
-    if (selectedBandIndex === null) return trends;
+    if (selectedBandIndex === null) return []; // Retorna vazio se nada selecionado
     return trends.filter(t => getBandIndexByScore(t.score) === selectedBandIndex);
   }, [trends, selectedBandIndex]);
 
-  // --- UI Interna: Nuvem de Palavras ---
-  const WordCloud = ({ items }) => (
-    <div className="w-full rounded-[2.5rem] p-8 mb-6 transition-all" 
-         style={{ background: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)", border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'}` }}>
-      <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-8 opacity-30 text-center">Nuvem de Inteligência Térmica</p>
-      <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-4">
-        {items.map((item, i) => {
-          const style = getTrendStyle(item.relevance);
-          const tilt = (i % 3 === 0) ? "rotate-2" : (i % 2 === 0) ? "-rotate-2" : "rotate-0";
-          return (
-            <button
-              key={i}
-              onClick={() => handleWordClick(item.word)}
-              className={`px-5 py-2.5 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
-              style={{
-                fontSize: `${11 + (item.relevance * 1.8)}px`,
-                color: style.color,
-                background: `${style.color}15`,
-                border: `1px solid ${style.color}20`,
-                boxShadow: `0 10px 25px ${style.color}10`
-              }}
-            >
-              {item.word}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+  // --- UI Tokens ---
+  const panelBg = isDarkMode ? "rgba(24, 24, 27, 0.85)" : "rgba(255, 255, 255, 0.95)";
+  const borderColor = isDarkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)";
 
   return (
-    <div className="relative w-full max-w-5xl mx-auto px-4 py-8">
+    <div className="relative w-full max-w-5xl mx-auto px-4 py-8 font-sans">
+      <style jsx="true">{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(155, 155, 155, 0.3); border-radius: 10px; }
+      `}</style>
+
       {/* Header */}
       <div className="flex justify-between items-center mb-10">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-orange-500/10 rounded-2xl">
-            <Activity className="text-orange-500" size={24} />
+            <ActivityIcon className="text-orange-500" size={24} />
           </div>
           <div>
-            <h2 className="text-sm font-black uppercase tracking-widest opacity-80">Trend Radar 24h</h2>
-            <p className="text-[10px] font-bold opacity-40 uppercase tracking-tighter">Análise Semântica via IA</p>
+            <h2 className="text-sm font-black uppercase tracking-widest opacity-80">Trend Radar</h2>
+            <p className="text-[10px] font-bold opacity-40 uppercase">Análise de Temperatura • 24h</p>
           </div>
         </div>
-        <button onClick={runTrendAnalysis} disabled={loading} className={`p-4 rounded-full transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+        <button onClick={runTrendAnalysis} disabled={loading} className={`p-4 rounded-full transition-all active:scale-90 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
           {loading ? <Loader2 className="animate-spin text-orange-500" size={22} /> : <RefreshCw size={22} />}
         </button>
       </div>
 
-      {/* Empty State */}
+      {/* Empty State / Intro */}
       {!hasGenerated && !loading && (
         <div className="h-96 flex flex-col items-center justify-center border-2 border-dashed border-zinc-500/20 rounded-[3.5rem] text-center p-12">
           <Sparkles className="text-orange-500/40 mb-6" size={56} />
-          <h3 className="text-xl font-black mb-3">O que está aquecendo o dia?</h3>
-          <p className="text-sm opacity-50 max-w-xs mb-10 leading-relaxed">Nossa IA analisa os títulos das últimas 24h para encontrar os temas mais quentes e sinais emergentes.</p>
+          <h3 className="text-xl font-black mb-3">Mapeamento de Calor de Notícias</h3>
+          <p className="text-sm opacity-50 max-w-xs mb-10 leading-relaxed">Nossa IA analisa os sinais térmicos das últimas 24h. Ative o radar para visualizar.</p>
           <button onClick={runTrendAnalysis} className="px-10 py-5 bg-orange-500 text-white rounded-full font-black shadow-2xl shadow-orange-500/30 hover:scale-105 transition-all">ATIVAR RADAR</button>
         </div>
       )}
@@ -4146,85 +4125,183 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       {loading && (
         <div className="h-96 flex flex-col items-center justify-center">
           <div className="relative w-28 h-28 mb-8 flex items-center justify-center">
-            <div className="absolute inset-0 border-4 border-orange-500/10 rounded-full" />
+            <div className="absolute inset-0 border-4 border-orange-500/20 rounded-full" />
             <div className="absolute inset-0 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-            <Activity className="text-orange-500 animate-pulse" size={32} />
+            <ActivityIcon className="text-orange-500 animate-pulse" size={32} />
           </div>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Mapeando Sinais Críticos</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Processando Temperaturas</p>
         </div>
       )}
 
       {hasGenerated && !loading && (
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
           
-          {/* Nuvem de Palavras */}
-          <WordCloud items={wordCloudItems} />
-
-          {/* Seletor de Temperatura */}
-          <div className="space-y-4">
-            <div className="flex justify-between px-4 text-[10px] font-black uppercase tracking-widest opacity-40">
-              <span>Seletor de Calor</span>
-              {selectedBandIndex !== null && <button onClick={() => setSelectedBandIndex(null)} className="text-orange-500">Limpar</button>}
-            </div>
-            <div className="h-16 bg-zinc-500/5 rounded-full flex items-center p-2 gap-2 border border-zinc-500/10">
-              {temperatureBands.map((band, idx) => {
-                const active = selectedBandIndex === idx;
+          {/* NUVEM DE PALAVRAS (SEMPRE VISÍVEL APÓS GERAR) */}
+          <div className="p-8 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-8">Termos em Alta</h4>
+            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-4">
+              {wordCloudItems.map((item, i) => {
+                const style = getTrendStyle(item.relevance);
+                const tilt = (i % 3 === 0) ? "rotate-2" : (i % 2 === 0) ? "-rotate-2" : "rotate-0";
                 return (
-                  <button key={idx} onClick={() => setSelectedBandIndex(active ? null : idx)} 
-                          className="flex-1 h-full rounded-full transition-all flex items-center justify-center"
-                          style={{ background: active ? band.color : 'transparent' }}>
-                    <span className={`text-[10px] font-black ${active ? 'text-white' : 'opacity-30'}`}>{band.label}</span>
+                  <button
+                    key={i}
+                    onClick={() => handleWordClick(item.word)}
+                    className={`px-5 py-2.5 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
+                    style={{
+                      fontSize: `${12 + (item.relevance * 1.5)}px`,
+                      color: style.color,
+                      background: `${style.color}15`,
+                      border: `1px solid ${style.color}25`
+                    }}
+                  >
+                    {item.word}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Grid de Tendências */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <AnimatePresence mode="popLayout">
-              {filteredTrends.map((trend, idx) => {
-                const style = getTrendStyle(trend.score);
-                const open = activeIndex === idx;
+          {/* RÉGUA DE TEMPERATURA (BARRA CONTÍNUA) */}
+          <div className="space-y-4">
+            <div className="flex justify-between px-6 text-[10px] font-black uppercase tracking-widest opacity-40">
+              <span>Frio</span>
+              <span>Intenso</span>
+            </div>
+            
+            {/* Container da Régua */}
+            <div className="h-16 rounded-full flex items-center overflow-hidden shadow-inner relative cursor-pointer" 
+                 style={{ background: isDarkMode ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.05)" }}>
+              
+              {temperatureBands.map((band, idx) => {
+                const isActive = selectedBandIndex === idx;
+                const isSomethingSelected = selectedBandIndex !== null;
+                
                 return (
-                  <motion.div key={trend.topic} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
-                    <button onClick={() => setActiveIndex(open ? null : idx)} 
-                            className={`w-full text-left p-7 rounded-[2.5rem] transition-all border ${open ? 'shadow-2xl' : ''}`}
-                            style={{ background: isDarkMode ? "rgba(255,255,255,0.04)" : "white", borderColor: open ? style.color : "transparent" }}>
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-2 px-3 py-1 rounded-lg" style={{ background: style.bg }}>
-                          <div className="w-2 h-2 rounded-full" style={{ background: style.color }} />
-                          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: style.color }}>{trend.score}/10</span>
-                        </div>
-                        <ChevronRight size={18} className={`transition-transform duration-300 ${open ? 'rotate-90 text-orange-500' : 'opacity-20'}`} />
-                      </div>
-                      <h3 className="font-bold text-base leading-snug mb-3">{trend.topic}</h3>
-                      <AnimatePresence>
-                        {open && (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                            <p className="text-xs opacity-60 my-5 leading-relaxed">{trend.summary}</p>
-                            <div className="space-y-3 pt-4 border-t border-zinc-500/10">
-                              <p className="text-[9px] font-black uppercase opacity-30">Evidências no Radar</p>
-                              {trend.related_articles.map((art, i) => (
-                                <div key={i} onClick={(e) => { e.stopPropagation(); openArticle(art); }} className="p-4 rounded-2xl bg-zinc-500/5 hover:bg-orange-500/10 transition-colors flex items-center justify-between group cursor-pointer">
-                                  <span className="text-[11px] font-bold truncate pr-4">{art.title}</span>
-                                  <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 text-orange-500" />
-                                </div>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </button>
+                  <motion.div
+                    key={idx}
+                    onClick={() => setSelectedBandIndex(isActive ? null : idx)}
+                    className="relative h-full flex items-center justify-center transition-all duration-500 ease-out"
+                    // Lógica de largura: Se ativo, cresce (flex-grow). Se inativo, fica padrão.
+                    style={{ 
+                      flex: isActive ? 3 : 1,
+                      background: band.color,
+                      opacity: isActive ? 1 : (isSomethingSelected ? 0.3 : 0.8), // Fica opaco se outro estiver selecionado
+                      filter: isActive ? 'brightness(1.2)' : 'grayscale(0.3)',
+                    }}
+                  >
+                    {/* Brilho interno se ativo */}
+                    {isActive && (
+                      <motion.div 
+                        layoutId="activeGlow"
+                        className="absolute inset-0 z-10"
+                        style={{ boxShadow: `inset 0 0 30px rgba(255,255,255,0.6), 0 0 40px ${band.color}` }}
+                      />
+                    )}
+                    
+                    {/* Indicador visual (ponto) se ativo */}
+                    {isActive && (
+                       <motion.div 
+                         initial={{ scale: 0 }} animate={{ scale: 1 }}
+                         className="w-2 h-2 rounded-full bg-white shadow-lg z-20"
+                       />
+                    )}
                   </motion.div>
                 );
               })}
-            </AnimatePresence>
+            </div>
+            <p className="text-center text-[10px] opacity-40 mt-2 font-medium">
+              {selectedBandIndex === null ? "Toque em uma cor para revelar os cards" : "Toque novamente para fechar"}
+            </p>
           </div>
+
+          {/* GRID DE TENDÊNCIAS (VISÍVEL APENAS QUANDO FAIXA SELECIONADA) */}
+          <AnimatePresence>
+            {selectedBandIndex !== null && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                exit={{ opacity: 0, y: 20 }}
+                className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              >
+                {filteredTrends.length > 0 ? (
+                  filteredTrends.map((trend, idx) => {
+                    const style = getTrendStyle(trend.score);
+                    const open = activeIndex === idx;
+                    
+                    return (
+                      <motion.div 
+                        key={trend.topic} 
+                        layout 
+                        initial={{ opacity: 0, scale: 0.95 }} 
+                        animate={{ opacity: 1, scale: 1 }} 
+                        exit={{ opacity: 0, scale: 0.95 }}
+                      >
+                        <button 
+                          onClick={() => setActiveIndex(open ? null : idx)} 
+                          className={`w-full text-left p-7 rounded-[2.5rem] transition-all border ${open ? 'shadow-2xl' : ''}`}
+                          style={{ 
+                            background: panelBg, 
+                            borderColor: open ? style.color : borderColor 
+                          }}
+                        >
+                          <div className="flex justify-between items-center mb-3">
+                            <div className="flex items-center gap-2 px-3 py-1 rounded-lg" style={{ background: style.bg }}>
+                              <div className="w-2 h-2 rounded-full" style={{ background: style.color }} />
+                              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: style.color }}>
+                                {trend.score}/10
+                              </span>
+                            </div>
+                            <ChevronRight size={18} className={`transition-transform duration-300 ${open ? 'rotate-90 text-orange-500' : 'opacity-20'}`} />
+                          </div>
+                          
+                          <h3 className="font-bold text-base leading-snug mb-2">{trend.topic}</h3>
+                          
+                          {/* RESUMO SEMPRE VISÍVEL ABAIXO DO TÍTULO */}
+                          <p className="text-xs opacity-70 leading-relaxed font-medium mb-2">{trend.summary}</p>
+
+                          <AnimatePresence>
+                            {open && (
+                              <motion.div 
+                                initial={{ height: 0, opacity: 0 }} 
+                                animate={{ height: 'auto', opacity: 1 }} 
+                                exit={{ height: 0, opacity: 0 }} 
+                                className="overflow-hidden"
+                              >
+                                <div className="space-y-3 pt-4 border-t border-zinc-500/10 mt-4">
+                                  <p className="text-[9px] font-black uppercase opacity-30 tracking-[0.2em]">Fontes Consultadas</p>
+                                  <div className="flex flex-col gap-2">
+                                    {trend.related_articles.map((art, i) => (
+                                      <div 
+                                        key={i} 
+                                        onClick={(e) => { e.stopPropagation(); openArticle(art); }} 
+                                        className="p-3 rounded-2xl bg-zinc-500/5 hover:bg-orange-500/10 transition-colors flex items-center justify-between group cursor-pointer"
+                                      >
+                                        <span className="text-[11px] font-bold truncate pr-4">{art.title}</span>
+                                        <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 text-orange-500" />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </button>
+                      </motion.div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-1 md:col-span-2 py-10 text-center opacity-40">
+                    <p className="text-sm font-bold">Nenhum tema encontrado nesta faixa de temperatura.</p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
 
-      {/* Modal de Detalhes da Palavra */}
+      {/* MODAL DE DRILL-DOWN DA PALAVRA */}
       <AnimatePresence>
         {selectedWordData && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-5">
@@ -4234,7 +4311,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
               <div className="p-10">
                 <div className="flex justify-between items-start mb-10">
                   <div>
-                    <span className="text-[10px] font-black uppercase text-orange-500 mb-2 block">Análise Detalhada</span>
+                    <span className="text-[10px] font-black uppercase text-orange-500 mb-2 block">Contexto da Palavra</span>
                     <h3 className="text-3xl font-black tracking-tight">{selectedWordData.word}</h3>
                   </div>
                   <button onClick={() => setSelectedWordData(null)} className="p-4 bg-zinc-500/10 rounded-full active:scale-90 transition-all"><X size={24} /></button>
@@ -4252,11 +4329,6 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
           </div>
         )}
       </AnimatePresence>
-
-      <style jsx="true">{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(155, 155, 155, 0.2); border-radius: 10px; }
-      `}</style>
     </div>
   );
 };
