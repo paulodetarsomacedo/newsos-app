@@ -527,18 +527,10 @@ const fetchMarketData = async () => {
         await Promise.all(symbols.map(async (symbol) => {
             try {
                 const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-                
-                // --- A ÚNICA MUDANÇA É AQUI ---
-                // Trocamos 'corsproxy.io' por 'api.allorigins.win/get?url='
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-                
+                const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(targetUrl);
                 const res = await fetch(proxyUrl);
                 if (!res.ok) throw new Error('Network err');
-                
-                const jsonResponse = await res.json();
-                // O AllOrigins encapsula a resposta em um campo "contents"
-                const json = JSON.parse(jsonResponse.contents); 
-                
+                const json = await res.json();
                 const meta = json.chart?.result?.[0]?.meta;
                 if (meta) {
                     const price = meta.regularMarketPrice;
