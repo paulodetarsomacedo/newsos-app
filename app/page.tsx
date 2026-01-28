@@ -2566,11 +2566,11 @@ Você receberá uma lista de TÍTULOS de notícias (índice|título).
 
 SUA MISSÃO EM DUAS PARTES:
 
-PARTE 1: TENDÊNCIAS (10 TEMAS)
-1. Identifique as 10 tendências mais importantes agrupando títulos semanticamente.
+PARTE 1: TENDÊNCIAS (12 TEMAS)
+1. Identifique as 12 tendências mais importantes agrupando títulos semanticamente.
 2. Para cada tendência, crie uma micro-manchete (campo "topic", máx 9 palavras).
 3. Atribua um score de impacto de 1 a 10.
-4. REGRA DE TEMPERATURA: A maioria (cerca de 8) deve ser "Quente" (score 7-10). Entretanto, você DEVE incluir obrigatoriamente pelo menos 2 tendências de impacto "Médio" ou "Frio" (score 1-6) para representar sinais fracos ou temas em resfriamento.
+4. REGRA DE TEMPERATURA: A maioria (cerca de 8) deve ser "Quente" (score 7-10). Entretanto, você DEVE incluir obrigatoriamente pelo menos 2 tendências de impacto "Médio" e 2 tendências de impacto "Frio" (score 1-6) para representar sinais fracos ou temas em resfriamento.
 5. Indique os índices das notícias que compõem a tendência no campo "source_indices".
 
 PARTE 2: NUVEM DE PALAVRAS (20 TERMOS)
@@ -4160,50 +4160,149 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
             </div>
           </div>
 
-          {/* RÉGUA DE TEMPERATURA COM BRILHO DINÂMICO */}
-          <div className="space-y-4">
-            <div className="flex justify-between px-6 text-[10px] font-black uppercase tracking-widest opacity-40">
-              <span>Frio</span>
-              <span>Intenso</span>
-            </div>
-            
-            <div className="h-13 rounded-3xl flex items-center overflow-hidden shadow-inner relative cursor-pointer" 
-                 style={{ background: isDarkMode ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.05)" }}>
-              {temperatureBands.map((band, idx) => {
-                const isActive = selectedBandIndex === idx;
-                const isSomethingSelected = selectedBandIndex !== null;
-                const newsCount = countsByBand[idx];
-                
-                // LÓGICA DO BRILHO: Proporcional à contagem de notícias
-                const baseBrightness = 0.6 + (newsCount / maxNewsInAnyBand) * 0.8; // Varia de 0.6 (escuro) a 1.4 (brilhante)
-                const finalBrightness = isActive ? 1.5 : (isSomethingSelected ? 0.4 : baseBrightness);
-                
-                return (
-                  <motion.div
-                    key={idx}
-                    onClick={() => setSelectedBandIndex(isActive ? null : idx)}
-                    className="relative h-full flex items-center justify-center transition-all duration-500 ease-out"
-                    style={{ 
-                      flex: isActive ? 3 : 1,
-                      background: band.color,
-                      filter: `brightness(${finalBrightness})`,
-                    }}
-                    title={`${newsCount} temas nesta faixa`}
-                  >
-                    {isActive && (
-                      <motion.div layoutId="activeGlow" className="absolute inset-0 z-10" style={{ boxShadow: `inset 0 0 30px rgba(255,255,255,0.6), 0 0 40px ${band.color}` }} />
-                    )}
-                    {isActive && (
-                       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-2 h-2 rounded-full bg-white shadow-lg z-20" />
-                    )}
-                  </motion.div>
-                );
-              })}
-            </div>
-            <p className="text-center text-[10px] opacity-40 mt-2 font-medium">
-              {selectedBandIndex === null ? "Toque em uma cor para revelar os cards" : "Toque novamente para fechar"}
-            </p>
-          </div>
+          {/* RÉGUA DE TEMPERATURA — “ENERGY / DISTRIBUTION BAR” */}
+<div
+  className="h-13 rounded-3xl flex items-stretch overflow-hidden shadow-inner relative select-none"
+  style={{ background: isDarkMode ? "rgba(0,0,0,0.28)" : "rgba(0,0,0,0.05)" }}
+>
+  {temperatureBands.map((band, idx) => {
+    const isActive = selectedBandIndex === idx;
+    const isSomethingSelected = selectedBandIndex !== null;
+
+    const newsCount = countsByBand[idx] || 0;
+
+    // normaliza 0..1 (evita NaN)
+    const t = maxNewsInAnyBand > 0 ? newsCount / maxNewsInAnyBand : 0;
+
+    // “energia” base: controla glow + opacidade
+    const energy = 0.10 + t * 0.90; // 0.10..1.00
+
+    // quando algo está selecionado, as não-ativas “apagam”
+    const dim = isSomethingSelected && !isActive ? 0.22 : 1;
+
+    // saturação: não-ativas ficam mais “cinza” quando algo está selecionado
+    const saturation = isSomethingSelected && !isActive ? 0.35 : 1;
+
+    // brilho final: ativa ganha boost, e também respeita energia
+    const brightness = (0.90 + energy * 0.55) * (isActive ? 1.20 : 1) * dim;
+
+    // glow externo da faixa (mais volume = mais glow)
+    const glowAlpha = (0.10 + energy * 0.55) * (isActive ? 1.45 : 1) * dim;
+
+    // largura: ativa expande, mas sem “explodir” demais
+    const flexValue = isActive ? 2.6 : 1;
+
+    return (
+      <motion.button
+        key={idx}
+        type="button"
+        onClick={() => setSelectedBandIndex(isActive ? null : idx)}
+        className="relative h-full flex items-center justify-center outline-none"
+        style={{
+          flex: flexValue,
+          background: band.color,
+          filter: `brightness(${brightness}) saturate(${saturation})`,
+          transition: "filter 450ms ease, flex 450ms ease",
+        }}
+        title={`${newsCount} temas nesta faixa`}
+      >
+        {/* CAMADA 1 — “ENERGIA” (glow interno proporcional ao volume) */}
+        <div
+          className="absolute inset-0"
+          style={{
+            opacity: glowAlpha,
+            background:
+              "radial-gradient(circle at 50% 55%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.18) 35%, rgba(255,255,255,0) 70%)",
+            mixBlendMode: "screen",
+            transition: "opacity 450ms ease",
+          }}
+        />
+
+        {/* CAMADA 2 — “SHEEN” (reflexo animado só se tiver volume) */}
+        {newsCount > 0 && (
+          <motion.div
+            className="absolute inset-0"
+            initial={false}
+            animate={{
+              opacity: isSomethingSelected && !isActive ? 0.12 : 0.22 + energy * 0.22,
+              x: ["-35%", "35%"],
+            }}
+            transition={{
+              x: { duration: 2.8 + (1 - energy) * 1.6, repeat: Infinity, ease: "easeInOut" },
+              opacity: { duration: 0.45, ease: "easeOut" },
+            }}
+            style={{
+              background:
+                "linear-gradient(115deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 45%, rgba(255,255,255,0) 70%)",
+              mixBlendMode: "overlay",
+            }}
+          />
+        )}
+
+        {/* CAMADA 3 — borda + glow forte quando ativa */}
+        {isActive && (
+          <motion.div
+            layoutId="activeBandGlow"
+            className="absolute inset-0 z-10"
+            style={{
+              boxShadow: `inset 0 0 0 2px rgba(255,255,255,0.55), 0 0 22px rgba(255,255,255,0.35), 0 0 52px ${band.color}`,
+            }}
+          />
+        )}
+
+        {/* BADGE DE CONTAGEM (o usuário “lê” a régua sem clicar) */}
+        <motion.div
+          initial={false}
+          animate={{
+            scale: isActive ? 1.05 : 1,
+            opacity: isSomethingSelected && !isActive ? 0.35 : 0.92,
+          }}
+          transition={{ duration: 0.25 }}
+          className="relative z-20 px-2 py-1 rounded-full text-[10px] font-black tracking-wide"
+          style={{
+            background: "rgba(255,255,255,0.18)",
+            border: "1px solid rgba(255,255,255,0.22)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            color: "rgba(255,255,255,0.92)",
+            textShadow: "0 1px 8px rgba(0,0,0,0.25)",
+          }}
+        >
+          {newsCount}
+        </motion.div>
+
+        {/* PONTO INDICADOR */}
+        {isActive && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute bottom-2 z-20 w-2 h-2 rounded-full bg-white shadow-lg"
+          />
+        )}
+      </motion.button>
+    );
+  })}
+
+  {/* “HINT” de seleção: quando nada selecionado, seta sutil no centro */}
+  {selectedBandIndex === null && (
+    <div
+      className="pointer-events-none absolute inset-0 flex items-center justify-center"
+      style={{ opacity: isDarkMode ? 0.12 : 0.10 }}
+    >
+      <div
+        className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase"
+        style={{
+          background: "rgba(255,255,255,0.35)",
+          border: "1px solid rgba(255,255,255,0.45)",
+          color: "rgba(0,0,0,0.65)",
+        }}
+      >
+        distribuição
+      </div>
+    </div>
+  )}
+</div>
+
 
           {/* GRID DE TENDÊNCIAS */}
           <AnimatePresence>
