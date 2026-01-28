@@ -5,6 +5,7 @@ import Parser from "npm:rss-parser@3.13.0";
 // @ts-ignore
 import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
 
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -33,18 +34,24 @@ function fixImageUrl(url: string | null, siteUrl: string): string | null {
   let clean = url.trim().replace(/^['"]+|['"]+$/g, '').replace(/\s/g, '');
   if (!clean) return null;
 
+  // CORREÇÃO: Trata URLs quebradas (Ex: http://site.comhttps://site.com)
   const httpsIndex = clean.lastIndexOf('https://');
   const httpIndex = clean.lastIndexOf('http://');
   const maxIndex = Math.max(httpsIndex, httpIndex);
 
   if (maxIndex > -1) {
-      return clean.substring(maxIndex);
+      // Pega apenas a parte final da URL
+      clean = clean.substring(maxIndex);
   }
 
+  // Garante HTTPS
   if (clean.startsWith('//')) {
       return `https:${clean}`;
+  } else if (clean.startsWith('http://')) {
+      return clean.replace('http://', 'https://');
   }
 
+  // Lógica original de resolver links relativos
   try {
       if (!siteUrl.startsWith('http')) siteUrl = `https://${siteUrl}`;
       return new URL(clean, siteUrl).href;
@@ -62,6 +69,7 @@ function extractImageFromItem(item: any): string | null {
     if (item.mediaThumbnail?.url) return item.mediaThumbnail.url;
     if (item.enclosure?.url && item.enclosure?.type?.startsWith('image')) return item.enclosure.url;
 
+    // Confiando na tag <image> simples que Portal O Dia/Portal AZ usam
     if (item.image) {
         if (typeof item.image === 'string' && item.image.startsWith('http')) return item.image;
         if (item.image.url) return item.image.url;
@@ -99,8 +107,9 @@ async function fetchOgImage(url: string): Promise<string | null> {
         const controller = new AbortController();
         setTimeout(() => controller.abort(), 3500);
         
+        // Uso de User-Agent real para evitar bloqueios de meta tags
         const res = await fetch(url, { 
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' },
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36)' },
             signal: controller.signal 
         });
         
@@ -108,7 +117,7 @@ async function fetchOgImage(url: string): Promise<string | null> {
         const html = await res.text();
         
         const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
-        return match ? match[1] : null;
+        return match ? match[1].trim() : null;
     } catch (e) {
         return null;
     }
@@ -130,15 +139,40 @@ serve(async (req) => {
     if (!url) throw new Error("URL is required");
 
     let xmlText = "";
+    let isSuccess = false;
+
+    // --- LÓGICA DE FETCH MODIFICADA: ANTI-BLOQUEIO ---
     try {
-        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        // MÁGICA: ANTI-BLOQUEIO + AGRESSIVIDADE NO FETCH
+        const res = await fetch(url, { 
+            headers: { 
+                // CRÍTICO: Finge ser um navegador real para furar bloqueios
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' 
+            },
+            // CRÍTICO: Não deixa o Supabase tentar cachear uma resposta de erro
+            cache: 'no-store' 
+        });
+        
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        
         xmlText = await res.text();
+        isSuccess = true;
     } catch(e) {
+        // Se a tentativa com Supabase e User-Agent falhar (ERRO 400), usa o Proxy de fallback
+        console.warn(`Fetch primário falhou para ${url}: ${e.message}. Tentando Proxy...`);
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
         const res = await fetch(proxyUrl);
-        const json = await res.json();
-        xmlText = json.contents;
+        
+        if (res.ok) {
+            const json = await res.json();
+            xmlText = json.contents;
+            isSuccess = true;
+        }
     }
+    
+    if (!isSuccess) throw new Error("Falha ao carregar XML: Bloqueado pelo site ou URL inválida.");
+
+    // FIM DA LÓGICA DE FETCH MODIFICADA
 
     const feed = await parser.parseString(repairXML(xmlText));
     let isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
@@ -157,27 +191,29 @@ serve(async (req) => {
 
       if (videoId) {
           isYoutube = true;
+          // CRÍTICO: Thumb do YouTube (prioridade absoluta)
           img = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`; 
       } else {
+          // Lógica de Extração de Imagem
           img = extractImageFromItem(item); 
           if (!img && item.link) {
+              // TENTA fetchOgImage como fallback (a função do seu código original)
               img = await fetchOgImage(item.link);
           }
+          // CORREÇÃO: Aplica a limpeza de URL e HTTPS
           img = fixImageUrl(img, feed.link || url);
       }
 
-      // ==========================================================
-      // === A MUDANÇA ESTÁ AQUI: OBJETO DE RETORNO ENXUTO ===
-      // ==========================================================
+      // --- RETORNO DE DADOS ---
       return {
         id: videoId || item.guid || item.link || String(index),
         title: item.title,
         link: item.link,
         pubDate: item.pubDate || new Date().toISOString(),
-        // CAMPO 'summary' E 'enclosure' REMOVIDOS PARA ECONOMIZAR EGRESS
         img: img,
-        author: item.creator || feed.title, 
-        videoId: videoId
+        videoId: videoId,
+        description: item.description, 
+        contentEncoded: item.contentEncoded, 
       };
     }));
 
@@ -190,7 +226,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200
     });
-
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
