@@ -2615,7 +2615,7 @@ ${context}
   try {
     const response = await fetch(
       // Recomendação: O modelo 1.5 Flash é excelente para tarefas de extração de JSON e é muito rápido.
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
