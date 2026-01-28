@@ -2550,71 +2550,60 @@ const MarketPulseHeuristicWidget = ({ onGenerateWithAI, isDarkMode }) => {
 
 
 // ================================================================
-// generateTrendRadar (VERSÃO COMPLETA COM NUVEM DE PALAVRAS VIA IA)
+// generateTrendRadar (10 TEMAS + MIX DE TEMPERATURA + NUVEM)
 // ================================================================
 const generateTrendRadar = async (news, apiKey) => {
-  // Retorna nulo se não houver notícias para analisar
   if (!news || news.length === 0) return null;
 
-  // Prepara o contexto enviando os primeiros 100 títulos para a IA
   const context = news
     .slice(0, 100)
     .map((n, index) => `${index}|${n.title}`)
     .join("\n");
 
-  // NOVO PROMPT INTELIGENTE E UNIFICADO
   const prompt = `
-Você é um Analista de Dados sênior, especialista em identificar tendências e sinais emergentes a partir de grandes volumes de notícias.
-Você receberá uma lista de TÍTulos de notícias, sem acesso ao conteúdo ou resumo.
+Você é um Analista de Dados sênior, especialista em identificar tendências emergentes.
+Você receberá uma lista de TÍTULOS de notícias (índice|título).
 
-SUA DUPLA MISSÃO:
-Analisar os títulos para extrair (1) as principais tendências e (2) uma nuvem de palavras-chave.
+SUA MISSÃO EM DUAS PARTES:
 
-TAREFA 1: ANÁLISE DE TENDÊNCIAS
-1. Agrupe os TÍTULOS por similaridade semântica para identificar as 8 tendências mais relevantes.
-2. Para cada tendência, crie uma micro-manchete de impacto (máximo 9 palavras) no campo "topic".
-3. Atribua um score de impacto (1-10), uma cor hexadecimal correspondente, e um resumo conciso sobre o fato principal.
-4. Indique os índices das notícias que formam cada tendência no campo "source_indices".
+PARTE 1: TENDÊNCIAS (10 TEMAS)
+1. Identifique as 10 tendências mais importantes agrupando títulos semanticamente.
+2. Para cada tendência, crie uma micro-manchete (campo "topic", máx 9 palavras).
+3. Atribua um score de impacto de 1 a 10.
+4. REGRA DE TEMPERATURA: A maioria (cerca de 8) deve ser "Quente" (score 7-10). Entretanto, você DEVE incluir obrigatoriamente pelo menos 2 tendências de impacto "Médio" ou "Frio" (score 1-6) para representar sinais fracos ou temas em resfriamento.
+5. Indique os índices das notícias que compõem a tendência no campo "source_indices".
 
-TAREFA 2: NUVEM DE PALAVRAS-CHAVE
-1. Após identificar as tendências, analise os termos e entidades mais importantes em TODOS os títulos.
-2. Extraia os 20 palavras ou termos (com no máximo 2 palavras) mais representativos do cenário atual.
-3. Para cada termo, atribua um score de "relevance" (1-10) baseado em sua frequência, importância e conexão com as tendências de maior impacto.
+PARTE 2: NUVEM DE PALAVRAS (20 TERMOS)
+1. Extraia as 20 palavras ou termos compostos mais relevantes do momento.
+2. Atribua um score de "relevance" (1-10) para cada uma.
 
-REGRAS GERAIS:
-- O campo "topic" DEVE ser uma manchete (ex: "Avanço da IA na Saúde"), NUNCA uma palavra única (ex: "IA").
-- RETORNE APENAS um único objeto JSON válido. Não inclua explicações, comentários ou markdown no output.
+REGRAS TÉCNICAS:
+- Retorne APENAS o JSON, sem textos explicativos.
+- O campo "topic" nunca deve ser uma palavra única.
 
-FORMATO DA RESPOSTA JSON:
+FORMATO DO JSON:
 {
   "trends": [
     {
-      "topic": "Micro-Manchete da Tendência",
+      "topic": "Título Dinâmico da Tendência",
       "score": 9,
       "hex": "#ef4444",
-      "summary": "Um fato curto e direto sobre este tópico, inferido dos títulos.",
-      "source_indices": [0, 5, 12]
+      "summary": "Resumo executivo da tendência.",
+      "source_indices": [1, 4, 8]
     }
   ],
   "word_cloud": [
-    {
-      "word": "Inteligência Artificial",
-      "relevance": 10
-    },
-    {
-      "word": "Mercado Financeiro",
-      "relevance": 8
-    }
+    { "word": "Exemplo", "relevance": 10 },
+    { "word": "Termo Composto", "relevance": 5 }
   ]
 }
 
-DADOS PARA ANÁLISE (APENAS TÍTULOS):
+DADOS:
 ${context}
 `;
 
   try {
     const response = await fetch(
-      // Recomendação: O modelo 1.5 Flash é excelente para tarefas de extração de JSON e é muito rápido.
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
@@ -2627,39 +2616,23 @@ ${context}
     );
 
     const data = await response.json();
-
-    if (!response.ok || data.error) {
-       console.error("Erro na API Generativa:", data.error || "Resposta inválida.");
-       // Retorna um objeto com arrays vazios para evitar quebras no app
-       return { trends: [], word_cloud: [] };
-    }
+    if (!response.ok || data.error) return { trends: [], word_cloud: [] };
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) {
-      console.warn("API não retornou texto.");
-      return { trends: [], word_cloud: [] };
-    }
+    if (!text) return { trends: [], word_cloud: [] };
 
-    // Limpeza do texto JSON para garantir que o parse funcione corretamente
     const cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const json = JSON.parse(cleanText);
 
-    // Retorna o objeto completo, garantindo que as chaves existam e sejam arrays
     return {
       trends: Array.isArray(json.trends) ? json.trends : [],
       word_cloud: Array.isArray(json.word_cloud) ? json.word_cloud : [],
     };
-
   } catch (error) {
-    console.warn("Falha na execução do Trend Radar:", error);
-    // Retorna um objeto seguro em caso de qualquer erro de fetch ou parse
+    console.warn("Erro Trend Radar:", error);
     return { trends: [], word_cloud: [] };
   }
 };
-
-// --- WIDGET: SMART DIGEST (DESIGN EDITORIAL PREMIUM) ---
-
-
 
 
 
@@ -4018,45 +3991,18 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // TrendRadar (COMPLETO: COM NUVEM VIA IA + FILTRO + DESIGN MODERNO)
 // ==============================
 const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
-  // --- Estados de Dados ---
+  // --- Estados ---
   const [trends, setTrends] = useState(null);
-  const [wordCloudItems, setWordCloudItems] = useState([]); // ✅ Novo estado para a nuvem da IA
-
-  // --- Estados de UI ---
+  const [wordCloudItems, setWordCloudItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(null);
   const [hasGenerated, setHasGenerated] = useState(false);
-
-  // ✅ Janela fixa em 24h (sem botões)
-  const timeWindow = "24h";
-
-  // Faixa selecionada na régua
+  const [activeIndex, setActiveIndex] = useState(null);
   const [selectedBandIndex, setSelectedBandIndex] = useState(null);
+  const [selectedWordData, setSelectedWordData] = useState(null);
 
-  // Para reiniciar animação de snap ao selecionar faixa
-  const [selectionStamp, setSelectionStamp] = useState(0);
+  const STORAGE_KEY = "newsos_trend_radar_v8_integral";
 
-  // Modo comparação (dois índices originais)
-  const [compareSelection, setCompareSelection] = useState([]);
-
-  // ✅ Filtro ativo da nuvem de palavras
-  const [wordFilter, setWordFilter] = useState(null);
-
-  // Cache Keys
-  const STORAGE_KEY_CURRENT = "newsos_trend_radar_data_v6";
-  const STORAGE_KEY_PREVIOUS = "newsos_trend_radar_previous_v1";
-
-  // ============================================================
-  // HELPERS DE ESTILO E LÓGICA (MANTIDOS E COMPLETOS)
-  // ============================================================
-  const getTrendStyle = (score) => {
-    if (score >= 9) return { color: "#ef4444", bandLabel: "🔥 MUITO QUENTE" };
-    if (score >= 7) return { color: "#f97316", bandLabel: "🟠 QUENTE" };
-    if (score >= 5) return { color: "#eab308", bandLabel: "🟡 MÉDIO" };
-    if (score >= 3) return { color: "#22c55e", bandLabel: "🟢 LEVE" };
-    return { color: "#3b82f6", bandLabel: "🧊 FRIO" };
-  };
-
+  // --- Helpers de Estilo ---
   const temperatureBands = [
     { label: "🧊 FRIO", minimum: 0, maximum: 2, color: "#3b82f6" },
     { label: "🟢 LEVE", minimum: 3, maximum: 4, color: "#22c55e" },
@@ -4065,1340 +4011,252 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     { label: "🔥 MUITO QUENTE", minimum: 9, maximum: 10, color: "#ef4444" },
   ];
 
-  const clampNumber = (value, minimum, maximum) => {
-    return Math.min(maximum, Math.max(minimum, value));
+  const getTrendStyle = (score) => {
+    const s = Number(score || 0);
+    if (s >= 9) return { color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)", label: "MUITO QUENTE" };
+    if (s >= 7) return { color: "#f97316", bg: "rgba(249, 115, 22, 0.1)", label: "QUENTE" };
+    if (s >= 5) return { color: "#eab308", bg: "rgba(234, 179, 8, 0.1)", label: "MÉDIO" };
+    if (s >= 3) return { color: "#22c55e", bg: "rgba(34, 197, 94, 0.1)", label: "LEVE" };
+    return { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)", label: "FRIO" };
   };
 
-  const getConfidenceValue = (trendItem) => {
-    const relatedCount = Array.isArray(trendItem.related_articles)
-      ? trendItem.related_articles.length
-      : 0;
-    const normalizedRelated = clampNumber(relatedCount / 8, 0, 1);
-    const normalizedScore = clampNumber(Number(trendItem.score || 0) / 10, 0, 1);
-    const confidence = clampNumber(
-      0.65 * normalizedRelated + 0.35 * normalizedScore,
-      0,
-      1
-    );
-    return confidence;
-  };
-
-  const getVolumeValue = (trendItem) => {
-    return Array.isArray(trendItem.related_articles) ? trendItem.related_articles.length : 0;
-  };
-
-  const parseArticleDate = (article) => {
-    const candidate =
-      article?.publishedAt ||
-      article?.pubDate ||
-      article?.date ||
-      article?.createdAt ||
-      article?.isoDate ||
-      article?.published ||
-      null;
-
-    if (!candidate) return null;
-
-    const parsed = new Date(candidate);
-    if (Number.isNaN(parsed.getTime())) return null;
-    return parsed;
-  };
-
-  const filterNewsByTimeWindow = (allNews, windowKey) => {
-    if (!Array.isArray(allNews) || allNews.length === 0) return [];
-    const now = new Date();
-    let windowMilliseconds = 24 * 60 * 60 * 1000;
-
-    if (windowKey === "6h") windowMilliseconds = 6 * 60 * 60 * 1000;
-    if (windowKey === "24h") windowMilliseconds = 24 * 60 * 60 * 1000;
-
-    const cutoff = new Date(now.getTime() - windowMilliseconds);
-    let foundAnyValidDate = false;
-
-    const filtered = allNews.filter((article) => {
-      const articleDate = parseArticleDate(article);
-      if (articleDate) foundAnyValidDate = true;
-      if (!articleDate) return true;
-      return articleDate >= cutoff;
-    });
-
-    if (!foundAnyValidDate) return allNews;
-    return filtered;
-  };
+  const clampNumber = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
 
   const getBandIndexByScore = (score) => {
-    const numeric = clampNumber(Number(score || 0), 0, 10);
-    if (numeric >= 9) return 4;
-    if (numeric >= 7) return 3;
-    if (numeric >= 5) return 2;
-    if (numeric >= 3) return 1;
+    const s = Number(score || 0);
+    if (s >= 9) return 4; if (s >= 7) return 3; if (s >= 5) return 2; if (s >= 3) return 1;
     return 0;
   };
 
-  // ============================================================
-  // LÓGICA DE FILTRO POR PALAVRA (Simples e Direta)
-  // ============================================================
+  // --- Lógica de Drill-down (Modal de Notícias da Palavra) ---
+  const handleWordClick = (word) => {
+    if (!newsData) return;
+    const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const searchTerm = normalize(word);
+    
+    const related = newsData.filter(art => 
+      normalize(art.title || "").includes(searchTerm)
+    ).slice(0, 15);
 
-  const stripAccents = (s) => {
-    return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    setSelectedWordData({ word, articles: related });
   };
 
-  const trendMatchesWord = (trendItem, rawWord) => {
-    if (!trendItem || !rawWord) return true;
-
-    const w = stripAccents(String(rawWord).toLowerCase()).trim();
-    if (!w) return true;
-
-    const haystackParts = [];
-    if (typeof trendItem.topic === "string") haystackParts.push(trendItem.topic);
-    if (typeof trendItem.summary === "string") haystackParts.push(trendItem.summary);
-
-    if (Array.isArray(trendItem.related_articles)) {
-      trendItem.related_articles.slice(0, 12).forEach((article) => {
-        if (typeof article?.title === "string") haystackParts.push(article.title);
-      });
-    }
-
-    const hay = stripAccents(haystackParts.join(" ").toLowerCase());
-    return hay.includes(w);
-  };
-
-  // ============================================================
-  // ✅ COMPONENTE WORD CLOUD (Moderno e Baseado na IA)
-  // ============================================================
-  const WordCloud = ({ items, activeWord, onSelect, onClear }) => {
-    if (!Array.isArray(items) || items.length === 0) return null;
-
-    return (
-      <div
-        className="w-full rounded-2xl px-4 py-3 mb-3"
-        style={{
-          background: isDarkMode ? "rgba(0,0,0,0.28)" : "rgba(255,255,255,0.70)",
-          border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.08)",
-          boxShadow: isDarkMode
-            ? "0 18px 45px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)"
-            : "0 18px 45px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.35)",
-          backdropFilter: "blur(14px)",
-        }}
-      >
-        <div className="flex items-center justify-between mb-2 gap-3">
-          <div className="flex flex-col">
-            <span
-              className="text-[10px] font-black uppercase tracking-widest"
-              style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)" }}
-            >
-              Nuvem de Assuntos
-            </span>
-            <span
-              className="text-[10px] font-black uppercase tracking-widest"
-              style={{ color: isDarkMode ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.30)" }}
-            >
-              clique para filtrar os cards
-            </span>
-          </div>
-
-          {activeWord ? (
-            <button
-              type="button"
-              onClick={onClear}
-              className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95 transition-all"
-              style={{
-                background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
-                border: isDarkMode ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.10)",
-                color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(0,0,0,0.65)",
-              }}
-              title="Limpar filtro da nuvem"
-            >
-              Limpar filtro
-            </button>
-          ) : (
-            <span
-              className="text-[10px] font-black uppercase tracking-widest"
-              style={{ color: isDarkMode ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)" }}
-            >
-              gerado via ia
-            </span>
-          )}
-        </div>
-
-        {activeWord && (
-          <div className="mb-3 flex justify-center">
-            <span
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-black"
-              style={{
-                background: isDarkMode ? "rgba(249,115,22,0.14)" : "rgba(249,115,22,0.10)",
-                border: "1px solid rgba(249,115,22,0.32)",
-                color: "#f97316",
-                boxShadow: "0 10px 22px rgba(249,115,22,0.18)",
-              }}
-            >
-              Filtro ativo: <span className="uppercase tracking-widest">{activeWord}</span>
-            </span>
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 py-2">
-          {items.map((w) => {
-            const isActive = activeWord && w.word === activeWord;
-            
-            // Tratamento do score da IA (1-10)
-            const relevance = clampNumber(Number(w.relevance || 5), 1, 10);
-            const norm = (relevance - 1) / 9; // 0 a 1
-
-            // Cor baseada na temperatura da palavra
-            const styleColor = getTrendStyle(relevance).color;
-            
-            // Tamanho dinâmico (11px a 22px)
-            const fontSize = 11 + norm * 11;
-            
-            // Rotação pseudo-aleatória baseada no tamanho da palavra para visual "messy"
-            const tilt = (w.word.length % 7) - 3; // -3 a +3 graus
-
-            return (
-              <button
-                key={w.word}
-                type="button"
-                onClick={() => {
-                  if (isActive) onClear();
-                  else onSelect(w.word);
-                }}
-                className="select-none px-3 py-1.5 rounded-full font-black tracking-wide active:scale-95 transition-all duration-300 ease-out"
-                style={{
-                  fontSize: `${fontSize}px`,
-                  transform: `rotate(${tilt}deg) scale(${isActive ? 1.05 : 1})`,
-                  color: styleColor,
-                  background: isActive
-                    ? `${styleColor}22`
-                    : isDarkMode
-                    ? "rgba(255,255,255,0.06)"
-                    : "rgba(0,0,0,0.04)",
-                  border: isActive 
-                    ? `1px solid ${styleColor}` 
-                    : `1px solid ${styleColor}40`,
-                  boxShadow: isActive
-                    ? `0 0 20px ${styleColor}44`
-                    : `0 4px 10px rgba(0,0,0,0.05)`,
-                  textShadow: isDarkMode ? `0 0 10px ${styleColor}66` : "none",
-                  opacity: isActive ? 1 : 0.70 + (norm * 0.30),
-                  cursor: "pointer",
-                }}
-                title={`Relevância: ${relevance}/10 | Clique para filtrar`}
-              >
-                {w.word}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  // --------- Carrega cache ao abrir ---------
+  // --- Cache e Inicialização ---
   useEffect(() => {
-    const savedCurrent = localStorage.getItem(STORAGE_KEY_CURRENT);
-    if (savedCurrent) {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
       try {
-        const parsed = JSON.parse(savedCurrent);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Ordena trends
-          const sorted = parsed.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
-          setTrends(sorted);
-          setHasGenerated(true);
-          // Nota: wordCloudItems não é salvo no cache antigo, então começará vazio
-          // até o usuário atualizar. Se quiser persistir a nuvem, precisa salvar um objeto
-          // { trends: [], cloud: [] } no localStorage no futuro.
-          setSelectedBandIndex(null);
-          setActiveIndex(null);
-          setCompareSelection([]);
-          setWordFilter(null);
-        }
-      } catch (error) {
-        console.error("Erro ao ler Trend Radar salvo", error);
-      }
+        const parsed = JSON.parse(saved);
+        setTrends(parsed.trends);
+        setWordCloudItems(parsed.cloud);
+        setHasGenerated(true);
+      } catch (e) { console.error("Cache reset."); }
     }
   }, []);
 
-  const handleToggle = (index) => {
-    setActiveIndex((current) => (current === index ? null : index));
-  };
-
-  const activeItem = activeIndex !== null && trends ? trends[activeIndex] : null;
-
-  const clearBandSelection = () => {
-    setSelectedBandIndex(null);
-    setActiveIndex(null);
-    setSelectionStamp((p) => p + 1);
-  };
-
-  const selectBandIndex = (idx) => {
-    setSelectedBandIndex(idx);
-    setActiveIndex(null);
-    setSelectionStamp((p) => p + 1);
-  };
-
-  // --------- Comparação (SHIFT + clique) ---------
-  const clearComparison = () => {
-    setCompareSelection([]);
-  };
-
-  const handleCompareClick = (event, index) => {
-    if (event && event.shiftKey) {
-      setActiveIndex(null);
-
-      setCompareSelection((current) => {
-        if (current.includes(index)) return current;
-        if (current.length === 2) return [current[1], index];
-        return [...current, index];
-      });
-
-      return;
-    }
-
-    setCompareSelection([]);
-    handleToggle(index);
-  };
-
-  // ============================================================
-  // ✅ RUN ANALYSIS (Recebe { trends, word_cloud } da IA)
-  // ============================================================
   const runTrendAnalysis = async () => {
-    const currentApiKey = getApiKey("widgets");
-
-    if (!currentApiKey || !Array.isArray(newsData) || newsData.length === 0) {
-      alert("Aguarde o carregamento das notícias ou configure as chaves de IA do Pool 1.");
-      return;
-    }
-
+    const apiKey = getApiKey("widgets");
+    if (!apiKey || !newsData?.length) return alert("IA não configurada ou sem dados.");
+    
     setLoading(true);
     setActiveIndex(null);
-    setCompareSelection([]);
-    setWordFilter(null);
     setSelectedBandIndex(null);
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    const data = await generateTrendRadar(newsData, apiKey);
 
-    const filteredNews = filterNewsByTimeWindow(newsData, timeWindow);
-    
-    // A função generateTrendRadar agora deve retornar { trends: [], word_cloud: [] }
-    const data = await generateTrendRadar(filteredNews, currentApiKey);
+    if (data?.trends?.length > 0) {
+      const hydrated = data.trends.map(t => ({
+        ...t,
+        related_articles: (t.source_indices || []).map(i => newsData[i]).filter(Boolean)
+      }));
 
-    // Validação dos dados retornados
-    if (data && Array.isArray(data.trends) && data.trends.length > 0) {
-      
-      const hydratedData = data.trends.map((trend) => {
-        const relatedArticles = Array.isArray(trend.source_indices)
-          ? trend.source_indices.map((i) => filteredNews[i]).filter(Boolean)
-          : [];
-
-        return {
-          ...trend,
-          related_articles: relatedArticles,
-        };
-      });
-
-      let previousData = null;
-      try {
-        const savedPrevious = localStorage.getItem(STORAGE_KEY_PREVIOUS);
-        if (savedPrevious) {
-          const parsedPrevious = JSON.parse(savedPrevious);
-          if (Array.isArray(parsedPrevious)) previousData = parsedPrevious;
-        }
-      } catch (error) {
-        previousData = null;
-      }
-
-      const previousScoreByTopic = new Map();
-      if (Array.isArray(previousData)) {
-        previousData.forEach((trend) => {
-          if (trend && typeof trend.topic === "string") {
-            previousScoreByTopic.set(trend.topic.trim().toLowerCase(), Number(trend.score || 0));
-          }
-        });
-      }
-
-      const enriched = hydratedData.map((trend) => {
-        const topicKey = typeof trend.topic === "string" ? trend.topic.trim().toLowerCase() : "";
-        const previousScore = previousScoreByTopic.has(topicKey)
-          ? previousScoreByTopic.get(topicKey)
-          : null;
-
-        const delta = previousScore === null ? null : Number(trend.score || 0) - Number(previousScore || 0);
-
-        const confidenceValue = getConfidenceValue({ ...trend, related_articles: trend.related_articles });
-        const volumeValue = getVolumeValue({ ...trend, related_articles: trend.related_articles });
-
-        return {
-          ...trend,
-          delta_score: delta,
-          confidence_value: confidenceValue,
-          volume_value: volumeValue,
-        };
-      });
-
-      const sortedData = enriched.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
-
-      // ✅ Atualiza Trends E a Nuvem de Palavras
-      setTrends(sortedData);
-      setWordCloudItems(data.word_cloud || []); 
+      setTrends(hydrated);
+      setWordCloudItems(data.word_cloud || []);
       setHasGenerated(true);
-
-      localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(sortedData));
-      localStorage.setItem(STORAGE_KEY_PREVIOUS, JSON.stringify(sortedData));
-    } else {
-      alert("A IA não identificou tendências claras no momento. Tente novamente mais tarde.");
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ trends: hydrated, cloud: data.word_cloud }));
     }
-
     setLoading(false);
   };
 
-  // --------- Filtros ---------
-  const bandFilteredTrends = useMemo(() => {
-    if (!Array.isArray(trends)) return null;
-    if (selectedBandIndex === null) return [];
+  const filteredTrends = useMemo(() => {
+    if (!trends) return [];
+    if (selectedBandIndex === null) return trends;
+    return trends.filter(t => getBandIndexByScore(t.score) === selectedBandIndex);
+  }, [trends, selectedBandIndex]);
 
-    const band = temperatureBands[selectedBandIndex];
-    if (!band) return [];
-
-    const byBand = trends.filter((trend) => {
-      const score = clampNumber(Number(trend.score || 0), 0, 10);
-      return score >= band.minimum && score <= band.maximum;
-    });
-
-    if (!wordFilter) return byBand;
-    return byBand.filter((t) => trendMatchesWord(t, wordFilter));
-  }, [trends, selectedBandIndex, wordFilter]);
-
-  const featuredTrend = useMemo(() => {
-    if (!Array.isArray(bandFilteredTrends) || bandFilteredTrends.length === 0) return null;
-    return bandFilteredTrends[0];
-  }, [bandFilteredTrends]);
-
-  const topTrends = useMemo(() => {
-    if (!Array.isArray(bandFilteredTrends) || bandFilteredTrends.length <= 1) return [];
-    return bandFilteredTrends.slice(1, 11);
-  }, [bandFilteredTrends]);
-
-
-  // --------- UI tokens ---------
-  const commonPanelBackground = isDarkMode ? "rgba(24,24,27,0.55)" : "rgba(255,255,255,0.75)";
-  const commonPanelBorder = isDarkMode ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)";
-  const commonPanelShadow = isDarkMode
-    ? "0 18px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12)"
-    : "0 18px 40px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.30)";
-
-  const ImpactPill = ({ score }) => {
-    const style = getTrendStyle(score);
-    const pct = clampNumber(Number(score || 0), 0, 10) * 10;
-
-    return (
-      <div
-        className="flex items-center gap-2 px-2.5 py-1 rounded-full"
-        style={{
-          background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
-          border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-          backdropFilter: "blur(10px)",
-        }}
-      >
-        <span
-          className="text-[10px] font-black uppercase tracking-widest"
-          style={{ color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(0,0,0,0.70)" }}
-        >
-          Impacto
-        </span>
-
-        <div
-          className="relative w-16 h-[6px] rounded-full overflow-hidden"
-          style={{ background: isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)" }}
-        >
-          <div
-            className="absolute left-0 top-0 h-full"
-            style={{
-              width: `${pct}%`,
-              background: style.color,
-              boxShadow: `0 0 12px ${style.color}66`,
-            }}
-          />
-        </div>
-      </div>
-    );
-  };
-
-  const countsByBand = temperatureBands.map((band) => {
-    if (!Array.isArray(trends)) return 0;
-    return trends.reduce((acc, t) => {
-      const score = clampNumber(Number(t?.score || 0), 0, 10);
-      if (score >= band.minimum && score <= band.maximum) return acc + 1;
-      return acc;
-    }, 0);
-  });
-
-  // --------- Temperature Selector (Contém a NUVEM + Régua) ---------
-  const TemperatureSelector = () => {
-    const SEGMENTS = temperatureBands.length;
-
-    const segmentLeftPct = (idx) => `${(idx / SEGMENTS) * 100}%`;
-    const segmentWidthPct = () => `${(1 / SEGMENTS) * 100}%`;
-    const segmentCenterPct = (idx) => `${((idx + 0.5) / SEGMENTS) * 100}%`;
-
-    return (
-      <div className="mt-2">
-        <div className="flex items-center justify-end mb-2">
-          <button
-            type="button"
-            onClick={() => {
-              clearBandSelection();
-              clearComparison();
-              setWordFilter(null);
-            }}
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
-            style={{
-              background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
-              border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-              color: isDarkMode ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.60)",
-            }}
-          >
-            Limpar
-          </button>
-        </div>
-
-        {/* ✅ AQUI ESTÁ A NUVEM DE PALAVRAS DA IA */}
-        <WordCloud
-          items={wordCloudItems}
-          activeWord={wordFilter}
-          onSelect={(w) => {
-            setWordFilter(w);
-            setActiveIndex(null);
-            setCompareSelection([]);
-          }}
-          onClear={() => {
-            setWordFilter(null);
-            setActiveIndex(null);
-            setCompareSelection([]);
-          }}
-        />
-
-        <div className="relative pt-6">
-          {/* Régua (termômetro) */}
-          <div
-            className="w-full rounded-full relative overflow-hidden"
-            style={{
-              height: "30px",
-              background:
-                "linear-gradient(90deg, rgba(59,130,246,0.85), rgba(34,197,94,0.85), rgba(234,179,8,0.85), rgba(249,115,22,0.85), rgba(239,68,68,0.85))",
-              boxShadow: isDarkMode
-                ? "0 18px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)"
-                : "0 18px 40px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.35)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              backdropFilter: "blur(14px)",
-            }}
-          />
-
-          {/* Shine overlay */}
-          <div
-            className="absolute left-0 right-0 top-6 rounded-full pointer-events-none overflow-hidden"
-            style={{
-              height: "30px",
-              background: isDarkMode
-                ? "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.00))"
-                : "linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0.00))",
-              opacity: 0.65,
-              mixBlendMode: isDarkMode ? "screen" : "overlay",
-            }}
-          />
-
-          {/* Divisórias invisíveis */}
-          <div
-            className="absolute left-0 right-0 top-6 rounded-full pointer-events-none overflow-hidden"
-            style={{
-              height: "30px",
-              background: `repeating-linear-gradient(
-                90deg,
-                rgba(255,255,255,0.00),
-                rgba(255,255,255,0.00) calc((100% / ${SEGMENTS}) - 1px),
-                ${isDarkMode ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.12)"} calc((100% / ${SEGMENTS}) - 1px),
-                ${isDarkMode ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.12)"} calc((100% / ${SEGMENTS}))
-              )`,
-              opacity: 0.55,
-              mixBlendMode: isDarkMode ? "screen" : "multiply",
-            }}
-          />
-
-          {/* Destaque da faixa selecionada */}
-          {selectedBandIndex !== null && (
-            <div
-              key={`highlight-${selectedBandIndex}-${selectionStamp}`}
-              className="absolute top-6 rounded-full pointer-events-none trendradar-snapglow"
+  // --- UI Interna: Nuvem de Palavras ---
+  const WordCloud = ({ items }) => (
+    <div className="w-full rounded-[2.5rem] p-8 mb-6 transition-all" 
+         style={{ background: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)", border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'}` }}>
+      <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-8 opacity-30 text-center">Nuvem de Inteligência Térmica</p>
+      <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-4">
+        {items.map((item, i) => {
+          const style = getTrendStyle(item.relevance);
+          const tilt = (i % 3 === 0) ? "rotate-2" : (i % 2 === 0) ? "-rotate-2" : "rotate-0";
+          return (
+            <button
+              key={i}
+              onClick={() => handleWordClick(item.word)}
+              className={`px-5 py-2.5 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
               style={{
-                left: segmentLeftPct(selectedBandIndex),
-                width: segmentWidthPct(),
-                height: "30px",
-                background: `${temperatureBands[selectedBandIndex].color}22`,
-                border: `2px solid ${temperatureBands[selectedBandIndex].color}`,
-                boxShadow: `0 0 26px ${temperatureBands[selectedBandIndex].color}66`,
-                backdropFilter: "blur(10px)",
+                fontSize: `${11 + (item.relevance * 1.8)}px`,
+                color: style.color,
+                background: `${style.color}15`,
+                border: `1px solid ${style.color}20`,
+                boxShadow: `0 10px 25px ${style.color}10`
               }}
-            />
-          )}
-
-          {/* Click layer na régua */}
-          <button
-            type="button"
-            onClick={(event) => {
-              const rect = event.currentTarget.getBoundingClientRect();
-              const x = clampNumber(event.clientX - rect.left, 0, rect.width);
-              const ratio = rect.width === 0 ? 0 : x / rect.width;
-              const score = Math.round(ratio * 10);
-              const bandIdx = getBandIndexByScore(score);
-              selectBandIndex(bandIdx);
-            }}
-            className="absolute left-0 right-0 top-6 rounded-full"
-            style={{ cursor: "pointer", background: "transparent", height: "30px" }}
-            aria-label="Selecionar faixa de temperatura clicando na régua"
-          />
-
-          {/* Contagens (número) */}
-          {temperatureBands.map((band, idx) => {
-            const active = selectedBandIndex === idx;
-
-            return (
-              <button
-                key={`count-${band.label}`}
-                type="button"
-                onClick={() => selectBandIndex(idx)}
-                className="absolute -top-1"
-                style={{
-                  left: segmentCenterPct(idx),
-                  transform: "translateX(-50%)",
-                }}
-                aria-label={`Selecionar ${band.label}`}
-                title={band.label}
-              >
-                <span
-                  className={`text-[14px] font-black transition-all ${
-                    active ? "scale-110" : "opacity-75"
-                  }`}
-                  style={{
-                    color: band.color,
-                    textShadow: active ? `0 0 14px ${band.color}AA` : `0 0 8px ${band.color}55`,
-                  }}
-                >
-                  {countsByBand[idx]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+            >
+              {item.word}
+            </button>
+          );
+        })}
       </div>
-    );
-  };
+    </div>
+  );
 
-  // --------- Render Principal ---------
   return (
-    <div className="relative z-[50] mb-6 animate-in fade-in duration-1000 px-4">
-      <style jsx="true">{`
-        @keyframes glow-spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes sweep {
-          0% { transform: rotate(0deg); opacity: 0.55; }
-          100% { transform: rotate(360deg); opacity: 0.55; }
-        }
-        @keyframes pulse {
-          0%, 100% { transform: scale(0.9); opacity: 0.25; }
-          50% { transform: scale(1.05); opacity: 0.45; }
-        }
-        @keyframes dots {
-          0% { opacity: 0.25; transform: translateY(0px); }
-          50% { opacity: 0.9; transform: translateY(-3px); }
-          100% { opacity: 0.25; transform: translateY(0px); }
-        }
-        @keyframes snapGlow {
-          0%   { transform: scale(0.96); filter: brightness(1); opacity: 0.75; }
-          35%  { transform: scale(1.03); filter: brightness(1.25); opacity: 1; }
-          70%  { transform: scale(0.995); filter: brightness(1.10); opacity: 1; }
-          100% { transform: scale(1); filter: brightness(1); opacity: 1; }
-        }
-        .trendradar-snapglow {
-          animation: snapGlow 360ms cubic-bezier(.2,.9,.2,1);
-          transform-origin: center;
-        }
-      `}</style>
-
+    <div className="relative w-full max-w-5xl mx-auto px-4 py-8">
       {/* Header */}
-      {hasGenerated && (
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 opacity-70">
-            <Activity size={14} className="text-orange-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-              Trend Radar AI
-            </span>
+      <div className="flex justify-between items-center mb-10">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-orange-500/10 rounded-2xl">
+            <Activity className="text-orange-500" size={24} />
           </div>
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-widest opacity-80">Trend Radar 24h</h2>
+            <p className="text-[10px] font-bold opacity-40 uppercase tracking-tighter">Análise Semântica via IA</p>
+          </div>
+        </div>
+        <button onClick={runTrendAnalysis} disabled={loading} className={`p-4 rounded-full transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+          {loading ? <Loader2 className="animate-spin text-orange-500" size={22} /> : <RefreshCw size={22} />}
+        </button>
+      </div>
 
-          <button
-            onClick={runTrendAnalysis}
-            disabled={loading}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 ${
-              isDarkMode ? "bg-zinc-800 text-zinc-400 hover:text-white" : "bg-zinc-200 text-zinc-600 hover:text-black"
-            }`}
-          >
-            {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {loading ? "Analisando..." : "Atualizar"}
-          </button>
+      {/* Empty State */}
+      {!hasGenerated && !loading && (
+        <div className="h-96 flex flex-col items-center justify-center border-2 border-dashed border-zinc-500/20 rounded-[3.5rem] text-center p-12">
+          <Sparkles className="text-orange-500/40 mb-6" size={56} />
+          <h3 className="text-xl font-black mb-3">O que está aquecendo o dia?</h3>
+          <p className="text-sm opacity-50 max-w-xs mb-10 leading-relaxed">Nossa IA analisa os títulos das últimas 24h para encontrar os temas mais quentes e sinais emergentes.</p>
+          <button onClick={runTrendAnalysis} className="px-10 py-5 bg-orange-500 text-white rounded-full font-black shadow-2xl shadow-orange-500/30 hover:scale-105 transition-all">ATIVAR RADAR</button>
         </div>
       )}
 
-      {/* Loading */}
-      {loading ? (
-        <div className="h-56 flex flex-col items-center justify-center text-center gap-4">
-          <div className="relative h-44 w-44 flex items-center justify-center">
-            <div
-              className="absolute inset-0 rounded-full"
-              style={{
-                background:
-                  "conic-gradient(from 90deg, rgba(59,130,246,0.9), rgba(34,197,94,0.9), rgba(234,179,8,0.9), rgba(249,115,22,0.9), rgba(239,68,68,0.9), rgba(59,130,246,0.9))",
-                filter: "blur(1px)",
-                opacity: 0.35,
-                animation: "glow-spin 1.6s linear infinite",
-              }}
-            />
-            <div
-              className="absolute inset-2 rounded-full"
-              style={{
-                background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.92)",
-                border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-              }}
-            />
-            <div
-              className="absolute inset-4 rounded-full"
-              style={{
-                background: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
-                animation: "pulse 1.1s ease-in-out infinite",
-              }}
-            />
-            <div className="absolute inset-0 origin-center" style={{ animation: "sweep 1.2s linear infinite" }}>
-              <div
-                className="absolute left-1/2 top-1/2"
-                style={{
-                  width: "50%",
-                  height: "2px",
-                  transform: "translateY(-50%)",
-                  background: "linear-gradient(90deg, transparent, rgba(249,115,22,0.95))",
-                }}
-              />
-            </div>
+      {/* Loading State */}
+      {loading && (
+        <div className="h-96 flex flex-col items-center justify-center">
+          <div className="relative w-28 h-28 mb-8 flex items-center justify-center">
+            <div className="absolute inset-0 border-4 border-orange-500/10 rounded-full" />
+            <div className="absolute inset-0 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            <Activity className="text-orange-500 animate-pulse" size={32} />
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Mapeando Sinais Críticos</p>
+        </div>
+      )}
 
-            <div className="relative z-10 flex flex-col items-center">
-              <Activity size={26} className="text-orange-400" />
-              <div className="flex gap-1 mt-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" style={{ animation: "dots 0.8s ease-in-out infinite" }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" style={{ animation: "dots 0.8s ease-in-out infinite", animationDelay: "0.15s" }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" style={{ animation: "dots 0.8s ease-in-out infinite", animationDelay: "0.30s" }} />
-              </div>
+      {hasGenerated && !loading && (
+        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
+          
+          {/* Nuvem de Palavras */}
+          <WordCloud items={wordCloudItems} />
+
+          {/* Seletor de Temperatura */}
+          <div className="space-y-4">
+            <div className="flex justify-between px-4 text-[10px] font-black uppercase tracking-widest opacity-40">
+              <span>Seletor de Calor</span>
+              {selectedBandIndex !== null && <button onClick={() => setSelectedBandIndex(null)} className="text-orange-500">Limpar</button>}
+            </div>
+            <div className="h-16 bg-zinc-500/5 rounded-full flex items-center p-2 gap-2 border border-zinc-500/10">
+              {temperatureBands.map((band, idx) => {
+                const active = selectedBandIndex === idx;
+                return (
+                  <button key={idx} onClick={() => setSelectedBandIndex(active ? null : idx)} 
+                          className="flex-1 h-full rounded-full transition-all flex items-center justify-center"
+                          style={{ background: active ? band.color : 'transparent' }}>
+                    <span className={`text-[10px] font-black ${active ? 'text-white' : 'opacity-30'}`}>{band.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <p className="text-xs font-black text-zinc-500 uppercase tracking-widest">Analisando tendências...</p>
-        </div>
-      ) : (
-        <div className="w-full">
-          {/* Empty state */}
-          {!hasGenerated ? (
-            <div className="h-56 flex flex-col items-center justify-center text-center">
-              <p className="font-bold text-lg mb-4">Ative o Radar de Tendências</p>
-              <p className="text-base text-zinc-500 max-w-xs mb-6">
-                Clique para escanear as notícias e revelar as trends e palavras-chave mais importantes.
-              </p>
-              <button
-                onClick={runTrendAnalysis}
-                className="group relative px-8 py-4 rounded-full text-sm font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-orange-500 text-white hover:bg-orange-400 shadow-orange-500/30"
-              >
-                <span className="flex items-center gap-2">
-                  <Sparkles size={16} className="text-yellow-300" /> Ativar Radar
-                </span>
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* Painel principal */}
-              <div
-                className="relative w-full rounded-2xl p-4"
-                style={{
-                  background: commonPanelBackground,
-                  border: commonPanelBorder,
-                  boxShadow: commonPanelShadow,
-                  backdropFilter: "blur(12px)",
-                }}
-              >
-                {/* Controles */}
-                <div className="flex flex-col gap-3 mb-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-[10px] font-black uppercase tracking-widest ${
-                          isDarkMode ? "text-white/40" : "text-black/40"
-                        }`}
-                      >
-                        Temperatura
-                      </span>
-                      <span
-                        className={`text-[10px] font-black uppercase tracking-widest ${
-                          isDarkMode ? "text-white/30" : "text-black/30"
-                        }`}
-                      >
-                        (SHIFT para comparar)
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="text-[10px] font-black uppercase tracking-widest"
-                        style={{ color: isDarkMode ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0,0.25)" }}
-                      >
-                        janela fixa: 24h
-                      </span>
-                    </div>
-                  </div>
-
-                  <TemperatureSelector />
-                </div>
-
-                {/* Cards apenas quando selecionar faixa */}
-                {selectedBandIndex === null ? null : (
-                  <>
-                    <div className="grid grid-cols-12 gap-4 mt-6">
-                      {/* FEATURED */}
-                      {featuredTrend && Array.isArray(trends) && (
-                        <div className="col-span-12 lg:col-span-7">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              const originalIndex = trends.findIndex(
-                                (item) =>
-                                  item?.topic === featuredTrend?.topic &&
-                                  Number(item?.score || 0) === Number(featuredTrend?.score || 0)
-                              );
-                              if (originalIndex >= 0) handleCompareClick(event, originalIndex);
-                            }}
-                            className="w-full text-left rounded-2xl p-5 h-full transition-transform active:scale-[0.99]"
-                            style={{
-                              background: isDarkMode ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.95)",
-                              border: (() => {
-                                const originalIndex = trends.findIndex(
-                                  (item) =>
-                                    item?.topic === featuredTrend?.topic &&
-                                    Number(item?.score || 0) === Number(featuredTrend?.score || 0)
-                                );
-                                const isCompared =
-                                  Array.isArray(compareSelection) && compareSelection.includes(originalIndex);
-
-                                if (isCompared) return "2px solid #22c55e";
-                                return `4px solid ${getTrendStyle(featuredTrend.score).color}`;
-                              })(),
-                              boxShadow: (() => {
-                                const originalIndex = trends.findIndex(
-                                  (item) =>
-                                    item?.topic === featuredTrend?.topic &&
-                                    Number(item?.score || 0) === Number(featuredTrend?.score || 0)
-                                );
-                                const isCompared =
-                                  Array.isArray(compareSelection) && compareSelection.includes(originalIndex);
-
-                                if (isCompared)
-                                  return "0 0 0 3px rgba(34,197,94,0.35), 0 22px 60px rgba(0,0,0,0.25)";
-
-                                return `0 22px 50px ${getTrendStyle(featuredTrend.score).color}44`;
-                              })(),
-                            }}
-                          >
-                            <div className="flex flex-col h-full">
-                              <h3 className="text-lg font-black leading-tight mb-2">
-                                {featuredTrend.topic}
-                              </h3>
-
-                              <p
-                                className="text-sm leading-relaxed opacity-80 mb-4"
-                                style={{
-                                  display: "-webkit-box",
-                                  WebkitLineClamp: 3,
-                                  WebkitBoxOrient: "vertical",
-                                  overflow: "hidden",
-                                }}
-                              >
-                                {featuredTrend.summary}
-                              </p>
-
-                              <div
-                                className="mt-auto flex items-end justify-between gap-4 pt-3"
-                                style={{
-                                  borderTop: isDarkMode
-                                    ? "1px solid rgba(255,255,255,0.10)"
-                                    : "1px solid rgba(0,0,0,0.08)",
-                                }}
-                              >
-                                <ImpactPill score={featuredTrend.score} />
-
-                                <div className="flex flex-col items-end gap-1">
-                                  <span
-                                    className="text-[10px] font-black uppercase tracking-widest"
-                                    style={{
-                                      color: isDarkMode
-                                        ? "rgba(255,255,255,0.55)"
-                                        : "rgba(0,0,0,0.55)",
-                                    }}
-                                  >
-                                    Confiança
-                                  </span>
-
-                                  <div
-                                    className="w-24 h-[4px] rounded-full overflow-hidden"
-                                    style={{
-                                      background: isDarkMode
-                                        ? "rgba(255,255,255,0.14)"
-                                        : "rgba(0,0,0,0.12)",
-                                    }}
-                                  >
-                                    <div
-                                      className="h-full"
-                                      style={{
-                                        width: `${
-                                          clampNumber(Number(featuredTrend.confidence_value || 0), 0, 1) * 100
-                                        }%`,
-                                        background: getTrendStyle(featuredTrend.score).color,
-                                        boxShadow: `0 0 12px ${getTrendStyle(featuredTrend.score).color}88`,
-                                      }}
-                                    />
-                                  </div>
-
-                                  <span
-                                    className="text-[11px] font-black"
-                                    style={{ color: getTrendStyle(featuredTrend.score).color }}
-                                  >
-                                    {featuredTrend.score}/10
-                                  </span>
+          {/* Grid de Tendências */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <AnimatePresence mode="popLayout">
+              {filteredTrends.map((trend, idx) => {
+                const style = getTrendStyle(trend.score);
+                const open = activeIndex === idx;
+                return (
+                  <motion.div key={trend.topic} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+                    <button onClick={() => setActiveIndex(open ? null : idx)} 
+                            className={`w-full text-left p-7 rounded-[2.5rem] transition-all border ${open ? 'shadow-2xl' : ''}`}
+                            style={{ background: isDarkMode ? "rgba(255,255,255,0.04)" : "white", borderColor: open ? style.color : "transparent" }}>
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2 px-3 py-1 rounded-lg" style={{ background: style.bg }}>
+                          <div className="w-2 h-2 rounded-full" style={{ background: style.color }} />
+                          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: style.color }}>{trend.score}/10</span>
+                        </div>
+                        <ChevronRight size={18} className={`transition-transform duration-300 ${open ? 'rotate-90 text-orange-500' : 'opacity-20'}`} />
+                      </div>
+                      <h3 className="font-bold text-base leading-snug mb-3">{trend.topic}</h3>
+                      <AnimatePresence>
+                        {open && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                            <p className="text-xs opacity-60 my-5 leading-relaxed">{trend.summary}</p>
+                            <div className="space-y-3 pt-4 border-t border-zinc-500/10">
+                              <p className="text-[9px] font-black uppercase opacity-30">Evidências no Radar</p>
+                              {trend.related_articles.map((art, i) => (
+                                <div key={i} onClick={(e) => { e.stopPropagation(); openArticle(art); }} className="p-4 rounded-2xl bg-zinc-500/5 hover:bg-orange-500/10 transition-colors flex items-center justify-between group cursor-pointer">
+                                  <span className="text-[11px] font-bold truncate pr-4">{art.title}</span>
+                                  <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 text-orange-500" />
                                 </div>
-                              </div>
+                              ))}
                             </div>
-                          </button>
-                        </div>
-                      )}
-
-                      {/* LISTA */}
-                      <div className="col-span-12 lg:col-span-5 flex flex-col gap-3">
-                        {topTrends.map((trend) => {
-                          const style = getTrendStyle(trend.score);
-
-                          const originalIndex = Array.isArray(trends)
-                            ? trends.findIndex(
-                                (item) =>
-                                  item?.topic === trend?.topic &&
-                                  Number(item?.score || 0) === Number(trend?.score || 0)
-                              )
-                            : -1;
-
-                          const isCompared =
-                            originalIndex >= 0 && Array.isArray(compareSelection)
-                              ? compareSelection.includes(originalIndex)
-                              : false;
-
-                          return (
-                            <button
-                              key={`${trend.topic}-${trend.score}`}
-                              type="button"
-                              onClick={(event) => {
-                                if (originalIndex >= 0) handleCompareClick(event, originalIndex);
-                              }}
-                              className="text-left rounded-2xl p-4 transition-transform active:scale-[0.99]"
-                              style={{
-                                background: isDarkMode ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.90)",
-                                border: isCompared ? "2px solid #22c55e" : `3px solid ${style.color}`,
-                                boxShadow: isCompared
-                                  ? "0 0 0 3px rgba(34,197,94,0.35), 0 16px 36px rgba(0,0,0,0.18)"
-                                  : `0 16px 30px ${style.color}22, inset 0 1px 0 rgba(255,255,255,0.10)`,
-                              }}
-                            >
-                              <div className="flex flex-col">
-                                <div className="text-sm font-black leading-tight mb-2">
-                                  {trend.topic}
-                                </div>
-
-                                <p
-                                  className="text-[13px] leading-relaxed opacity-80 mb-3"
-                                  style={{
-                                    display: "-webkit-box",
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: "vertical",
-                                    overflow: "hidden",
-                                  }}
-                                >
-                                  {trend.summary}
-                                </p>
-
-                                <div
-                                  className="mt-auto flex items-end justify-between gap-4 pt-3"
-                                  style={{
-                                    borderTop: isDarkMode
-                                      ? "1px solid rgba(255,255,255,0.10)"
-                                      : "1px solid rgba(0,0,0,0.08)",
-                                  }}
-                                >
-                                  <ImpactPill score={trend.score} />
-
-                                  <div className="flex flex-col items-end gap-1">
-                                    <span
-                                      className="text-[10px] font-black uppercase tracking-widest"
-                                      style={{
-                                        color: isDarkMode
-                                          ? "rgba(255,255,255,0.55)"
-                                          : "rgba(0,0,0,0.55)",
-                                      }}
-                                    >
-                                      Confiança
-                                    </span>
-
-                                    <div
-                                      className="w-20 h-[4px] rounded-full overflow-hidden"
-                                      style={{
-                                        background: isDarkMode
-                                          ? "rgba(255,255,255,0.14)"
-                                          : "rgba(0,0,0,0.12)",
-                                      }}
-                                    >
-                                      <div
-                                        className="h-full"
-                                        style={{
-                                          width: `${
-                                            clampNumber(Number(trend.confidence_value || 0), 0, 1) * 100
-                                          }%`,
-                                          background: style.color,
-                                          boxShadow: `0 0 12px ${style.color}88`,
-                                        }}
-                                      />
-                                    </div>
-
-                                    <span className="text-[11px] font-black" style={{ color: style.color }}>
-                                      {trend.score}/10
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* PAINEL DE COMPARAÇÃO */}
-                    {compareSelection.length === 2 && Array.isArray(trends) && (
-                      <div
-                        className="mt-6 rounded-2xl p-5"
-                        style={{
-                          background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.98)",
-                          border: isDarkMode
-                            ? "1px solid rgba(255,255,255,0.12)"
-                            : "1px solid rgba(0,0,0,0.10)",
-                          boxShadow: isDarkMode
-                            ? "0 30px 80px rgba(0,0,0,0.45)"
-                            : "0 30px 80px rgba(0,0,0,0.20)",
-                          backdropFilter: "blur(16px)",
-                        }}
-                      >
-                        {(() => {
-                          const left = trends[compareSelection[0]];
-                          const right = trends[compareSelection[1]];
-
-                          if (!left || !right) return null;
-
-                          return (
-                            <>
-                              <div className="flex items-center justify-between mb-4">
-                                <span
-                                  className="text-xs font-black uppercase tracking-widest"
-                                  style={{
-                                    color: isDarkMode
-                                      ? "rgba(255,255,255,0.60)"
-                                      : "rgba(0,0,0,0.60)",
-                                  }}
-                                >
-                                  Comparação de Trends
-                                </span>
-
-                                <button
-                                  type="button"
-                                  onClick={clearComparison}
-                                  className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
-                                  style={{
-                                    background: isDarkMode
-                                      ? "rgba(255,255,255,0.06)"
-                                      : "rgba(0,0,0,0.05)",
-                                    border: isDarkMode
-                                      ? "1px solid rgba(255,255,255,0.10)"
-                                      : "1px solid rgba(0,0,0,0.10)",
-                                    color: isDarkMode
-                                      ? "rgba(255,255,255,0.65)"
-                                      : "rgba(0,0,0,0.65)",
-                                  }}
-                                >
-                                  Limpar comparação
-                                </button>
-                              </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div
-                                  className="rounded-2xl p-4"
-                                  style={{
-                                    background: isDarkMode
-                                      ? "rgba(255,255,255,0.04)"
-                                      : "rgba(0,0,0,0.04)",
-                                    border: `2px solid ${getTrendStyle(left.score).color}`,
-                                    boxShadow: `0 18px 45px ${getTrendStyle(left.score).color}22`,
-                                  }}
-                                >
-                                  <h4 className="text-base font-black mb-2">{left.topic}</h4>
-
-                                  <p className="text-sm opacity-80 leading-relaxed mb-4">{left.summary}</p>
-
-                                  <div
-                                    className="flex items-end justify-between gap-4 pt-3"
-                                    style={{
-                                      borderTop: isDarkMode
-                                        ? "1px solid rgba(255,255,255,0.10)"
-                                        : "1px solid rgba(0,0,0,0.08)",
-                                    }}
-                                  >
-                                    <ImpactPill score={left.score} />
-
-                                    <div className="flex flex-col items-end gap-1">
-                                      <span
-                                        className="text-[10px] font-black uppercase tracking-widest"
-                                        style={{
-                                          color: isDarkMode
-                                            ? "rgba(255,255,255,0.55)"
-                                            : "rgba(0,0,0,0.55)",
-                                        }}
-                                      >
-                                        Confiança
-                                      </span>
-
-                                      <div
-                                        className="w-24 h-[4px] rounded-full overflow-hidden"
-                                        style={{
-                                          background: isDarkMode
-                                            ? "rgba(255,255,255,0.14)"
-                                            : "rgba(0,0,0,0.12)",
-                                        }}
-                                      >
-                                        <div
-                                          className="h-full"
-                                          style={{
-                                            width: `${
-                                              clampNumber(Number(left.confidence_value || 0), 0, 1) * 100
-                                            }%`,
-                                            background: getTrendStyle(left.score).color,
-                                            boxShadow: `0 0 12px ${getTrendStyle(left.score).color}88`,
-                                          }}
-                                        />
-                                      </div>
-
-                                      <span
-                                        className="text-[11px] font-black"
-                                        style={{ color: getTrendStyle(left.score).color }}
-                                      >
-                                        {left.score}/10
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div
-                                  className="rounded-2xl p-4"
-                                  style={{
-                                    background: isDarkMode
-                                      ? "rgba(255,255,255,0.04)"
-                                      : "rgba(0,0,0,0.04)",
-                                    border: `2px solid ${getTrendStyle(right.score).color}`,
-                                    boxShadow: `0 18px 45px ${getTrendStyle(right.score).color}22`,
-                                  }}
-                                >
-                                  <h4 className="text-base font-black mb-2">{right.topic}</h4>
-
-                                  <p className="text-sm opacity-80 leading-relaxed mb-4">{right.summary}</p>
-
-                                  <div
-                                    className="flex items-end justify-between gap-4 pt-3"
-                                    style={{
-                                      borderTop: isDarkMode
-                                        ? "1px solid rgba(255,255,255,0.10)"
-                                        : "1px solid rgba(0,0,0,0.08)",
-                                    }}
-                                  >
-                                    <ImpactPill score={right.score} />
-
-                                    <div className="flex flex-col items-end gap-1">
-                                      <span
-                                        className="text-[10px] font-black uppercase tracking-widest"
-                                        style={{
-                                          color: isDarkMode
-                                            ? "rgba(255,255,255,0.55)"
-                                            : "rgba(0,0,0,0.55)",
-                                        }}
-                                      >
-                                        Confiança
-                                      </span>
-
-                                      <div
-                                        className="w-24 h-[4px] rounded-full overflow-hidden"
-                                        style={{
-                                          background: isDarkMode
-                                            ? "rgba(255,255,255,0.14)"
-                                            : "rgba(0,0,0,0.12)",
-                                        }}
-                                      >
-                                        <div
-                                          className="h-full"
-                                          style={{
-                                            width: `${
-                                              clampNumber(Number(right.confidence_value || 0), 0, 1) * 100
-                                            }%`,
-                                            background: getTrendStyle(right.score).color,
-                                            boxShadow: `0 0 12px ${getTrendStyle(right.score).color}88`,
-                                          }}
-                                        />
-                                      </div>
-
-                                      <span
-                                        className="text-[11px] font-black"
-                                        style={{ color: getTrendStyle(right.score).color }}
-                                      >
-                                        {right.score}/10
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* BALÃO (SÓ FONTES) */}
-              <AnimatePresence>
-                {activeItem && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.25 }}
-                    className="mt-6"
-                  >
-                    <div
-                      className="rounded-2xl p-5"
-                      style={{
-                        background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.98)",
-                        border: `2px solid ${getTrendStyle(activeItem.score).color}`,
-                        boxShadow: isDarkMode
-                          ? "0 22px 60px rgba(0,0,0,0.55)"
-                          : "0 22px 60px rgba(0,0,0,0.18)",
-                        backdropFilter: "blur(14px)",
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <span
-                          className="text-xs font-black uppercase tracking-widest"
-                          style={{
-                            color: isDarkMode
-                              ? "rgba(255,255,255,0.60)"
-                              : "rgba(0,0,0,0.60)",
-                          }}
-                        >
-                          Fontes
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() => setActiveIndex(null)}
-                          className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full active:scale-95"
-                          style={{
-                            background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
-                            border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-                            color: isDarkMode ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.65)",
-                          }}
-                        >
-                          Fechar
-                        </button>
-                      </div>
-
-                      {Array.isArray(activeItem.related_articles) && activeItem.related_articles.length > 0 ? (
-                        <div className="flex gap-2 flex-wrap">
-                          {activeItem.related_articles.slice(0, 12).map((article, idx) => {
-                            const title = typeof article?.title === "string" ? article.title : "Abrir fonte";
-                            const logo = article?.logo || article?.image || article?.favicon || "";
-
-                            return (
-                              <button
-                                key={`${article?.id || idx}-${title}`}
-                                type="button"
-                                onClick={() => openArticle(article)}
-                                className="flex items-center gap-2 px-2.5 py-2 rounded-xl active:scale-95 hover:scale-[1.02] transition"
-                                style={{
-                                  background: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
-                                  border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-                                }}
-                                title={title}
-                              >
-                                {logo ? (
-                                  <img
-                                    src={logo}
-                                    alt=""
-                                    className="w-6 h-6 rounded-lg"
-                                    style={{
-                                      border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-                                    }}
-                                  />
-                                ) : (
-                                  <div
-                                    className="w-6 h-6 rounded-lg"
-                                    style={{
-                                      background: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-                                      border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-                                    }}
-                                  />
-                                )}
-
-                                <span
-                                  className="text-[11px] font-bold max-w-[240px] truncate"
-                                  style={{
-                                    color: isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)",
-                                  }}
-                                >
-                                  {title}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div
-                          className="text-sm"
-                          style={{
-                            color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)",
-                          }}
-                        >
-                          Sem fontes associadas nesta trend.
-                        </div>
-                      )}
-                    </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </button>
                   </motion.div>
-                )}
-              </AnimatePresence>
-            </>
-          )}
-        </div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        </motion.div>
       )}
+
+      {/* Modal de Detalhes da Palavra */}
+      <AnimatePresence>
+        {selectedWordData && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-5">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setSelectedWordData(null)} />
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 30 }}
+                        className={`relative w-full max-w-2xl rounded-[3.5rem] overflow-hidden border ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-black/5'}`}>
+              <div className="p-10">
+                <div className="flex justify-between items-start mb-10">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-orange-500 mb-2 block">Análise Detalhada</span>
+                    <h3 className="text-3xl font-black tracking-tight">{selectedWordData.word}</h3>
+                  </div>
+                  <button onClick={() => setSelectedWordData(null)} className="p-4 bg-zinc-500/10 rounded-full active:scale-90 transition-all"><X size={24} /></button>
+                </div>
+                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-3 custom-scrollbar">
+                  {selectedWordData.articles.map((art, i) => (
+                    <button key={i} onClick={() => openArticle(art)} className={`w-full text-left p-6 rounded-[2rem] transition-all border border-transparent ${isDarkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10'}`}>
+                      <p className="text-sm font-bold leading-tight mb-2">{art.title}</p>
+                      <span className="text-[9px] font-black uppercase opacity-30 px-2 py-1 bg-zinc-500/10 rounded-md">{art.source?.name || "Fonte Geral"}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <style jsx="true">{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(155, 155, 155, 0.2); border-radius: 10px; }
+      `}</style>
     </div>
   );
 };
