@@ -17,7 +17,7 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, Telescope,
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, 
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, ExternalLink,
 } from 'lucide-react';
 
 const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
@@ -3992,308 +3992,380 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // =========================================================================
 // 2. COMPONENTE PRINCIPAL: TrendRadar
 // =========================================================================
+/* =========================================================
+   TrendRadar
+========================================================= */
 const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
-  // --- Estados ---
+
+  /* ============================
+     ESTADOS
+  ============================ */
   const [trends, setTrends] = useState(null);
   const [wordCloudItems, setWordCloudItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
-  
-  // Estado para expandir fontes
   const [activeIndex, setActiveIndex] = useState(null);
-  
-  // Estado da Régua
   const [selectedBandIndex, setSelectedBandIndex] = useState(null);
-  
-  // Estado do Modal da Palavra
   const [selectedWordData, setSelectedWordData] = useState(null);
 
   const STORAGE_KEY = "newsos_trend_radar_v9_fixed";
 
-  // --- Definição das Faixas ---
+  /* ============================
+     FAIXAS DE TEMPERATURA
+  ============================ */
   const temperatureBands = [
-    { id: 0, min: 0, max: 2, color: "#3b82f6" }, // Frio
-    { id: 1, min: 3, max: 4, color: "#22c55e" }, // Leve
-    { id: 2, min: 5, max: 6, color: "#eab308" }, // Médio
-    { id: 3, min: 7, max: 8, color: "#f97316" }, // Quente
-    { id: 4, min: 9, max: 10, color: "#ef4444" }, // Muito Quente
+    { id: 0, min: 0, max: 2, color: "#3b82f6" },   // Frio
+    { id: 1, min: 3, max: 4, color: "#22c55e" },   // Leve
+    { id: 2, min: 5, max: 6, color: "#eab308" },   // Médio
+    { id: 3, min: 7, max: 8, color: "#f97316" },   // Quente
+    { id: 4, min: 9, max: 10, color: "#ef4444" }   // Muito Quente
   ];
 
+  const bandLabels = [
+    "Frio",
+    "Leve",
+    "Médio",
+    "Quente",
+    "Muito Quente"
+  ];
+
+  /* ============================
+     HELPERS VISUAIS
+  ============================ */
   const getTrendStyle = (score) => {
-    const s = Number(score || 0);
-    if (s >= 9) return { color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" };
-    if (s >= 7) return { color: "#f97316", bg: "rgba(249, 115, 22, 0.1)" };
-    if (s >= 5) return { color: "#eab308", bg: "rgba(234, 179, 8, 0.1)" };
-    if (s >= 3) return { color: "#22c55e", bg: "rgba(34, 197, 94, 0.1)" };
-    return { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" };
+    const value = Number(score || 0);
+    if (value >= 9) return { color: "#ef4444", bg: "rgba(239,68,68,0.12)" };
+    if (value >= 7) return { color: "#f97316", bg: "rgba(249,115,22,0.12)" };
+    if (value >= 5) return { color: "#eab308", bg: "rgba(234,179,8,0.12)" };
+    if (value >= 3) return { color: "#22c55e", bg: "rgba(34,197,94,0.12)" };
+    return { color: "#3b82f6", bg: "rgba(59,130,246,0.12)" };
   };
 
   const getBandIndexByScore = (score) => {
-    const s = Number(score || 0);
-    if (s >= 9) return 4; if (s >= 7) return 3; if (s >= 5) return 2; if (s >= 3) return 1;
+    const value = Number(score || 0);
+    if (value >= 9) return 4;
+    if (value >= 7) return 3;
+    if (value >= 5) return 2;
+    if (value >= 3) return 1;
     return 0;
   };
 
-  // --- Lógica de Drill-down ---
-  const handleWordClick = (word) => {
-    if (!newsData) return;
-    const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const search = normalize(word);
-    const related = newsData.filter(art => normalize(art.title || "").includes(search)).slice(0, 15);
-    setSelectedWordData({ word, articles: related });
+  const bandGradient = (color) => {
+    return `linear-gradient(135deg, ${color} 0%, rgba(255,255,255,0.25) 55%, ${color} 100%)`;
   };
 
-  // --- Ciclo de Vida e Cache ---
+  /* ============================
+     CONTAGEM POR FAIXA
+  ============================ */
+  const bandCounts = useMemo(() => {
+    const counts = [0, 0, 0, 0, 0];
+    (trends || []).forEach((trend) => {
+      const index = getBandIndexByScore(trend.score);
+      counts[index] += 1;
+    });
+    return counts;
+  }, [trends]);
+
+  /* ============================
+     DRILL DOWN – NUVEM
+  ============================ */
+  const handleWordClick = (word) => {
+    if (!newsData) return;
+
+    const normalize = (text) =>
+      text
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+    const search = normalize(word);
+
+    const relatedArticles = newsData
+      .filter((article) =>
+        normalize(article.title || "").includes(search)
+      )
+      .slice(0, 15);
+
+    setSelectedWordData({
+      word,
+      articles: relatedArticles
+    });
+  };
+
+  /* ============================
+     CACHE LOCAL
+  ============================ */
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setTrends(parsed.trends);
-        setWordCloudItems(parsed.cloud);
-        setHasGenerated(true);
-      } catch (e) { console.error("Cache reset"); }
+    if (!saved) return;
+
+    try {
+      const parsed = JSON.parse(saved);
+      setTrends(parsed.trends || []);
+      setWordCloudItems(parsed.cloud || []);
+      setHasGenerated(true);
+    } catch {
+      console.warn("Cache inválido – resetado");
     }
   }, []);
 
+  /* ============================
+     EXECUTAR IA
+  ============================ */
   const runTrendAnalysis = async () => {
     const apiKey = getApiKey("widgets");
-    if (!apiKey || !newsData?.length) return alert("IA não configurada ou sem notícias.");
-    
+
+    if (!apiKey || !newsData?.length) {
+      alert("IA não configurada ou sem notícias.");
+      return;
+    }
+
     setLoading(true);
     setActiveIndex(null);
     setSelectedBandIndex(null);
 
     const data = await generateTrendRadar(newsData, apiKey);
 
-    if (data?.trends?.length > 0) {
-      const enriched = data.trends.map(t => ({
-        ...t,
-        related_articles: (t.source_indices || []).map(i => newsData[i]).filter(Boolean)
+    if (data?.trends?.length) {
+      const enriched = data.trends.map((trend) => ({
+        ...trend,
+        related_articles: (trend.source_indices || [])
+          .map((index) => newsData[index])
+          .filter(Boolean)
       }));
+
       setTrends(enriched);
       setWordCloudItems(data.word_cloud || []);
       setHasGenerated(true);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ trends: enriched, cloud: data.word_cloud }));
+
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          trends: enriched,
+          cloud: data.word_cloud
+        })
+      );
     }
+
     setLoading(false);
   };
 
-  // --- Filtros ---
+  /* ============================
+     FILTRO POR FAIXA
+  ============================ */
   const filteredTrends = useMemo(() => {
-    if (!trends) return [];
-    if (selectedBandIndex === null) return [];
-    return trends.filter(t => getBandIndexByScore(t.score) === selectedBandIndex);
+    if (!trends || selectedBandIndex === null) return [];
+    return trends.filter(
+      (trend) =>
+        getBandIndexByScore(trend.score) === selectedBandIndex
+    );
   }, [trends, selectedBandIndex]);
 
-  // --- UI Tokens ---
-  const panelBg = isDarkMode ? "rgba(24, 24, 27, 0.85)" : "rgba(255, 255, 255, 0.95)";
-  const borderColor = isDarkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)";
+  /* ============================
+     TOKENS VISUAIS
+  ============================ */
+  const panelBackground = isDarkMode
+    ? "rgba(24,24,27,0.85)"
+    : "rgba(255,255,255,0.95)";
 
+  const borderColor = isDarkMode
+    ? "rgba(255,255,255,0.12)"
+    : "rgba(0,0,0,0.08)";
+
+  /* ============================
+     RENDER
+  ============================ */
   return (
     <div className="relative w-full max-w-5xl mx-auto px-4 py-8 font-sans">
-      <style jsx="true">{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(155, 155, 155, 0.3); border-radius: 10px; }
+
+      {/* ============================
+          ESTILOS GLOBAIS
+      ============================ */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(155,155,155,0.3);
+          border-radius: 10px;
+        }
+
+        @keyframes rulerShine {
+          0% { transform: translateX(-70%); opacity: 0; }
+          15% { opacity: 0.35; }
+          50% { opacity: 0.35; }
+          85% { opacity: 0.15; }
+          100% { transform: translateX(140%); opacity: 0; }
+        }
+
+        .ruler-shell {
+          position: relative;
+          border-radius: 9999px;
+          overflow: hidden;
+          isolation: isolate;
+        }
+
+        .ruler-shell::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(1200px 80px at 50% 0%, rgba(255,255,255,.25), transparent 60%),
+            linear-gradient(180deg, rgba(255,255,255,.14), rgba(0,0,0,.18));
+          pointer-events: none;
+          z-index: 5;
+        }
+
+        .ruler-shell::after {
+          content: "";
+          position: absolute;
+          top: -40%;
+          left: 0;
+          width: 45%;
+          height: 180%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+          filter: blur(8px);
+          transform: translateX(-70%);
+          animation: rulerShine 3.2s ease-in-out infinite;
+          pointer-events: none;
+          z-index: 6;
+          opacity: .25;
+        }
+
+        .ruler-separator {
+          position: absolute;
+          top: 15%;
+          bottom: 15%;
+          width: 1px;
+          background: rgba(255,255,255,.28);
+          z-index: 4;
+        }
       `}</style>
 
-      {/* Header */}
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
       <div className="flex justify-between items-center mb-10">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-orange-500/10 rounded-2xl">
             <Activity className="text-orange-500" size={24} />
           </div>
           <div>
-            <h2 className="text-sm font-black uppercase tracking-widest opacity-80">Trend Radar</h2>
-            <p className="text-[10px] font-bold opacity-40 uppercase">Análise de Temperatura • 24h</p>
+            <h2 className="text-sm font-black uppercase tracking-widest opacity-80">
+              Trend Radar
+            </h2>
+            <p className="text-[10px] font-bold opacity-40 uppercase">
+              Análise de Temperatura • 24h
+            </p>
           </div>
         </div>
-        <button onClick={runTrendAnalysis} disabled={loading} className={`p-4 rounded-full transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-          {loading ? <Loader2 className="animate-spin text-orange-500" size={22} /> : <RefreshCw size={22} />}
+
+        <button
+          onClick={runTrendAnalysis}
+          disabled={loading}
+          className={`p-4 rounded-full transition-all active:scale-95 ${
+            isDarkMode ? "bg-zinc-800" : "bg-zinc-100"
+          }`}
+        >
+          {loading ? (
+            <Loader2 className="animate-spin text-orange-500" size={22} />
+          ) : (
+            <RefreshCw size={22} />
+          )}
         </button>
       </div>
 
-      {/* Empty State */}
-      {!hasGenerated && !loading && (
-        <div className="h-96 flex flex-col items-center justify-center border-2 border-dashed border-zinc-500/20 rounded-[3.5rem] text-center p-12">
-          <Sparkles className="text-orange-500/40 mb-6" size={56} />
-          <h3 className="text-xl font-black mb-3">Mapeamento de Calor de Notícias</h3>
-          <p className="text-sm opacity-50 max-w-xs mb-10 leading-relaxed">Nossa IA analisa os sinais térmicos das últimas 24h. Ative o radar para visualizar.</p>
-          <button onClick={runTrendAnalysis} className="px-10 py-5 bg-orange-500 text-white rounded-full font-black shadow-2xl shadow-orange-500/30 hover:scale-105 transition-all">ATIVAR RADAR</button>
-        </div>
-      )}
-
-      {/* Loading State */}
-      {loading && (
-        <div className="h-96 flex flex-col items-center justify-center">
-          <div className="relative w-28 h-28 mb-8 flex items-center justify-center">
-            <div className="absolute inset-0 border-4 border-orange-500/20 rounded-full" />
-            <div className="absolute inset-0 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-            <Activity className="text-orange-500 animate-pulse" size={32} />
-          </div>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Processando Temperaturas</p>
-        </div>
-      )}
-
+      {/* =====================================================
+          RÉGUA DE TEMPERATURA
+      ===================================================== */}
       {hasGenerated && !loading && (
-        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
-          
-          {/* NUVEM DE PALAVRAS */}
-          <div className="p-8 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-8">Termos em Alta</h4>
-            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-4">
-              {wordCloudItems.map((item, i) => {
-                const style = getTrendStyle(item.relevance);
-                const tilt = (i % 3 === 0) ? "rotate-2" : (i % 2 === 0) ? "-rotate-2" : "rotate-0";
-                return (
-                  <button
-                    key={i}
-                    onClick={() => handleWordClick(item.word)}
-                    className={`px-5 py-2.5 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
-                    style={{
-                      fontSize: `${12 + (item.relevance * 1.5)}px`,
-                      color: style.color,
-                      background: `${style.color}15`,
-                      border: `1px solid ${style.color}25`
-                    }}
-                  >
-                    {item.word}
-                  </button>
-                );
-              })}
-            </div>
+        <div className="space-y-4">
+          <div className="flex justify-between px-6 text-[10px] font-black uppercase tracking-widest opacity-50">
+            <span>Frio</span>
+            <span>Intenso</span>
           </div>
 
-          {/* RÉGUA DE TEMPERATURA */}
-          <div className="space-y-4">
-            <div className="flex justify-between px-6 text-[10px] font-black uppercase tracking-widest opacity-40">
-              <span>Frio</span>
-              <span>Intenso</span>
-            </div>
-            
-            <div className="h-16 rounded-full flex items-center overflow-hidden shadow-inner relative cursor-pointer" 
-                 style={{ background: isDarkMode ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.05)" }}>
-              {temperatureBands.map((band, idx) => {
-                const isActive = selectedBandIndex === idx;
-                const isSomethingSelected = selectedBandIndex !== null;
-                
-                return (
-                  <motion.div
-                    key={idx}
-                    onClick={() => setSelectedBandIndex(isActive ? null : idx)}
-                    className="relative h-full flex items-center justify-center transition-all duration-500 ease-out"
-                    style={{ 
-                      flex: isActive ? 3 : 1,
-                      background: band.color,
-                      opacity: isActive ? 1 : (isSomethingSelected ? 0.3 : 0.8),
-                      filter: isActive ? 'brightness(1.2)' : 'grayscale(0.3)',
-                    }}
-                  >
-                    {isActive && (
-                      <motion.div layoutId="activeGlow" className="absolute inset-0 z-10" style={{ boxShadow: `inset 0 0 30px rgba(255,255,255,0.6), 0 0 40px ${band.color}` }} />
-                    )}
-                    {isActive && (
-                       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-2 h-2 rounded-full bg-white shadow-lg z-20" />
-                    )}
-                  </motion.div>
-                );
-              })}
-            </div>
-            <p className="text-center text-[10px] opacity-40 mt-2 font-medium">
-              {selectedBandIndex === null ? "Toque em uma cor para revelar os cards" : "Toque novamente para fechar"}
-            </p>
-          </div>
+          <div
+            className="ruler-shell h-16 flex items-center shadow-inner cursor-pointer"
+            style={{
+              background: isDarkMode
+                ? "rgba(0,0,0,0.35)"
+                : "rgba(0,0,0,0.06)",
+              border: `1px solid ${borderColor}`
+            }}
+          >
+            {[20, 40, 60, 80].map((left) => (
+              <div
+                key={left}
+                className="ruler-separator"
+                style={{ left: `${left}%` }}
+              />
+            ))}
 
-          {/* GRID DE TENDÊNCIAS */}
-          <AnimatePresence>
-            {selectedBandIndex !== null && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {filteredTrends.length > 0 ? (
-                  filteredTrends.map((trend, idx) => {
-                    const style = getTrendStyle(trend.score);
-                    const open = activeIndex === idx;
-                    
-                    return (
-                      <motion.div key={trend.topic} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
-                        <button onClick={() => setActiveIndex(open ? null : idx)} 
-                                className={`w-full text-left p-7 rounded-[2.5rem] transition-all border ${open ? 'shadow-2xl' : ''}`}
-                                style={{ background: panelBg, borderColor: open ? style.color : borderColor }}>
-                          <div className="flex justify-between items-center mb-3">
-                            <div className="flex items-center gap-2 px-3 py-1 rounded-lg" style={{ background: style.bg }}>
-                              <div className="w-2 h-2 rounded-full" style={{ background: style.color }} />
-                              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: style.color }}>{trend.score}/10</span>
-                            </div>
-                            <ChevronRight size={18} className={`transition-transform duration-300 ${open ? 'rotate-90 text-orange-500' : 'opacity-20'}`} />
-                          </div>
-                          
-                          <h3 className="font-bold text-base leading-snug mb-2">{trend.topic}</h3>
-                          <p className="text-xs opacity-70 leading-relaxed font-medium mb-2">{trend.summary}</p>
+            {temperatureBands.map((band, index) => {
+              const isActive = selectedBandIndex === index;
+              const count = bandCounts[index];
 
-                          <AnimatePresence>
-                            {open && (
-                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                                <div className="space-y-3 pt-4 border-t border-zinc-500/10 mt-4">
-                                  <p className="text-[9px] font-black uppercase opacity-30 tracking-[0.2em]">Fontes Consultadas</p>
-                                  <div className="flex flex-col gap-2">
-                                    {trend.related_articles.map((art, i) => (
-                                      <div key={i} onClick={(e) => { e.stopPropagation(); openArticle(art); }} 
-                                           className="p-3 rounded-2xl bg-zinc-500/5 hover:bg-orange-500/10 transition-colors flex items-center justify-between group cursor-pointer">
-                                        <span className="text-[11px] font-bold truncate pr-4">{art.title}</span>
-                                        <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 text-orange-500" />
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </button>
-                      </motion.div>
-                    );
-                  })
-                ) : (
-                  <div className="col-span-1 md:col-span-2 py-10 text-center opacity-40">
-                    <p className="text-sm font-bold">Nenhum tema encontrado nesta faixa de temperatura.</p>
+              return (
+                <motion.button
+                  key={index}
+                  type="button"
+                  onClick={() =>
+                    setSelectedBandIndex(isActive ? null : index)
+                  }
+                  className="relative h-full flex items-center justify-center"
+                  style={{
+                    flex: isActive ? 3 : 1,
+                    background: bandGradient(band.color),
+                    opacity:
+                      selectedBandIndex === null || isActive ? 1 : 0.35,
+                    filter: isActive
+                      ? "saturate(1.4) brightness(1.2)"
+                      : "saturate(1.1)"
+                  }}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeGlow"
+                      className="absolute inset-0"
+                      style={{
+                        boxShadow: `inset 0 0 36px rgba(255,255,255,0.55), 0 0 48px ${band.color}`,
+                        zIndex: 3
+                      }}
+                    />
+                  )}
+
+                  <div className="relative z-10 flex items-center gap-2 px-3 py-1 rounded-full bg-black/20 backdrop-blur-md border border-white/20">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white">
+                      {bandLabels[index]}
+                    </span>
+                    <span
+                      className="text-[9px] font-black px-2 py-0.5 rounded-full bg-white"
+                      style={{
+                        color: band.color,
+                        boxShadow: `0 0 18px ${band.color}55`
+                      }}
+                    >
+                      {count}
+                    </span>
                   </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+                </motion.button>
+              );
+            })}
+          </div>
+
+          <p className="text-center text-[10px] opacity-50 font-medium">
+            {selectedBandIndex === null
+              ? "Toque em uma cor para revelar os cards"
+              : "Toque novamente para fechar"}
+          </p>
+        </div>
       )}
-
-      {/* MODAL DE DRILL-DOWN */}
-      <AnimatePresence>
-        {selectedWordData && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-5">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setSelectedWordData(null)} />
-            <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 30 }}
-                        className={`relative w-full max-w-2xl rounded-[3.5rem] overflow-hidden border ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-black/5'}`}>
-              <div className="p-10">
-                <div className="flex justify-between items-start mb-10">
-                  <div>
-                    <span className="text-[10px] font-black uppercase text-orange-500 mb-2 block">Contexto da Palavra</span>
-                    <h3 className="text-3xl font-black tracking-tight">{selectedWordData.word}</h3>
-                  </div>
-                  <button onClick={() => setSelectedWordData(null)} className="p-4 bg-zinc-500/10 rounded-full active:scale-90 transition-all"><X size={24} /></button>
-                </div>
-                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-3 custom-scrollbar">
-                  {selectedWordData.articles.map((art, i) => (
-                    <button key={i} onClick={() => openArticle(art)} className={`w-full text-left p-6 rounded-[2rem] transition-all border border-transparent ${isDarkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10'}`}>
-                      <p className="text-sm font-bold leading-tight mb-2">{art.title}</p>
-                      <span className="text-[9px] font-black uppercase opacity-30 px-2 py-1 bg-zinc-500/10 rounded-md">{art.source?.name || "Fonte Geral"}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
-
 
 
 
