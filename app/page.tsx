@@ -4010,8 +4010,8 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
 
   // --- Definição das Faixas ---
  const temperatureBands = [
-    { id: 0, min: 0, max: 2, color: "#3b82f6" }, // Frio - Azul mais vivo
-    { id: 1, min: 3, max: 4, color: "#10b981" }, // Leve - Verde mais vivo
+    { id: 0, min: 0, max: 2, color: "#007bff" }, // Frio - Azul mais vivo
+    { id: 1, min: 3, max: 4, color: "#22c55e" }, // Leve - Verde mais vivo
     { id: 2, min: 5, max: 6, color: "#eab308" }, // Médio - Laranja mais vivo
     { id: 3, min: 7, max: 8, color: "#f97316" }, // Quente - Vermelho mais vivo
     { id: 4, min: 9, max: 10, color: "#ef4444" }, // Muito Quente - Vermelho intenso
@@ -4020,7 +4020,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const getTrendStyle = (score) => {
     const s = Number(score || 0);
     if (s >= 9) return { color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" };
-    if (s >= 7) return { color: "#22c55e", bg: "rgba(249, 115, 22, 0.1)" };
+    if (s >= 7) return { color: "#f97316", bg: "rgba(249, 115, 22, 0.1)" };
     if (s >= 5) return { color: "#eab308", bg: "rgba(234, 179, 8, 0.1)" };
     if (s >= 3) return { color: "#22c55e", bg: "rgba(34, 197, 94, 0.1)" };
     return { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" };
@@ -4115,64 +4115,23 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       {!hasGenerated && !loading && (
         <div className="h-96 flex flex-col items-center justify-center border-2 border-dashed border-zinc-500/20 rounded-[3.5rem] text-center p-12">
           <Sparkles className="text-orange-500/40 mb-6" size={56} />
-          <h3 className="text-xl font-black mb-3">Mapeamento de Trending Topics</h3>
+          <h3 className="text-xl font-black mb-3">Mapeamento de Trending News</h3>
           <p className="text-sm opacity-50 max-w-xs mb-10 leading-relaxed">Nossa IA analisa os trending topics das últimas 24h. Ative o radar para visualizar.</p>
           <button onClick={runTrendAnalysis} className="px-10 py-5 bg-orange-500 text-white rounded-full font-black shadow-2xl shadow-orange-500/30 hover:scale-105 transition-all">ATIVAR RADAR</button>
         </div>
       )}
 
-         {loading ? (
-        <div className="h-56 flex flex-col items-center justify-center text-center gap-4">
-          <div className="relative h-44 w-44 flex items-center justify-center">
-            <div
-              className="absolute inset-0 rounded-full"
-              style={{
-                background:
-                  "conic-gradient(from 90deg, rgba(59,130,246,0.9), rgba(34,197,94,0.9), rgba(234,179,8,0.9), rgba(249,115,22,0.9), rgba(239,68,68,0.9), rgba(59,130,246,0.9))",
-                filter: "blur(1px)",
-                opacity: 0.35,
-                animation: "glow-spin 1.6s linear infinite",
-              }}
-            />
-            <div
-              className="absolute inset-2 rounded-full"
-              style={{
-                background: isDarkMode ? "rgba(9,9,11,0.92)" : "rgba(255,255,255,0.92)",
-                border: isDarkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
-              }}
-            />
-            <div
-              className="absolute inset-4 rounded-full"
-              style={{
-                background: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
-                animation: "pulse 1.1s ease-in-out infinite",
-              }}
-            />
-            <div className="absolute inset-0 origin-center" style={{ animation: "sweep 1.2s linear infinite" }}>
-              <div
-                className="absolute left-1/2 top-1/2"
-                style={{
-                  width: "50%",
-                  height: "2px",
-                  transform: "translateY(-50%)",
-                  background: "linear-gradient(90deg, transparent, rgba(249,115,22,0.95))",
-                }}
-                    />
-            </div>
-             <div className="relative z-10 flex flex-col items-center">
-                          <Activity size={26} className="text-orange-400" />
-                          <div className="flex gap-1 mt-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400" style={{ animation: "dots 0.8s ease-in-out infinite" }} />
-                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400" style={{ animation: "dots 0.8s ease-in-out infinite", animationDelay: "0.15s" }} />
-                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400" style={{ animation: "dots 0.8s ease-in-out infinite", animationDelay: "0.30s" }} />
-                          </div>
-                        </div>
-                      </div>
-            
-                      <p className="text-md font-black text-zinc-500 uppercase tracking-widest">Analisando tendências...</p>
-                    </div>
-                  ) : (
-                    <div className="w-full">
+      {/* Loading State */}
+      {loading && (
+        <div className="h-96 flex flex-col items-center justify-center">
+          <div className="relative w-28 h-28 mb-8 flex items-center justify-center">
+            <div className="absolute inset-0 border-4 border-orange-500/20 rounded-full" />
+            <div className="absolute inset-0 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            <Activity className="text-orange-500 animate-pulse" size={32} />
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Processando Temperaturas</p>
+        </div>
+      )}
 
       {hasGenerated && !loading && (
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
