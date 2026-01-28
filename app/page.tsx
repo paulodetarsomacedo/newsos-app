@@ -3990,6 +3990,83 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 // ==============================
 // TrendRadar (COMPLETO: COM NUVEM VIA IA + FILTRO + DESIGN MODERNO)
 // ==============================
+const generateTrendRadar = async (news, apiKey) => {
+  if (!news || news.length === 0) return null;
+
+  const context = news
+    .slice(0, 100)
+    .map((n, index) => `${index}|${n.title}`)
+    .join("\n");
+
+  const prompt = `
+Você é um Analista de Dados sênior especialista em tendências.
+Analise os títulos de notícias abaixo (formato índice|título).
+
+SUA MISSÃO EM DUAS PARTES:
+
+PARTE 1: TENDÊNCIAS (10 TEMAS)
+1. Identifique 10 tendências agrupando títulos semanticamente.
+2. Atribua um score de impacto (1-10).
+3. REGRA DE TEMPERATURA: Você DEVE retornar 10 temas. 
+   - Aproximadamente 8 temas devem ser "Quentes" (score 7-10).
+   - Exatamente 2 temas DEVEM ser "Médios" ou "Frios" (score 1-6).
+4. Crie uma micro-manchete dinâmica (campo "topic", máx 9 palavras).
+5. Escreva um resumo curto e direto sobre o fato (campo "summary").
+6. Indique os índices das notícias no campo "source_indices".
+
+PARTE 2: NUVEM DE PALAVRAS (20 TOKENS)
+1. Extraia os 20 termos mais relevantes.
+2. Atribua um score de "relevance" (1-10) para cada termo.
+
+FORMATO JSON OBRIGATÓRIO:
+{
+  "trends": [
+    { "topic": "Manchete", "score": 9, "summary": "Resumo curto do fato.", "source_indices": [0,1] }
+  ],
+  "word_cloud": [
+    { "word": "Termo", "relevance": 10 }
+  ]
+}
+
+DADOS:
+${context}
+`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { response_mime_type: "application/json" },
+        }),
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok || data.error) return { trends: [], word_cloud: [] };
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return { trends: [], word_cloud: [] };
+
+    const cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const json = JSON.parse(cleanText);
+
+    return {
+      trends: Array.isArray(json.trends) ? json.trends : [],
+      word_cloud: Array.isArray(json.word_cloud) ? json.word_cloud : [],
+    };
+  } catch (error) {
+    console.error("Erro na IA:", error);
+    return { trends: [], word_cloud: [] };
+  }
+};
+
+// =========================================================================
+// 2. COMPONENTE PRINCIPAL: TrendRadar
+// =========================================================================
 const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   // --- Estados ---
   const [trends, setTrends] = useState(null);
@@ -3997,24 +4074,24 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [loading, setLoading] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   
-  // Estado para expandir fontes (se desejar ver mais detalhes)
+  // Estado para expandir fontes
   const [activeIndex, setActiveIndex] = useState(null);
   
-  // Estado da Régua (Controle de Visibilidade dos Cards)
+  // Estado da Régua
   const [selectedBandIndex, setSelectedBandIndex] = useState(null);
   
   // Estado do Modal da Palavra
   const [selectedWordData, setSelectedWordData] = useState(null);
 
-  const STORAGE_KEY = "newsos_trend_radar_v9_visual";
+  const STORAGE_KEY = "newsos_trend_radar_v9_fixed";
 
-  // --- Definição das Faixas (Cores contínuas) ---
+  // --- Definição das Faixas ---
   const temperatureBands = [
-    { id: 0, min: 0, max: 2, color: "#3b82f6" }, // Azul (Frio)
-    { id: 1, min: 3, max: 4, color: "#22c55e" }, // Verde (Leve)
-    { id: 2, min: 5, max: 6, color: "#eab308" }, // Amarelo (Médio)
-    { id: 3, min: 7, max: 8, color: "#f97316" }, // Laranja (Quente)
-    { id: 4, min: 9, max: 10, color: "#ef4444" }, // Vermelho (Muito Quente)
+    { id: 0, min: 0, max: 2, color: "#3b82f6" }, // Frio
+    { id: 1, min: 3, max: 4, color: "#22c55e" }, // Leve
+    { id: 2, min: 5, max: 6, color: "#eab308" }, // Médio
+    { id: 3, min: 7, max: 8, color: "#f97316" }, // Quente
+    { id: 4, min: 9, max: 10, color: "#ef4444" }, // Muito Quente
   ];
 
   const getTrendStyle = (score) => {
@@ -4032,7 +4109,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     return 0;
   };
 
-  // --- Lógica de Drill-down (Modal da Palavra) ---
+  // --- Lógica de Drill-down ---
   const handleWordClick = (word) => {
     if (!newsData) return;
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -4060,7 +4137,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     
     setLoading(true);
     setActiveIndex(null);
-    setSelectedBandIndex(null); // Reseta a seleção ao gerar novo radar
+    setSelectedBandIndex(null);
 
     const data = await generateTrendRadar(newsData, apiKey);
 
@@ -4080,7 +4157,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   // --- Filtros ---
   const filteredTrends = useMemo(() => {
     if (!trends) return [];
-    if (selectedBandIndex === null) return []; // Retorna vazio se nada selecionado
+    if (selectedBandIndex === null) return [];
     return trends.filter(t => getBandIndexByScore(t.score) === selectedBandIndex);
   }, [trends, selectedBandIndex]);
 
@@ -4099,19 +4176,19 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       <div className="flex justify-between items-center mb-10">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-orange-500/10 rounded-2xl">
-            <ActivityIcon className="text-orange-500" size={24} />
+            <Activity className="text-orange-500" size={24} />
           </div>
           <div>
             <h2 className="text-sm font-black uppercase tracking-widest opacity-80">Trend Radar</h2>
             <p className="text-[10px] font-bold opacity-40 uppercase">Análise de Temperatura • 24h</p>
           </div>
         </div>
-        <button onClick={runTrendAnalysis} disabled={loading} className={`p-4 rounded-full transition-all active:scale-90 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+        <button onClick={runTrendAnalysis} disabled={loading} className={`p-4 rounded-full transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
           {loading ? <Loader2 className="animate-spin text-orange-500" size={22} /> : <RefreshCw size={22} />}
         </button>
       </div>
 
-      {/* Empty State / Intro */}
+      {/* Empty State */}
       {!hasGenerated && !loading && (
         <div className="h-96 flex flex-col items-center justify-center border-2 border-dashed border-zinc-500/20 rounded-[3.5rem] text-center p-12">
           <Sparkles className="text-orange-500/40 mb-6" size={56} />
@@ -4127,7 +4204,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
           <div className="relative w-28 h-28 mb-8 flex items-center justify-center">
             <div className="absolute inset-0 border-4 border-orange-500/20 rounded-full" />
             <div className="absolute inset-0 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-            <ActivityIcon className="text-orange-500 animate-pulse" size={32} />
+            <Activity className="text-orange-500 animate-pulse" size={32} />
           </div>
           <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Processando Temperaturas</p>
         </div>
@@ -4136,7 +4213,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       {hasGenerated && !loading && (
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
           
-          {/* NUVEM DE PALAVRAS (SEMPRE VISÍVEL APÓS GERAR) */}
+          {/* NUVEM DE PALAVRAS */}
           <div className="p-8 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-8">Termos em Alta</h4>
             <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-4">
@@ -4162,17 +4239,15 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
             </div>
           </div>
 
-          {/* RÉGUA DE TEMPERATURA (BARRA CONTÍNUA) */}
+          {/* RÉGUA DE TEMPERATURA */}
           <div className="space-y-4">
             <div className="flex justify-between px-6 text-[10px] font-black uppercase tracking-widest opacity-40">
               <span>Frio</span>
               <span>Intenso</span>
             </div>
             
-            {/* Container da Régua */}
             <div className="h-16 rounded-full flex items-center overflow-hidden shadow-inner relative cursor-pointer" 
                  style={{ background: isDarkMode ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.05)" }}>
-              
               {temperatureBands.map((band, idx) => {
                 const isActive = selectedBandIndex === idx;
                 const isSomethingSelected = selectedBandIndex !== null;
@@ -4182,29 +4257,18 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                     key={idx}
                     onClick={() => setSelectedBandIndex(isActive ? null : idx)}
                     className="relative h-full flex items-center justify-center transition-all duration-500 ease-out"
-                    // Lógica de largura: Se ativo, cresce (flex-grow). Se inativo, fica padrão.
                     style={{ 
                       flex: isActive ? 3 : 1,
                       background: band.color,
-                      opacity: isActive ? 1 : (isSomethingSelected ? 0.3 : 0.8), // Fica opaco se outro estiver selecionado
+                      opacity: isActive ? 1 : (isSomethingSelected ? 0.3 : 0.8),
                       filter: isActive ? 'brightness(1.2)' : 'grayscale(0.3)',
                     }}
                   >
-                    {/* Brilho interno se ativo */}
                     {isActive && (
-                      <motion.div 
-                        layoutId="activeGlow"
-                        className="absolute inset-0 z-10"
-                        style={{ boxShadow: `inset 0 0 30px rgba(255,255,255,0.6), 0 0 40px ${band.color}` }}
-                      />
+                      <motion.div layoutId="activeGlow" className="absolute inset-0 z-10" style={{ boxShadow: `inset 0 0 30px rgba(255,255,255,0.6), 0 0 40px ${band.color}` }} />
                     )}
-                    
-                    {/* Indicador visual (ponto) se ativo */}
                     {isActive && (
-                       <motion.div 
-                         initial={{ scale: 0 }} animate={{ scale: 1 }}
-                         className="w-2 h-2 rounded-full bg-white shadow-lg z-20"
-                       />
+                       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-2 h-2 rounded-full bg-white shadow-lg z-20" />
                     )}
                   </motion.div>
                 );
@@ -4215,68 +4279,40 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
             </p>
           </div>
 
-          {/* GRID DE TENDÊNCIAS (VISÍVEL APENAS QUANDO FAIXA SELECIONADA) */}
+          {/* GRID DE TENDÊNCIAS */}
           <AnimatePresence>
             {selectedBandIndex !== null && (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                exit={{ opacity: 0, y: 20 }}
-                className="grid grid-cols-1 md:grid-cols-2 gap-6"
-              >
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {filteredTrends.length > 0 ? (
                   filteredTrends.map((trend, idx) => {
                     const style = getTrendStyle(trend.score);
                     const open = activeIndex === idx;
                     
                     return (
-                      <motion.div 
-                        key={trend.topic} 
-                        layout 
-                        initial={{ opacity: 0, scale: 0.95 }} 
-                        animate={{ opacity: 1, scale: 1 }} 
-                        exit={{ opacity: 0, scale: 0.95 }}
-                      >
-                        <button 
-                          onClick={() => setActiveIndex(open ? null : idx)} 
-                          className={`w-full text-left p-7 rounded-[2.5rem] transition-all border ${open ? 'shadow-2xl' : ''}`}
-                          style={{ 
-                            background: panelBg, 
-                            borderColor: open ? style.color : borderColor 
-                          }}
-                        >
+                      <motion.div key={trend.topic} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+                        <button onClick={() => setActiveIndex(open ? null : idx)} 
+                                className={`w-full text-left p-7 rounded-[2.5rem] transition-all border ${open ? 'shadow-2xl' : ''}`}
+                                style={{ background: panelBg, borderColor: open ? style.color : borderColor }}>
                           <div className="flex justify-between items-center mb-3">
                             <div className="flex items-center gap-2 px-3 py-1 rounded-lg" style={{ background: style.bg }}>
                               <div className="w-2 h-2 rounded-full" style={{ background: style.color }} />
-                              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: style.color }}>
-                                {trend.score}/10
-                              </span>
+                              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: style.color }}>{trend.score}/10</span>
                             </div>
                             <ChevronRight size={18} className={`transition-transform duration-300 ${open ? 'rotate-90 text-orange-500' : 'opacity-20'}`} />
                           </div>
                           
                           <h3 className="font-bold text-base leading-snug mb-2">{trend.topic}</h3>
-                          
-                          {/* RESUMO SEMPRE VISÍVEL ABAIXO DO TÍTULO */}
                           <p className="text-xs opacity-70 leading-relaxed font-medium mb-2">{trend.summary}</p>
 
                           <AnimatePresence>
                             {open && (
-                              <motion.div 
-                                initial={{ height: 0, opacity: 0 }} 
-                                animate={{ height: 'auto', opacity: 1 }} 
-                                exit={{ height: 0, opacity: 0 }} 
-                                className="overflow-hidden"
-                              >
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                                 <div className="space-y-3 pt-4 border-t border-zinc-500/10 mt-4">
                                   <p className="text-[9px] font-black uppercase opacity-30 tracking-[0.2em]">Fontes Consultadas</p>
                                   <div className="flex flex-col gap-2">
                                     {trend.related_articles.map((art, i) => (
-                                      <div 
-                                        key={i} 
-                                        onClick={(e) => { e.stopPropagation(); openArticle(art); }} 
-                                        className="p-3 rounded-2xl bg-zinc-500/5 hover:bg-orange-500/10 transition-colors flex items-center justify-between group cursor-pointer"
-                                      >
+                                      <div key={i} onClick={(e) => { e.stopPropagation(); openArticle(art); }} 
+                                           className="p-3 rounded-2xl bg-zinc-500/5 hover:bg-orange-500/10 transition-colors flex items-center justify-between group cursor-pointer">
                                         <span className="text-[11px] font-bold truncate pr-4">{art.title}</span>
                                         <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 text-orange-500" />
                                       </div>
@@ -4301,7 +4337,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
         </motion.div>
       )}
 
-      {/* MODAL DE DRILL-DOWN DA PALAVRA */}
+      {/* MODAL DE DRILL-DOWN */}
       <AnimatePresence>
         {selectedWordData && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-5">
