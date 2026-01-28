@@ -3288,8 +3288,8 @@ const generateHeuristicClusters = (news) => {
     // --- CONFIGURAÇÕES DE QUALIDADE PERCEBIDA ---
     const SOURCE_WEIGHTS = { 'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, };
     const DEFAULT_WEIGHT = 1;
-    const IMAGE_PREFERRED_SOURCES = new Set(['Extra', 'G1', 'CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT News', 'Times Brasil', 'Estadao', 'Fox News', '180graus']);
-    const IMAGE_BLOCKED_SOURCES = new Set(['ISTOÉ', 'ISTOÉ DINHEIRO', 'UOL Economia', 'Estadão E-Investidor', 'F5', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Noticias', 'Money Times', 'Estadão | As Últimas Notícias ']);
+    const IMAGE_PREFERRED_SOURCES = new Set(['Extra','CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT News', 'Times Brasil', 'Estadao', 'Fox News', '180graus']);
+    const IMAGE_BLOCKED_SOURCES = new Set(['ISTOÉ', 'ISTOÉ DINHEIRO', 'UOL Economia', 'Estadão E-Investidor', 'F5', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Noticias', 'Money Times', 'Estadão | As Últimas Notícias', 'G1']);
     const SIMILARITY_THRESHOLD = 0.58;
     const CLUSTER_LIMIT = 5;
 
@@ -4009,13 +4009,13 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const STORAGE_KEY = "newsos_trend_radar_v9_fixed";
 
   // --- Definição das Faixas ---
- const temperatureBands = [
-    { id: 0, min: 0, max: 2, color: "#007bff" }, // Frio - Azul mais vivo
-    { id: 1, min: 3, max: 4, color: "#22c55e" }, // Leve - Verde mais vivo
-    { id: 2, min: 5, max: 6, color: "#eab308" }, // Médio - Laranja mais vivo
-    { id: 3, min: 7, max: 8, color: "#f97316" }, // Quente - Vermelho mais vivo
-    { id: 4, min: 9, max: 10, color: "#ef4444" }, // Muito Quente - Vermelho intenso
-  ];
+const temperatureBands = [
+    { id: 0, min: 0, max: 2, color: "#3b82f6" }, // Frio (Azul)
+    { id: 1, min: 3, max: 4, color: "#22c55e" }, // Leve (Verde)
+    { id: 2, min: 5, max: 6, color: "#facc15" }, // Médio (Amarelo)
+    { id: 3, min: 7, max: 8, color: "#f97316" }, // Quente (Laranja)
+    { id: 4, min: 9, max: 10, color: "#dc2626" }, // Muito Quente (Vermelho)
+];
 
   const getTrendStyle = (score) => {
     const s = Number(score || 0);
@@ -4137,9 +4137,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
           
           {/* NUVEM DE PALAVRAS */}
-          <div className="p-8 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-8">Termos em Alta</h4>
-            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-4">
+          <div className="p-6 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
+            <h4 className="text-[15px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-6">Termos em Alta</h4>
+            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-3">
               {wordCloudItems.map((item, i) => {
                 const style = getTrendStyle(item.relevance);
                 const tilt = (i % 3 === 0) ? "rotate-2" : (i % 2 === 0) ? "-rotate-2" : "rotate-0";
@@ -4147,7 +4147,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                   <button
                     key={i}
                     onClick={() => handleWordClick(item.word)}
-                    className={`px-5 py-2.5 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
+                    className={`px-5 py-2 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
                     style={{
                       fontSize: `${12 + (item.relevance * 1.5)}px`,
                       color: style.color,
@@ -4169,7 +4169,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
               <span>Intenso</span>
             </div>
             
-            <div className="h-16 rounded-2xl flex items-center overflow-hidden shadow-inner relative cursor-pointer" 
+            <div className="h-13 rounded-2xl flex items-center overflow-hidden shadow-inner relative cursor-pointer" 
                  style={{ background: isDarkMode ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.05)" }}>
               {temperatureBands.map((band, idx) => {
                 const isActive = selectedBandIndex === idx;
