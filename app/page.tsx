@@ -4203,9 +4203,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       {hasGenerated && !loading && (
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
           {/* NUVEM DE PALAVRAS */}
-          <div className="p-8 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-8">Termos em Alta</h4>
-            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-4">
+          <div className="p-6 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
+            <h4 className="text-[15px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-6">Termos em Alta</h4>
+            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-3">
               {wordCloudItems.map((item, i) => {
                 const style = getTrendStyle(item.relevance);
                 const tilt = i % 3 === 0 ? "rotate-2" : i % 2 === 0 ? "-rotate-2" : "rotate-0";
@@ -4213,7 +4213,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                   <button
                     key={i}
                     onClick={() => handleWordClick(item.word)}
-                    className={`px-5 py-2.5 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
+                    className={`px-5 py-2 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
                     style={{
                       fontSize: `${12 + item.relevance * 1.5}px`,
                       color: style.color,
