@@ -4203,9 +4203,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       {hasGenerated && !loading && (
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
           {/* NUVEM DE PALAVRAS */}
-          <div className="p-6 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
-            <h4 className="text-[15px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-6">Termos em Alta</h4>
-            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-3">
+          <div className="p-5 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
+            <h4 className="text-[15px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-5">Termos em Alta</h4>
+            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-2">
               {wordCloudItems.map((item, i) => {
                 const style = getTrendStyle(item.relevance);
                 const tilt = i % 3 === 0 ? "rotate-2" : i % 2 === 0 ? "-rotate-2" : "rotate-0";
@@ -4349,7 +4349,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                               height,
                               borderRadius: 999,
                               opacity: isOn ? (isSomethingSelected && !isActive ? 0.18 : 0.55) : 0.12,
-                              background: "rgba(255,255,255,0.95)",
+                              background: "rgba(19, 17, 17, 0.95)",
                               boxShadow: isOn ? "0 0 10px rgba(255,255,255,0.28)" : "none",
                               transition: "opacity 350ms ease",
                             }}
@@ -4358,26 +4358,22 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
                       })}
                     </div>
 
-                    {/* BADGE (fontes) */}
-                    <motion.div
-                      initial={false}
-                      animate={{
-                        scale: isActive ? 1.05 : 1,
-                        opacity: isSomethingSelected && !isActive ? 0.35 : 0.92,
-                      }}
-                      transition={{ duration: 0.25 }}
-                      className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-2 py-1 rounded-full text-[10px] font-black tracking-wide"
-                      style={{
-                        background: "rgba(255,255,255,0.18)",
-                        border: "1px solid rgba(255,255,255,0.22)",
-                        backdropFilter: "blur(8px)",
-                        WebkitBackdropFilter: "blur(8px)",
-                        color: "rgba(255,255,255,0.92)",
-                        textShadow: "0 1px 8px rgba(0,0,0,0.25)",
-                      }}
-                    >
-                      {sourcesCount}
-                    </motion.div>
+                 {(isActive || bandTip?.idx === idx) && (
+  <motion.div
+    initial={{ opacity: 0, scale: 0.9 }}
+    animate={{ opacity: 0.9, scale: 1 }}
+    exit={{ opacity: 0, scale: 0.9 }}
+    className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-2 py-1 rounded-full text-[10px] font-black"
+    style={{
+      background: "rgba(255,255,255,0.18)",
+      border: "1px solid rgba(255,255,255,0.22)",
+      backdropFilter: "blur(8px)",
+      color: "rgba(255,255,255,0.92)",
+    }}
+  >
+    {sourcesCount}
+  </motion.div>
+)}
 
                     {/* PONTO indicador */}
                     {isActive && (
