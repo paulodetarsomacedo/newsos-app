@@ -4137,9 +4137,9 @@ const temperatureBands = [
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
           
           {/* NUVEM DE PALAVRAS */}
-          <div className="p-6 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
-            <h4 className="text-[15px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-6">Termos em Alta</h4>
-            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-3">
+          <div className="p-5 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
+            <h4 className="text-[15px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-5">Termos em Alta</h4>
+            <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-2">
               {wordCloudItems.map((item, i) => {
                 const style = getTrendStyle(item.relevance);
                 const tilt = (i % 3 === 0) ? "rotate-2" : (i % 2 === 0) ? "-rotate-2" : "rotate-0";
@@ -4169,7 +4169,7 @@ const temperatureBands = [
               <span>Intenso</span>
             </div>
             
-            <div className="h-13 rounded-2xl flex items-center overflow-hidden shadow-inner relative cursor-pointer" 
+            <div className="h-13 rounded-3xl flex items-center overflow-hidden shadow-inner relative cursor-pointer" 
                  style={{ background: isDarkMode ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.05)" }}>
               {temperatureBands.map((band, idx) => {
                 const isActive = selectedBandIndex === idx;
@@ -4261,7 +4261,7 @@ const temperatureBands = [
       )}
 
       {/* MODAL DE DRILL-DOWN */}
-      <AnimatePresence>
+       <AnimatePresence>
         {selectedWordData && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-5">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setSelectedWordData(null)} />
@@ -4275,11 +4275,40 @@ const temperatureBands = [
                   </div>
                   <button onClick={() => setSelectedWordData(null)} className="p-4 bg-zinc-500/10 rounded-full active:scale-90 transition-all"><X size={24} /></button>
                 </div>
-                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-3 custom-scrollbar">
+                
+                {/* LISTA DE ARTIGOS COM O NOVO LAYOUT */}
+                <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-3 custom-scrollbar">
                   {selectedWordData.articles.map((art, i) => (
-                    <button key={i} onClick={() => openArticle(art)} className={`w-full text-left p-6 rounded-[2rem] transition-all border border-transparent ${isDarkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10'}`}>
-                      <p className="text-sm font-bold leading-tight mb-2">{art.title}</p>
-                      <span className="text-[9px] font-black uppercase opacity-30 px-2 py-1 bg-zinc-500/10 rounded-md">{art.source?.name || "Fonte Geral"}</span>
+                    <button 
+                      key={i} 
+                      onClick={() => openArticle(art)} 
+                      className={`
+                        w-full text-left p-4 rounded-[1.5rem] transition-all border 
+                        flex items-center justify-between gap-4 group
+                        ${isDarkMode 
+                            ? 'bg-white/5 hover:bg-white/10 border-transparent hover:border-white/10' 
+                            : 'bg-black/5 hover:bg-black/10 border-transparent hover:border-black/10'
+                        }
+                      `}
+                      title={art.title}
+                    >
+                      {/* Lado Esquerdo: Título e Fonte */}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold leading-tight line-clamp-2 group-hover:text-purple-400 transition-colors">
+                          {art.title}
+                        </p>
+                        <span className="text-[9px] font-black uppercase opacity-40 mt-1 block">
+                          {art.source?.name || art.source || "Fonte Geral"}
+                        </span>
+                      </div>
+                      
+                      {/* Lado Direito: Logo Quadrado Arredondado */}
+                      <img
+                        src={art.logo}
+                        alt=""
+                        className="w-8 h-8 rounded-lg flex-shrink-0 border border-white/10 bg-white object-contain"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
                     </button>
                   ))}
                 </div>
