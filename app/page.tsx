@@ -17,7 +17,7 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, Telescope,
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, 
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, ExternalLink,
 } from 'lucide-react';
 
 const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
@@ -4009,12 +4009,12 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const STORAGE_KEY = "newsos_trend_radar_v9_fixed";
 
   // --- Definição das Faixas ---
-  const temperatureBands = [
-    { id: 0, min: 0, max: 2, color: "#3b82f6" }, // Frio
-    { id: 1, min: 3, max: 4, color: "#22c55e" }, // Leve
-    { id: 2, min: 5, max: 6, color: "#eab308" }, // Médio
-    { id: 3, min: 7, max: 8, color: "#f97316" }, // Quente
-    { id: 4, min: 9, max: 10, color: "#ef4444" }, // Muito Quente
+ const temperatureBands = [
+    { id: 0, min: 0, max: 2, color: "#007bff" }, // Frio - Azul mais vivo
+    { id: 1, min: 3, max: 4, color: "#10b981" }, // Leve - Verde mais vivo
+    { id: 2, min: 5, max: 6, color: "#d97706" }, // Médio - Laranja mais vivo
+    { id: 3, min: 7, max: 8, color: "#e11d48" }, // Quente - Vermelho mais vivo
+    { id: 4, min: 9, max: 10, color: "#dc2626" }, // Muito Quente - Vermelho intenso
   ];
 
   const getTrendStyle = (score) => {
