@@ -4174,7 +4174,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
       {/* Empty State */}
       {!hasGenerated && !loading && (
         <div className="h-96 flex flex-col items-center justify-center border-2 border-dashed border-zinc-500/20 rounded-[3.5rem] text-center p-12">
-          <Sparkles className="text-orange-500/40 mb-6" size={56} />
+          <Sparkles className="text-pink-500/70 mb-6" size={75} />
           <h3 className="text-xl font-black mb-3">Mapeamento de Trending News</h3>
           <p className="text-sm opacity-50 max-w-xs mb-10 leading-relaxed">
             Nossa IA analisa os trending topics das últimas 24h. Ative o radar para visualizar.
@@ -6734,7 +6734,7 @@ const handleStoryNavigation = (direction) => {
     }
 };
 
-  // --- FETCH FEEDS BLINDADO V3 (CACHE DUPLO: RAM + DISCO) ---
+  // --- FETCH FEEDS BLINDADO V5 (COMPLETO E SEM ABREVIAÇÕES) ---
   const fetchFeeds = async (forceRefresh = false) => {
     if (userFeeds.length === 0) {
         setRealNews([]);
@@ -6752,14 +6752,13 @@ const handleStoryNavigation = (direction) => {
     
     let newHistoryBuffer = { ...articleHistory };
 
-    // 20 Minutos de Cache (Segurança máxima)
     const CACHE_TTL = 20 * 60 * 1000; 
 
     const promises = userFeeds.map(async (feed) => {
         if (!feed.url || !feed.url.trim()) {
-    console.warn(`[AVISO DE DADOS] Fonte ignorada por não ter URL:`, feed);
-    return; // Pula para a próxima fonte
-}
+            console.warn(`[AVISO DE DADOS] Fonte ignorada por não ter URL:`, feed);
+            return;
+        }
         let feedItems = [];
         let currentFeedTitle = feed.name; 
         let detectedXmlTitle = "";
@@ -6768,13 +6767,11 @@ const handleStoryNavigation = (direction) => {
         let usedCache = false;
         const cacheKey = `${FEED_CACHE_PREFIX}${feed.id}`; 
 
-        // --- CAMADA 1: MEMÓRIA RAM (Infalível durante a sessão) ---
-        // Se o usuário navegou, voltou, e o disco falhou antes, a RAM salva.
+        // --- CAMADA 1: MEMÓRIA RAM (CACHE RÁPIDO) ---
         if (!forceRefresh && feedMemoryBuffer.current[feed.id]) {
             const memData = feedMemoryBuffer.current[feed.id];
             const now = Date.now();
             if (now - memData.timestamp < CACHE_TTL) {
-                // console.log(`🧠 RAM Cache OK: ${feed.name}`);
                 feedItems = memData.items;
                 detectedXmlTitle = memData.title;
                 feedLogo = memData.logo;
@@ -6783,7 +6780,7 @@ const handleStoryNavigation = (direction) => {
             }
         }
 
-        // --- CAMADA 2: DISCO (Persistente, mas pode falhar) ---
+        // --- CAMADA 2: DISCO (CACHE PERSISTENTE) ---
         if (!usedCache && !forceRefresh) {
             try {
                 const cachedRaw = localStorage.getItem(cacheKey);
@@ -6791,20 +6788,11 @@ const handleStoryNavigation = (direction) => {
                     const cachedData = JSON.parse(cachedRaw);
                     const now = Date.now();
                     if (now - cachedData.timestamp < CACHE_TTL) {
-                        console.log(`💾 Disk Cache OK: ${feed.name}`);
                         feedItems = cachedData.items || [];
                         detectedXmlTitle = cachedData.title || "";
                         feedLogo = cachedData.logo || null;
                         if (cachedData.isYoutube) isFeedYoutube = true;
-                        
-                        // Hidrata a RAM para ficar mais rápido na próxima
-                        feedMemoryBuffer.current[feed.id] = {
-                            timestamp: cachedData.timestamp,
-                            items: feedItems,
-                            title: detectedXmlTitle,
-                            logo: feedLogo,
-                            isYoutube: isFeedYoutube
-                        };
+                        feedMemoryBuffer.current[feed.id] = cachedData;
                         usedCache = true;
                     }
                 }
@@ -6813,188 +6801,144 @@ const handleStoryNavigation = (direction) => {
             }
         }
 
-        // --- CAMADA 3: FETCH REAL (Custo $$) ---
-     if (!usedCache) {
-            const isLegacySource = feed.url.includes('uol.com.br') || 
-                                   feed.url.includes('folha.uol.com.br') || 
-                                   feed.url.includes('moneytimes.com.br');
+        // --- CAMADA 3: FETCH REAL COM RESGATE ---
+        if (!usedCache) {
+            let success = false;
+            
+            // TENTATIVA 1: SUPABASE (Motor Principal para TODOS)
             try {
-                if (isLegacySource) {
-                    // Proxy Gratuito
-                    const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(feed.url);
-                    const res = await fetch(proxyUrl);
-                    if (!res.ok) throw new Error(`Proxy status: ${res.status}`);
-                    const buffer = await res.arrayBuffer();
-                    
-                    // 1. DECLARA A VARIÁVEL AQUI FORA (O Balde Vazio)
-                    let xmlText = ""; 
-
-                    // 2. ENCHE O BALDE COM A CODIFICAÇÃO CORRETA
-                    if (feed.url.includes('band.uol') || feed.url.includes('band.com') || feed.url.includes('moneytimes')) {
-                         const decoder = new TextDecoder('utf-8');
-                         xmlText = decoder.decode(buffer);
-                    } else {
-                         // Padrão antigo para Folha e UOL Clássico
-                         const decoder = new TextDecoder('iso-8859-1');
-                         xmlText = decoder.decode(buffer);
-                    }
-
-                    // 3. USA A VARIÁVEL PREENCHIDA (Agora ela existe e tem o texto certo)
-                    const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
-                    
-                    feedItems = parsedData.items;
-                    detectedXmlTitle = parsedData.realTitle; 
-                    
-                    // Ajuste de logos legados
-                    if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
-                    else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
-
+                const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
+                if (!error && data && data.items && data.items.length > 0) {
+                    feedItems = data.items;
+                    detectedXmlTitle = data.title;
+                    feedLogo = data.image;
+                    if (data.isYoutube) isFeedYoutube = true;
+                    success = true;
                 } else {
-                    // Supabase (Pago)
-                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
-                    if (!error && data && data.items) {
-                        feedItems = data.items;
-                        detectedXmlTitle = data.title;
-                        feedLogo = data.image;
-                        if (data.isYoutube) isFeedYoutube = true;
-                    }
+                    console.warn(`Supabase falhou para ${feed.name}. Tentando resgate via Vercel...`);
                 }
+            } catch (e) {
+                console.warn(`Supabase falhou para ${feed.name}. Tentando resgate via Vercel...`);
+            }
 
-                // Se baixou dados com sucesso...
-                if (feedItems && feedItems.length > 0) {
-                    const cachePayload = {
-                        timestamp: Date.now(),
-                        items: feedItems,
-                        title: detectedXmlTitle,
-                        logo: feedLogo,
-                        isYoutube: isFeedYoutube
-                    };
-
-                    // 1. SALVA NA RAM (Garantia imediata)
-                    feedMemoryBuffer.current[feed.id] = cachePayload;
-
-                    // 2. TENTA SALVAR NO DISCO (Garantia futura)
-                    try {
-                        localStorage.setItem(cacheKey, JSON.stringify(cachePayload));
-                    } catch (storageError) {
-                        if (storageError.name === 'QuotaExceededError' || storageError.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-                            console.warn("⚠️ Disco cheio. Usando apenas memória RAM para esta sessão.");
-                            // Tenta limpar um pouco, mas sem desespero, pois a RAM já salvou o dia.
-                            cleanUpCache(); 
-                            try { localStorage.setItem(cacheKey, JSON.stringify(cachePayload)); } catch (e) {}
+            // TENTATIVA 2: RESGATE VIA PROXY VERCEL (Só se Supabase falhar)
+            if (!success) {
+                try {
+                    const res = await fetch(`/api/proxy?url=${encodeURIComponent(feed.url)}`);
+                    if (res.ok) {
+                        const buffer = await res.arrayBuffer();
+                        let decoder = new TextDecoder('utf-8');
+                        let xmlText = decoder.decode(buffer);
+                        // Fallback para encoding de sites legados (ex: Folha)
+                        if (xmlText.includes('�')) {
+                            decoder = new TextDecoder('iso-8859-1');
+                            xmlText = decoder.decode(buffer);
+                        }
+                        const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
+                        if (parsedData.items.length > 0) {
+                            feedItems = parsedData.items;
+                            detectedXmlTitle = parsedData.realTitle;
+                            feedLogo = parsedData.realLogo;
+                            success = true;
                         }
                     }
+                } catch (proxyErr) {
+                    console.error(`Erro total no fetch de ${feed.name}:`, proxyErr);
                 }
-            } catch (err) {
-                console.error(`Erro ao baixar ${feed.name}:`, err);
+            }
+
+            // Salva no cache se alguma das tentativas funcionou
+            if (success && feedItems.length > 0) {
+                const cachePayload = { timestamp: Date.now(), items: feedItems, title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube };
+                feedMemoryBuffer.current[feed.id] = cachePayload;
+                try {
+                    localStorage.setItem(cacheKey, JSON.stringify(cachePayload));
+                } catch (e) { cleanUpCache(); try { localStorage.setItem(cacheKey, JSON.stringify(cachePayload)); } catch (e2) {} }
             }
         }
 
-        // --- PROCESSAMENTO FINAL ---
+        // --- PROCESSAMENTO FINAL (SEM ALTERAÇÕES) ---
         if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
             currentFeedTitle = detectedXmlTitle || feed.name;
             feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
         }
 
-        // --- TRATAMENTO DE LOGOS ESPECÍFICOS (MANUAL) ---
-            let finalLogo = feedLogo;
-            const lowerName = currentFeedTitle.toLowerCase();
-            const lowerUrl = feed.url.toLowerCase(); // Adicionei para segurança
+        let finalLogo = feedLogo;
+        const lowerName = currentFeedTitle.toLowerCase();
+        const lowerUrl = feed.url.toLowerCase();
 
-            // 1. Dicionário Manual de Ícones (Prioridade Alta)
-            if (lowerName.includes('investnews')) {
-                finalLogo = 'https://media.licdn.com/dms/image/v2/D4D0BAQES2TW4kCWAHg/company-logo_200_200/company-logo_200_200/0/1709575002406/investnewsbr_logo?e=2147483647&v=beta&t=8CtOWb8yD8V_BkdM-Oc82N44dygx6y6FXUYrnOPt0IM';
-            } 
-            else if (lowerName.includes('valor investe')) {
-                // Link oficial de alta resolução
-                finalLogo = 'https://s2-valor-investe.glbimg.com/aDBdPPmCO_D-Ta4FTzx4OJmuWEE=/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_f035dd6fd91c438fa04ab718d608bbaa/internal_photos/bs/2019/Q/I/KlbOBJSh6NyJ7CNJz6jA/fb-investe.png'; 
-            }
-            else if (lowerName.includes('valor economico') || lowerName.includes('valor econômico')) {
-                // Favicon oficial
-                finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSzaIMqhf99JTJqG1Cbu7Kil51_jH42uWGg0w&s';
-            }
-            else if (lowerName.includes('estadao investidor') || lowerName.includes('estadão e investidor')) {
-                finalLogo = 'https://m2comunicacao.com.br/wp-content/uploads/2024/06/imagem_2024-06-17_155521691.png';
-            }
-            else if (lowerName.includes('estadao') || lowerUrl.includes('estadao.com.br')) {
-                finalLogo = 'https://startse-uploader.s3.us-east-2.amazonaws.com/medium_estadao_72c3731a48.jpg';
-            }
-            else if (lowerName.includes('istoé dinheiro') || lowerName.includes('istoe dinheiro')) {
-                finalLogo = 'https://yt3.googleusercontent.com/aLYyxdR5JLMcp4KxNttXhoXM3lEDdUh22tXJsHe3rQYf71xQhv_PDAT75xpoSFtKgaALcMCw=s900-c-k-c0x00ffffff-no-rj';
-            }
-            else if (lowerName.includes('uol economia') || lowerUrl.includes('uol economia')) {
-                finalLogo = 'https://conteudo.imguol.com.br/c/noticias/a9/2020/06/15/logotipo-uol---junho-2020-1592225150823_v2_826x826.png';
-            }
-            else if (lowerName.includes('folha de sao paulo') || lowerUrl.includes('folhadesaopaulo.com.br')) {
-                finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/04/Folha-de-Sao-Paulo.png';
-            }
-            else if (lowerName.includes('uol notícias') || lowerUrl.includes('noticias.uol')) {
-                finalLogo = 'https://voxnews.com.br/wp-content/uploads/2019/06/uol_logo.png';
-            }
-            else if (lowerName.includes('portal band') || lowerUrl.includes('band.com.br')) {
-                finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/01/Logo-Band.png';
-            }
-            else if (lowerName.includes('fox news') || lowerUrl.includes('foxnews.com')) {
-                finalLogo = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png';
-            }
-            else if (lowerName.includes('tech tudo') || lowerUrl.includes('techtudo.com.br')) {
-                finalLogo = 'https://s2-techtudo.glbimg.com/ClxoTfu8WQM9Z32HOq8-JoIn6kQ=/0x0:1000x1000/https://i.s3.glbimg.com/v1/AUTH_08fbf48bc0524877943fe86e43087e7a/internal_photos/bs/2024/D/y/j1anEBTaq7PDyELOMlsQ/techtudo-logo.png';
-            }
-            else if (lowerName.includes('money times') || lowerUrl.includes('moneytimes.com.br')) {
-                finalLogo = 'https://yt3.googleusercontent.com/2_4tkB-A3O4dkQUh697ksz6cNVDltiVMlSFmnWF9-7yBytKquVH_myUmtYiv3PKufBreGsYlmQ=s900-c-k-c0x00ffffff-no-rj';
-            }
-            else if (lowerName.includes('piaui hoje') || lowerUrl.includes('piauihoje.com')) {
-                finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6uiO4AtPH2uxKoEbqmsLXA5qR0voQ7Dd3xg&s';
-            }
-            else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) {
-                finalLogo = 'https://motor1.uol.com.br/logo_square.png';
-            }
-            else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) {
-                finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
-            }
-            else if (lowerName.includes('extra') || lowerUrl.includes('extra.globo.com')) {
-                finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSHwU53hYcTA87KGMdvumyIbxKsOi-OflNnIw&s';
-            }
-            
-            // 2. Lógica para YouTube (Cores Dinâmicas + Foto Real)
-            else if (isFeedYoutube) {
-                // CORREÇÃO 1: Mudei '&background=ff0000' para '&background=random'
-                // Isso garante que cada canal tenha uma cor diferente se a foto falhar.
-                const letterAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128&bold=true`;
-                
-                // Tenta extrair o ID do canal
-                const channelIdMatch = feed.url.match(/channel_id=([^&]+)/);
-                const userMatch = feed.url.match(/user=([^&]+)/);
-                
-                if (channelIdMatch) {
-                    // Tenta Unavatar com o ID limpo
-                    finalLogo = `https://unavatar.io/youtube/${channelIdMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
-                } 
-                else if (userMatch) {
-                    finalLogo = `https://unavatar.io/youtube/${userMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
-                } 
-                else {
-                    // Se não tiver ID, usa as letras coloridas direto
-                    finalLogo = letterAvatar;
-                }
-            }
-            
-            // 3. Fallback Automático (Google Favicon)
-            else if (!finalLogo) {
-               try {
-                   const domain = new URL(feed.url).hostname;
-                   finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-               } catch (e) {
-                   finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`;
-               }
-            }
+        // 1. Dicionário Manual de Ícones
+        if (lowerName.includes('investnews')) {
+            finalLogo = 'https://media.licdn.com/dms/image/v2/D4D0BAQES2TW4kCWAHg/company-logo_200_200/company-logo_200_200/0/1709575002406/investnewsbr_logo?e=2147483647&v=beta&t=8CtOWb8yD8V_BkdM-Oc82N44dygx6y6FXUYrnOPt0IM';
+        } 
+        else if (lowerName.includes('valor investe')) {
+            finalLogo = 'https://s2-valor-investe.glbimg.com/aDBdPPmCO_D-Ta4FTzx4OJmuWEE=/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_f035dd6fd91c438fa04ab718d608bbaa/internal_photos/bs/2019/Q/I/KlbOBJSh6NyJ7CNJz6jA/fb-investe.png'; 
+        }
+        else if (lowerName.includes('valor economico') || lowerName.includes('valor econômico')) {
+            finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSzaIMqhf99JTJqG1Cbu7Kil51_jH42uWGg0w&s';
+        }
+        else if (lowerName.includes('estadao investidor') || lowerName.includes('estadão e investidor')) {
+            finalLogo = 'https://m2comunicacao.com.br/wp-content/uploads/2024/06/imagem_2024-06-17_155521691.png';
+        }
+        else if (lowerName.includes('estadao') || lowerUrl.includes('estadao.com.br')) {
+            finalLogo = 'https://startse-uploader.s3.us-east-2.amazonaws.com/medium_estadao_72c3731a48.jpg';
+        }
+        else if (lowerName.includes('istoé dinheiro') || lowerName.includes('istoe dinheiro')) {
+            finalLogo = 'https://yt3.googleusercontent.com/aLYyxdR5JLMcp4KxNttXhoXM3lEDdUh22tXJsHe3rQYf71xQhv_PDAT75xpoSFtKgaALcMCw=s900-c-k-c0x00ffffff-no-rj';
+        }
+        else if (lowerName.includes('uol economia') || lowerUrl.includes('uol economia')) {
+            finalLogo = 'https://conteudo.imguol.com.br/c/noticias/a9/2020/06/15/logotipo-uol---junho-2020-1592225150823_v2_826x826.png';
+        }
+        else if (lowerName.includes('folha de sao paulo') || lowerUrl.includes('folhadesaopaulo.com.br')) {
+            finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/04/Folha-de-Sao-Paulo.png';
+        }
+        else if (lowerName.includes('uol notícias') || lowerUrl.includes('noticias.uol')) {
+            finalLogo = 'https://voxnews.com.br/wp-content/uploads/2019/06/uol_logo.png';
+        }
+        else if (lowerName.includes('portal band') || lowerUrl.includes('band.com.br')) {
+            finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/01/Logo-Band.png';
+        }
+        else if (lowerName.includes('fox news') || lowerUrl.includes('foxnews.com')) {
+            finalLogo = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png';
+        }
+        else if (lowerName.includes('tech tudo') || lowerUrl.includes('techtudo.com.br')) {
+            finalLogo = 'https://s2-techtudo.glbimg.com/ClxoTfu8WQM9Z32HOq8-JoIn6kQ=/0x0:1000x1000/https://i.s3.glbimg.com/v1/AUTH_08fbf48bc0524877943fe86e43087e7a/internal_photos/bs/2024/D/y/j1anEBTaq7PDyELOMlsQ/techtudo-logo.png';
+        }
+        else if (lowerName.includes('money times') || lowerUrl.includes('moneytimes.com.br')) {
+            finalLogo = 'https://yt3.googleusercontent.com/2_4tkB-A3O4dkQUh697ksz6cNVDltiVMlSFmnWF9-7yBytKquVH_myUmtYiv3PKufBreGsYlmQ=s900-c-k-c0x00ffffff-no-rj';
+        }
+        else if (lowerName.includes('piaui hoje') || lowerUrl.includes('piauihoje.com')) {
+            finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6uiO4AtPH2uxKoEbqmsLXA5qR0voQ7Dd3xg&s';
+        }
+        else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) {
+            finalLogo = 'https://motor1.uol.com.br/logo_square.png';
+        }
+        else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) {
+            finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
+        }
+        else if (lowerName.includes('extra') || lowerUrl.includes('extra.globo.com')) {
+            finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSHwU53hYcTA87KGMdvumyIbxKsOi-OflNnIw&s';
+        }
+        else if (isFeedYoutube) {
+            const letterAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128&bold=true`;
+            const channelIdMatch = feed.url.match(/channel_id=([^&]+)/);
+            const userMatch = feed.url.match(/user=([^&]+)/);
+            if (channelIdMatch) finalLogo = `https://unavatar.io/youtube/${channelIdMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
+            else if (userMatch) finalLogo = `https://unavatar.io/youtube/${userMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
+            else finalLogo = letterAvatar;
+        }
+        else if (!finalLogo) {
+           try {
+               const domain = new URL(feed.url).hostname;
+               finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+           } catch (e) {
+               finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`;
+           }
+        }
 
-
-        let LIMIT = 20; 
-        if (feed.type === 'podcast') LIMIT = 1; 
+        let LIMIT = 20;
+        if (feed.type === 'podcast') LIMIT = 1;
         else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
-
-        let lastAssignedTime = 0;
 
         const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
             const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
@@ -7002,91 +6946,55 @@ const handleStoryNavigation = (direction) => {
             let originalTimestamp = rawDateString ? new Date(rawDateString).getTime() : new Date().getTime();
             if (isNaN(originalTimestamp)) originalTimestamp = new Date().getTime();
 
-            let finalTimestamp;
-
-            if (newHistoryBuffer[uniqueId]) {
-                finalTimestamp = newHistoryBuffer[uniqueId];
-            } else {
-                const TEN_MINUTES_MS = 10 * 60 * 1000;
-                if (index === 0) {
-                    finalTimestamp = originalTimestamp;
-                } else {
-                    if (lastAssignedTime <= originalTimestamp + 1000) { 
-                            finalTimestamp = lastAssignedTime - TEN_MINUTES_MS;
-                    } else {
-                            finalTimestamp = originalTimestamp;
-                    }
-                }
-                newHistoryBuffer[uniqueId] = finalTimestamp;
-            }
-
-            lastAssignedTime = finalTimestamp;
+            const finalTimestamp = newHistoryBuffer[uniqueId] || (index > 0 ? originalTimestamp - (index * 1000) : originalTimestamp);
+            newHistoryBuffer[uniqueId] = finalTimestamp;
             const finalDateObj = new Date(finalTimestamp);
 
-            // --- CORREÇÃO ESPECÍFICA PARA INVESTING BR (COM ATRASO) ---
-                // Se a fonte for Investing, aplicamos uma "penalidade" de tempo.
-                // Motivo: Eles enviam datas futuras ou muito recentes incorretas que poluem o topo.
-                if (feed.url.includes('investing') || currentFeedTitle.toLowerCase().includes('investing')) {
-                    const now = new Date();
-                    // Se a data for no futuro OU se for muito recente (para evitar spam no topo)
-                    if (finalDateObj > new Date(now.getTime() - 60000)) {
-                        // Força a data para 30 MINUTOS ATRÁS
-                        const penaltyTime = 30 * 60 * 1000; 
-                        finalDateObj.setTime(now.getTime() - penaltyTime);
-                        
-                        // Atualiza o rastreador para que as próximas desse feed sigam essa ordem
-                        lastAssignedTime = finalDateObj.getTime(); 
-                    }
+            if (feed.url.includes('investing') || currentFeedTitle.toLowerCase().includes('investing')) {
+                const now = new Date();
+                if (finalDateObj > new Date(now.getTime() - 60000)) {
+                    finalDateObj.setTime(now.getTime() - (30 * 60 * 1000));
                 }
-                // ---------------------------------------------
+            }
 
             let primaryLink = item.link;
             const enclosureUrl = item.enclosure?.url || item.audio;
-            
             if (enclosureUrl) {
-                const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || 
-                                (enclosureUrl && enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i));
-                if (isImage) { item.img = enclosureUrl; } 
-                else { primaryLink = enclosureUrl; }
+                const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || (enclosureUrl && enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i));
+                if (isImage) item.img = enclosureUrl;
+                else primaryLink = enclosureUrl;
             }
 
             const itemImg = item.img || item.image || finalLogo;
             const itemSummary = item.summary || item.description || '';
 
             const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
-            let finalType = 'link'; 
+            let finalType = 'link';
             if (isYoutubeItem) finalType = 'video';
-            else if ((primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a'))) || item.enclosure?.type?.includes('audio')) finalType = 'audio'; 
+            else if ((primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a'))) || item.enclosure?.type?.includes('audio')) finalType = 'audio';
 
             return {
                 id: uniqueId,
-                source: currentFeedTitle, 
-                show: currentFeedTitle,
-                logo: finalLogo, 
+                source: currentFeedTitle,
+                logo: finalLogo,
                 time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                rawDate: finalDateObj, 
+                rawDate: finalDateObj,
                 title: item.title,
                 summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 800) + '...',
                 category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'),
-                type: finalType, 
+                type: finalType,
                 img: itemImg,
-                cover: itemImg, 
-                link: primaryLink, 
-                url: item.link,
+                link: primaryLink,
                 videoId: item.videoId || getVideoId(item.link),
                 date: finalDateObj.toLocaleDateString(),
             };
         });
 
-        // --- DISTRIBUIÇÃO ESTRITA (RESPEITANDO SUA CONFIGURAÇÃO) ---
         if (feed.type === 'podcast') {
-            processedItems.forEach(i => i.category = 'Podcast');
             allPodcastItems.push(...processedItems);
-        } 
-        else if (feed.type === 'youtube' || isFeedYoutube) {
+        } else if (feed.type === 'youtube' || isFeedYoutube) {
             allVideoItems.push(...processedItems);
-        } 
-        else {
+        } else {
             allNewsItems.push(...processedItems);
         }
     });
@@ -7102,21 +7010,12 @@ const handleStoryNavigation = (direction) => {
 
     setArticleHistory(newHistoryBuffer);
 
-    const getSafeTime = (dateInput) => {
-        if (!dateInput) return 0;
-        const time = new Date(dateInput).getTime();
-        return isNaN(time) ? 0 : time;
-    };
-
-    const sortFn = (a, b) => getSafeTime(b.rawDate) - getSafeTime(a.rawDate);
-    
+    const sortFn = (a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
     setRealNews([...allNewsItems].sort(sortFn));
     setRealVideos([...allVideoItems].sort(sortFn));
     setRealPodcasts([...allPodcastItems].sort(sortFn));
-    
     setIsLoadingFeeds(false);
   };
-
   // --- OTIMIZAÇÃO DE MEMÓRIA: ARRAY ÚNICO MEMORIZADO ---
   // Evita criar arrays gigantes no meio da renderização, prevenindo crashes no iOS
   const allFeedItems = useMemo(() => {
