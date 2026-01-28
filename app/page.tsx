@@ -17,7 +17,7 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, Telescope,
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, ExternalLink,
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, 
 } from 'lucide-react';
 
 const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
@@ -3985,9 +3985,84 @@ const generateMarketAnalysis = async (news: any[], apiKey?: string) => {
 
 
 
+// Requer: generateTrendRadar(filteredNews, apiKey)
 
+// ==============================
+// TrendRadar (COMPLETO: COM NUVEM VIA IA + FILTRO + DESIGN MODERNO)
+// ==============================
+const generateTrendRadar = async (news, apiKey) => {
+  if (!news || news.length === 0) return null;
 
+  const context = news
+    .slice(0, 100)
+    .map((n, index) => `${index}|${n.title}`)
+    .join("\n");
 
+  const prompt = `
+Você é um Analista de Dados sênior especialista em tendências.
+Analise os títulos de notícias abaixo (formato índice|título).
+
+SUA MISSÃO EM DUAS PARTES:
+
+PARTE 1: TENDÊNCIAS (10 TEMAS)
+1. Identifique 10 tendências agrupando títulos semanticamente.
+2. Atribua um score de impacto (1-10).
+3. REGRA DE TEMPERATURA: Você DEVE retornar 10 temas. 
+   - Aproximadamente 8 temas devem ser "Quentes" (score 7-10).
+   - Exatamente 2 temas DEVEM ser "Médios" ou "Frios" (score 1-6).
+4. Crie uma micro-manchete dinâmica (campo "topic", máx 9 palavras).
+5. Escreva um resumo curto e direto sobre o fato (campo "summary").
+6. Indique os índices das notícias no campo "source_indices".
+
+PARTE 2: NUVEM DE PALAVRAS (20 TOKENS)
+1. Extraia os 20 termos mais relevantes.
+2. Atribua um score de "relevance" (1-10) para cada termo.
+
+FORMATO JSON OBRIGATÓRIO:
+{
+  "trends": [
+    { "topic": "Manchete", "score": 9, "summary": "Resumo curto do fato.", "source_indices": [0,1] }
+  ],
+  "word_cloud": [
+    { "word": "Termo", "relevance": 10 }
+  ]
+}
+
+DADOS:
+${context}
+`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { response_mime_type: "application/json" },
+        }),
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok || data.error) return { trends: [], word_cloud: [] };
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return { trends: [], word_cloud: [] };
+
+    const cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const json = JSON.parse(cleanText);
+
+    return {
+      trends: Array.isArray(json.trends) ? json.trends : [],
+      word_cloud: Array.isArray(json.word_cloud) ? json.word_cloud : [],
+    };
+  } catch (error) {
+    console.error("Erro na IA:", error);
+    return { trends: [], word_cloud: [] };
+  }
+};
 
 // =========================================================================
 // 2. COMPONENTE PRINCIPAL: TrendRadar
@@ -4012,11 +4087,11 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
 
   // --- Definição das Faixas ---
   const temperatureBands = [
-    { id: 0, min: 0, max: 2, color: "blue-500" }, // Frio
-    { id: 1, min: 3, max: 4, color: "lime-500" }, // Leve
-    { id: 2, min: 5, max: 6, color: "amber-500" }, // Médio
-    { id: 3, min: 7, max: 8, color: "orange-500" }, // Quente
-    { id: 4, min: 9, max: 10, color: "red-600" }, // Muito Quente
+    { id: 0, min: 0, max: 2, color: "#3b82f6" }, // Frio
+    { id: 1, min: 3, max: 4, color: "#22c55e" }, // Leve
+    { id: 2, min: 5, max: 6, color: "#eab308" }, // Médio
+    { id: 3, min: 7, max: 8, color: "#f97316" }, // Quente
+    { id: 4, min: 9, max: 10, color: "#ef4444" }, // Muito Quente
   ];
 
   const getTrendStyle = (score) => {
