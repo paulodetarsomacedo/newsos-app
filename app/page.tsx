@@ -4000,34 +4000,45 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   const [selectedBandIndex, setSelectedBandIndex] = useState(null);
   const [selectedWordData, setSelectedWordData] = useState(null);
 
+  // Tooltip premium da régua
+  const [bandTip, setBandTip] = useState(null); // { idx, x, y } | null
+  const tipTimerRef = useRef(null);
+
   const STORAGE_KEY = "newsos_trend_radar_v9_fixed";
 
   // --- Definição das Faixas ---
   const temperatureBands = [
-    { id: 0, min: 0, max: 2, color: "#3b82f6" }, // Frio (Azul)
-    { id: 1, min: 3, max: 4, color: "#22c55e" }, // Leve (Verde)
-    { id: 2, min: 5, max: 6, color: "#facc15" }, // Médio (Amarelo)
-    { id: 3, min: 7, max: 8, color: "#f97316" }, // Quente (Laranja)
-    { id: 4, min: 9, max: 10, color: "#dc2626" }, // Muito Quente (Vermelho)
+    { id: 0, min: 0, max: 2, color: "#3b82f6", label: "Frio" },
+    { id: 1, min: 3, max: 4, color: "#22c55e", label: "Leve" },
+    { id: 2, min: 5, max: 6, color: "#facc15", label: "Médio" },
+    { id: 3, min: 7, max: 8, color: "#f97316", label: "Quente" },
+    { id: 4, min: 9, max: 10, color: "#dc2626", label: "Muito Quente" },
   ];
 
   const getTrendStyle = (score) => {
     const s = Number(score || 0);
-    const band = temperatureBands.find(b => s >= b.min && s <= b.max) || temperatureBands[0];
-    return { color: band.color, bg: `${band.color}1A` }; // Ex: #dc26261A para o fundo
+    const band = temperatureBands.find((b) => s >= b.min && s <= b.max) || temperatureBands[0];
+    return { color: band.color, bg: `${band.color}1A` };
   };
 
   const getBandIndexByScore = (score) => {
     const s = Number(score || 0);
-    return temperatureBands.findIndex(b => s >= b.min && s <= b.max);
+    const index = temperatureBands.findIndex((b) => s >= b.min && s <= b.max);
+    return index >= 0 ? index : 0;
   };
 
   // --- Lógica de Drill-down ---
   const handleWordClick = (word) => {
     if (!newsData) return;
-    const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const normalize = (str) =>
+      String(str || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
     const search = normalize(word);
-    const related = newsData.filter(art => normalize(art.title || "").includes(search)).slice(0, 15);
+    const related = newsData
+      .filter((art) => normalize(art.title || "").includes(search))
+      .slice(0, 15);
     setSelectedWordData({ word, articles: related });
   };
 
@@ -4040,14 +4051,16 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
         setTrends(parsed.trends);
         setWordCloudItems(parsed.cloud);
         setHasGenerated(true);
-      } catch (e) { console.error("Cache reset"); }
+      } catch (e) {
+        console.error("Cache reset");
+      }
     }
   }, []);
 
   const runTrendAnalysis = async () => {
     const apiKey = getApiKey("widgets");
     if (!apiKey || !newsData?.length) return alert("IA não configurada ou sem notícias.");
-    
+
     setLoading(true);
     setActiveIndex(null);
     setSelectedBandIndex(null);
@@ -4055,9 +4068,9 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     const data = await generateTrendRadar(newsData, apiKey);
 
     if (data?.trends?.length > 0) {
-      const enriched = data.trends.map(t => ({
+      const enriched = data.trends.map((t) => ({
         ...t,
-        related_articles: (t.source_indices || []).map(i => newsData[i]).filter(Boolean)
+        related_articles: (t.source_indices || []).map((i) => newsData[i]).filter(Boolean),
       }));
       setTrends(enriched);
       setWordCloudItems(data.word_cloud || []);
@@ -4070,17 +4083,55 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   // --- Filtros ---
   const filteredTrends = useMemo(() => {
     if (!trends || selectedBandIndex === null) return [];
-    return trends.filter(t => getBandIndexByScore(t.score) === selectedBandIndex);
+    return trends.filter((t) => getBandIndexByScore(t.score) === selectedBandIndex);
   }, [trends, selectedBandIndex]);
 
-  const countsByBand = useMemo(() => {
-    return temperatureBands.map(band => {
+  // --- Contagens (trends e fontes) por faixa ---
+  const trendsByBand = useMemo(() => {
+    return temperatureBands.map((band) => {
       if (!trends) return 0;
-      return trends.filter(t => t.score >= band.min && t.score <= band.max).length;
+      return trends.filter((t) => t.score >= band.min && t.score <= band.max).length;
     });
   }, [trends]);
 
+  const sourcesByBand = useMemo(() => {
+    return temperatureBands.map((band) => {
+      if (!trends) return 0;
+      return trends
+        .filter((t) => t.score >= band.min && t.score <= band.max)
+        .reduce((acc, t) => acc + (Array.isArray(t?.source_indices) ? t.source_indices.length : 0), 0);
+    });
+  }, [trends]);
+
+  const maxSourcesInAnyBand = useMemo(() => Math.max(...sourcesByBand, 1), [sourcesByBand]);
+
+  // Mantém compatibilidade com seu código existente que usa countsByBand
+  const countsByBand = trendsByBand;
   const maxNewsInAnyBand = useMemo(() => Math.max(...countsByBand, 1), [countsByBand]);
+
+  // --- Tooltip helpers ---
+  const showBandTipFromEvent = (idx, e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setBandTip({
+      idx,
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10,
+    });
+  };
+
+  const hideBandTip = () => setBandTip(null);
+
+  const showBandTipTouch = (idx, e) => {
+    showBandTipFromEvent(idx, e);
+    if (tipTimerRef.current) window.clearTimeout(tipTimerRef.current);
+    tipTimerRef.current = window.setTimeout(() => setBandTip(null), 1300);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (tipTimerRef.current) window.clearTimeout(tipTimerRef.current);
+    };
+  }, []);
 
   // --- UI Tokens ---
   const panelBg = isDarkMode ? "rgba(24, 24, 27, 0.85)" : "rgba(255, 255, 255, 0.95)";
@@ -4089,8 +4140,13 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   return (
     <div className="relative w-full max-w-5xl mx-auto px-4 py-8 font-sans">
       <style jsx="true">{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(155, 155, 155, 0.3); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(155, 155, 155, 0.3);
+          border-radius: 10px;
+        }
       `}</style>
 
       {/* Header */}
@@ -4104,7 +4160,13 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
             <p className="text-[10px] font-bold opacity-40 uppercase">Análise de Temperatura • 24h</p>
           </div>
         </div>
-        <button onClick={runTrendAnalysis} disabled={loading} className={`p-4 rounded-full transition-all active:scale-95 ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
+        <button
+          onClick={runTrendAnalysis}
+          disabled={loading}
+          className={`p-4 rounded-full transition-all active:scale-95 ${
+            isDarkMode ? "bg-zinc-800" : "bg-zinc-100"
+          }`}
+        >
           {loading ? <Loader2 className="animate-spin text-orange-500" size={22} /> : <RefreshCw size={22} />}
         </button>
       </div>
@@ -4114,8 +4176,15 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
         <div className="h-96 flex flex-col items-center justify-center border-2 border-dashed border-zinc-500/20 rounded-[3.5rem] text-center p-12">
           <Sparkles className="text-orange-500/40 mb-6" size={56} />
           <h3 className="text-xl font-black mb-3">Mapeamento de Trending News</h3>
-          <p className="text-sm opacity-50 max-w-xs mb-10 leading-relaxed">Nossa IA analisa os trending topics das últimas 24h. Ative o radar para visualizar.</p>
-          <button onClick={runTrendAnalysis} className="px-10 py-5 bg-orange-500 text-white rounded-full font-black shadow-2xl shadow-orange-500/30 hover:scale-105 transition-all">ATIVAR RADAR</button>
+          <p className="text-sm opacity-50 max-w-xs mb-10 leading-relaxed">
+            Nossa IA analisa os trending topics das últimas 24h. Ative o radar para visualizar.
+          </p>
+          <button
+            onClick={runTrendAnalysis}
+            className="px-10 py-5 bg-orange-500 text-white rounded-full font-black shadow-2xl shadow-orange-500/30 hover:scale-105 transition-all"
+          >
+            ATIVAR RADAR
+          </button>
         </div>
       )}
 
@@ -4133,24 +4202,23 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
 
       {hasGenerated && !loading && (
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
-          
           {/* NUVEM DE PALAVRAS */}
           <div className="p-8 rounded-[3rem] shadow-sm" style={{ background: panelBg, border: `1px solid ${borderColor}` }}>
             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 text-center mb-8">Termos em Alta</h4>
             <div className="flex flex-wrap justify-center items-center gap-x-5 gap-y-4">
               {wordCloudItems.map((item, i) => {
                 const style = getTrendStyle(item.relevance);
-                const tilt = (i % 3 === 0) ? "rotate-2" : (i % 2 === 0) ? "-rotate-2" : "rotate-0";
+                const tilt = i % 3 === 0 ? "rotate-2" : i % 2 === 0 ? "-rotate-2" : "rotate-0";
                 return (
                   <button
                     key={i}
                     onClick={() => handleWordClick(item.word)}
                     className={`px-5 py-2.5 rounded-2xl font-black transition-all hover:scale-110 active:scale-90 ${tilt}`}
                     style={{
-                      fontSize: `${12 + (item.relevance * 1.5)}px`,
+                      fontSize: `${12 + item.relevance * 1.5}px`,
                       color: style.color,
                       background: `${style.color}15`,
-                      border: `1px solid ${style.color}25`
+                      border: `1px solid ${style.color}25`,
                     }}
                   >
                     {item.word}
@@ -4160,190 +4228,309 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
             </div>
           </div>
 
-          {/* RÉGUA DE TEMPERATURA — “ENERGY / DISTRIBUTION BAR” */}
-<div
-  className="h-13 rounded-3xl flex items-stretch overflow-hidden shadow-inner relative select-none"
-  style={{ background: isDarkMode ? "rgba(0,0,0,0.28)" : "rgba(0,0,0,0.05)" }}
->
-  {temperatureBands.map((band, idx) => {
-    const isActive = selectedBandIndex === idx;
-    const isSomethingSelected = selectedBandIndex !== null;
+          {/* RÉGUA PREMIUM — micro-histograma + tooltip */}
+          <div className="space-y-3">
+            <div className="flex justify-between px-6 text-[10px] font-black uppercase tracking-widest opacity-40">
+              <span>Frio</span>
+              <span>Intenso</span>
+            </div>
 
-    const newsCount = countsByBand[idx] || 0;
+            <div
+              className="h-13 rounded-3xl flex items-stretch overflow-hidden shadow-inner relative select-none"
+              style={{ background: isDarkMode ? "rgba(0,0,0,0.28)" : "rgba(0,0,0,0.05)" }}
+            >
+              {temperatureBands.map((band, idx) => {
+                const isActive = selectedBandIndex === idx;
+                const isSomethingSelected = selectedBandIndex !== null;
 
-    // normaliza 0..1 (evita NaN)
-    const t = maxNewsInAnyBand > 0 ? newsCount / maxNewsInAnyBand : 0;
+                const trendsCount = trendsByBand[idx] || 0;
+                const sourcesCount = sourcesByBand[idx] || 0;
 
-    // “energia” base: controla glow + opacidade
-    const energy = 0.10 + t * 0.90; // 0.10..1.00
+                // energia (0..1) baseada em fontes (volume real)
+                const normalized = maxSourcesInAnyBand > 0 ? sourcesCount / maxSourcesInAnyBand : 0;
+                const energy = 0.10 + normalized * 0.90;
 
-    // quando algo está selecionado, as não-ativas “apagam”
-    const dim = isSomethingSelected && !isActive ? 0.22 : 1;
+                // quando algo está selecionado, as não-ativas apagam
+                const dim = isSomethingSelected && !isActive ? 0.22 : 1;
 
-    // saturação: não-ativas ficam mais “cinza” quando algo está selecionado
-    const saturation = isSomethingSelected && !isActive ? 0.35 : 1;
+                // saturação: não-ativas ficam mais “cinza”
+                const saturation = isSomethingSelected && !isActive ? 0.35 : 1;
 
-    // brilho final: ativa ganha boost, e também respeita energia
-    const brightness = (0.90 + energy * 0.55) * (isActive ? 1.20 : 1) * dim;
+                // brilho: energia + boost se ativa
+                const brightness = (0.92 + energy * 0.55) * (isActive ? 1.20 : 1) * dim;
 
-    // glow externo da faixa (mais volume = mais glow)
-    const glowAlpha = (0.10 + energy * 0.55) * (isActive ? 1.45 : 1) * dim;
+                // glow proporcional ao volume
+                const glowAlpha = (0.10 + energy * 0.55) * (isActive ? 1.45 : 1) * dim;
 
-    // largura: ativa expande, mas sem “explodir” demais
-    const flexValue = isActive ? 2.6 : 1;
+                // largura: ativa expande
+                const flexValue = isActive ? 2.6 : 1;
 
-    return (
-      <motion.button
-        key={idx}
-        type="button"
-        onClick={() => setSelectedBandIndex(isActive ? null : idx)}
-        className="relative h-full flex items-center justify-center outline-none"
-        style={{
-          flex: flexValue,
-          background: band.color,
-          filter: `brightness(${brightness}) saturate(${saturation})`,
-          transition: "filter 450ms ease, flex 450ms ease",
-        }}
-        title={`${newsCount} temas nesta faixa`}
-      >
-        {/* CAMADA 1 — “ENERGIA” (glow interno proporcional ao volume) */}
-        <div
-          className="absolute inset-0"
-          style={{
-            opacity: glowAlpha,
-            background:
-              "radial-gradient(circle at 50% 55%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.18) 35%, rgba(255,255,255,0) 70%)",
-            mixBlendMode: "screen",
-            transition: "opacity 450ms ease",
-          }}
-        />
+                // equalizer
+                const bars = 12;
+                const activeBars = Math.max(1, Math.round(energy * bars));
 
-        {/* CAMADA 2 — “SHEEN” (reflexo animado só se tiver volume) */}
-        {newsCount > 0 && (
-          <motion.div
-            className="absolute inset-0"
-            initial={false}
-            animate={{
-              opacity: isSomethingSelected && !isActive ? 0.12 : 0.22 + energy * 0.22,
-              x: ["-35%", "35%"],
-            }}
-            transition={{
-              x: { duration: 2.8 + (1 - energy) * 1.6, repeat: Infinity, ease: "easeInOut" },
-              opacity: { duration: 0.45, ease: "easeOut" },
-            }}
-            style={{
-              background:
-                "linear-gradient(115deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 45%, rgba(255,255,255,0) 70%)",
-              mixBlendMode: "overlay",
-            }}
-          />
-        )}
+                const bandLabel = band.label || `Faixa ${idx + 1}`;
 
-        {/* CAMADA 3 — borda + glow forte quando ativa */}
-        {isActive && (
-          <motion.div
-            layoutId="activeBandGlow"
-            className="absolute inset-0 z-10"
-            style={{
-              boxShadow: `inset 0 0 0 2px rgba(255,255,255,0.55), 0 0 22px rgba(255,255,255,0.35), 0 0 52px ${band.color}`,
-            }}
-          />
-        )}
+                return (
+                  <motion.button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedBandIndex(isActive ? null : idx)}
+                    onMouseEnter={(e) => showBandTipFromEvent(idx, e)}
+                    onMouseMove={(e) => showBandTipFromEvent(idx, e)}
+                    onMouseLeave={hideBandTip}
+                    onTouchStart={(e) => showBandTipTouch(idx, e)}
+                    className="relative h-full outline-none"
+                    style={{
+                      flex: flexValue,
+                      background: band.color,
+                      filter: `brightness(${brightness}) saturate(${saturation})`,
+                      transition: "filter 450ms ease, flex 450ms ease",
+                    }}
+                    title={`${sourcesCount} fontes • ${trendsCount} trends • ${bandLabel}`}
+                  >
+                    {/* CAMADA 1 — energia interna */}
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        opacity: glowAlpha,
+                        background:
+                          "radial-gradient(circle at 50% 55%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.18) 35%, rgba(255,255,255,0) 70%)",
+                        mixBlendMode: "screen",
+                        transition: "opacity 450ms ease",
+                      }}
+                    />
 
-        {/* BADGE DE CONTAGEM (o usuário “lê” a régua sem clicar) */}
-        <motion.div
-          initial={false}
-          animate={{
-            scale: isActive ? 1.05 : 1,
-            opacity: isSomethingSelected && !isActive ? 0.35 : 0.92,
-          }}
-          transition={{ duration: 0.25 }}
-          className="relative z-20 px-2 py-1 rounded-full text-[10px] font-black tracking-wide"
-          style={{
-            background: "rgba(255,255,255,0.18)",
-            border: "1px solid rgba(255,255,255,0.22)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            color: "rgba(255,255,255,0.92)",
-            textShadow: "0 1px 8px rgba(0,0,0,0.25)",
-          }}
-        >
-          {newsCount}
-        </motion.div>
+                    {/* CAMADA 2 — sheen animado */}
+                    {sourcesCount > 0 && (
+                      <motion.div
+                        className="absolute inset-0"
+                        initial={false}
+                        animate={{
+                          opacity: isSomethingSelected && !isActive ? 0.12 : 0.22 + energy * 0.22,
+                          x: ["-35%", "35%"],
+                        }}
+                        transition={{
+                          x: { duration: 2.8 + (1 - energy) * 1.6, repeat: Infinity, ease: "easeInOut" },
+                          opacity: { duration: 0.45, ease: "easeOut" },
+                        }}
+                        style={{
+                          background:
+                            "linear-gradient(115deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 45%, rgba(255,255,255,0) 70%)",
+                          mixBlendMode: "overlay",
+                        }}
+                      />
+                    )}
 
-        {/* PONTO INDICADOR */}
-        {isActive && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute bottom-2 z-20 w-2 h-2 rounded-full bg-white shadow-lg"
-          />
-        )}
-      </motion.button>
-    );
-  })}
+                    {/* CAMADA 3 — glow forte quando ativo */}
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeBandGlow"
+                        className="absolute inset-0 z-10"
+                        style={{
+                          boxShadow: `inset 0 0 0 2px rgba(255,255,255,0.55), 0 0 22px rgba(255,255,255,0.35), 0 0 52px ${band.color}`,
+                        }}
+                      />
+                    )}
 
-  {/* “HINT” de seleção: quando nada selecionado, seta sutil no centro */}
-  {selectedBandIndex === null && (
-    <div
-      className="pointer-events-none absolute inset-0 flex items-center justify-center"
-      style={{ opacity: isDarkMode ? 0.12 : 0.10 }}
-    >
-      <div
-        className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase"
-        style={{
-          background: "rgba(255,255,255,0.35)",
-          border: "1px solid rgba(255,255,255,0.45)",
-          color: "rgba(0,0,0,0.65)",
-        }}
-      >
-        distribuição
-      </div>
-    </div>
-  )}
-</div>
+                    {/* MICRO-HISTOGRAMA (equalizer) */}
+                    <div className="absolute inset-0 z-20 flex items-end justify-center gap-[3px] px-2 pb-[6px] pointer-events-none">
+                      {Array.from({ length: bars }).map((_, b) => {
+                        const isOn = b < activeBars;
 
+                        const wave = 0.55 + 0.45 * Math.sin((b / bars) * Math.PI);
+                        const height = 6 + Math.round(energy * 18 * wave);
+
+                        return (
+                          <div
+                            key={b}
+                            style={{
+                              width: 3,
+                              height,
+                              borderRadius: 999,
+                              opacity: isOn ? (isSomethingSelected && !isActive ? 0.18 : 0.55) : 0.12,
+                              background: "rgba(255,255,255,0.95)",
+                              boxShadow: isOn ? "0 0 10px rgba(255,255,255,0.28)" : "none",
+                              transition: "opacity 350ms ease",
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    {/* BADGE (fontes) */}
+                    <motion.div
+                      initial={false}
+                      animate={{
+                        scale: isActive ? 1.05 : 1,
+                        opacity: isSomethingSelected && !isActive ? 0.35 : 0.92,
+                      }}
+                      transition={{ duration: 0.25 }}
+                      className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-2 py-1 rounded-full text-[10px] font-black tracking-wide"
+                      style={{
+                        background: "rgba(255,255,255,0.18)",
+                        border: "1px solid rgba(255,255,255,0.22)",
+                        backdropFilter: "blur(8px)",
+                        WebkitBackdropFilter: "blur(8px)",
+                        color: "rgba(255,255,255,0.92)",
+                        textShadow: "0 1px 8px rgba(0,0,0,0.25)",
+                      }}
+                    >
+                      {sourcesCount}
+                    </motion.div>
+
+                    {/* PONTO indicador */}
+                    {isActive && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 w-2 h-2 rounded-full bg-white shadow-lg"
+                      />
+                    )}
+                  </motion.button>
+                );
+              })}
+
+              {/* HINT central */}
+              {selectedBandIndex === null && (
+                <div
+                  className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                  style={{ opacity: isDarkMode ? 0.12 : 0.10 }}
+                >
+                  <div
+                    className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase"
+                    style={{
+                      background: "rgba(255,255,255,0.35)",
+                      border: "1px solid rgba(255,255,255,0.45)",
+                      color: "rgba(0,0,0,0.65)",
+                    }}
+                  >
+                    distribuição
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <p className="text-center text-[10px] opacity-40 mt-2 font-medium">
+              {selectedBandIndex === null ? "Toque em uma cor para revelar os cards" : "Toque novamente para fechar"}
+            </p>
+
+            {/* TOOLTIP FLUTUANTE PREMIUM */}
+            {bandTip && (
+              <div
+                className="fixed z-[9999] pointer-events-none"
+                style={{
+                  left: bandTip.x,
+                  top: bandTip.y,
+                  transform: "translate(-50%, -100%)",
+                }}
+              >
+                {(() => {
+                  const idx = bandTip.idx;
+                  const band = temperatureBands[idx];
+                  const bandLabel = band.label || `Faixa ${idx + 1}`;
+                  const trendsCount = trendsByBand[idx] || 0;
+                  const sourcesCount = sourcesByBand[idx] || 0;
+
+                  return (
+                    <div
+                      className="px-3 py-2 rounded-2xl text-[11px] font-black tracking-wide"
+                      style={{
+                        background: isDarkMode ? "rgba(0,0,0,0.68)" : "rgba(255,255,255,0.75)",
+                        border: isDarkMode ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.08)",
+                        backdropFilter: "blur(12px)",
+                        WebkitBackdropFilter: "blur(12px)",
+                        boxShadow: isDarkMode ? "0 10px 30px rgba(0,0,0,0.35)" : "0 10px 30px rgba(0,0,0,0.18)",
+                        color: isDarkMode ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.75)",
+                      }}
+                    >
+                      <span style={{ color: band.color, filter: "brightness(1.05)" }}>{bandLabel}</span>
+                      <span style={{ opacity: 0.65 }}> • </span>
+                      <span>{sourcesCount} fontes</span>
+                      <span style={{ opacity: 0.65 }}> • </span>
+                      <span>{trendsCount} trends</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
 
           {/* GRID DE TENDÊNCIAS */}
           <AnimatePresence>
             {selectedBandIndex !== null && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              >
                 {filteredTrends.length > 0 ? (
                   filteredTrends.map((trend, idx) => {
                     const style = getTrendStyle(trend.score);
                     const open = activeIndex === idx;
-                    
+
                     return (
-                      <motion.div key={trend.topic} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
-                        <button onClick={() => setActiveIndex(open ? null : idx)} 
-                                className={`w-full text-left p-7 rounded-[2.5rem] transition-all border ${open ? 'shadow-2xl' : 'shadow-md'}`}
-                                style={{ background: panelBg, borderColor: open ? style.color : borderColor }}>
+                      <motion.div
+                        key={trend.topic}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                      >
+                        <button
+                          onClick={() => setActiveIndex(open ? null : idx)}
+                          className={`w-full text-left p-7 rounded-[2.5rem] transition-all border ${
+                            open ? "shadow-2xl" : "shadow-md"
+                          }`}
+                          style={{ background: panelBg, borderColor: open ? style.color : borderColor }}
+                        >
                           <div className="flex justify-between items-center mb-3">
                             <div className="flex items-center gap-2 px-3 py-1 rounded-lg" style={{ background: style.bg }}>
                               <div className="w-2 h-2 rounded-full" style={{ background: style.color }} />
-                              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: style.color }}>{trend.score}/10</span>
+                              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: style.color }}>
+                                {trend.score}/10
+                              </span>
                             </div>
-                            <ChevronRight size={18} className={`transition-transform duration-300 ${open ? 'rotate-90 text-orange-500' : 'opacity-20'}`} />
+                            <ChevronRight
+                              size={18}
+                              className={`transition-transform duration-300 ${
+                                open ? "rotate-90 text-orange-500" : "opacity-20"
+                              }`}
+                            />
                           </div>
-                          
+
                           <h3 className="font-bold text-base leading-snug mb-2">{trend.topic}</h3>
                           <p className="text-xs opacity-70 leading-relaxed font-medium mb-2">{trend.summary}</p>
 
                           <AnimatePresence>
                             {open && (
-                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
                                 <div className="space-y-3 pt-4 border-t border-zinc-500/10 mt-4">
                                   <p className="text-[9px] font-black uppercase opacity-30 tracking-[0.2em]">Fontes Consultadas</p>
                                   <div className="flex flex-col gap-2">
                                     {trend.related_articles.map((art, i) => (
-                                      <div key={i} onClick={(e) => { e.stopPropagation(); openArticle(art); }} 
-                                           className="p-3 rounded-2xl bg-zinc-500/5 hover:bg-orange-500/10 transition-colors flex items-center justify-between group cursor-pointer">
+                                      <div
+                                        key={i}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openArticle(art);
+                                        }}
+                                        className="p-3 rounded-2xl bg-zinc-500/5 hover:bg-orange-500/10 transition-colors flex items-center justify-between group cursor-pointer"
+                                      >
                                         <span className="text-[11px] font-bold truncate pr-4">{art.title}</span>
-                                        {/* CORREÇÃO DO LOGO E DO ERRO DE REFERÊNCIA */}
-                                        <img 
-                                            src={art.logo} 
-                                            alt="" 
-                                            className="w-5 h-5 rounded-md flex-shrink-0 border border-white/10 bg-white object-contain"
+                                        <img
+                                          src={art.logo}
+                                          alt=""
+                                          className="w-5 h-5 rounded-md flex-shrink-0 border border-white/10 bg-white object-contain"
+                                          onError={(e) => {
+                                            e.currentTarget.style.display = "none";
+                                          }}
                                         />
                                       </div>
                                     ))}
@@ -4367,35 +4554,67 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
         </motion.div>
       )}
 
-      {/* MODAL DE DRILL-DOWN (COM O LOGO JÁ CORRIGIDO) */}
+      {/* MODAL DE DRILL-DOWN */}
       <AnimatePresence>
         {selectedWordData && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-5">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setSelectedWordData(null)} />
-            <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 30 }}
-                        className={`relative w-full max-w-2xl rounded-[3.5rem] overflow-hidden border ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-black/5'}`}>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-xl"
+              onClick={() => setSelectedWordData(null)}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 30 }}
+              className={`relative w-full max-w-2xl rounded-[3.5rem] overflow-hidden border ${
+                isDarkMode ? "bg-zinc-900 border-white/10" : "bg-white border-black/5"
+              }`}
+            >
               <div className="p-10">
                 <div className="flex justify-between items-start mb-10">
                   <div>
                     <span className="text-[10px] font-black uppercase text-orange-500 mb-2 block">Contexto da Palavra</span>
                     <h3 className="text-3xl font-black tracking-tight">{selectedWordData.word}</h3>
                   </div>
-                  <button onClick={() => setSelectedWordData(null)} className="p-4 bg-zinc-500/10 rounded-full active:scale-90 transition-all"><X size={24} /></button>
+                  <button
+                    onClick={() => setSelectedWordData(null)}
+                    className="p-4 bg-zinc-500/10 rounded-full active:scale-90 transition-all"
+                  >
+                    <X size={24} />
+                  </button>
                 </div>
-                
+
                 <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-3 custom-scrollbar">
                   {selectedWordData.articles.map((art, i) => (
-                    <button 
-                      key={i} 
-                      onClick={() => openArticle(art)} 
-                      className={`w-full text-left p-4 rounded-[1.5rem] transition-all border flex items-center justify-between gap-4 group ${isDarkMode ? 'bg-white/5 hover:bg-white/10 border-transparent hover:border-white/10' : 'bg-black/5 hover:bg-black/10 border-transparent hover:border-black/10'}`}
+                    <button
+                      key={i}
+                      onClick={() => openArticle(art)}
+                      className={`w-full text-left p-4 rounded-[1.5rem] transition-all border flex items-center justify-between gap-4 group ${
+                        isDarkMode
+                          ? "bg-white/5 hover:bg-white/10 border-transparent hover:border-white/10"
+                          : "bg-black/5 hover:bg-black/10 border-transparent hover:border-black/10"
+                      }`}
                       title={art.title}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold leading-tight line-clamp-2 group-hover:text-purple-400 transition-colors">{art.title}</p>
-                        <span className="text-[9px] font-black uppercase opacity-40 mt-1 block">{art.source?.name || art.source || "Fonte Geral"}</span>
+                        <p className="text-sm font-bold leading-tight line-clamp-2 group-hover:text-purple-400 transition-colors">
+                          {art.title}
+                        </p>
+                        <span className="text-[9px] font-black uppercase opacity-40 mt-1 block">
+                          {art.source?.name || art.source || "Fonte Geral"}
+                        </span>
                       </div>
-                      <img src={art.logo} alt="" className="w-8 h-8 rounded-lg flex-shrink-0 border border-white/10 bg-white object-contain" onError={(e) => { e.target.style.display = 'none'; }}/>
+                      <img
+                        src={art.logo}
+                        alt=""
+                        className="w-8 h-8 rounded-lg flex-shrink-0 border border-white/10 bg-white object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
                     </button>
                   ))}
                 </div>
@@ -4407,7 +4626,6 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
     </div>
   );
 };
-
 
 
 
