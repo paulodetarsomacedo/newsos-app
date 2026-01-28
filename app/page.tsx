@@ -4169,7 +4169,7 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
               <span>Intenso</span>
             </div>
             
-            <div className="h-16 rounded-md flex items-center overflow-hidden shadow-inner relative cursor-pointer" 
+            <div className="h-16 rounded-xl flex items-center overflow-hidden shadow-inner relative cursor-pointer" 
                  style={{ background: isDarkMode ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.05)" }}>
               {temperatureBands.map((band, idx) => {
                 const isActive = selectedBandIndex === idx;
