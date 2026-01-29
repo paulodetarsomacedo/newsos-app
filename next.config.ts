@@ -1,53 +1,31 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Configuração condicional (mantida)
+  // Configuração condicional para o Capacitor
   output: process.env.IS_CAPACITOR ? 'export' : undefined,
 
-  // --- CORREÇÃO AQUI ---
-  // Se for build para Capacitor, ignora a pasta API
+  // Configuração para ignorar a pasta /api no build estático
   experimental: {
-    // Isso diz para o Next.js: "Quando gerar os arquivos estáticos, finja que a pasta /api não existe"
     exclude: process.env.IS_CAPACITOR ? ['/api/**'] : [],
   },
 
+  // UM ÚNICO BLOCO 'images' com tudo dentro
   images: {
-    unoptimized: true,
+    unoptimized: true, // Necessário para Capacitor
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: '**', // Permite qualquer hostname, mais flexível que 'domains'
       },
     ],
   },
 
-
-  images: {
-    domains: [
-      'images.unsplash.com', 
-      'ui-avatars.com', 
-      'img.youtube.com', 
-      'i.ytimg.com', 
-      'google.com',
-      'www.google.com'
-    ],
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
-    ],
-  },
-  // --- ADICIONE ISSO AQUI: ---
+  // Ignorar erros de TypeScript e ESLint durante o build (mantido)
   typescript: {
-    // !! ATENÇÃO !!
-    // Perigosamente permite que builds de produção terminem mesmo com erros de tipo.
     ignoreBuildErrors: true,
   },
   eslint: {
-    // Ignora erros de estilo também para garantir o build
     ignoreDuringBuilds: true,
   },
 };
-
 
 module.exports = nextConfig;
