@@ -527,10 +527,18 @@ const fetchMarketData = async () => {
         await Promise.all(symbols.map(async (symbol) => {
             try {
                 const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-               const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+                
+                // --- CORREÇÃO CRÍTICA AQUI ---
+                // Trocamos o link relativo pelo link absoluto do seu site na Vercel.
+                const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+                
                 const res = await fetch(proxyUrl);
                 if (!res.ok) throw new Error('Network err');
-                const json = await res.json();
+
+                // O proxy agora retorna texto, então precisamos converter para JSON.
+                const textData = await res.text();
+                const json = JSON.parse(textData);
+
                 const meta = json.chart?.result?.[0]?.meta;
                 if (meta) {
                     const price = meta.regularMarketPrice;
@@ -548,12 +556,13 @@ const fetchMarketData = async () => {
                     newData[symbol] = { val: valDisplay, up: isUp };
                 }
             } catch (err) {
-                newData[symbol] = { val: '...', up: true };
+                console.error(`Erro ao buscar ${symbol}:`, err); // Adicionado log de erro
+                newData[symbol] = { val: 'err', up: false }; // Indica erro na UI
             }
         }));
         setData(prev => ({ ...prev, ...newData }));
     } catch (error) {
-        console.error("Erro geral no fetch:", error);
+        console.error("Erro geral no fetch de mercado:", error);
     }
   };
 
