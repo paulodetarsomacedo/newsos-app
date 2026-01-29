@@ -13,7 +13,7 @@ export async function GET(request) {
   try {
     const response = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0; +http://seusite.com)',
         'Accept': 'application/rss+xml, application/xml, text/xml, */*',
       },
       cache: 'no-store' 
@@ -21,40 +21,31 @@ export async function GET(request) {
 
     if (!response.ok) throw new Error(`Status: ${response.status}`);
 
+    // Pegamos os bytes brutos (ArrayBuffer) para ter controle total da decodificação
     const buffer = await response.arrayBuffer();
     
-    let xml = "";
-    
-    // --- LÓGICA DE FORÇA BRUTA PARA UOL/FOLHA ---
-    // Sites conhecidos por usar ISO-8859-1 (Latin1)
-    const isLegacySite = targetUrl.includes('uol.com.br') || 
-                         targetUrl.includes('folha.uol.com.br') || 
-                         targetUrl.includes('noticias.uol');
+    // 1. Tenta decodificar como UTF-8 (Padrão mundial e da maioria dos feeds modernos)
+    const decoderUtf8 = new TextDecoder('utf-8');
+    let xml = decoderUtf8.decode(buffer);
 
-    if (isLegacySite) {
-        // Se for UOL, força ISO direto. Sem "tentar" UTF-8 antes.
-        const decoder = new TextDecoder('iso-8859-1');
-        xml = decoder.decode(buffer);
-    } else {
-        // Para os outros (G1, CNN, etc), tenta UTF-8
-        const decoder = new TextDecoder('utf-8');
-        xml = decoder.decode(buffer);
-
-        // Fallback de segurança: se mesmo não sendo UOL aparecer o losango de erro
-        if (xml.includes('\uFFFD')) {
-            const legacyDecoder = new TextDecoder('iso-8859-1');
-            xml = legacyDecoder.decode(buffer);
-        }
+    // 2. VERIFICAÇÃO DE SEGURANÇA (A Correção "Mágica")
+    // O caractere \uFFFD () aparece quando o decodificador UTF-8 falha ao ler bytes Latin1/ISO.
+    // Se encontrarmos isso no XML, significa que o site NÃO é UTF-8.
+    if (xml.includes('\uFFFD')) {
+        // Recarregamos o buffer usando Windows-1252 (que cobre ISO-8859-1 e acentos PT-BR)
+        const decoderIso = new TextDecoder('windows-1252');
+        xml = decoderIso.decode(buffer);
     }
     
     return new NextResponse(xml, {
       status: 200,
       headers: {
-        'Content-Type': 'text/xml; charset=utf-8', // Entrega sempre UTF-8 limpo para o App
+        'Content-Type': 'text/xml; charset=utf-8', // Agora garantimos que sai como UTF-8 limpo
         'Access-Control-Allow-Origin': '*',
       },
     });
   } catch (error) {
+    console.error("Proxy error:", error);
     return NextResponse.json({ error: 'Erro no Proxy' }, { status: 500 });
   }
 }
