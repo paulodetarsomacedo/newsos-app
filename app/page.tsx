@@ -1368,43 +1368,65 @@ function FeedTab({
   };
 
   
-    const handleLocalPlay = useCallback(async (article) => {
-    // Se o usuário clicar para parar, para tudo.
-    if (!article || localPlayingAudio?.id === article.id) {
-        if(introAudioRef.current) introAudioRef.current.pause();
-        if(audioRef.current) audioRef.current.pause();
+  const handleLocalPlay = async (article) => {
+    // PARTE 1: Lógica para parar a reprodução
+    // Se o usuário clicar no mesmo item que já está tocando, ou clicar para fechar (passando 'null'),
+    // paramos todos os áudios e resetamos o estado.
+    if (!article || (localPlayingAudio && localPlayingAudio.id === article.id)) {
+        if (introAudioRef.current) {
+            introAudioRef.current.pause();
+            introAudioRef.current.currentTime = 0;
+        }
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+        }
         setLocalPlayingAudio(null);
         setAudioUrl('');
-        return;
+        return; // Encerra a função aqui
     }
 
+    // PARTE 2: Lógica para iniciar a reprodução
+    // Define o artigo atual, para a UI saber qual item está ativo.
     setLocalPlayingAudio(article);
-    setAudioUrl(''); // Garante que o player antigo pare
-    setIsGenerating(true); // Mostra o loading imediatamente
+    // Limpa a URL do áudio anterior para garantir que o player pare.
+    setAudioUrl(''); 
+    // Ativa o estado de "gerando", que mostra o spinner "Sintetizando...".
+    setIsGenerating(true); 
 
-    // Toca a vinheta primeiro
+    // PARTE 3: Orquestração da vinheta + áudio principal
+    // Verifica se o elemento de áudio da vinheta existe.
     if (introAudioRef.current) {
         try {
-            introAudioRef.current.currentTime = 0; // Reinicia a vinheta
+            // Toca a vinheta primeiro
+            introAudioRef.current.currentTime = 0; // Garante que a vinheta comece do início
+            
+            // Adicionado um pequeno delay para garantir que o navegador esteja pronto para o play()
+            await new Promise(resolve => setTimeout(resolve, 50)); 
+            
             await introAudioRef.current.play();
 
-            // Define um "ouvinte" que só será acionado QUANDO a vinheta terminar
+            // A MÁGICA: Define um "ouvinte" que só será acionado QUANDO a vinheta terminar.
             introAudioRef.current.onended = async () => {
-                // A vinheta terminou. Agora, geramos e tocamos o áudio principal.
+                // A vinheta terminou. Agora, chamamos a função para gerar o áudio da notícia.
+                // Esta é a chamada que ativa a rotação de chaves de API no componente pai.
                 const url = await onGenerateAudio(article);
+                
                 if (url) {
-                    setIsGenerating(false); // Para de mostrar "Sintetizando..."
-                    setAudioUrl(url); // Toca o áudio da notícia
+                    // Se a geração foi um sucesso e recebemos uma URL...
+                    setIsGenerating(false); // Desativa o spinner "Sintetizando..."
+                    setAudioUrl(url);      // Define a URL no player principal, que começará a tocar.
                 } else {
-                    // Se a geração do áudio principal falhar, reseta tudo.
+                    // Se a geração do áudio principal falhar, reseta tudo para um estado limpo.
                     setLocalPlayingAudio(null);
                     setIsGenerating(false);
                 }
             };
 
         } catch (error) {
-            // Se a vinheta falhar, pulamos direto para o áudio principal
-            console.warn("Falha ao tocar vinheta, pulando...", error);
+            // Se a vinheta falhar por qualquer motivo (ex: arquivo corrompido, bloqueio do navegador),
+            // pulamos direto para a geração do áudio principal como um plano B.
+            console.warn("Falha ao tocar vinheta, pulando para o áudio principal...", error);
             const url = await onGenerateAudio(article);
             if (url) {
                 setIsGenerating(false);
@@ -1414,8 +1436,20 @@ function FeedTab({
                 setIsGenerating(false);
             }
         }
+    } else {
+        // Fallback final: se por algum motivo a referência da vinheta não existir,
+        // toca o áudio principal diretamente para não quebrar a funcionalidade.
+        console.warn("Referência do áudio da vinheta não encontrada. Tocando áudio principal diretamente.");
+        const url = await onGenerateAudio(article);
+        if (url) {
+            setIsGenerating(false);
+            setAudioUrl(url);
+        } else {
+            setLocalPlayingAudio(null);
+            setIsGenerating(false);
+        }
     }
-  }, [localPlayingAudio, onGenerateAudio]);
+  };
 
   if (isLoading && stableData.length === 0) {
      return (
