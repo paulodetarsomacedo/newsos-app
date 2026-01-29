@@ -7268,7 +7268,7 @@ const handleReadNative = useCallback(async (article) => {
 const handlePlayAudio = async (article) => {
     if (!article) return null;
 
-    // Lógica para YouTube e MP3 direto (mantida)
+    // 1. Verificações de Vídeo/MP3 (Mantidas)
     if (article.videoId || (article.link && article.link.includes('youtube'))) {
         handleReadNative(article);
         return null;
@@ -7278,33 +7278,39 @@ const handlePlayAudio = async (article) => {
     }
 
     try {
-        // --- NOVA LÓGICA: DIRETO PARA A VOZ (SEM RESUMO IA) ---
-        
-        // 1. Prepara o texto: Título + Primeiros 600 caracteres do resumo/conteúdo
-        // Remove tags HTML para não ler "pê agá..." e limita tamanho.
+        // 2. Preparação do Texto (Direto, sem IA de resumo)
+        // Limpa HTML e limita a 600 caracteres para economizar cota e ser rápido
         const cleanSummary = (article.summary || "").replace(/<[^>]*>?/gm, '');
-        const textToSpeak = `${article.title}. ${cleanSummary}`.slice(0, 600); // 600 chars é um bom tamanho (~40 segs)
+        const textToSpeak = `${article.title}. ${cleanSummary}`.slice(0, 600);
 
-        // 2. Usa a chave do Pool 1 (Widgets)
+        // =================================================================
+        // 3. SELEÇÃO DA CHAVE: POOL 1 (WIDGETS)
+        // =================================================================
+        // 'widgets' mapeia para type: 'free_widget' na sua função getApiKey
         const ttsKey = getApiKey('widgets'); 
+        
         if (!ttsKey) {
-            alert("Nenhuma chave do Pool 1 configurada.");
+            console.warn("Nenhuma chave do Pool 1 (Widgets) encontrada.");
+            alert("Configure as chaves do Pool 1 para ouvir o áudio.");
             return null;
         }
 
-        // 3. Chama direto a API de Voz
+        console.log("Gerando áudio com chave do Pool 1...");
+
+        // 4. Chamada à API (Usando a chave do Pool 1)
         const ttsResponse = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${ttsKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 input: { text: textToSpeak },
-                voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-B' }, // Voz Masculina
+                voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-B' },
                 audioConfig: { audioEncoding: 'MP3' },
             }),
         });
 
         if (!ttsResponse.ok) {
             const errorData = await ttsResponse.json();
+            // Verifica erro de "API not enabled" ou "Key restriction"
             throw new Error(`Erro API Voz: ${errorData.error.message}`);
         }
 
@@ -7322,8 +7328,6 @@ const handlePlayAudio = async (article) => {
         return null;
     }
 };
-
-
 
 
   const closeArticle = useCallback(() => {
