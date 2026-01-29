@@ -1305,6 +1305,7 @@ function FeedTab({
   
   const feedContainerRef = useRef(null);
   const audioRef = useRef(null);
+  const introAudioRef = useRef(null);
   const prevCategory = useRef(category);
 
   useEffect(() => {
@@ -1365,12 +1366,55 @@ function FeedTab({
     }
     setPullDistance(0); setStartY(0);
   };
-  const handleLocalPlay = useCallback(async (article) => {
-    if (!article || localPlayingAudio?.id === article.id) { setLocalPlayingAudio(null); setAudioUrl(''); return; }
-    setLocalPlayingAudio(article); setIsGenerating(true); setAudioUrl('');
-    const url = await onGenerateAudio(article);
-    if (url) { setIsGenerating(false); setAudioUrl(url); } 
-    else { setLocalPlayingAudio(null); setIsGenerating(false); }
+
+  
+    const handleLocalPlay = useCallback(async (article) => {
+    // Se o usuário clicar para parar, para tudo.
+    if (!article || localPlayingAudio?.id === article.id) {
+        if(introAudioRef.current) introAudioRef.current.pause();
+        if(audioRef.current) audioRef.current.pause();
+        setLocalPlayingAudio(null);
+        setAudioUrl('');
+        return;
+    }
+
+    setLocalPlayingAudio(article);
+    setAudioUrl(''); // Garante que o player antigo pare
+    setIsGenerating(true); // Mostra o loading imediatamente
+
+    // Toca a vinheta primeiro
+    if (introAudioRef.current) {
+        try {
+            introAudioRef.current.currentTime = 0; // Reinicia a vinheta
+            await introAudioRef.current.play();
+
+            // Define um "ouvinte" que só será acionado QUANDO a vinheta terminar
+            introAudioRef.current.onended = async () => {
+                // A vinheta terminou. Agora, geramos e tocamos o áudio principal.
+                const url = await onGenerateAudio(article);
+                if (url) {
+                    setIsGenerating(false); // Para de mostrar "Sintetizando..."
+                    setAudioUrl(url); // Toca o áudio da notícia
+                } else {
+                    // Se a geração do áudio principal falhar, reseta tudo.
+                    setLocalPlayingAudio(null);
+                    setIsGenerating(false);
+                }
+            };
+
+        } catch (error) {
+            // Se a vinheta falhar, pulamos direto para o áudio principal
+            console.warn("Falha ao tocar vinheta, pulando...", error);
+            const url = await onGenerateAudio(article);
+            if (url) {
+                setIsGenerating(false);
+                setAudioUrl(url);
+            } else {
+                setLocalPlayingAudio(null);
+                setIsGenerating(false);
+            }
+        }
+    }
   }, [localPlayingAudio, onGenerateAudio]);
 
   if (isLoading && stableData.length === 0) {
@@ -2584,6 +2628,7 @@ PARTE 1: TENDÊNCIAS (12 TEMAS)
 
 PARTE 2: NUVEM DE PALAVRAS (20 TERMOS)
 1. Extraia as 20 palavras ou termos compostos mais relevantes do momento.
+Priorize termos que aparecem textualmente nos títulos, quando possível.
 2. Atribua um score de "relevance" (1-10) para cada uma.
 
 REGRAS TÉCNICAS:
@@ -4037,19 +4082,31 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   };
 
   // --- Lógica de Drill-down ---
-  const handleWordClick = (word) => {
+const handleWordClick = (word) => {
     if (!newsData) return;
+    
+    // 1. Divide a palavra-chave da IA em termos de busca individuais
+    // Ex: "Operação PF" se torna ["operação", "pf"]
+    const searchTerms = word.toLowerCase().split(' ').filter(term => term.length > 1);
+
     const normalize = (str) =>
       String(str || "")
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "");
-    const search = normalize(word);
-    const related = newsData
-      .filter((art) => normalize(art.title || "").includes(search))
-      .slice(0, 15);
+
+    const related = newsData.filter(article => {
+        if (!article.title) return false;
+        
+        const normalizedTitle = normalize(article.title);
+        
+        // 2. Verifica se CADA termo de busca está presente no título do artigo
+        // O método .every() garante que todos os termos ("operação" E "pf") existam
+        return searchTerms.every(term => normalizedTitle.includes(normalize(term)));
+    }).slice(0, 15); // Limita a 15 resultados
+
     setSelectedWordData({ word, articles: related });
-  };
+};
 
   // --- Ciclo de Vida e Cache ---
   useEffect(() => {
