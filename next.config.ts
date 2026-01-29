@@ -1,10 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',  // <--- OBRIGATÓRIO: Gera HTML estático
+  // A MÁGICA: Só ativa 'export' se tivermos a variável IS_CAPACITOR
+  // Se não tiver (na Vercel), ele fica undefined (Modo Servidor/API funciona)
+  output: process.env.IS_CAPACITOR ? 'export' : undefined,
+
   images: {
-    unoptimized: true, // <--- OBRIGATÓRIO: O Next não pode otimizar imagens sem servidor
+    unoptimized: true, // Necessário para o iPad
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+    ],
   },
-  // -----------------------------------
+
 
   images: {
     domains: [
