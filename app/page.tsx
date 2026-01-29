@@ -1469,9 +1469,12 @@ function FeedTab({
       className="space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 pt-2 min-h-screen overscroll-y-none touch-pan-y custom-scrollbar"
       onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
     >
-      <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
-        <audio ref={introAudioRef} src="/sounds/intro.mp3" /> 
-        <audio ref={outroAudioRef} src="/sounds/end.mp3" />
+     {/* 1. Principal: Agora chama o handleMainAudioEnded ao acabar */}
+      <audio ref={audioRef} onEnded={handleMainAudioEnded} />
+      
+      {/* 2. Vinhetas: Com preload para garantir que toquem rápido */}
+      <audio ref={introAudioRef} src="/sounds/intro.mp3" preload="auto" />
+      <audio ref={outroAudioRef} src="/sounds/end.mp3" preload="auto" />
       
       <FeedVerticalFilter 
           categories={FEED_CATEGORIES} 
@@ -7265,7 +7268,7 @@ const handleReadNative = useCallback(async (article) => {
 const handlePlayAudio = async (article) => {
     if (!article) return null;
 
-    // Mantém a lógica original para YouTube e links diretos de áudio
+    // Lógica para YouTube e MP3 direto (mantida)
     if (article.videoId || (article.link && article.link.includes('youtube'))) {
         handleReadNative(article);
         return null;
@@ -7274,88 +7277,51 @@ const handlePlayAudio = async (article) => {
         return article.link;
     }
 
-    // --- INÍCIO DA NOVA LÓGICA COMPLETA ---
-
-    let textToSpeak = '';
-
     try {
-        // ======================================================================
-        // PASSO 1: Resumir o texto com a IA (usando uma chave do Pool 2 - Pesado)
-        // ======================================================================
-        const analysisKey = getApiKey('analysis');
-        if (!analysisKey) {
-            alert("Nenhuma chave do Pool 2 (Usina) configurada para resumir o texto.");
-            return null;
-        }
+        // --- NOVA LÓGICA: DIRETO PARA A VOZ (SEM RESUMO IA) ---
+        
+        // 1. Prepara o texto: Título + Primeiros 600 caracteres do resumo/conteúdo
+        // Remove tags HTML para não ler "pê agá..." e limita tamanho.
+        const cleanSummary = (article.summary || "").replace(/<[^>]*>?/gm, '');
+        const textToSpeak = `${article.title}. ${cleanSummary}`.slice(0, 600); // 600 chars é um bom tamanho (~40 segs)
 
-        // Primeiro, precisamos do texto completo do artigo
-        const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-        if (proxyError || !proxyData?.reader?.textContent) {
-            // Fallback: Se não conseguir extrair, usa o resumo que já temos
-            console.warn("Falha na extração, usando resumo existente para o áudio.");
-            textToSpeak = `${article.title}. ${article.summary}`;
-        } else {
-            const fullText = proxyData.reader.textContent;
-
-            const prompt = `Resuma o texto a seguir em um parágrafo curto e fluído, ideal para ser narrado em áudio. Seja direto e jornalístico. TEXTO: "${fullText.slice(0, 5000)}"`;
-
-            const summaryResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${analysisKey}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-            });
-
-            if (!summaryResponse.ok) throw new Error("Erro ao gerar o resumo para o áudio.");
-
-            const summaryData = await summaryResponse.json();
-            const summarizedText = summaryData.candidates?.[0]?.content?.parts?.[0]?.text;
-            
-            if (!summarizedText) throw new Error("A IA não retornou um resumo válido.");
-            
-            textToSpeak = summarizedText;
-        }
-
-        // ================================================================================
-        // PASSO 2: Gerar o áudio do texto resumido (usando uma chave do Pool 1 - Leve)
-        // ================================================================================
+        // 2. Usa a chave do Pool 1 (Widgets)
         const ttsKey = getApiKey('widgets'); 
         if (!ttsKey) {
-            alert("Nenhuma chave do Pool 1 (Widgets) configurada para gerar o áudio.");
+            alert("Nenhuma chave do Pool 1 configurada.");
             return null;
         }
 
+        // 3. Chama direto a API de Voz
         const ttsResponse = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${ttsKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 input: { text: textToSpeak },
-                voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-B' }, // Voz masculina de alta qualidade
+                voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-B' }, // Voz Masculina
                 audioConfig: { audioEncoding: 'MP3' },
             }),
         });
 
         if (!ttsResponse.ok) {
             const errorData = await ttsResponse.json();
-            throw new Error(`Erro da API de Áudio: ${errorData.error.message}`);
+            throw new Error(`Erro API Voz: ${errorData.error.message}`);
         }
 
         const ttsData = await ttsResponse.json();
 
         if (ttsData.audioContent) {
             const audioBlob = await (await fetch(`data:audio/mp3;base64,${ttsData.audioContent}`)).blob();
-            const audioUrl = URL.createObjectURL(audioBlob);
-            return audioUrl;
+            return URL.createObjectURL(audioBlob);
         } else {
-            throw new Error("A API de Áudio não retornou conteúdo.");
+            throw new Error("Sem áudio retornado.");
         }
 
     } catch (err) {
-        console.error("Erro no processo de geração de áudio:", err);
-        alert(`Falha ao gerar áudio: ${err.message}`);
+        console.error("Erro geração áudio:", err);
         return null;
     }
 };
-  
 
 
 
