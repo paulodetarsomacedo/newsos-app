@@ -3298,7 +3298,7 @@ const generateHeuristicClusters = (news) => {
     const SOURCE_WEIGHTS = { 'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, };
     const DEFAULT_WEIGHT = 1;
     const IMAGE_PREFERRED_SOURCES = new Set(['Extra','CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT News', 'Times Brasil', 'Estadao', 'Fox News', '180graus']);
-    const IMAGE_BLOCKED_SOURCES = new Set(['ISTOÉ', 'ISTOÉ DINHEIRO', 'UOL Economia', 'Estadão E-Investidor', 'F5', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Noticias', 'Money Times', 'Estadão | As Últimas Notícias', 'G1']);
+    const IMAGE_BLOCKED_SOURCES = new Set(['ISTOÉ', 'ISTOÉ DINHEIRO', 'UOL Economia', 'Estadão E-Investidor', 'F5', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Noticias', 'Money Times', 'Estadão | As Últimas Notícias', 'G1', 'UOL NOTICIAS', 'Valor Investe']);
     const SIMILARITY_THRESHOLD = 0.58;
     const CLUSTER_LIMIT = 5;
 
@@ -6160,27 +6160,31 @@ export default function NewsOS_V12() {
   const [isDarkMode, setIsDarkMode] = useState(false); 
 // --- ESTADO DE CHAVES (ARQUITETURA DE POOLS) ---
 const [apiKeys, setApiKeys] = useState([
-    // Pool de Widgets (Leve - Rotação Rápida)
+    // Pool 1: Widgets (Leve) - Agora com 6 chaves
     { id: 1, value: '', type: 'free_widget' },
     { id: 2, value: '', type: 'free_widget' },
     { id: 3, value: '', type: 'free_widget' },
     { id: 4, value: '', type: 'free_widget' },
+    { id: 14, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
+    { id: 16, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
     
-    // Legado / Backup (Antigas Pagas)
+    // Legado / Backup
     { id: 5, value: '', type: 'legacy_text' },
     { id: 6, value: '', type: 'legacy_audio' },
 
-    // POOL USINA (AGORA COM 6)
+    // Pool 2: Usina de IA (Pesado) - Agora com 7 chaves
     { id: 7, value: '', type: 'heavy_rotation' },
     { id: 8, value: '', type: 'heavy_rotation' },
     { id: 9, value: '', type: 'heavy_rotation' },
     { id: 10, value: '', type: 'heavy_rotation' },
     { id: 11, value: '', type: 'heavy_rotation' },
-    { id: 15, value: '', type: 'heavy_rotation' }, // <<-- SUA 6ª CHAVE (usei ID 15)
+    { id: 15, value: '', type: 'heavy_rotation' },
+    { id: 17, value: '', type: 'heavy_rotation' }, // <<-- NOVA CHAVE
 
-    // Pool de Chat
+    // Pool 3: Chat - Agora com 3 chaves
     { id: 12, value: '', type: 'chat_key' },
     { id: 13, value: '', type: 'chat_key' },
+    { id: 18, value: '', type: 'chat_key' }, // <<-- NOVA CHAVE
 ]);
 
 
@@ -6606,15 +6610,33 @@ const handleStoryNavigation = (direction) => {
                   const parsedFromDB = JSON.parse(data.api_key);
 
                   if (Array.isArray(parsedFromDB)) {
-                      const defaultKeysStructure = [
-                          { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
-                          { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
-                          { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
-                          { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
-                          { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
-                          { id: 11, value: '', type: 'heavy_rotation' }, { id: 15, value: '', type: 'heavy_rotation' },
-                          { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
-                      ];
+               const defaultKeysStructure = [
+    // Pool 1: Widgets (Leve) - Agora com 6 chaves
+    { id: 1, value: '', type: 'free_widget' },
+    { id: 2, value: '', type: 'free_widget' },
+    { id: 3, value: '', type: 'free_widget' },
+    { id: 4, value: '', type: 'free_widget' },
+    { id: 14, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
+    { id: 16, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
+    
+    // Legado / Backup
+    { id: 5, value: '', type: 'legacy_text' },
+    { id: 6, value: '', type: 'legacy_audio' },
+
+    // Pool 2: Usina de IA (Pesado) - Agora com 7 chaves
+    { id: 7, value: '', type: 'heavy_rotation' },
+    { id: 8, value: '', type: 'heavy_rotation' },
+    { id: 9, value: '', type: 'heavy_rotation' },
+    { id: 10, value: '', type: 'heavy_rotation' },
+    { id: 11, value: '', type: 'heavy_rotation' },
+    { id: 15, value: '', type: 'heavy_rotation' },
+    { id: 17, value: '', type: 'heavy_rotation' }, // <<-- NOVA CHAVE
+
+    // Pool 3: Chat - Agora com 3 chaves
+    { id: 12, value: '', type: 'chat_key' },
+    { id: 13, value: '', type: 'chat_key' },
+    { id: 18, value: '', type: 'chat_key' }, // <<-- NOVA CHAVE
+];
 
                       // ==========================================================
                       // === A MUDANÇA CRÍTICA ESTÁ AQUI ===
@@ -7143,55 +7165,100 @@ const handleReadNative = useCallback(async (article) => {
 
 
 // --- FUNÇÃO DE ÁUDIO SOB DEMANDA (CHAVE 6) ---
-  const handlePlayAudio = async (article) => {
-      if (!article) return null; // Retorna nulo se não houver artigo
 
-      // Se for vídeo do YouTube, abre no navegador e para por aqui.
-      if (article.videoId || article.link.includes('youtube')) {
-          handleReadNative(article);
-          return null; // Retorna nulo pois não é áudio
-      }
+const handlePlayAudio = async (article) => {
+    if (!article) return null;
 
-      // Se for um link direto de podcast (MP3), retorna a URL direto.
-      if (article.link?.endsWith('.mp3')) {
-          return article.link;
-      }
+    // Mantém a lógica original para YouTube e links diretos de áudio
+    if (article.videoId || (article.link && article.link.includes('youtube'))) {
+        handleReadNative(article);
+        return null;
+    }
+    if (article.link?.endsWith('.mp3')) {
+        return article.link;
+    }
 
-      // --- Para notícias de texto, começa o processo de IA ---
-      
-      const audioKey = getApiKey('audio'); // Pega a Chave 6
-      if (!audioKey) {
-          alert("Chave 6 (Áudio) não configurada.");
-          return null;
-      }
-      
-      const textKey = getApiKey('analysis'); // Pega a Chave 5
-      if (!textKey) {
-          alert("Chave 5 (Texto) não configurada.");
-          return null;
-      }
+    // --- INÍCIO DA NOVA LÓGICA COMPLETA ---
 
-      try {
-          // Chama a função do Supabase para fazer todo o trabalho
-          const { data, error } = await supabase.functions.invoke('generate-audio-briefing', {
-              body: { 
-                  article: article,
-                  voiceKey: audioKey, 
-                  textKey: textKey
-              }
-          });
+    let textToSpeak = '';
 
-          if (error) throw new Error(error.message);
-          
-          // Sucesso! RETORNA a URL do MP3 para a FeedTab.
-          return data.audioUrl;
+    try {
+        // ======================================================================
+        // PASSO 1: Resumir o texto com a IA (usando uma chave do Pool 2 - Pesado)
+        // ======================================================================
+        const analysisKey = getApiKey('analysis');
+        if (!analysisKey) {
+            alert("Nenhuma chave do Pool 2 (Usina) configurada para resumir o texto.");
+            return null;
+        }
 
-      } catch (err) {
-          console.error("Erro na geração de áudio:", err);
-          alert("Falha ao gerar áudio. Verifique suas cotas ou a função do Supabase.");
-          return null; // Retorna nulo em caso de erro.
-      }
-  };
+        // Primeiro, precisamos do texto completo do artigo
+        const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+        if (proxyError || !proxyData?.reader?.textContent) {
+            // Fallback: Se não conseguir extrair, usa o resumo que já temos
+            console.warn("Falha na extração, usando resumo existente para o áudio.");
+            textToSpeak = `${article.title}. ${article.summary}`;
+        } else {
+            const fullText = proxyData.reader.textContent;
+
+            const prompt = `Resuma o texto a seguir em um parágrafo curto e fluído, ideal para ser narrado em áudio. Seja direto e jornalístico. TEXTO: "${fullText.slice(0, 5000)}"`;
+
+            const summaryResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${analysisKey}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+
+            if (!summaryResponse.ok) throw new Error("Erro ao gerar o resumo para o áudio.");
+
+            const summaryData = await summaryResponse.json();
+            const summarizedText = summaryData.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!summarizedText) throw new Error("A IA não retornou um resumo válido.");
+            
+            textToSpeak = summarizedText;
+        }
+
+        // ================================================================================
+        // PASSO 2: Gerar o áudio do texto resumido (usando uma chave do Pool 1 - Leve)
+        // ================================================================================
+        const ttsKey = getApiKey('widgets'); 
+        if (!ttsKey) {
+            alert("Nenhuma chave do Pool 1 (Widgets) configurada para gerar o áudio.");
+            return null;
+        }
+
+        const ttsResponse = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${ttsKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                input: { text: textToSpeak },
+                voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-B' }, // Voz masculina de alta qualidade
+                audioConfig: { audioEncoding: 'MP3' },
+            }),
+        });
+
+        if (!ttsResponse.ok) {
+            const errorData = await ttsResponse.json();
+            throw new Error(`Erro da API de Áudio: ${errorData.error.message}`);
+        }
+
+        const ttsData = await ttsResponse.json();
+
+        if (ttsData.audioContent) {
+            const audioBlob = await (await fetch(`data:audio/mp3;base64,${ttsData.audioContent}`)).blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            return audioUrl;
+        } else {
+            throw new Error("A API de Áudio não retornou conteúdo.");
+        }
+
+    } catch (err) {
+        console.error("Erro no processo de geração de áudio:", err);
+        alert(`Falha ao gerar áudio: ${err.message}`);
+        return null;
+    }
+};
   
 
 
