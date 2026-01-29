@@ -6833,11 +6833,12 @@ const fetchFeeds = async (forceRefresh = false) => {
                 // Falha silenciosa, a lógica continuará para a tentativa de resgate.
             }
 
-            // TENTATIVA 2: RESGATE VIA PROXY LOCAL (A correção para os acentos do UOL)
+        // TENTATIVA 2: RESGATE VIA PROXY DA VERCEL (Plano B que funciona em qualquer lugar)
             if (!success) {
                 try {
-                    // **PONTO CRÍTICO**: Usa a sua API local que resolve o problema de codificação.
-                    const proxyUrl = `/api/proxy?url=${encodeURIComponent(feed.url)}`;
+                    // --- MUDANÇA CRÍTICA AQUI ---
+                    // Trocamos o link relativo pelo link COMPLETO do seu site na Vercel
+                    const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`;
                     
                     const res = await fetch(proxyUrl);
                     if (!res.ok) throw new Error(`Proxy status: ${res.status}`);
@@ -6848,10 +6849,12 @@ const fetchFeeds = async (forceRefresh = false) => {
 
                     const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
                     
-                    feedItems = parsedData.items;
-                    detectedXmlTitle = parsedData.realTitle; 
-                    feedLogo = parsedData.realLogo;
-                    success = true;
+                    if (parsedData.items.length > 0) {
+                        feedItems = parsedData.items;
+                        detectedXmlTitle = parsedData.realTitle; 
+                        feedLogo = parsedData.realLogo;
+                        success = true;
+                    }
                 } catch (proxyErr) {
                     console.error(`Erro total no fetch de ${feed.name}:`, proxyErr);
                 }

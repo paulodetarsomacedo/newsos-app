@@ -1,11 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // A MÁGICA: Só ativa 'export' se tivermos a variável IS_CAPACITOR
-  // Se não tiver (na Vercel), ele fica undefined (Modo Servidor/API funciona)
+  // Configuração condicional (mantida)
   output: process.env.IS_CAPACITOR ? 'export' : undefined,
 
+  // --- CORREÇÃO AQUI ---
+  // Se for build para Capacitor, ignora a pasta API
+  experimental: {
+    // Isso diz para o Next.js: "Quando gerar os arquivos estáticos, finja que a pasta /api não existe"
+    exclude: process.env.IS_CAPACITOR ? ['/api/**'] : [],
+  },
+
   images: {
-    unoptimized: true, // Necessário para o iPad
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
