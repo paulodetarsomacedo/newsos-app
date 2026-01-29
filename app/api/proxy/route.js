@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 
 export async function GET(request) {
@@ -12,19 +14,37 @@ export async function GET(request) {
     const response = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
       },
+      cache: 'no-store' 
     });
 
-    const data = await response.text();
+    if (!response.ok) throw new Error(`Status: ${response.status}`);
+
+    // 1. Baixa os dados brutos (binário)
+    const buffer = await response.arrayBuffer();
     
-    return new NextResponse(data, {
+    // 2. Tenta decodificar como UTF-8 (Padrão moderno)
+    let decoder = new TextDecoder('utf-8');
+    let xml = decoder.decode(buffer);
+
+    // 3. O DETECTOR DE ERRO:
+    // O caractere  (código \uFFFD) só aparece quando o UTF-8 falha.
+    // Se o texto tiver isso, significa que o site é antigo (UOL/Folha/etc).
+    if (xml.includes('\uFFFD')) {
+        // Recarrega o decodificador no padrão antigo (ISO-8859-1)
+        decoder = new TextDecoder('iso-8859-1');
+        xml = decoder.decode(buffer);
+    }
+    
+    return new NextResponse(xml, {
       status: 200,
       headers: {
-        'Content-Type': 'application/xml',
-        'Access-Control-Allow-Origin': '*', // Permite que seu app Vercel acesse
+        'Content-Type': 'text/xml; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
       },
     });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro no Proxy' }, { status: 500 });
   }
 }
