@@ -1306,6 +1306,7 @@ function FeedTab({
   const feedContainerRef = useRef(null);
   const audioRef = useRef(null);
   const introAudioRef = useRef(null);
+  const outroAudioRef = useRef(null);
   const prevCategory = useRef(category);
 
   useEffect(() => {
@@ -1368,65 +1369,68 @@ function FeedTab({
   };
 
   
+// --- NOVA LÓGICA DE SEQUÊNCIA DE ÁUDIO (Intro -> Main -> Outro) ---
+  
+  // Função chamada quando o áudio principal termina
+  const handleMainAudioEnded = () => {
+      // Tenta tocar a vinheta de saída
+      if (outroAudioRef.current) {
+          outroAudioRef.current.currentTime = 0;
+          outroAudioRef.current.play().catch(e => {
+              console.warn("Erro ao tocar vinheta final", e);
+              setLocalPlayingAudio(null); // Se falhar, reseta logo
+          });
+          
+          // Só reseta o estado QUANDO a vinheta de saída terminar
+          outroAudioRef.current.onended = () => {
+              setLocalPlayingAudio(null);
+              setAudioUrl('');
+          };
+      } else {
+          // Se não tiver vinheta de saída, reseta direto
+          setLocalPlayingAudio(null);
+          setAudioUrl('');
+      }
+  };
+
   const handleLocalPlay = async (article) => {
-    // PARTE 1: Lógica para parar a reprodução
-    // Se o usuário clicar no mesmo item que já está tocando, ou clicar para fechar (passando 'null'),
-    // paramos todos os áudios e resetamos o estado.
-    if (!article || (localPlayingAudio && localPlayingAudio.id === article.id)) {
-        if (introAudioRef.current) {
-            introAudioRef.current.pause();
-            introAudioRef.current.currentTime = 0;
-        }
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-        }
+    // 1. PARAR TUDO (Lógica de Stop)
+    if (!article || localPlayingAudio?.id === article.id) {
+        if(introAudioRef.current) { introAudioRef.current.pause(); introAudioRef.current.currentTime = 0; }
+        if(audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
+        if(outroAudioRef.current) { outroAudioRef.current.pause(); outroAudioRef.current.currentTime = 0; } // Parar Outro também
+        
         setLocalPlayingAudio(null);
         setAudioUrl('');
-        return; // Encerra a função aqui
+        return;
     }
 
-    // PARTE 2: Lógica para iniciar a reprodução
-    // Define o artigo atual, para a UI saber qual item está ativo.
+    // 2. INICIAR FLUXO
     setLocalPlayingAudio(article);
-    // Limpa a URL do áudio anterior para garantir que o player pare.
     setAudioUrl(''); 
-    // Ativa o estado de "gerando", que mostra o spinner "Sintetizando...".
     setIsGenerating(true); 
 
-    // PARTE 3: Orquestração da vinheta + áudio principal
-    // Verifica se o elemento de áudio da vinheta existe.
+    // Toca a vinheta de ENTRADA primeiro
     if (introAudioRef.current) {
         try {
-            // Toca a vinheta primeiro
-            introAudioRef.current.currentTime = 0; // Garante que a vinheta comece do início
-            
-            // Adicionado um pequeno delay para garantir que o navegador esteja pronto para o play()
-            await new Promise(resolve => setTimeout(resolve, 50)); 
-            
+            introAudioRef.current.currentTime = 0;
+            await new Promise(resolve => setTimeout(resolve, 50));
             await introAudioRef.current.play();
 
-            // A MÁGICA: Define um "ouvinte" que só será acionado QUANDO a vinheta terminar.
+            // Quando a INTRO acabar -> Gera e Toca o Principal
             introAudioRef.current.onended = async () => {
-                // A vinheta terminou. Agora, chamamos a função para gerar o áudio da notícia.
-                // Esta é a chamada que ativa a rotação de chaves de API no componente pai.
                 const url = await onGenerateAudio(article);
-                
                 if (url) {
-                    // Se a geração foi um sucesso e recebemos uma URL...
-                    setIsGenerating(false); // Desativa o spinner "Sintetizando..."
-                    setAudioUrl(url);      // Define a URL no player principal, que começará a tocar.
+                    setIsGenerating(false);
+                    setAudioUrl(url); 
                 } else {
-                    // Se a geração do áudio principal falhar, reseta tudo para um estado limpo.
                     setLocalPlayingAudio(null);
                     setIsGenerating(false);
                 }
             };
 
         } catch (error) {
-            // Se a vinheta falhar por qualquer motivo (ex: arquivo corrompido, bloqueio do navegador),
-            // pulamos direto para a geração do áudio principal como um plano B.
-            console.warn("Falha ao tocar vinheta, pulando para o áudio principal...", error);
+            console.warn("Falha na intro, pulando...", error);
             const url = await onGenerateAudio(article);
             if (url) {
                 setIsGenerating(false);
@@ -1437,9 +1441,7 @@ function FeedTab({
             }
         }
     } else {
-        // Fallback final: se por algum motivo a referência da vinheta não existir,
-        // toca o áudio principal diretamente para não quebrar a funcionalidade.
-        console.warn("Referência do áudio da vinheta não encontrada. Tocando áudio principal diretamente.");
+        // Fallback sem intro
         const url = await onGenerateAudio(article);
         if (url) {
             setIsGenerating(false);
@@ -1450,6 +1452,7 @@ function FeedTab({
         }
     }
   };
+
 
   if (isLoading && stableData.length === 0) {
      return (
@@ -1467,6 +1470,8 @@ function FeedTab({
       onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
     >
       <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
+        <audio ref={introAudioRef} src="/sounds/intro.mp3" /> 
+        <audio ref={outroAudioRef} src="/sounds/end.mp3" />
       
       <FeedVerticalFilter 
           categories={FEED_CATEGORIES} 
