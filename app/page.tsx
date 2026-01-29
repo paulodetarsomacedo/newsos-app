@@ -527,7 +527,7 @@ const fetchMarketData = async () => {
         await Promise.all(symbols.map(async (symbol) => {
             try {
                 const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-               const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+               const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`;
                 const res = await fetch(proxyUrl);
                 if (!res.ok) throw new Error('Network err');
                 const json = await res.json();
