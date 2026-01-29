@@ -21,26 +21,36 @@ export async function GET(request) {
 
     if (!response.ok) throw new Error(`Status: ${response.status}`);
 
-    // 1. Baixa os dados brutos (binário)
     const buffer = await response.arrayBuffer();
     
-    // 2. Tenta decodificar como UTF-8 (Padrão moderno)
-    let decoder = new TextDecoder('utf-8');
-    let xml = decoder.decode(buffer);
+    let xml = "";
+    
+    // --- LÓGICA DE FORÇA BRUTA PARA UOL/FOLHA ---
+    // Sites conhecidos por usar ISO-8859-1 (Latin1)
+    const isLegacySite = targetUrl.includes('uol.com.br') || 
+                         targetUrl.includes('folha.uol.com.br') || 
+                         targetUrl.includes('noticias.uol');
 
-    // 3. O DETECTOR DE ERRO:
-    // O caractere  (código \uFFFD) só aparece quando o UTF-8 falha.
-    // Se o texto tiver isso, significa que o site é antigo (UOL/Folha/etc).
-    if (xml.includes('\uFFFD')) {
-        // Recarrega o decodificador no padrão antigo (ISO-8859-1)
-        decoder = new TextDecoder('iso-8859-1');
+    if (isLegacySite) {
+        // Se for UOL, força ISO direto. Sem "tentar" UTF-8 antes.
+        const decoder = new TextDecoder('iso-8859-1');
         xml = decoder.decode(buffer);
+    } else {
+        // Para os outros (G1, CNN, etc), tenta UTF-8
+        const decoder = new TextDecoder('utf-8');
+        xml = decoder.decode(buffer);
+
+        // Fallback de segurança: se mesmo não sendo UOL aparecer o losango de erro
+        if (xml.includes('\uFFFD')) {
+            const legacyDecoder = new TextDecoder('iso-8859-1');
+            xml = legacyDecoder.decode(buffer);
+        }
     }
     
     return new NextResponse(xml, {
       status: 200,
       headers: {
-        'Content-Type': 'text/xml; charset=utf-8',
+        'Content-Type': 'text/xml; charset=utf-8', // Entrega sempre UTF-8 limpo para o App
         'Access-Control-Allow-Origin': '*',
       },
     });
