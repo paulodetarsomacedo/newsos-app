@@ -6963,11 +6963,9 @@ const fetchFeeds = async (forceRefresh = false) => {
                 // Falha silenciosa, a lógica continuará para a tentativa de resgate.
             }
 
-        // TENTATIVA 2: RESGATE VIA PROXY DA VERCEL (Plano B que funciona em qualquer lugar)
+            // TENTATIVA 2: RESGATE VIA PROXY DA VERCEL (Plano B)
             if (!success) {
                 try {
-                    // --- MUDANÇA CRÍTICA AQUI ---
-                    // Trocamos o link relativo pelo link COMPLETO do seu site na Vercel
                     const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`;
                     
                     const res = await fetch(proxyUrl);
@@ -7070,22 +7068,74 @@ const fetchFeeds = async (forceRefresh = false) => {
         if (feed.type === 'podcast') LIMIT = 1; 
         else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
 
-        // Processa e normaliza cada item do feed para o formato usado no app
+        // LISTA DE FONTES QUE PRECISAM DE TRATAMENTO DE HORÁRIO
+        // Adicione aqui qualquer fonte que esteja "agrupando" demais com horas iguais
+        const problematicFeedsKeywords = [
+            'uol', 'veja', 'estadao', 'money times', 'moneytimes',
+            'noticias.uol', 'economia.uol', 'einvestidor', 'cnn brasil'
+        ];
+
+        // Verifica se o feed atual está na lista de problemáticos
+        const isProblematicFeed = problematicFeedsKeywords.some(keyword => 
+            currentFeedTitle.toLowerCase().includes(keyword) || feed.url.toLowerCase().includes(keyword)
+        );
+
+        // Processa e normaliza cada item do feed
         const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
             const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
+            
+            // --- INÍCIO DA LÓGICA DE TRATAMENTO DE HORA ---
             const rawDateString = item.pubDate || item.date || item.isoDate;
-            let originalTimestamp = rawDateString ? new Date(rawDateString).getTime() : new Date().getTime();
-            if (isNaN(originalTimestamp)) originalTimestamp = new Date().getTime();
+            let originalTimestamp;
+            
+            // Verifica se o XML trouxe uma data válida
+            const hasValidDateFromFeed = rawDateString && !isNaN(new Date(rawDateString).getTime());
 
-            const finalTimestamp = newHistoryBuffer[uniqueId] || (index > 0 ? originalTimestamp - (index * 1000) : originalTimestamp);
+            if (isProblematicFeed && !hasValidDateFromFeed) {
+                // Se a fonte é problemática e não tem data, criamos uma data artificial "espalhada"
+                const now = Date.now();
+
+                // Regra:
+                // O 1º item já começa atrasado entre 10 e 12 minutos (para não ser "Agora").
+                // Cada item subsequente adiciona +5 a +8 minutos de atraso em relação ao anterior.
+                // Exemplo aproximado: -10min, -17min, -25min, -32min...
+                
+                const baseDelayMinutes = 10 + (Math.random() * 2); // Começa com 10 a 12 min de atraso
+                
+                // Calcula o atraso adicional baseado no índice (posição da notícia na lista)
+                // index 0 = 0 extra
+                // index 1 = + 5 a 8 min extra
+                // index 2 = + 10 a 16 min extra, etc.
+                const staggerStep = 5 + (Math.random() * 3); // Passo aleatório entre 5 e 8 min
+                const additionalDelay = index * staggerStep;
+                
+                const totalDelayMinutes = baseDelayMinutes + additionalDelay;
+                const totalDelayMs = totalDelayMinutes * 60 * 1000;
+
+                originalTimestamp = now - totalDelayMs;
+
+            } else {
+                // Comportamento padrão para fontes boas ou que tenham data
+                originalTimestamp = hasValidDateFromFeed ? new Date(rawDateString).getTime() : Date.now();
+                
+                // Se não tem data mas NÃO é problemática, aplica só o micro-atraso original para ordenação
+                if (!hasValidDateFromFeed) {
+                    originalTimestamp = originalTimestamp - (index * 1000);
+                }
+            }
+            // --- FIM DA LÓGICA DE TRATAMENTO DE HORA ---
+
+            // Verifica buffer de histórico para manter consistência
+            const finalTimestamp = newHistoryBuffer[uniqueId] || originalTimestamp;
             newHistoryBuffer[uniqueId] = finalTimestamp;
+            
             const finalDateObj = new Date(finalTimestamp);
             
-            // Correção para feeds do 'investing.com' que às vezes vêm com data futura
+            // Correção específica para 'investing.com' (datas no futuro)
             if (feed.url.includes('investing') || currentFeedTitle.toLowerCase().includes('investing')) {
                 const now = new Date();
-                if (finalDateObj > new Date(now.getTime() - 60000)) { // Se for menos de 1 min no passado, ajusta
-                    finalDateObj.setTime(now.getTime() - (30 * 60 * 1000)); // Joga 30min para trás
+                if (finalDateObj > new Date(now.getTime() - 60000)) { 
+                    finalDateObj.setTime(now.getTime() - (30 * 60 * 1000)); // 30 min atrás
                 }
             }
 
@@ -7158,9 +7208,6 @@ const fetchFeeds = async (forceRefresh = false) => {
     
     setIsLoadingFeeds(false);
   };
-
-
-
 
 
 
