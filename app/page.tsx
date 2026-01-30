@@ -3385,7 +3385,7 @@ const generateHeuristicClusters = (news) => {
     const SOURCE_WEIGHTS = { 'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, };
     const DEFAULT_WEIGHT = 1;
     const IMAGE_PREFERRED_SOURCES = new Set(['Extra','CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT News', 'Times Brasil', 'Estadao', 'Fox News', '180graus']);
-    const IMAGE_BLOCKED_SOURCES = new Set(['ISTOÉ', 'ISTOÉ DINHEIRO', 'UOL Economia', 'Estadão E-Investidor', 'F5', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Noticias', 'Money Times', 'Estadão | As Últimas Notícias', 'G1', 'UOL NOTICIAS', 'Valor Investe']);
+    const IMAGE_BLOCKED_SOURCES = new Set(['ISTOÉ', 'ISTOÉ DINHEIRO', 'UOL Economia', 'Estadão E-Investidor', 'F5', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Noticias', 'Money Times', 'Estadão | As Últimas Notícias', 'G1', 'UOL NOTICIAS', 'Valor Investe', 'UOL ECONOMIA']);
     const SIMILARITY_THRESHOLD = 0.58;
     const CLUSTER_LIMIT = 5;
 
@@ -7072,7 +7072,7 @@ const fetchFeeds = async (forceRefresh = false) => {
         // Adicione aqui qualquer fonte que esteja "agrupando" demais com horas iguais
         const problematicFeedsKeywords = [
             'uol', 'veja', 'estadao', 'money times', 'moneytimes',
-            'noticias.uol', 'economia.uol', 'einvestidor', 'cnn brasil'
+            'noticias.uol', 'economia.uol', 'einvestidor',  'estadão', 'g1 Nacional', 'veja.abril',
         ];
 
         // Verifica se o feed atual está na lista de problemáticos
