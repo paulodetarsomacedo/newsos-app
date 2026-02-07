@@ -20,6 +20,9 @@ import {
   Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, ExternalLink, ArrowUpRight,
 } from 'lucide-react';
 
+const safeLower = (v: any) => String(v ?? '').toLowerCase();
+
+
 const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
   const timerRef = useRef();
   const isLongPress = useRef(false);
