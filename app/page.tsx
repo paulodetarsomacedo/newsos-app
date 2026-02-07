@@ -527,10 +527,18 @@ const fetchMarketData = async () => {
         await Promise.all(symbols.map(async (symbol) => {
             try {
                 const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-                const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(targetUrl);
+                
+                // --- CORREÇÃO CRÍTICA AQUI ---
+                // Trocamos o link relativo pelo link absoluto do seu site na Vercel.
+                const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+                
                 const res = await fetch(proxyUrl);
                 if (!res.ok) throw new Error('Network err');
-                const json = await res.json();
+
+                // O proxy agora retorna texto, então precisamos converter para JSON.
+                const textData = await res.text();
+                const json = JSON.parse(textData);
+
                 const meta = json.chart?.result?.[0]?.meta;
                 if (meta) {
                     const price = meta.regularMarketPrice;
@@ -548,12 +556,13 @@ const fetchMarketData = async () => {
                     newData[symbol] = { val: valDisplay, up: isUp };
                 }
             } catch (err) {
-                newData[symbol] = { val: '...', up: true };
+                console.error(`Erro ao buscar ${symbol}:`, err); // Adicionado log de erro
+                newData[symbol] = { val: 'err', up: false }; // Indica erro na UI
             }
         }));
         setData(prev => ({ ...prev, ...newData }));
     } catch (error) {
-        console.error("Erro geral no fetch:", error);
+        console.error("Erro geral no fetch de mercado:", error);
     }
   };
 
@@ -1296,6 +1305,8 @@ function FeedTab({
   
   const feedContainerRef = useRef(null);
   const audioRef = useRef(null);
+  const introAudioRef = useRef(null);
+  const outroAudioRef = useRef(null);
   const prevCategory = useRef(category);
 
   useEffect(() => {
@@ -1356,13 +1367,92 @@ function FeedTab({
     }
     setPullDistance(0); setStartY(0);
   };
-  const handleLocalPlay = useCallback(async (article) => {
-    if (!article || localPlayingAudio?.id === article.id) { setLocalPlayingAudio(null); setAudioUrl(''); return; }
-    setLocalPlayingAudio(article); setIsGenerating(true); setAudioUrl('');
-    const url = await onGenerateAudio(article);
-    if (url) { setIsGenerating(false); setAudioUrl(url); } 
-    else { setLocalPlayingAudio(null); setIsGenerating(false); }
-  }, [localPlayingAudio, onGenerateAudio]);
+
+  
+// --- NOVA LÓGICA DE SEQUÊNCIA DE ÁUDIO (Intro -> Main -> Outro) ---
+  
+  // Função chamada quando o áudio principal termina
+  const handleMainAudioEnded = () => {
+      // Tenta tocar a vinheta de saída
+      if (outroAudioRef.current) {
+          outroAudioRef.current.currentTime = 0;
+          outroAudioRef.current.play().catch(e => {
+              console.warn("Erro ao tocar vinheta final", e);
+              setLocalPlayingAudio(null); // Se falhar, reseta logo
+          });
+          
+          // Só reseta o estado QUANDO a vinheta de saída terminar
+          outroAudioRef.current.onended = () => {
+              setLocalPlayingAudio(null);
+              setAudioUrl('');
+          };
+      } else {
+          // Se não tiver vinheta de saída, reseta direto
+          setLocalPlayingAudio(null);
+          setAudioUrl('');
+      }
+  };
+
+  const handleLocalPlay = async (article) => {
+    // 1. PARAR TUDO (Lógica de Stop)
+    if (!article || localPlayingAudio?.id === article.id) {
+        if(introAudioRef.current) { introAudioRef.current.pause(); introAudioRef.current.currentTime = 0; }
+        if(audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
+        if(outroAudioRef.current) { outroAudioRef.current.pause(); outroAudioRef.current.currentTime = 0; } // Parar Outro também
+        
+        setLocalPlayingAudio(null);
+        setAudioUrl('');
+        return;
+    }
+
+    // 2. INICIAR FLUXO
+    setLocalPlayingAudio(article);
+    setAudioUrl(''); 
+    setIsGenerating(true); 
+
+    // Toca a vinheta de ENTRADA primeiro
+    if (introAudioRef.current) {
+        try {
+            introAudioRef.current.currentTime = 0;
+            await new Promise(resolve => setTimeout(resolve, 50));
+            await introAudioRef.current.play();
+
+            // Quando a INTRO acabar -> Gera e Toca o Principal
+            introAudioRef.current.onended = async () => {
+                const url = await onGenerateAudio(article);
+                if (url) {
+                    setIsGenerating(false);
+                    setAudioUrl(url); 
+                } else {
+                    setLocalPlayingAudio(null);
+                    setIsGenerating(false);
+                }
+            };
+
+        } catch (error) {
+            console.warn("Falha na intro, pulando...", error);
+            const url = await onGenerateAudio(article);
+            if (url) {
+                setIsGenerating(false);
+                setAudioUrl(url);
+            } else {
+                setLocalPlayingAudio(null);
+                setIsGenerating(false);
+            }
+        }
+    } else {
+        // Fallback sem intro
+        const url = await onGenerateAudio(article);
+        if (url) {
+            setIsGenerating(false);
+            setAudioUrl(url);
+        } else {
+            setLocalPlayingAudio(null);
+            setIsGenerating(false);
+        }
+    }
+  };
+
 
   if (isLoading && stableData.length === 0) {
      return (
@@ -1379,7 +1469,12 @@ function FeedTab({
       className="space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-24 pt-2 min-h-screen overscroll-y-none touch-pan-y custom-scrollbar"
       onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
     >
-      <audio ref={audioRef} onEnded={() => setLocalPlayingAudio(null)} />
+     {/* 1. Principal: Agora chama o handleMainAudioEnded ao acabar */}
+      <audio ref={audioRef} onEnded={handleMainAudioEnded} />
+      
+      {/* 2. Vinhetas: Com preload para garantir que toquem rápido */}
+      <audio ref={introAudioRef} src="/sounds/intro.mp3" preload="auto" />
+      <audio ref={outroAudioRef} src="/sounds/end.mp3" preload="auto" />
       
       <FeedVerticalFilter 
           categories={FEED_CATEGORIES} 
@@ -2575,6 +2670,7 @@ PARTE 1: TENDÊNCIAS (12 TEMAS)
 
 PARTE 2: NUVEM DE PALAVRAS (20 TERMOS)
 1. Extraia as 20 palavras ou termos compostos mais relevantes do momento.
+Priorize termos que aparecem textualmente nos títulos, quando possível.
 2. Atribua um score de "relevance" (1-10) para cada uma.
 
 REGRAS TÉCNICAS:
@@ -3289,7 +3385,7 @@ const generateHeuristicClusters = (news) => {
     const SOURCE_WEIGHTS = { 'G1': 3, 'CNN Brasil': 3, 'O Globo': 2.5, 'Band': 2, 'Estadão': 2, 'Folha de S.Paulo': 2, 'Jovem Pan': 1.5, 'Metropoles': 1.5, };
     const DEFAULT_WEIGHT = 1;
     const IMAGE_PREFERRED_SOURCES = new Set(['Extra','CNN Brasil', 'Band', 'O Globo', 'Veja', 'Jovem Pan', 'Metropoles', 'SBT News', 'Times Brasil', 'Estadao', 'Fox News', '180graus']);
-    const IMAGE_BLOCKED_SOURCES = new Set(['ISTOÉ', 'ISTOÉ DINHEIRO', 'UOL Economia', 'Estadão E-Investidor', 'F5', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Noticias', 'Money Times', 'Estadão | As Últimas Notícias', 'G1']);
+    const IMAGE_BLOCKED_SOURCES = new Set(['ISTOÉ', 'ISTOÉ DINHEIRO', 'UOL Economia', 'Estadão E-Investidor', 'F5', 'UOL', 'Folha de S.Paulo', 'Investing', 'E-Investidor', 'UOL Noticias', 'Money Times', 'Estadão | As Últimas Notícias', 'G1', 'UOL NOTICIAS', 'Valor Investe', 'UOL ECONOMIA']);
     const SIMILARITY_THRESHOLD = 0.58;
     const CLUSTER_LIMIT = 5;
 
@@ -4028,19 +4124,31 @@ const TrendRadar = ({ newsData, getApiKey, isDarkMode, openArticle }) => {
   };
 
   // --- Lógica de Drill-down ---
-  const handleWordClick = (word) => {
+const handleWordClick = (word) => {
     if (!newsData) return;
+    
+    // 1. Divide a palavra-chave da IA em termos de busca individuais
+    // Ex: "Operação PF" se torna ["operação", "pf"]
+    const searchTerms = word.toLowerCase().split(' ').filter(term => term.length > 1);
+
     const normalize = (str) =>
       String(str || "")
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "");
-    const search = normalize(word);
-    const related = newsData
-      .filter((art) => normalize(art.title || "").includes(search))
-      .slice(0, 15);
+
+    const related = newsData.filter(article => {
+        if (!article.title) return false;
+        
+        const normalizedTitle = normalize(article.title);
+        
+        // 2. Verifica se CADA termo de busca está presente no título do artigo
+        // O método .every() garante que todos os termos ("operação" E "pf") existam
+        return searchTerms.every(term => normalizedTitle.includes(normalize(term)));
+    }).slice(0, 15); // Limita a 15 resultados
+
     setSelectedWordData({ word, articles: related });
-  };
+};
 
   // --- Ciclo de Vida e Cache ---
   useEffect(() => {
@@ -6151,27 +6259,31 @@ export default function NewsOS_V12() {
   const [isDarkMode, setIsDarkMode] = useState(false); 
 // --- ESTADO DE CHAVES (ARQUITETURA DE POOLS) ---
 const [apiKeys, setApiKeys] = useState([
-    // Pool de Widgets (Leve - Rotação Rápida)
+    // Pool 1: Widgets (Leve) - Agora com 6 chaves
     { id: 1, value: '', type: 'free_widget' },
     { id: 2, value: '', type: 'free_widget' },
     { id: 3, value: '', type: 'free_widget' },
     { id: 4, value: '', type: 'free_widget' },
+    { id: 14, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
+    { id: 16, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
     
-    // Legado / Backup (Antigas Pagas)
+    // Legado / Backup
     { id: 5, value: '', type: 'legacy_text' },
     { id: 6, value: '', type: 'legacy_audio' },
 
-    // POOL USINA (AGORA COM 6)
+    // Pool 2: Usina de IA (Pesado) - Agora com 7 chaves
     { id: 7, value: '', type: 'heavy_rotation' },
     { id: 8, value: '', type: 'heavy_rotation' },
     { id: 9, value: '', type: 'heavy_rotation' },
     { id: 10, value: '', type: 'heavy_rotation' },
     { id: 11, value: '', type: 'heavy_rotation' },
-    { id: 15, value: '', type: 'heavy_rotation' }, // <<-- SUA 6ª CHAVE (usei ID 15)
+    { id: 15, value: '', type: 'heavy_rotation' },
+    { id: 17, value: '', type: 'heavy_rotation' }, // <<-- NOVA CHAVE
 
-    // Pool de Chat
+    // Pool 3: Chat - Agora com 3 chaves
     { id: 12, value: '', type: 'chat_key' },
     { id: 13, value: '', type: 'chat_key' },
+    { id: 18, value: '', type: 'chat_key' }, // <<-- NOVA CHAVE
 ]);
 
 
@@ -6597,15 +6709,33 @@ const handleStoryNavigation = (direction) => {
                   const parsedFromDB = JSON.parse(data.api_key);
 
                   if (Array.isArray(parsedFromDB)) {
-                      const defaultKeysStructure = [
-                          { id: 1, value: '', type: 'free_widget' }, { id: 2, value: '', type: 'free_widget' },
-                          { id: 3, value: '', type: 'free_widget' }, { id: 4, value: '', type: 'free_widget' },
-                          { id: 5, value: '', type: 'legacy_text' }, { id: 6, value: '', type: 'legacy_audio' },
-                          { id: 7, value: '', type: 'heavy_rotation' }, { id: 8, value: '', type: 'heavy_rotation' },
-                          { id: 9, value: '', type: 'heavy_rotation' }, { id: 10, value: '', type: 'heavy_rotation' },
-                          { id: 11, value: '', type: 'heavy_rotation' }, { id: 15, value: '', type: 'heavy_rotation' },
-                          { id: 12, value: '', type: 'chat_key' }, { id: 13, value: '', type: 'chat_key' },
-                      ];
+               const defaultKeysStructure = [
+    // Pool 1: Widgets (Leve) - Agora com 6 chaves
+    { id: 1, value: '', type: 'free_widget' },
+    { id: 2, value: '', type: 'free_widget' },
+    { id: 3, value: '', type: 'free_widget' },
+    { id: 4, value: '', type: 'free_widget' },
+    { id: 14, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
+    { id: 16, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
+    
+    // Legado / Backup
+    { id: 5, value: '', type: 'legacy_text' },
+    { id: 6, value: '', type: 'legacy_audio' },
+
+    // Pool 2: Usina de IA (Pesado) - Agora com 7 chaves
+    { id: 7, value: '', type: 'heavy_rotation' },
+    { id: 8, value: '', type: 'heavy_rotation' },
+    { id: 9, value: '', type: 'heavy_rotation' },
+    { id: 10, value: '', type: 'heavy_rotation' },
+    { id: 11, value: '', type: 'heavy_rotation' },
+    { id: 15, value: '', type: 'heavy_rotation' },
+    { id: 17, value: '', type: 'heavy_rotation' }, // <<-- NOVA CHAVE
+
+    // Pool 3: Chat - Agora com 3 chaves
+    { id: 12, value: '', type: 'chat_key' },
+    { id: 13, value: '', type: 'chat_key' },
+    { id: 18, value: '', type: 'chat_key' }, // <<-- NOVA CHAVE
+];
 
                       // ==========================================================
                       // === A MUDANÇA CRÍTICA ESTÁ AQUI ===
@@ -6735,8 +6865,8 @@ const handleStoryNavigation = (direction) => {
 };
 
   // --- FETCH FEEDS BLINDADO V5 (COMPLETO E SEM ABREVIAÇÕES) ---
-  
 const fetchFeeds = async (forceRefresh = false) => {
+    // Se não houver feeds para carregar, limpa os estados e encerra a função.
     if (userFeeds.length === 0) {
         setRealNews([]);
         setRealVideos([]);
@@ -6746,19 +6876,29 @@ const fetchFeeds = async (forceRefresh = false) => {
 
     setIsLoadingFeeds(true);
     
+    // Arrays temporários para acumular notícias de todos os feeds.
     let allNewsItems = [];
     let allVideoItems = [];
     let allPodcastItems = [];
+    
+    // Array para feeds que precisam ter o título atualizado (ex: 'Nova Fonte').
     let feedsThatNeedUpdate = [];
+    
+    // Buffer para manter o histórico de timestamps e evitar que notícias "pulem" na lista.
     let newHistoryBuffer = { ...articleHistory };
 
+    // Tempo de vida do cache em milissegundos (20 minutos).
     const CACHE_TTL = 20 * 60 * 1000; 
 
+    // Mapeia cada feed para uma Promise que vai buscar e processar seus dados.
     const promises = userFeeds.map(async (feed) => {
+        // Pula feeds sem URL configurada.
         if (!feed.url || !feed.url.trim()) {
-            console.warn(`[AVISO] Fonte ignorada: URL vazia`, feed);
+            console.warn(`[AVISO DE DADOS] Fonte ignorada por não ter URL:`, feed);
             return;
         }
+        
+        // Variáveis de escopo para este feed específico.
         let feedItems = [];
         let currentFeedTitle = feed.name; 
         let detectedXmlTitle = "";
@@ -6767,10 +6907,11 @@ const fetchFeeds = async (forceRefresh = false) => {
         let usedCache = false;
         const cacheKey = `${FEED_CACHE_PREFIX}${feed.id}`; 
 
-        // --- Camadas de Cache (Intocadas) ---
+        // --- CAMADA 1: MEMÓRIA RAM (CACHE RÁPIDO) ---
         if (!forceRefresh && feedMemoryBuffer.current[feed.id]) {
             const memData = feedMemoryBuffer.current[feed.id];
-            if (Date.now() - memData.timestamp < CACHE_TTL) {
+            const now = Date.now();
+            if (now - memData.timestamp < CACHE_TTL) {
                 feedItems = memData.items;
                 detectedXmlTitle = memData.title;
                 feedLogo = memData.logo;
@@ -6778,87 +6919,83 @@ const fetchFeeds = async (forceRefresh = false) => {
                 usedCache = true;
             }
         }
+
+        // --- CAMADA 2: DISCO (CACHE PERSISTENTE) ---
         if (!usedCache && !forceRefresh) {
             try {
                 const cachedRaw = localStorage.getItem(cacheKey);
                 if (cachedRaw) {
                     const cachedData = JSON.parse(cachedRaw);
-                    if (Date.now() - cachedData.timestamp < CACHE_TTL) {
+                    const now = Date.now();
+                    if (now - cachedData.timestamp < CACHE_TTL) {
                         feedItems = cachedData.items || [];
                         detectedXmlTitle = cachedData.title || "";
                         feedLogo = cachedData.logo || null;
                         if (cachedData.isYoutube) isFeedYoutube = true;
-                        feedMemoryBuffer.current[feed.id] = cachedData;
+                        feedMemoryBuffer.current[feed.id] = cachedData; 
                         usedCache = true;
                     }
                 }
-            } catch (cacheErr) {}
-        }
-
-        // --- CAMADA 3: FETCH REAL (LÓGICA DO SEU BACKUP COM PROXY CORRIGIDO) ---
-        if (!usedCache) {
-            const isLegacySource = feed.url.includes('uol.com.br') || 
-                                   feed.url.includes('folha.uol.com.br') || 
-                                   feed.url.includes('moneytimes.com.br');
-            try {
-                if (isLegacySource) {
-                    // --- MUDANÇA PRINCIPAL AQUI ---
-                    // Trocamos o corsproxy.io pelo api.allorigins.win
-                    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(feed.url)}`;
-                    const res = await fetch(proxyUrl);
-                    if (!res.ok) throw new Error(`Proxy status: ${res.status}`);
-                    
-                    // O AllOrigins retorna um JSON, precisamos extrair o conteúdo
-                    const jsonResponse = await res.json();
-                    const xmlText = jsonResponse.contents;
-                    
-                    if (!xmlText) throw new Error("Proxy não retornou conteúdo XML.");
-
-                    // Sua lógica de decodificação e parsing (mantida)
-                    const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
-                    
-                    feedItems = parsedData.items;
-                    detectedXmlTitle = parsedData.realTitle; 
-                    
-                    if (feed.url.includes('folha')) feedLogo = "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128";
-                    else feedLogo = "https://www.google.com/s2/favicons?domain=www.uol.com.br&sz=128";
-
-                } else {
-                    // Supabase (Sua lógica original, mantida)
-                    const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
-                    if (!error && data && data.items) {
-                        feedItems = data.items;
-                        detectedXmlTitle = data.title;
-                        feedLogo = data.image;
-                        if (data.isYoutube) isFeedYoutube = true;
-                    }
-                }
-
-                // Lógica de salvar no cache (mantida)
-                if (feedItems && feedItems.length > 0) {
-                    const cachePayload = { timestamp: Date.now(), items: feedItems, title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube };
-                    feedMemoryBuffer.current[feed.id] = cachePayload;
-                    try {
-                        localStorage.setItem(cacheKey, JSON.stringify(cachePayload));
-                    } catch (storageError) {
-                        cleanUpCache(); 
-                        try { localStorage.setItem(cacheKey, JSON.stringify(cachePayload)); } catch (e) {}
-                    }
-                }
-            } catch (err) {
-                console.error(`Erro ao baixar ${feed.name}:`, err);
+            } catch (cacheErr) {
+                console.warn(`Cache de disco ilegível para ${feed.name}`);
             }
         }
 
-        // --- O RESTO DA SUA FUNÇÃO PERMANECE INTACTO ---
-        // (Toda a sua lógica de logos, datas e distribuição para as listas)
-        
+        // --- CAMADA 3: BUSCA REAL ---
+        if (!usedCache) {
+            let success = false;
+            
+            // TENTATIVA 1: SUPABASE
+            try {
+                const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
+                if (!error && data && data.items && data.items.length > 0) {
+                    feedItems = data.items;
+                    detectedXmlTitle = data.title;
+                    feedLogo = data.image;
+                    if (data.isYoutube) isFeedYoutube = true;
+                    success = true;
+                }
+            } catch (e) {}
+
+            // TENTATIVA 2: PROXY VERCEL
+            if (!success) {
+                try {
+                    const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`;
+                    const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error(`Proxy status: ${res.status}`);
+                    const xmlText = await res.text();
+                    if (!xmlText || xmlText.length < 50) throw new Error("XML Inválido");
+                    const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
+                    if (parsedData.items.length > 0) {
+                        feedItems = parsedData.items;
+                        detectedXmlTitle = parsedData.realTitle; 
+                        feedLogo = parsedData.realLogo;
+                        success = true;
+                    }
+                } catch (proxyErr) {
+                    console.error(`Erro total no fetch de ${feed.name}:`, proxyErr);
+                }
+            }
+            
+            if (success && feedItems.length > 0) {
+                const cachePayload = { timestamp: Date.now(), items: feedItems, title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube };
+                feedMemoryBuffer.current[feed.id] = cachePayload;
+                try {
+                    localStorage.setItem(cacheKey, JSON.stringify(cachePayload));
+                } catch (e) {
+                    cleanUpCache(); 
+                }
+            }
+        }
+
+        // Atualização de títulos genéricos
         if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
             currentFeedTitle = detectedXmlTitle || feed.name;
             feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
         }
 
-        let finalLogo = feedLogo;
+        // --- DEFINIÇÃO DE LOGO ---
+  let finalLogo = feedLogo;
         const lowerName = currentFeedTitle.toLowerCase();
         const lowerUrl = feed.url.toLowerCase();
 
@@ -6935,58 +7072,52 @@ const fetchFeeds = async (forceRefresh = false) => {
         if (feed.type === 'podcast') LIMIT = 1; 
         else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
 
-        let lastAssignedTime = 0;
-
+        // --- PROCESSAMENTO DOS ITENS E CORREÇÃO DE HORÁRIO ---
         const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
             const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
-            const rawDateString = item.pubDate || item.date || item.isoDate;
-            let originalTimestamp = rawDateString ? new Date(rawDateString).getTime() : new Date().getTime();
-            if (isNaN(originalTimestamp)) originalTimestamp = new Date().getTime();
-
-            let finalTimestamp;
-
-            if (newHistoryBuffer[uniqueId]) {
-                finalTimestamp = newHistoryBuffer[uniqueId];
+            
+            // Tenta extrair a data de múltiplos campos comuns em RSS/Atom
+            const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
+            
+            let originalTimestamp;
+            const parsedDate = new Date(rawDateString);
+            
+            // Valida se a data extraída é real
+            if (rawDateString && !isNaN(parsedDate.getTime())) {
+                originalTimestamp = parsedDate.getTime();
             } else {
-                const TEN_MINUTES_MS = 10 * 60 * 1000;
-                if (index === 0) {
-                    finalTimestamp = originalTimestamp;
-                } else {
-                    if (lastAssignedTime <= originalTimestamp + 1000) { 
-                            finalTimestamp = lastAssignedTime - TEN_MINUTES_MS;
-                    } else {
-                            finalTimestamp = originalTimestamp;
-                    }
-                }
-                newHistoryBuffer[uniqueId] = finalTimestamp;
+                // Se o feed não enviou data, usamos a hora atual menos um atraso base de 15 min
+                // Isso evita que notícias sem data "pulem" para o topo como se fossem de agora.
+                originalTimestamp = Date.now() - (15 * 60 * 1000);
             }
 
-            lastAssignedTime = finalTimestamp;
+            // LÓGICA DE DESAGRUPAMENTO (OFFSET):
+            // Para evitar que notícias da mesma fonte fiquem com a hora idêntica (mesmo segundo),
+            // aplicamos um atraso artificial de 5 a 8 minutos multiplicado pela posição do item.
+            // Isso "espalha" as notícias da Veja/Uol/Estadão cronologicamente no feed.
+            const minutesToSubtract = index * (6 + Math.floor(Math.random() * 3)); 
+            const finalCalculatedTimestamp = originalTimestamp - (minutesToSubtract * 60 * 1000);
+
+            // Verifica histórico para manter a posição consistente durante a navegação
+            const finalTimestamp = newHistoryBuffer[uniqueId] || finalCalculatedTimestamp;
+            newHistoryBuffer[uniqueId] = finalTimestamp;
+            
             const finalDateObj = new Date(finalTimestamp);
-
-            if (feed.url.includes('investing') || currentFeedTitle.toLowerCase().includes('investing')) {
-                const now = new Date();
-                if (finalDateObj > new Date(now.getTime() - 60000)) {
-                    const penaltyTime = 30 * 60 * 1000; 
-                    finalDateObj.setTime(now.getTime() - penaltyTime);
-                    lastAssignedTime = finalDateObj.getTime(); 
+            
+            // Correção para feeds com data no futuro (ex: Investing)
+            if (lowerName.includes('investing') || lowerUrl.includes('investing')) {
+                if (finalDateObj > new Date()) {
+                    finalDateObj.setTime(Date.now() - (20 * 60 * 1000));
                 }
             }
 
-            let primaryLink = item.link;
-            const enclosureUrl = item.enclosure?.url || item.audio;
-            if (enclosureUrl) {
-                const isImage = (item.enclosure?.type && item.enclosure.type.includes('image')) || 
-                                (enclosureUrl && enclosureUrl.match(/\.(jpg|jpeg|png|webp|gif|bmp)($|\?)/i));
-                if (isImage) { item.img = enclosureUrl; } 
-                else { primaryLink = enclosureUrl; }
-            }
-            const itemImg = item.img || item.image || finalLogo;
-            const itemSummary = item.summary || item.description || '';
+            const itemSummary = (item.summary || item.description || '').replace(/<[^>]*>?/gm, '').slice(0, 800) + '...';
+            const primaryLink = item.link;
             const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
+            
             let finalType = 'link'; 
             if (isYoutubeItem) finalType = 'video';
-            else if ((primaryLink && (primaryLink.endsWith('.mp3') || primaryLink.endsWith('.m4a'))) || item.enclosure?.type?.includes('audio')) finalType = 'audio'; 
+            else if (primaryLink?.endsWith('.mp3') || item.enclosure?.type?.includes('audio')) finalType = 'audio'; 
 
             return {
                 id: uniqueId,
@@ -6995,12 +7126,12 @@ const fetchFeeds = async (forceRefresh = false) => {
                 time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 rawDate: finalDateObj, 
                 title: item.title,
-                summary: itemSummary.replace(/<[^>]*>?/gm, '').slice(0, 800) + '...',
+                summary: itemSummary,
                 category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'),
                 type: finalType, 
-                img: itemImg,
+                img: item.img || item.image || finalLogo,
                 link: primaryLink, 
-                videoId: item.videoId || getVideoId(item.link),
+                videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
                 date: finalDateObj.toLocaleDateString(),
             };
         });
@@ -7016,22 +7147,36 @@ const fetchFeeds = async (forceRefresh = false) => {
         }
     });
 
+    // Aguarda todas as buscas terminarem
     await Promise.all(promises);
 
+    // Atualiza nomes de fontes se necessário
     if (feedsThatNeedUpdate.length > 0) {
         setUserFeeds(prev => prev.map(f => {
             const update = feedsThatNeedUpdate.find(u => u.id === f.id);
             return update ? { ...f, name: update.name } : f;
         }));
     }
+
+    // Salva o novo histórico de tempos
     setArticleHistory(newHistoryBuffer);
 
-    const sortFn = (a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
+    // ORDENAÇÃO FINAL: Crucial para o feed não ficar bagunçado
+    // Com os milissegundos agora únicos graças ao "offset", o sort funciona perfeitamente.
+    const sortFn = (a, b) => b.rawDate.getTime() - a.rawDate.getTime();
+    
     setRealNews([...allNewsItems].sort(sortFn));
     setRealVideos([...allVideoItems].sort(sortFn));
     setRealPodcasts([...allPodcastItems].sort(sortFn));
+    
     setIsLoadingFeeds(false);
-  };
+};
+
+
+
+
+
+
 
   // --- OTIMIZAÇÃO DE MEMÓRIA: ARRAY ÚNICO MEMORIZADO ---
   // Evita criar arrays gigantes no meio da renderização, prevenindo crashes no iOS
@@ -7133,58 +7278,70 @@ const handleReadNative = useCallback(async (article) => {
 
 
 // --- FUNÇÃO DE ÁUDIO SOB DEMANDA (CHAVE 6) ---
-  const handlePlayAudio = async (article) => {
-      if (!article) return null; // Retorna nulo se não houver artigo
 
-      // Se for vídeo do YouTube, abre no navegador e para por aqui.
-      if (article.videoId || article.link.includes('youtube')) {
-          handleReadNative(article);
-          return null; // Retorna nulo pois não é áudio
-      }
+const handlePlayAudio = async (article) => {
+    if (!article) return null;
 
-      // Se for um link direto de podcast (MP3), retorna a URL direto.
-      if (article.link?.endsWith('.mp3')) {
-          return article.link;
-      }
+    // 1. Verificações de Vídeo/MP3 (Mantidas)
+    if (article.videoId || (article.link && article.link.includes('youtube'))) {
+        handleReadNative(article);
+        return null;
+    }
+    if (article.link?.endsWith('.mp3')) {
+        return article.link;
+    }
 
-      // --- Para notícias de texto, começa o processo de IA ---
-      
-      const audioKey = getApiKey('audio'); // Pega a Chave 6
-      if (!audioKey) {
-          alert("Chave 6 (Áudio) não configurada.");
-          return null;
-      }
-      
-      const textKey = getApiKey('analysis'); // Pega a Chave 5
-      if (!textKey) {
-          alert("Chave 5 (Texto) não configurada.");
-          return null;
-      }
+    try {
+        // 2. Preparação do Texto (Direto, sem IA de resumo)
+        // Limpa HTML e limita a 600 caracteres para economizar cota e ser rápido
+        const cleanSummary = (article.summary || "").replace(/<[^>]*>?/gm, '');
+        const textToSpeak = `${article.title}. ${cleanSummary}`.slice(0, 600);
 
-      try {
-          // Chama a função do Supabase para fazer todo o trabalho
-          const { data, error } = await supabase.functions.invoke('generate-audio-briefing', {
-              body: { 
-                  article: article,
-                  voiceKey: audioKey, 
-                  textKey: textKey
-              }
-          });
+        // =================================================================
+        // 3. SELEÇÃO DA CHAVE: POOL 1 (WIDGETS)
+        // =================================================================
+        // 'widgets' mapeia para type: 'free_widget' na sua função getApiKey
+        const ttsKey = getApiKey('widgets'); 
+        
+        if (!ttsKey) {
+            console.warn("Nenhuma chave do Pool 1 (Widgets) encontrada.");
+            alert("Configure as chaves do Pool 1 para ouvir o áudio.");
+            return null;
+        }
 
-          if (error) throw new Error(error.message);
-          
-          // Sucesso! RETORNA a URL do MP3 para a FeedTab.
-          return data.audioUrl;
+        console.log("Gerando áudio com chave do Pool 1...");
 
-      } catch (err) {
-          console.error("Erro na geração de áudio:", err);
-          alert("Falha ao gerar áudio. Verifique suas cotas ou a função do Supabase.");
-          return null; // Retorna nulo em caso de erro.
-      }
-  };
-  
+        // 4. Chamada à API (Usando a chave do Pool 1)
+        const ttsResponse = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${ttsKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                input: { text: textToSpeak },
+                voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-B' },
+                audioConfig: { audioEncoding: 'MP3' },
+            }),
+        });
 
+        if (!ttsResponse.ok) {
+            const errorData = await ttsResponse.json();
+            // Verifica erro de "API not enabled" ou "Key restriction"
+            throw new Error(`Erro API Voz: ${errorData.error.message}`);
+        }
 
+        const ttsData = await ttsResponse.json();
+
+        if (ttsData.audioContent) {
+            const audioBlob = await (await fetch(`data:audio/mp3;base64,${ttsData.audioContent}`)).blob();
+            return URL.createObjectURL(audioBlob);
+        } else {
+            throw new Error("Sem áudio retornado.");
+        }
+
+    } catch (err) {
+        console.error("Erro geração áudio:", err);
+        return null;
+    }
+};
 
 
   const closeArticle = useCallback(() => {
