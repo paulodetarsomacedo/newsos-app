@@ -5177,7 +5177,7 @@ function SavedTab({ isDarkMode, openArticle, items, onRemoveItem, onPlayVideo })
         typeMatch = type === filter && !item.isArchived;
     }
 
-    const searchMatch = searchQuery === '' || 
+  const searchMatch = searchQuery === '' || 
                     (item.title || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
                     (item.source || "").toLowerCase().includes(searchQuery.toLowerCase());
     
@@ -6180,7 +6180,7 @@ const generateSmartStories = (news, allClusters) => {
         const articleTime = new Date(article.rawDate).getTime();
         if (now - articleTime > BREAKING_NEWS_TIMESPAN_MS) return false;
         if (!BREAKING_NEWS_SOURCES.has(article.source)) return false;
-        const titleLower = article.title.toLowerCase();
+const titleLower = (article.title || "").toLowerCase();
         return BREAKING_NEWS_KEYWORDS.some(keyword => titleLower.includes(keyword));
     });
 
@@ -9431,8 +9431,9 @@ function NewsletterTab({ openArticle, isDarkMode, newsData }) {
   // Na prática, você classificaria feeds como 'Newsletter' no SettingsModal
 const newsletters = newsData.filter(n => 
     (n.source || "").toLowerCase().includes('newsletter') || 
-    (n.source || "").toLowerCase().includes('brew')
-);  
+    (n.source || "") === 'Morning Brew' || 
+    (n.source || "") === 'The Skimm'
+);
   // Mock para visualização se não tiver dados
   const displayItems = newsletters.length > 0 ? newsletters : [
       { id: 'nl1', source: 'Morning Brew', title: 'Markets tumble as inflation hits record low', summary: 'Plus: The future of AI in healthcare and why tech stocks are rallying.', time: '07:00', img: null, category: 'Finance', logo: 'https://ui-avatars.com/api/?name=MB&background=000&color=fff' },
