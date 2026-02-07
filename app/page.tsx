@@ -5178,7 +5178,7 @@ function SavedTab({ isDarkMode, openArticle, items, onRemoveItem, onPlayVideo })
     }
 
     const searchMatch = searchQuery === '' || 
-                        item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                        (item.title || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
                         (item.source && item.source.toLowerCase().includes(searchQuery.toLowerCase()));
     
     return typeMatch && searchMatch;
