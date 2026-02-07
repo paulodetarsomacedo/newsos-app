@@ -5178,8 +5178,8 @@ function SavedTab({ isDarkMode, openArticle, items, onRemoveItem, onPlayVideo })
     }
 
     const searchMatch = searchQuery === '' || 
-                        (item.title || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
-                        (item.source && item.source.toLowerCase().includes(searchQuery.toLowerCase()));
+                    (item.title || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
+                    (item.source || "").toLowerCase().includes(searchQuery.toLowerCase());
     
     return typeMatch && searchMatch;
   });
@@ -9429,8 +9429,10 @@ function NewsletterTab({ openArticle, isDarkMode, newsData }) {
 
   // Filtra ou Mocka newsletters
   // Na prática, você classificaria feeds como 'Newsletter' no SettingsModal
-  const newsletters = newsData.filter(n => n.source.toLowerCase().includes('newsletter') || n.source === 'Morning Brew' || n.source === 'The Skimm') 
-  
+const newsletters = newsData.filter(n => 
+    (n.source || "").toLowerCase().includes('newsletter') || 
+    (n.source || "").toLowerCase().includes('brew')
+);  
   // Mock para visualização se não tiver dados
   const displayItems = newsletters.length > 0 ? newsletters : [
       { id: 'nl1', source: 'Morning Brew', title: 'Markets tumble as inflation hits record low', summary: 'Plus: The future of AI in healthcare and why tech stocks are rallying.', time: '07:00', img: null, category: 'Finance', logo: 'https://ui-avatars.com/api/?name=MB&background=000&color=fff' },
