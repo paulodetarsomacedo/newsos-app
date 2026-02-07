@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 
+const safeLower = (v: any) => String(v ?? '').toLowerCase();
 
 
 
@@ -1060,11 +1061,10 @@ const NewsCard = React.memo(({
     ]);
 
     // 1. NORMALIZAÇÃO: Remove acentos e converte 'ç' para 'c', mantendo a palavra.
-    const normalizedTitle = title
-      .toLowerCase()
-      .normalize('NFD') // Separa os caracteres dos seus acentos (ex: 'á' -> 'a' + '´')
-      .replace(/[\u0300-\u036f]/g, '') // Remove os acentos (diacríticos)
-      .replace(/[^a-z0-9\s]/g, ''); // Remove qualquer pontuação restante
+    const normalizedTitle = safeLower(title)
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9\s]/g, '');
 
     // 2. EXTRAÇÃO E RELEVÂNCIA:
     const keywords = Array.from(new Set( // Usa Set para garantir palavras únicas
@@ -2227,10 +2227,10 @@ const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
     const relatedArticles = useMemo(() => {
         if (!allNews || !asset.keywords) return [];
         // Filtra todas as notícias que contenham alguma das palavras-chave no título
-        return allNews.filter(n => {
-            const title = n.title.toLowerCase();
-            return asset.keywords.some(k => title.includes(k));
-        }).slice(0, 4); // Limita a 4 notícias para não sobrecarregar
+        return (allNews ?? []).filter(n => {
+  const title = safeLower(n?.title);
+  return asset.keywords.some(k => title.includes(safeLower(k)));
+}).slice(0, 4);
     }, [asset.keywords, allNews]);
 
     // Escolhe o ícone com base no nome do ativo
@@ -2325,9 +2325,9 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
     const topicScores = new Map();
     assets.forEach(asset => topicScores.set(asset.name, { count: 0, latestArticle: null }));
     marketNews.forEach(article => {
-        const title = article.title.toLowerCase();
-        for (const asset of assets) {
-            if (asset.keywords.some(k => title.includes(k))) {
+  const title = safeLower(article?.title);
+  for (const asset of assets) {
+    if (asset.keywords.some(k => title.includes(safeLower(k)))) {
                 const score = topicScores.get(asset.name);
                 score.count++;
                 if (!score.latestArticle || new Date(article.rawDate) > new Date(score.latestArticle.rawDate)) {
@@ -3629,9 +3629,9 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
   // CORREÇÃO APLICADA AQUI: A função agora busca em TODAS as notícias.
   const handleKeywordClick = (keyword) => {
     // Filtra a lista completa de notícias (`news`) recebida pelo widget.
-    const relatedArticles = news.filter(article => 
-        article.title.toLowerCase().includes(keyword.toLowerCase())
-    );
+    const relatedArticles = (news ?? []).filter(article => 
+  safeLower(article?.title).includes(safeLower(keyword))
+);
     // Define os dados para abrir o modal com a lista completa.
     setKeywordModalData({ keyword: keyword, articles: relatedArticles });
   };
@@ -4134,7 +4134,7 @@ const handleWordClick = (word) => {
     
     // 1. Divide a palavra-chave da IA em termos de busca individuais
     // Ex: "Operação PF" se torna ["operação", "pf"]
-    const searchTerms = word.toLowerCase().split(' ').filter(term => term.length > 1);
+const searchTerms = safeLower(word).split(' ').filter(term => term.length > 1);
 
     const normalize = (str) =>
       String(str || "")
@@ -4972,7 +4972,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
         .map((feed, index) => {
             const latestHeadlines = realNews.filter(news => news.source === feed.name).slice(0, 2);
             let finalLogo = feed.logo;
-            const lowerName = feed.name.toLowerCase();
+            const lowerName = safeLower(feed?.name);
             
             for (const key in LOGO_DICTIONARY) {
                 if (lowerName.includes(key)) {
@@ -5182,9 +5182,11 @@ function SavedTab({ isDarkMode, openArticle, items, onRemoveItem, onPlayVideo })
         typeMatch = type === filter && !item.isArchived;
     }
 
-  const searchMatch = searchQuery === '' || 
-                    (item.title || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
-                    (item.source || "").toLowerCase().includes(searchQuery.toLowerCase());
+  const q = safeLower(searchQuery);
+
+const searchMatch = q === '' ||
+  safeLower(item?.title).includes(q) ||
+  safeLower(item?.source).includes(q);
     
     return typeMatch && searchMatch;
   });
@@ -6185,8 +6187,8 @@ const generateSmartStories = (news, allClusters) => {
         const articleTime = new Date(article.rawDate).getTime();
         if (now - articleTime > BREAKING_NEWS_TIMESPAN_MS) return false;
         if (!BREAKING_NEWS_SOURCES.has(article.source)) return false;
-const titleLower = (article.title || "").toLowerCase();
-        return BREAKING_NEWS_KEYWORDS.some(keyword => titleLower.includes(keyword));
+const titleLower = safeLower(article?.title);
+return BREAKING_NEWS_KEYWORDS.some(keyword => titleLower.includes(safeLower(keyword)));
     });
 
     if (potentialBreaking.length > 0) {
@@ -6246,7 +6248,7 @@ const titleLower = (article.title || "").toLowerCase();
     });
 };
 
-const safeLower = (v: any) => String(v ?? '').toLowerCase();
+
 
 // --- COMPONENTE PRINCIPAL (V14 - COM PERSISTÊNCIA E FETCH FEEDS INTEGRADO) ---
 export default function NewsOS_V12() {
@@ -7002,8 +7004,8 @@ const fetchFeeds = async (forceRefresh = false) => {
 
         // --- DEFINIÇÃO DE LOGO ---
   let finalLogo = feedLogo;
-        const lowerName = currentFeedTitle.toLowerCase();
-        const lowerUrl = feed.url.toLowerCase();
+        const lowerName = safeLower(currentFeedTitle);
+const lowerUrl = safeLower(feed?.url);
 
         // 1. Dicionário Manual de Ícones
         if (lowerName.includes('investnews')) {
@@ -8599,8 +8601,11 @@ const runSuperPrompt = useCallback(async () => {
 const handleNodeClick = useCallback((nodeName, position) => {
       if (!aiData?.contextualTerms) return;
       
-      const nodeData = aiData.contextualTerms.find(t => t.term.toLowerCase().includes(nodeName.toLowerCase()) || nodeName.toLowerCase().includes(t.term.toLowerCase()));
-      
+const nodeData = aiData.contextualTerms.find(t => {
+  const term = safeLower(t?.term);
+  const node = safeLower(nodeName);
+  return term.includes(node) || node.includes(term);
+});      
       const dataToSet = nodeData || { name: nodeName, context: "Contexto geral.", sentiment: "neutral", evidence_quotes: [] };
       
       // Salva a posição para o CSS usar
@@ -8770,8 +8775,7 @@ return (
                 <button onClick={() => setViewMode('analysis')} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
               </div>
               <h2 className="text-2xl font-black text-indigo-400 leading-tight mb-4">{focusedNode.name || focusedNode.term}</h2>
-              {(!focusedNode.context || focusedNode.context.toLowerCase().includes('contexto geral')) ? (
-                <div>
+{(!focusedNode?.context || safeLower(focusedNode?.context).includes('contexto geral')) ? (                <div>
                   <p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p>
                   <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
                 </div>
@@ -9435,10 +9439,10 @@ function NewsletterTab({ openArticle, isDarkMode, newsData }) {
 
   // Filtra ou Mocka newsletters
   // Na prática, você classificaria feeds como 'Newsletter' no SettingsModal
-const newsletters = newsData.filter(n => 
-    (n.source || "").toLowerCase().includes('newsletter') || 
-    (n.source || "") === 'Morning Brew' || 
-    (n.source || "") === 'The Skimm'
+const newsletters = (newsData ?? []).filter(n =>
+  safeLower(n?.source).includes('newsletter') ||
+  n?.source === 'Morning Brew' ||
+  n?.source === 'The Skimm'
 );
   // Mock para visualização se não tiver dados
   const displayItems = newsletters.length > 0 ? newsletters : [
