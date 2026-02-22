@@ -4953,7 +4953,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     'quatro rodas': '/logos/quatro-rodas.png',
     'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
     'fox news': 'logos/fox2.png',
-    'bbc news': 'https://static.wikia.nocookie.net/bbc/images/d/d9/BBCN.png/revision/latest?cb=20220516180809'
+    'bbc news': 'https://upload.wikimedia.org/wikipedia/commons/6/6c/BBC_World_News_red.svg'
   };
 
   const layoutStyles = [
@@ -5450,7 +5450,9 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       }
 
       const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
-      
+      // LOG DE DIAGNÓSTICO 1: Ver se estamos encontrando os itens do feed
+      console.log(`[Parser Debug] Fonte: ${feedSource} - Encontrados ${items.length} itens.`);
+
       const parsedItems = items.map((node) => {
         const getTxt = (tag) => {
             if (tag.includes(':')) {
@@ -5469,31 +5471,37 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         let img = null;
         let audioUrl = null; // A variável que vai guardar nosso .mp3
 
+   // ==========================================================
+        // MOTOR DE BUSCA DE ÁUDIO (V2 - MAIS ROBUSTO)
         // ==========================================================
-        // O MOTOR DE BUSCA DE ÁUDIO (A CORREÇÃO PRINCIPAL)
-        // ==========================================================
-        // PLANO A: Procurar na tag <enclosure> (o padrão ouro)
-        const enclosure = node.querySelector("enclosure");
-        if (enclosure) {
+        
+        // PLANO A: Usar getElementsByTagName que é mais direto e menos suscetível a erros de namespace
+        const enclosureNodes = node.getElementsByTagName("enclosure");
+        if (enclosureNodes.length > 0) {
+            const enclosure = enclosureNodes[0]; // Pega o primeiro que encontrar
             const type = enclosure.getAttribute("type") || "";
             if (type.includes("audio")) {
                 audioUrl = enclosure.getAttribute("url");
-            } else if (type.includes("image")) {
-                img = enclosure.getAttribute("url");
+                // LOG DE DIAGNÓSTICO 2: O SUCESSO QUE QUEREMOS VER!
+                console.log(`[Parser Success] Item #${index} (${title}): Encontrado audio via <enclosure>: ${audioUrl}`);
             }
         }
 
-        // PLANO B: Se não achou no enclosure, alguns feeds colocam o .mp3 direto no link principal
-        if (!audioUrl && link.endsWith('.mp3')) {
-            audioUrl = link;
+        // PLANO B e C continuam como fallback
+        if (!audioUrl && (node.querySelector("link")?.textContent || "").endsWith('.mp3')) {
+            audioUrl = node.querySelector("link").textContent;
         }
-
-        // PLANO C: Última tentativa, alguns feeds colocam o link do áudio na tag <guid>
         if (!audioUrl) {
             const guid = getTxt("guid");
-            if (guid && guid.endsWith('.mp3')) {
+            if (guid && (guid.endsWith('.mp3') || guid.endsWith('.m4a'))) {
                 audioUrl = guid;
             }
+        }
+        // ==========================================================
+        
+        // Se ainda assim não achou, loga o fracasso para este item específico
+        if (!audioUrl && feedSource.toLowerCase().includes('macmagazine')) {
+             console.warn(`[Parser Fail] Item #${index} (${title}): Não encontrou URL de áudio.`);
         }
         // ==========================================================
 
@@ -7158,6 +7166,11 @@ else if (audioReal || primaryLink?.endsWith('.mp3')) finalType = 'audio';
                 date: finalDateObj.toLocaleDateString(),
             };
         });
+
+
+        if (feed.type === 'podcast') {
+    console.log(`[FetchFeeds Check] Itens de Podcast para "${currentFeedTitle}":`, processedItems);
+}
 
         if (feed.type === 'podcast') {
             allPodcastItems.push(...processedItems);
