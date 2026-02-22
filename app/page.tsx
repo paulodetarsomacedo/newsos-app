@@ -4952,7 +4952,8 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     'times brasil': 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Times_Brasil_CNBC_logo_2025.svg',
     'quatro rodas': '/logos/quatro-rodas.png',
     'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
-    'fox news': 'logos/fox2.png'
+    'fox news': 'logos/fox2.png',
+    'bbc news': 'https://ichef.bbci.co.uk/ace/ws/640/cpsprodpb/9DC6/production/_101909304_bbc_news_tile_rgb.png.webp'
   };
 
   const layoutStyles = [
@@ -5472,8 +5473,9 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         const description = getTxt("description") || getTxt("summary");
         const contentEncoded = getTxt("content:encoded") || getTxt("content");
 
-        let audioUrl = null;
+        
         let img = null;
+        let audioUrl = null;
         const mediaContent = node.getElementsByTagName("media:content");
         if (mediaContent.length > 0) img = mediaContent[0].getAttribute("url");
         if (!img) {
@@ -5489,15 +5491,18 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         if (!img) img = extractImageFromContent(contentEncoded);
         if (!img) img = extractImageFromContent(description);
 
-        const enclosureNode = node.querySelector("enclosure");
-if (enclosureNode) {
-    const type = enclosureNode.getAttribute("type") || "";
-    if (type.includes("image")) {
-        img = enclosureNode.getAttribute("url");
-    } else if (type.includes("audio")) {
-        audioUrl = enclosureNode.getAttribute("url");
-    }
-}
+            const enclosure = node.querySelector("enclosure");
+        if (enclosure) {
+            const type = enclosure.getAttribute("type") || "";
+            // Se o tipo for de áudio, salva a URL na nossa variável
+            if (type.includes("audio")) {
+                audioUrl = enclosure.getAttribute("url");
+            } 
+            // Se for de imagem e ainda não tivermos uma, usa esta
+            else if (type.includes("image") && !img) {
+                img = enclosure.getAttribute("url");
+            }
+        }
         const title = getTxt("title");
         const stableId = stringToHash(title + link);
 
