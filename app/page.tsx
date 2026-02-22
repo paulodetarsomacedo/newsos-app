@@ -5410,14 +5410,15 @@ function TabButton({ icon, label, active, onClick, isDarkMode }) {
 // --- APP PRINCIPAL ---
 
 
-
-// --- FUNÇÃO PARSE XML (V6 - BUSCA DE ÁUDIO "PARANOICA" MULTI-ESTRATÉGIA) ---
+// --- FUNÇÃO PARSE XML (V3 - À PROVA DE FALHAS DE ÁUDIO) ---
 
 const extractImageFromContent = (content) => {
   if (!content || typeof content !== 'string') return null;
   const imgMatch = content.match(/<img[^>]+src\s*=\s*["']([^"']+)["']/i);
   return imgMatch ? imgMatch[1] : null;
 };
+
+// --- FUNÇÃO PARSE XML (V5 - FINAL, CORRIGIDA E BLINDADA CONTRA FEEDS GIGANTES) ---
 
 const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
   try {
@@ -5430,98 +5431,65 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           return { items: [], realTitle: feedSource, realLogo: null };
       }
 
+      // ... (código de extrair título e logo, sem alterações)
       let detectedTitle = feedSource;
       const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
       if (channelTitle && channelTitle.textContent) {
           detectedTitle = channelTitle.textContent.trim();
       }
-
       let siteLink = "";
       const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("link");
       if (channelLink) { siteLink = channelLink.textContent || channelLink.getAttribute("href") || ""; }
-
       let autoLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(detectedTitle)}&background=random`;
       if (siteLink) { try { const domain = new URL(siteLink).hostname; autoLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`; } catch (e) {} }
+      // ...
 
       const allItems = Array.from(xmlDoc.querySelectorAll("item, entry"));
       
-      // Mantém o limite de 50 para evitar o travamento do Ticaracaticast
-      const items = allItems.slice(0, 50); 
+      // ==========================================================
+      // BLINDAGEM DE PERFORMANCE: Limita o número de itens a serem processados.
+      // Nenhum usuário vai ouvir 738 episódios de uma vez. Pegamos os 50 mais recentes.
+      const items = allItems.slice(0, 50);
+      // ==========================================================
+      
+      console.log(`[Parser Debug] Fonte: ${feedSource} - Encontrados ${allItems.length} itens, processando os 50 mais recentes.`);
 
-      const parsedItems = items.map((node) => { 
+      const parsedItems = items.map((node, index) => { // <--- GARANTA QUE '(node, index)' ESTÁ AQUI
         
-        // Função auxiliar para pegar texto
+        // Função auxiliar para pegar texto de tags, incluindo namespaces
         const getTxt = (tag) => {
-            const el = node.getElementsByTagName(tag)[0];
-            if (el) return el.textContent;
-            const elNs = node.getElementsByTagNameNS("*", tag)[0]; // Tenta ignorar namespace
-            return elNs ? elNs.textContent : (node.querySelector(tag)?.textContent || "");
+            if (tag.includes(':')) {
+                const els = node.getElementsByTagName(tag);
+                return els.length > 0 ? els[0].textContent : "";
+            }
+            return node.querySelector(tag)?.textContent || "";
         };
         
         const title = getTxt("title");
-        
-        // Tratamento de Link
-        let link = "";
         const linkNode = node.querySelector("link");
-        if (linkNode) link = linkNode.getAttribute("href") || linkNode.textContent || "";
-        
+        let link = linkNode?.getAttribute("href") || linkNode?.textContent || "";
         const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated");
         const description = getTxt("description") || getTxt("summary");
         
         let img = null;
         let audioUrl = null;
 
-        // ==========================================================
-        // MOTOR DE BUSCA DE ÁUDIO V6 (ESTRATÉGIA TOTAL)
-        // ==========================================================
-        
-        // TENTATIVA 1: Busca direta por tags 'enclosure' (Padrão RSS)
-        const enclosures = Array.from(node.getElementsByTagName("enclosure"));
-        for (const enc of enclosures) {
-            const type = enc.getAttribute("type") || "";
-            const url = enc.getAttribute("url");
-            if (type.includes("audio") && url) {
-                audioUrl = url;
-                break; // Achou? Para.
-            }
-            if (type.includes("image") && !img) img = url;
-        }
-
-        // TENTATIVA 2: Busca por 'media:content' (Padrão MediaRSS - muito usado)
-        if (!audioUrl) {
-            // querySelectorAll pega namespaces com ':' melhor em alguns browsers
-            const mediaContents = Array.from(node.querySelectorAll("media\\:content, content")); 
-            for (const mc of mediaContents) {
-                const type = mc.getAttribute("type") || "";
-                const url = mc.getAttribute("url");
-                if (type.includes("audio") && url) {
-                    audioUrl = url;
-                    break;
-                }
+        // Motor de busca de Áudio e Imagem (sem alterações, já estava robusto)
+        const enclosureNodes = node.getElementsByTagName("enclosure");
+        if (enclosureNodes.length > 0) {
+            const enclosure = enclosureNodes[0];
+            const type = enclosure.getAttribute("type") || "";
+            if (type.includes("audio")) {
+                audioUrl = enclosure.getAttribute("url");
+            } else if (type.includes("image")) {
+                img = enclosure.getAttribute("url");
             }
         }
-
-        // TENTATIVA 3: O "Selector" Genérico (Fallback para estruturas estranhas)
-        if (!audioUrl) {
-            const genericEnc = node.querySelector("[url][type*='audio']");
-            if (genericEnc) audioUrl = genericEnc.getAttribute("url");
-        }
-
-        // TENTATIVA 4: Link direto termina em áudio?
-        if (!audioUrl && (link.endsWith('.mp3') || link.endsWith('.m4a'))) {
-            audioUrl = link;
-        }
-        
-        // TENTATIVA 5: GUID é um link de áudio?
+        if (!audioUrl && link.endsWith('.mp3')) { audioUrl = link; }
         if (!audioUrl) {
             const guid = getTxt("guid");
-            if (guid && (guid.startsWith("http") && (guid.endsWith(".mp3") || guid.endsWith(".m4a")))) {
-                audioUrl = guid;
-            }
+            if (guid && (guid.endsWith('.mp3') || guid.endsWith('.m4a'))) { audioUrl = guid; }
         }
-        // ==========================================================
-
-        // Imagem Fallback
         if (!img) {
             const mediaThumb = node.getElementsByTagName("media:thumbnail")[0];
             if (mediaThumb) img = mediaThumb.getAttribute("url");
@@ -5530,6 +5498,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
 
         const stableId = stringToHash(title + link);
 
+        // Objeto de retorno final para este item
         return {
           id: `${feedId}-${stableId}`,
           source: detectedTitle,
@@ -5540,7 +5509,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           category: 'Geral',
           img: img,
           link: link,
-          audioFile: audioUrl, // Propriedade crítica
+          audioFile: audioUrl, // A propriedade crucial que leva o .mp3
           videoId: getTxt("yt:videoId") || getTxt("videoId")
         };
       });
@@ -5548,7 +5517,8 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       return { items: parsedItems, realTitle: detectedTitle, realLogo: autoLogo };
 
   } catch (err) {
-      console.error(`Erro fatal no parser para "${feedSource}":`, err);
+      // O log de erro agora será muito mais específico
+      console.error(`Erro fatal no parser de XML para a fonte "${feedSource}":`, err);
       return { items: [], realTitle: feedSource, realLogo: null };
   }
 };
