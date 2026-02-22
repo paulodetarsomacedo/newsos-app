@@ -5472,6 +5472,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         const description = getTxt("description") || getTxt("summary");
         const contentEncoded = getTxt("content:encoded") || getTxt("content");
 
+        let audioUrl = null;
         let img = null;
         const mediaContent = node.getElementsByTagName("media:content");
         if (mediaContent.length > 0) img = mediaContent[0].getAttribute("url");
@@ -5488,6 +5489,15 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         if (!img) img = extractImageFromContent(contentEncoded);
         if (!img) img = extractImageFromContent(description);
 
+        const enclosureNode = node.querySelector("enclosure");
+if (enclosureNode) {
+    const type = enclosureNode.getAttribute("type") || "";
+    if (type.includes("image")) {
+        img = enclosureNode.getAttribute("url");
+    } else if (type.includes("audio")) {
+        audioUrl = enclosureNode.getAttribute("url");
+    }
+}
         const title = getTxt("title");
         const stableId = stringToHash(title + link);
 
@@ -5503,6 +5513,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           img: img,
           readTime: '3 min',
           link: link,
+          audioFile: audioUrl,
           origin: 'rss',
           videoId: ytId
         };
@@ -7121,12 +7132,12 @@ const lowerUrl = safeLower(feed?.url);
 
             const itemSummary = (item.summary || item.description || '').replace(/<[^>]*>?/gm, '').slice(0, 800) + '...';
             const primaryLink = item.link;
+            const audioReal = item.audioFile;
             const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
             
             let finalType = 'link'; 
             if (isYoutubeItem) finalType = 'video';
-            else if (primaryLink?.endsWith('.mp3') || item.enclosure?.type?.includes('audio')) finalType = 'audio'; 
-
+else if (audioReal || primaryLink?.endsWith('.mp3')) finalType = 'audio'; 
             return {
                 id: uniqueId,
                 source: currentFeedTitle, 
@@ -7139,6 +7150,7 @@ const lowerUrl = safeLower(feed?.url);
                 type: finalType, 
                 img: item.img || item.image || finalLogo,
                 link: primaryLink, 
+                audio: audioReal || (primaryLink?.endsWith('.mp3') ? primaryLink : null),
                 videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
                 date: finalDateObj.toLocaleDateString(),
             };
