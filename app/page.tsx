@@ -5528,7 +5528,7 @@ if (enclosureNode) {
 };
 
 
-// --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL (BLINDADO) ---
+// --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL (VERSÃO COMPLETA E BLINDADA) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const audioRef = useRef(null);
   
@@ -5537,7 +5537,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isYoutube, setIsYoutube] = useState(false);
-  const [hasError, setHasError] = useState(false); // Novo estado de erro visual
+  const [hasError, setHasError] = useState(false);
 
   // 1. Extração de ID Segura
   const ytId = useMemo(() => {
@@ -5547,57 +5547,57 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       return match ? match[1] : null;
   }, [track]);
 
-  // 2. Setup Inicial (Com Try/Catch agressivo)
+  // ==========================================================
+  // 2. LÓGICA DE BLINDAGEM (useEffect CORRIGIDO E COMPLETO)
+  // ==========================================================
   useEffect(() => {
     if (!track || track.isGenerating) return;
 
-    // Reset dos estados
+    // Reseta todos os estados para uma execução limpa
     setIsPlaying(false);
     setProgress(0);
     setCurrentTime(0);
     setDuration(0);
     setHasError(false);
+    setIsYoutube(false);
 
+    // Se for um vídeo do YouTube, ativa o modo YouTube e encerra a lógica de áudio.
     if (ytId) {
         setIsYoutube(true);
-    } else {
-        setIsYoutube(false);
-        // Tenta iniciar o áudio apenas se a ref existir
-        if (audioRef.current) {
-            try {
-                // Se for link HTTP em site HTTPS, o navegador bloqueia (Mixed Content)
-                // Vamos tentar usar o link direto
-                audioRef.current.src = track.audio || track.link;
-                audioRef.current.load();
-                
-                const playPromise = audioRef.current.play();
-                if (playPromise !== undefined) {
-                    playPromise
-                        .then(() => setIsPlaying(true))
-                        .catch(err => {
-                            console.warn("Autoplay impedido ou falha de fonte:", err);
-                            // Não marcamos erro fatal aqui para não travar a UI, apenas não toca
-                        });
-                }
-            } catch (e) {
-                console.error("Erro fatal ao iniciar áudio:", e);
-                setHasError(true);
+        return;
+    }
+
+    const audioSource = track.audio; // Pega a URL do arquivo .mp3 vindo do parser
+
+    // VERIFICAÇÃO DE SEGURANÇA:
+    // Se não há um 'audioSource' ou se ele não parece um arquivo de áudio, marca o erro imediatamente.
+    if (!audioSource || !(audioSource.startsWith('http'))) {
+        console.error("Fonte de áudio inválida ou ausente. O feed RSS pode não ter a tag <enclosure>. Fonte:", audioSource);
+        setHasError(true);
+        return; // NÃO TENTA TOCAR NADA. Para a execução aqui.
+    }
+
+    // SE PASSOU NA VERIFICAÇÃO, TENTA TOCAR
+    if (audioRef.current) {
+        try {
+            audioRef.current.src = audioSource;
+            audioRef.current.load();
+            
+            const playPromise = audioRef.current.play();
+            if (playPromise) {
+                playPromise
+                    .then(() => setIsPlaying(true))
+                    .catch(err => {
+                        console.warn("Autoplay do navegador foi bloqueado. O usuário precisa interagir.", err);
+                        setIsPlaying(false);
+                    });
             }
+        } catch (e) {
+            console.error("Erro fatal ao tentar carregar e tocar o áudio:", e);
+            setHasError(true);
         }
     }
   }, [track, ytId]);
-
-  // 3. Simulação de Progresso (YouTube)
-  useEffect(() => {
-      let interval = null;
-      if (isYoutube && isPlaying) {
-          interval = setInterval(() => {
-              setCurrentTime(prev => prev + 1);
-              if (duration > 0) setProgress((currentTime / duration) * 100);
-          }, 1000);
-      }
-      return () => clearInterval(interval);
-  }, [isYoutube, isPlaying, currentTime, duration]);
 
   // --- HANDLER DE FECHAR (FORÇA BRUTA) ---
   const handleClose = (e) => {
@@ -5605,34 +5605,16 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
       e.preventDefault();
       e.stopPropagation();
     }
-    // Apenas para o áudio e chama o pai para desmontar o componente.
-    // Não precisa mais mexer no src.
     try {
         if (audioRef.current) {
             audioRef.current.pause();
+            audioRef.current.src = ''; // Limpa a fonte para parar o download
         }
     } catch (err) {
         console.warn("Erro ao pausar áudio no fechamento (ignorado):", err);
     }
     if (onClose) onClose();
-};
-
-  // --- RENDERIZAÇÃO ---
-  if (!track) return null;
-
-  // Tela de Loading da IA
-  if (track.isGenerating) {
-      return (
-        <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-6 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 flex items-center gap-4 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
-            <Loader2 size={24} className="animate-spin text-purple-500" />
-            <div>
-                <h4 className="text-sm font-bold animate-pulse">Sintetizando Voz Neural...</h4>
-                <p className="text-[10px] opacity-60">Usando Google Cloud TTS</p>
-            </div>
-            <button onClick={handleClose} className="ml-auto p-2 hover:bg-black/10 rounded-full"><X size={20}/></button>
-        </div>
-      );
-  }
+  };
 
   // Handlers de Áudio Nativo
   const handleNativeTimeUpdate = () => {
@@ -5650,8 +5632,11 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const togglePlay = (e) => {
       e.stopPropagation();
       if (!isYoutube && audioRef.current) {
-          if (isPlaying) audioRef.current.pause();
-          else audioRef.current.play().catch(e => console.warn("Play failed:", e));
+          if (isPlaying) {
+              audioRef.current.pause();
+          } else {
+              audioRef.current.play().catch(e => console.warn("Play manual falhou:", e));
+          }
           setIsPlaying(!isPlaying);
       }
   };
@@ -5665,11 +5650,28 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 
   // Handler de erro do elemento <audio>
   const handleAudioError = (e) => {
-      console.error("Erro no elemento de áudio:", e.target.error);
+      console.error("Erro no elemento de áudio (handleAudioError):", e.target.error);
       setHasError(true);
       setIsPlaying(false);
   };
 
+  if (!track) return null;
+
+  // Tela de Loading da IA (gerando TTS)
+  if (track.isGenerating) {
+      return (
+        <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-6 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 flex items-center gap-4 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
+            <Loader2 size={24} className="animate-spin text-purple-500" />
+            <div>
+                <h4 className="text-sm font-bold animate-pulse">Sintetizando Voz Neural...</h4>
+                <p className="text-[10px] opacity-60">Usando Google Cloud TTS</p>
+            </div>
+            <button onClick={handleClose} className="ml-auto p-2 hover:bg-black/10 rounded-full"><X size={20}/></button>
+        </div>
+      );
+  }
+
+  // RENDERIZAÇÃO PRINCIPAL DO PLAYER
   return (
     <div className={`fixed bottom-24 left-2 right-2 md:left-1/2 md:-translate-x-1/2 md:w-[600px] z-[99999] rounded-2xl p-4 shadow-2xl backdrop-blur-xl border border-white/10 animate-in slide-in-from-bottom-10 ${isDarkMode ? 'bg-zinc-900/95 text-white' : 'bg-white/95 text-zinc-900'}`}>
         
@@ -5679,7 +5681,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                 onTimeUpdate={handleNativeTimeUpdate} 
                 onLoadedMetadata={(e) => setDuration(e.target.duration)} 
                 onEnded={() => setIsPlaying(false)}
-                onError={handleAudioError} // Captura o erro do console
+                onError={handleAudioError}
                 playsInline 
             />
         )}
@@ -5717,7 +5719,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                 </h4>
                 <p className="text-[10px] opacity-60 truncate flex items-center gap-1 mt-1">
                     {hasError 
-                        ? "Formato inválido ou bloqueado (Mixed Content)" 
+                        ? "Formato inválido ou fonte indisponível." 
                         : (isYoutube 
                             ? <><Youtube size={10} className="text-red-500"/> YouTube</> 
                             : <><Mic size={10} className="text-blue-500"/> {track.source} • {formatTime(currentTime)} / {formatTime(duration)}</>
@@ -5743,7 +5745,6 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
                      </div>
                 )}
                 
-                {/* BOTÃO DE FECHAR (Blinded) */}
                 <button 
                     onClick={handleClose} 
                     className="p-3 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-zinc-500 cursor-pointer z-50 pointer-events-auto active:scale-90 transition-transform"
@@ -5755,6 +5756,7 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
     </div>
   );
 };
+
 
 
 
