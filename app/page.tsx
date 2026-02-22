@@ -5418,6 +5418,8 @@ const extractImageFromContent = (content) => {
   return imgMatch ? imgMatch[1] : null;
 };
 
+// --- FUNÇÃO PARSE XML (V5 - FINAL, CORRIGIDA E BLINDADA CONTRA FEEDS GIGANTES) ---
+
 const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
   try {
       const parser = new DOMParser();
@@ -5429,31 +5431,32 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           return { items: [], realTitle: feedSource, realLogo: null };
       }
 
+      // ... (código de extrair título e logo, sem alterações)
       let detectedTitle = feedSource;
       const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
       if (channelTitle && channelTitle.textContent) {
           detectedTitle = channelTitle.textContent.trim();
       }
-
       let siteLink = "";
       const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("link");
-      if (channelLink) {
-          siteLink = channelLink.textContent || channelLink.getAttribute("href") || "";
-      }
-
+      if (channelLink) { siteLink = channelLink.textContent || channelLink.getAttribute("href") || ""; }
       let autoLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(detectedTitle)}&background=random`;
-      if (siteLink) {
-          try {
-              const domain = new URL(siteLink).hostname;
-              autoLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-          } catch (e) {}
-      }
+      if (siteLink) { try { const domain = new URL(siteLink).hostname; autoLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`; } catch (e) {} }
+      // ...
 
-      const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
-      // LOG DE DIAGNÓSTICO 1: Ver se estamos encontrando os itens do feed
-      console.log(`[Parser Debug] Fonte: ${feedSource} - Encontrados ${items.length} itens.`);
+      const allItems = Array.from(xmlDoc.querySelectorAll("item, entry"));
+      
+      // ==========================================================
+      // BLINDAGEM DE PERFORMANCE: Limita o número de itens a serem processados.
+      // Nenhum usuário vai ouvir 738 episódios de uma vez. Pegamos os 50 mais recentes.
+      const items = allItems.slice(0, 50);
+      // ==========================================================
+      
+      console.log(`[Parser Debug] Fonte: ${feedSource} - Encontrados ${allItems.length} itens, processando os 50 mais recentes.`);
 
-      const parsedItems = items.map((node) => {
+      const parsedItems = items.map((node, index) => { // <--- GARANTA QUE '(node, index)' ESTÁ AQUI
+        
+        // Função auxiliar para pegar texto de tags, incluindo namespaces
         const getTxt = (tag) => {
             if (tag.includes(':')) {
                 const els = node.getElementsByTagName(tag);
@@ -5469,43 +5472,24 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
         const description = getTxt("description") || getTxt("summary");
         
         let img = null;
-        let audioUrl = null; // A variável que vai guardar nosso .mp3
+        let audioUrl = null;
 
-   // ==========================================================
-        // MOTOR DE BUSCA DE ÁUDIO (V2 - MAIS ROBUSTO)
-        // ==========================================================
-        
-        // PLANO A: Usar getElementsByTagName que é mais direto e menos suscetível a erros de namespace
+        // Motor de busca de Áudio e Imagem (sem alterações, já estava robusto)
         const enclosureNodes = node.getElementsByTagName("enclosure");
         if (enclosureNodes.length > 0) {
-            const enclosure = enclosureNodes[0]; // Pega o primeiro que encontrar
+            const enclosure = enclosureNodes[0];
             const type = enclosure.getAttribute("type") || "";
             if (type.includes("audio")) {
                 audioUrl = enclosure.getAttribute("url");
-                // LOG DE DIAGNÓSTICO 2: O SUCESSO QUE QUEREMOS VER!
-                console.log(`[Parser Success] Item #${index} (${title}): Encontrado audio via <enclosure>: ${audioUrl}`);
+            } else if (type.includes("image")) {
+                img = enclosure.getAttribute("url");
             }
         }
-
-        // PLANO B e C continuam como fallback
-        if (!audioUrl && (node.querySelector("link")?.textContent || "").endsWith('.mp3')) {
-            audioUrl = node.querySelector("link").textContent;
-        }
+        if (!audioUrl && link.endsWith('.mp3')) { audioUrl = link; }
         if (!audioUrl) {
             const guid = getTxt("guid");
-            if (guid && (guid.endsWith('.mp3') || guid.endsWith('.m4a'))) {
-                audioUrl = guid;
-            }
+            if (guid && (guid.endsWith('.mp3') || guid.endsWith('.m4a'))) { audioUrl = guid; }
         }
-        // ==========================================================
-        
-        // Se ainda assim não achou, loga o fracasso para este item específico
-        if (!audioUrl && feedSource.toLowerCase().includes('macmagazine')) {
-             console.warn(`[Parser Fail] Item #${index} (${title}): Não encontrou URL de áudio.`);
-        }
-        // ==========================================================
-
-        // Lógica de busca de imagem (continua a mesma)
         if (!img) {
             const mediaThumb = node.getElementsByTagName("media:thumbnail")[0];
             if (mediaThumb) img = mediaThumb.getAttribute("url");
@@ -5514,6 +5498,7 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
 
         const stableId = stringToHash(title + link);
 
+        // Objeto de retorno final para este item
         return {
           id: `${feedId}-${stableId}`,
           source: detectedTitle,
@@ -5521,10 +5506,10 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
           rawDate: pubDate ? new Date(pubDate) : null,
           title: title,
           summary: description.replace(/<[^>]*>?/gm, '').slice(0, 250) + '...',
-          category: 'Geral', // Será ajustado no fetchFeeds
+          category: 'Geral',
           img: img,
           link: link,
-          audioFile: audioUrl, // <--- Propriedade CRÍTICA que leva o .mp3 para a próxima etapa
+          audioFile: audioUrl, // A propriedade crucial que leva o .mp3
           videoId: getTxt("yt:videoId") || getTxt("videoId")
         };
       });
@@ -5532,10 +5517,12 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
       return { items: parsedItems, realTitle: detectedTitle, realLogo: autoLogo };
 
   } catch (err) {
-      console.error("Erro fatal no parser de XML:", err, {xmlText});
+      // O log de erro agora será muito mais específico
+      console.error(`Erro fatal no parser de XML para a fonte "${feedSource}":`, err);
       return { items: [], realTitle: feedSource, realLogo: null };
   }
 };
+
 
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL (VERSÃO COMPLETA E BLINDADA) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
