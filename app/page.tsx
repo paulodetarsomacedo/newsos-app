@@ -4953,7 +4953,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     'quatro rodas': '/logos/quatro-rodas.png',
     'g1': 'https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png',
     'fox news': 'logos/fox2.png',
-    'bbc news': 'https://cdn.worldvectorlogo.com/logos/bbc-world-news.svg'
+    'bbc news': 'https://static.wikia.nocookie.net/bbc/images/d/d9/BBCN.png/revision/latest?cb=20220516180809'
   };
 
   const layoutStyles = [
