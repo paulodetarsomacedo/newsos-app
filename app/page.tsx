@@ -82,6 +82,17 @@ const stringToHash = (str) => {
 
 // --- DADOS MOCKADOS ---
 
+// ===================================================================== 
+// === MARCA VETRA — ícone "V" premium (substitui o antigo "N") =========
+// Glyph reutilizável (header + splash). Tile/estilo vem do componente pai.
+// ===================================================================== 
+const VetraMark = ({ className = "" }) => (
+  <svg viewBox="0 0 32 32" fill="none" className={className} xmlns="http://www.w3.org/2000/svg" aria-label="Vetra">
+    <path d="M7 7.5 L16 24" stroke="#0a1739" strokeWidth="4.6" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M25 7.5 L16 24" stroke="#2563eb" strokeWidth="4.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const STORIES = [
   { id: 1, name: 'G1', avatar: 'https://ui-avatars.com/api/?name=G1&background=c0392b&color=fff', items: [{ id: 101, type: 'image', img: 'https://images.unsplash.com/photo-1542204165-65bf26472b9b?w=600&q=80', title: 'Chuva recorde', time: '10 min' }] },
   { id: 2, name: 'Verge', avatar: 'https://ui-avatars.com/api/?name=TV&background=000&color=fff', items: [{ id: 201, type: 'image', img: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=600&q=80', title: 'Review M3', time: '30 min' }] },
@@ -599,7 +610,7 @@ const fetchMarketData = async () => {
   );
 
   return (
-    <div className="relative z-20 pb-2">
+    <div className="relative z-20 px-3 sm:px-4 pt-[max(0.6rem,env(safe-area-inset-top))] pb-1">
       {currentDate && <CalendarModal 
         isOpen={isCalendarOpen} 
         onClose={() => setIsCalendarOpen(false)}
@@ -609,34 +620,44 @@ const fetchMarketData = async () => {
       />}
 
       {/* ===================================================================== */}
-      {/* === HEADER GLOBAL — LIQUID GLASS PREMIUM (NewsOS / Vetra) ============ */}
-      {/* VISUAL: novo design system.                                           */}
-      {/* LÓGICA PRESERVADA: busca, calendário (drag + handleDateChange),       */}
-      {/* ticker de mercado, aiStatus e status do sistema.                      */}
+      {/* === HEADER GLOBAL — LIQUID GLASS NAVY (Vetra) ======================= */}
+      {/* VISUAL novo (cor navy dos prints, sem ticker — ticker migra p/ Home). */}
+      {/* LÓGICA PRESERVADA: busca (onSearch/searchInputRef/triggerSearch),     */}
+      {/* calendário (handleDrag* + handleDateChange), aiStatus, isLoading,     */}
+      {/* onOpenSettings. fetchMarketData/TICKERS continuam definidos.          */}
       {/* ===================================================================== */}
-      <div className="liquid-header-shell relative w-full overflow-hidden rounded-b-[2.2rem]">
+      <div className="liquid-header-navy relative w-full overflow-hidden rounded-[1.75rem]">
         {/* glows decorativos (puramente visual) */}
-        <div className="absolute top-[-60%] left-[-15%] w-[70%] h-[160%] bg-indigo-600/20 blur-[110px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-[-30%] right-[-15%] w-[55%] h-[110%] bg-teal-500/10 blur-[90px] rounded-full pointer-events-none" />
+        <div className="absolute -top-1/2 -left-[8%] w-[55%] h-[180%] bg-blue-500/10 blur-[90px] rounded-full pointer-events-none" />
+        <div className="absolute -bottom-1/2 right-[4%] w-[45%] h-[160%] bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none" />
 
-        <div className="relative px-4 sm:px-6 pt-[max(0.9rem,env(safe-area-inset-top))] pb-3">
-          {/* ---- BARRA PRINCIPAL ---- */}
-          <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
+        <div className="relative px-3 sm:px-5 py-3 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-5">
 
-            {/* MARCA: logo + NewsOS / Vetra + Pro + data */}
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-white via-zinc-200 to-zinc-400 flex items-center justify-center shadow-lg border border-white/30">
-                <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-zinc-900 to-zinc-700">N</span>
+          {/* ---- MARCA: ícone Vetra + nome + Pro + saudação + data ---- */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-white to-zinc-200 flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(0,0,0,0.55)] border border-white/40 shrink-0">
+              <VetraMark className="w-7 h-7" />
+            </div>
+            <div className="flex flex-col leading-tight">
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-black tracking-tight text-white">Vetra</span>
+                <span className="px-2 py-[2px] rounded-md text-[10px] font-bold uppercase tracking-wide bg-gradient-to-b from-blue-500 to-blue-700 text-white shadow-sm">Pro</span>
               </div>
-              <div className="flex flex-col leading-none">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-black tracking-tight text-white">NewsOS</span>
-                  <span className="text-lg font-semibold text-white/35">/ Vetra</span>
-                  <span className="px-2 py-[2px] rounded-md text-[9px] font-black uppercase tracking-widest bg-indigo-500/25 text-indigo-200 border border-indigo-400/30">Pro</span>
-                </div>
-                {/* DATA — tap abre calendário e arrasto troca o dia (lógica original via handleDrag*) */}
+              {/* saudação dinâmica (Bom dia/tarde/noite) — MOCK nome "Tiago": trocar por user real */}
+              {currentDate && (() => {
+                const h = currentDate.getHours();
+                const g = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                const Ico = h < 18 ? Sun : Moon;
+                return (
+                  <span className="mt-0.5 text-[12px] font-semibold text-white/85 flex items-center gap-1.5">
+                    <Ico size={12} className="text-amber-300" /> {g}, Tiago
+                  </span>
+                );
+              })()}
+              {/* DATA — tap abre calendário e arrasto troca o dia (lógica original) */}
+              {currentDate && (
                 <div
-                  className="mt-1 cursor-pointer select-none touch-none w-fit"
+                  className="cursor-pointer select-none touch-none w-fit"
                   onMouseDown={(e) => handleDragStart(e.clientX)}
                   onMouseMove={(e) => handleDragMove(e.clientX)}
                   onMouseUp={handleDragEnd}
@@ -646,79 +667,48 @@ const fetchMarketData = async () => {
                   onTouchEnd={handleDragEnd}
                   style={{ transform: `translateX(${dragOffset}px)` }}
                 >
-                  <span className="text-[11px] font-medium text-white/45 flex items-center gap-1.5">
-                    {currentDate ? formatDate(currentDate) : <>&nbsp;</>}
-                    <CalendarIcon size={11} className="opacity-50" />
-                  </span>
+                  <span className="text-[11px] font-medium text-white/40">{formatDate(currentDate)}</span>
                 </div>
-              </div>
-            </div>
-
-            {/* BUSCA CENTRAL — input sempre visível, ligado a onSearch (lógica original) */}
-            <div className="flex-1 min-w-0 w-full">
-              <div className="flex items-center gap-2 h-12 px-3 rounded-2xl liquid-button-glass">
-                <Search size={18} className="text-white/40 shrink-0" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Buscar notícias, fontes ou tópicos..."
-                  className="flex-1 min-w-0 bg-transparent text-white placeholder:text-white/35 text-sm font-medium outline-none"
-                  onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { if (onSearch) { onSearch(e.target.value); } e.target.value = ''; } }}
-                />
-                <span className="hidden sm:flex items-center gap-1 text-[10px] font-bold text-white/30 border border-white/15 rounded-md px-1.5 py-0.5">⌘ K</span>
-              </div>
-            </div>
-
-            {/* AÇÕES: Ask AI + (PodNews opcional) + Status + Avatar */}
-            <div className="flex items-center gap-2.5 shrink-0">
-              <button
-                onClick={() => { setIsSearchOpen(true); searchInputRef.current?.focus(); }}
-                className="flex items-center gap-2 h-12 px-4 rounded-2xl liquid-button-glass"
-              >
-                <Sparkles size={18} className="text-purple-300" />
-                <span className="text-sm font-semibold text-white">Ask AI</span>
-              </button>
-
-              {/* PodNews só aparece se a prop existir (hoje não é passada → não vira botão morto) */}
-              {onOpenPodNews && (
-                <button onClick={onOpenPodNews} className="hidden md:flex items-center gap-2 h-12 px-3 rounded-2xl liquid-button-glass">
-                  <Headphones size={18} className="text-purple-300" />
-                  <div className="flex flex-col items-start leading-none">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white">PodNews</span>
-                    <span className="text-[9px] text-white/55">Resumo 07:00</span>
-                  </div>
-                </button>
               )}
+            </div>
+          </div>
 
-              {/* STATUS DO SISTEMA — usa aiStatus/isLoading existentes */}
-              <div className="hidden sm:flex items-center gap-2.5 h-12 px-3.5 rounded-2xl liquid-button-glass">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-                </span>
-                <div className="flex flex-col leading-none">
-                  <span className="text-[11px] font-bold text-white">
-                    {isLoading ? 'Sincronizando...' : 'Sistema ok.'}
-                  </span>
-                  <span className="text-[10px] text-white/50 truncate max-w-[140px]">{aiStatus}</span>
-                </div>
-              </div>
-
-              {/* AVATAR / CONFIGURAÇÕES (onOpenSettings preservado) */}
-              <button onClick={onOpenSettings} className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] hover:scale-105 transition-transform shadow-lg shrink-0">
-                <img src="https://ui-avatars.com/api/?name=TS&background=0b0b14&color=fff" className="rounded-[0.85rem] w-full h-full" alt="User" />
+          {/* ---- BUSCA + ASK AI (cápsula inset navy, Ask AI dentro) ---- */}
+          <div className="flex-1 min-w-0 w-full">
+            <div className="liquid-search-inset flex items-center gap-2 h-12 pl-4 pr-1.5 rounded-2xl">
+              <Search size={18} className="text-white/35 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Buscar notícias, fontes ou tópicos..."
+                className="flex-1 min-w-0 bg-transparent text-white placeholder:text-white/35 text-sm font-medium outline-none"
+                onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { if (onSearch) { onSearch(e.target.value); } e.target.value = ''; } }}
+              />
+              <span className="hidden sm:flex items-center gap-1 text-[11px] font-medium text-white/40 bg-white/5 border border-white/10 rounded-lg px-2 py-1 shrink-0">⌘ K</span>
+              <div className="hidden sm:block w-px h-6 bg-white/10 mx-1 shrink-0" />
+              <button onClick={triggerSearch} className="flex items-center gap-1.5 pl-2 pr-3 py-2 rounded-xl hover:bg-white/5 active:scale-95 transition-all shrink-0">
+                <Sparkles size={18} className="text-blue-300" />
+                <span className="text-sm font-semibold text-white">Ask AI</span>
               </button>
             </div>
           </div>
 
-          {/* ---- TICKER DE MERCADO (lógica original 100% preservada) ---- */}
-          <div className="relative w-full overflow-hidden mt-3 [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
-            <style>{`@keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
-            <div className="flex w-max animate-[scroll_40s_linear_infinite] hover:[animation-play-state:paused]">
-              {[...TICKERS, ...TICKERS, ...TICKERS].map((item, index) => (
-                <TickerItem key={`${item.id}-${index}`} label={item.label} value={data[item.id]?.val || '...'} up={data[item.id]?.up} icon={item.icon} />
-              ))}
+          {/* ---- STATUS DO SISTEMA + AVATAR ---- */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="liquid-search-inset hidden sm:flex items-center gap-2.5 h-12 px-4 rounded-2xl">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-[0_0_10px_#34d399]" />
+              </span>
+              <div className="flex flex-col leading-none">
+                <span className="text-[12px] font-bold text-white">{isLoading ? 'Sincronizando…' : 'Sistema ok.'}</span>
+                <span className="text-[11px] text-white/50 truncate max-w-[140px]">{isLoading ? aiStatus : 'Todos os serviços'}</span>
+              </div>
             </div>
+            {/* avatar abre Configurações (onOpenSettings preservado) */}
+            <button onClick={onOpenSettings} className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/15 shadow-lg hover:scale-105 transition-transform shrink-0">
+              <img src="https://ui-avatars.com/api/?name=Tiago&background=1e3a8a&color=fff&bold=true" className="w-full h-full object-cover" alt="User" />
+            </button>
           </div>
         </div>
       </div>
@@ -5823,11 +5813,9 @@ const SplashScreen = ({ onFinish }) => {
             <div className={`absolute inset-0 bg-white/30 blur-2xl rounded-full ${step >= 2 ? 'animate-ping' : ''}`} />
             
             {/* MUDANÇA: w-24->w-40, h-24->h-40 (Aumentou o quadrado) */}
-            <div className="w-40 h-40 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-[2rem] flex items-center justify-center shadow-[0_0_60px_rgba(255,255,255,0.4)] border border-white/20">
-                {/* MUDANÇA: text-5xl -> text-8xl (Aumentou a letra N) */}
-                <span className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800 tracking-tighter" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    N
-                </span>
+            <div className="w-40 h-40 bg-gradient-to-br from-white via-zinc-100 to-zinc-300 rounded-[2rem] flex items-center justify-center shadow-[0_0_60px_rgba(255,255,255,0.4)] border border-white/20">
+                {/* MARCA VETRA grande */}
+                <VetraMark className="w-24 h-24" />
             </div>
             </div>
         </div>
@@ -5839,7 +5827,7 @@ const SplashScreen = ({ onFinish }) => {
             mt-8 /* Ajuste aqui: Margem positiva pequena ou negativa se quiser colar mais */
         `}>
             <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
-                NewsOS
+                Vetra
             </h1>
         </div>
 
@@ -9478,7 +9466,7 @@ const newsletters = (newsData ?? []).filter(n =>
             <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-2 opacity-80">
                     <Mail size={16} />
-                    <span className="text-xs font-bold uppercase tracking-widest">Sua Inbox NewsOS</span>
+                    <span className="text-xs font-bold uppercase tracking-widest">Sua Inbox Vetra</span>
                 </div>
                 <h2 className="text-2xl font-bold mb-4 leading-tight">
                     Receba newsletters direto aqui.

@@ -13,13 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: 'NewsOS',
+  title: 'Vetra',
   description: 'Sua central de inteligência.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent', // Isso ajuda a fundir o topo
-    title: 'NewsOS',
+    title: 'Vetra',
   },
 };
 
@@ -28,7 +28,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#09090b', // Ajustei para zinc-950 (preto suave) para bater com o Dark Mode
+  themeColor: '#09090b', // zinc-950 (mantido). Para fundir com o header navy, troque por '#0b1733'.
   // 1. A SOLUÇÃO MÁGICA ESTÁ AQUI:
   viewportFit: 'cover', 
 };

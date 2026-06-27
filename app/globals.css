@@ -26,37 +26,50 @@ body {
 }
 
 /* ===================================================================== */
-/* === NewsOS / Vetra — DESIGN SYSTEM "LIQUID GLASS" ==================== */
-/* Classes utilitárias adicionais. NÃO alteram nada do que já existia.    */
-/* Use junto com Tailwind. Tema é controlado em JS (isDarkMode), por isso */
-/* as variantes claro/escuro são classes explícitas, não media-query.    */
+/* === VETRA — DESIGN SYSTEM ============================================ */
+/* Classes utilitárias aditivas. Não alteram nada do que já existia.      */
+/* Tema controlado em JS (isDarkMode) → variantes são classes explícitas. */
 /* ===================================================================== */
 
-/* ---- Shell do header global (escuro translúcido premium) ---- */
-.liquid-header-shell {
-  position: relative;
+/* ----------------------------------------------------------------- */
+/* HEADER GLOBAL — LIQUID GLASS NAVY (flutuante, igual aos prints)    */
+/* ----------------------------------------------------------------- */
+.liquid-header-navy {
   background:
-    radial-gradient(120% 140% at 15% -20%, rgba(99, 102, 241, 0.18), transparent 55%),
-    radial-gradient(100% 120% at 100% 0%, rgba(20, 184, 166, 0.10), transparent 50%),
-    linear-gradient(180deg, rgba(17, 17, 24, 0.92), rgba(9, 9, 14, 0.94));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    linear-gradient(180deg, #243463 0%, #16244b 46%, #0a1a3d 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.08) inset,
-    0 24px 50px -30px rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
+    0 1px 0 rgba(255, 255, 255, 0.10) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.30) inset,
+    0 26px 48px -22px rgba(7, 16, 40, 0.75),
+    0 6px 16px -10px rgba(7, 16, 40, 0.55);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
-.liquid-header-shell::after {
+/* granulado sutil no header (efeito premium, sem "cara de IA") */
+.liquid-header-navy::after {
   content: "";
   position: absolute;
   inset: 0;
   background: url('https://grainy-gradients.vercel.app/noise.svg');
-  opacity: 0.16;
+  opacity: 0.10;
   mix-blend-mode: soft-light;
   pointer-events: none;
 }
 
-/* ---- Painel claro com profundidade real (cards, seções da home) ---- */
+/* Cápsula "afundada" do header (busca, status) */
+.liquid-search-inset {
+  background: rgba(7, 15, 38, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ----------------------------------------------------------------- */
+/* PAINÉIS E CARTÕES LIQUID (Home, Caso em Foco, GlassBrowser)        */
+/* ----------------------------------------------------------------- */
 .liquid-panel {
   background: linear-gradient(180deg, #ffffff 0%, #f4f6fb 100%);
   border: 1px solid rgba(255, 255, 255, 0.9);
@@ -66,8 +79,6 @@ body {
     0 18px 40px -24px rgba(15, 23, 42, 0.35),
     0 2px 6px -2px rgba(15, 23, 42, 0.12);
 }
-
-/* ---- Painel escuro translúcido (modais glass, blocos sobre fundo escuro) ---- */
 .liquid-panel-dark {
   background: linear-gradient(180deg, rgba(28, 28, 38, 0.72) 0%, rgba(10, 10, 16, 0.82) 100%);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -78,8 +89,6 @@ body {
   backdrop-filter: blur(28px) saturate(150%);
   -webkit-backdrop-filter: blur(28px) saturate(150%);
 }
-
-/* ---- Card claro com relevo + hover (feed, clusters) ---- */
 .liquid-card {
   background: linear-gradient(180deg, #ffffff 0%, #f3f5fb 100%);
   border: 1px solid rgba(255, 255, 255, 0.9);
@@ -92,26 +101,23 @@ body {
 }
 .liquid-card:hover {
   transform: translateY(-2px);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 30px 60px -28px rgba(15, 23, 42, 0.50);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 30px 60px -28px rgba(15, 23, 42, 0.50);
 }
 
-/* ---- Botão primário liquid ---- */
+/* ----------------------------------------------------------------- */
+/* BOTÕES / PILLS / TABS LIQUID                                       */
+/* ----------------------------------------------------------------- */
 .liquid-button {
-  background: linear-gradient(180deg, #4f7cff 0%, #3b5bdb 100%);
+  background: linear-gradient(180deg, #2f4ea8 0%, #16244b 100%);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 1rem;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.25) inset,
-    0 14px 28px -14px rgba(59, 91, 219, 0.8);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 14px 28px -14px rgba(16, 36, 75, 0.8);
   transition: transform 0.15s ease, filter 0.15s ease;
 }
-.liquid-button:hover { filter: brightness(1.05); }
+.liquid-button:hover { filter: brightness(1.06); }
 .liquid-button:active { transform: scale(0.97); }
 
-/* ---- Botão secundário em vidro (sobre header/fundos escuros) ---- */
 .liquid-button-glass {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -125,58 +131,96 @@ body {
 .liquid-button-glass:hover { background: rgba(255, 255, 255, 0.10); }
 .liquid-button-glass:active { transform: scale(0.97); }
 
-/* ---- Cápsula de filtro (pills do feed) ---- */
-.liquid-pill {
-  background: linear-gradient(180deg, #ffffff, #eef1f7);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  border-radius: 999px;
-  color: #334155;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 6px 14px -8px rgba(15, 23, 42, 0.25);
-  transition: transform 0.15s ease, background 0.2s ease;
-}
-.liquid-pill:active { transform: scale(0.97); }
-.liquid-pill[data-active="true"] {
-  background: linear-gradient(180deg, #3b5bdb, #2f49b3);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.25);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.25) inset,
-    0 10px 20px -10px rgba(59, 91, 219, 0.7);
-}
-
-/* ---- Segmented tabs glass (Caso em Foco / Visão Geral etc.) ---- */
 .liquid-tabbar {
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 1rem;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 10px 24px -16px rgba(15, 23, 42, 0.3);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 24px -16px rgba(15, 23, 42, 0.3);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
-.liquid-tab {
-  border-radius: 0.75rem;
-  color: #475569;
-  transition: all 0.2s ease;
-}
+.liquid-tab { border-radius: 0.75rem; color: #475569; transition: all 0.2s ease; }
 .liquid-tab[data-active="true"] {
-  background: linear-gradient(180deg, #6366f1, #4f46e5);
+  background: linear-gradient(180deg, #2f4ea8, #16244b);
   color: #fff;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.25) inset,
-    0 10px 20px -12px rgba(79, 70, 229, 0.7);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 10px 20px -12px rgba(16, 36, 75, 0.7);
 }
 
-/* ---- Utilitários de relevo ---- */
-.liquid-inset {
+/* ===================================================================== */
+/* === NEUMORFISMO — ABA FEED (alto relevo, monocromático) ============= */
+/* Canvas cinza-frio (#e7e9ee) extraído dos prints. Pronto p/ Etapa 2.   */
+/* ===================================================================== */
+.neu-canvas { background: #e7e9ee; }
+
+.neu-raised {
+  background: #e9ebf0;
+  border-radius: 1.25rem;
   box-shadow:
-    inset 0 2px 6px rgba(15, 23, 42, 0.08),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.6);
+    -7px -7px 14px rgba(255, 255, 255, 0.9),
+    7px 7px 16px rgba(170, 180, 200, 0.5);
+  transition: box-shadow 0.22s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.liquid-highlight-top {
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+
+/* Cartão do feed (alto relevo, suave) */
+.neu-card {
+  background: #ebedf1;
+  border-radius: 1.75rem;
+  box-shadow:
+    -8px -8px 18px rgba(255, 255, 255, 0.95),
+    10px 10px 24px rgba(167, 178, 199, 0.55);
+  transition: box-shadow 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
+.neu-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    -8px -8px 18px rgba(255, 255, 255, 0.95),
+    14px 14px 30px rgba(160, 172, 195, 0.6);
+}
+
+/* Pill de filtro (inativo = relevo, ativo = navy puxado pra fora) */
+.neu-pill {
+  background: #e9ebf0;
+  color: #334155;
+  border-radius: 999px;
+  box-shadow:
+    -5px -5px 11px rgba(255, 255, 255, 0.9),
+    5px 5px 12px rgba(170, 180, 200, 0.5);
+  transition: box-shadow 0.18s ease, transform 0.15s ease;
+}
+.neu-pill:active { transform: scale(0.97); }
+.neu-pill[data-active="true"] {
+  background: linear-gradient(180deg, #2c3e6e 0%, #0a1739 70%);
+  color: #fff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    -3px -3px 8px rgba(255, 255, 255, 0.55),
+    7px 9px 20px rgba(10, 23, 57, 0.45);
+}
+
+/* Botão neumórfico quadrado (salvar / curtir / play) */
+.neu-btn {
+  background: #e9ebf0;
+  color: #1e293b;
+  border-radius: 1rem;
+  box-shadow:
+    -5px -5px 11px rgba(255, 255, 255, 0.9),
+    5px 5px 12px rgba(170, 180, 200, 0.5);
+  transition: box-shadow 0.16s ease, transform 0.14s ease, color 0.2s ease;
+}
+.neu-btn:hover { color: #0a1739; }
+.neu-btn:active, .neu-btn[data-active="true"] {
+  box-shadow:
+    inset -3px -3px 7px rgba(255, 255, 255, 0.85),
+    inset 4px 4px 9px rgba(167, 178, 199, 0.6);
+}
+
+/* Estado "afundado" genérico (inset) */
+.neu-inset {
+  box-shadow:
+    inset -3px -3px 7px rgba(255, 255, 255, 0.85),
+    inset 4px 4px 9px rgba(167, 178, 199, 0.6);
+}
+
+/* utilitários */
+.liquid-highlight-top { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset; }
 .liquid-divider { border-color: rgba(15, 23, 42, 0.06); }
