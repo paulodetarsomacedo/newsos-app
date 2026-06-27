@@ -21,6 +21,54 @@ import {
 } from 'lucide-react';
 
 
+// --- COPIE E COLA ESSA FUNÇÃO NO TOPO DO SEU PAGE.TSX ---
+const smartFeedSort = (items) => {
+  if (!items || items.length === 0) return [];
+  
+  // 1. Ordem inicial por data (mais recente primeiro)
+  let sorted = [...items].sort((a, b) => {
+      const timeA = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
+      const timeB = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
+      return timeB - timeA;
+  });
+  
+  // 2. Remoção de duplicatas (Títulos muito parecidos)
+  const unique = [];
+  const seenTitles = new Set();
+  
+  for (const item of sorted) {
+      if (!item || !item.title) continue;
+      const titleSnippet = item.title.toLowerCase().replace(/[^\w\s]/gi, '').split(/\s+/).slice(0, 4).join(' ');
+      if (!seenTitles.has(titleSnippet)) {
+          seenTitles.add(titleSnippet);
+          unique.push(item);
+      }
+  }
+
+  // 3. Algoritmo Anti-Cluster (Não repetir fonte seguida)
+  const spaced = [];
+  let lastSource = null;
+  let lastLastSource = null;
+
+  while (unique.length > 0) {
+      let foundIndex = unique.findIndex(item => item.source !== lastSource && item.source !== lastLastSource);
+      if (foundIndex === -1) {
+           foundIndex = unique.findIndex(item => item.source !== lastSource);
+      }
+      if (foundIndex === -1) {
+          foundIndex = 0;
+      }
+
+      const itemToInject = unique.splice(foundIndex, 1)[0];
+      spaced.push(itemToInject);
+      
+      lastLastSource = lastSource;
+      lastSource = itemToInject.source;
+  }
+
+  return spaced;
+};
+
 const safeLower = (v: any) => String(v ?? '').toLowerCase();
 
 
@@ -1298,8 +1346,7 @@ function FeedTab({
   const safeNews = useMemo(() => stableData || [], [stableData]);
   const filteredByCategory = useMemo(() => category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category), [safeNews, category]);
   const filteredBySource = useMemo(() => sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter), [filteredByCategory, sourceFilter]);
-  const sortedFeed = useMemo(() => [...filteredBySource].sort((a, b) => (new Date(b.rawDate).getTime() || 0) - (new Date(a.rawDate).getTime() || 0)), [filteredBySource]);
-  const uniqueNews = useMemo(() => {
+const sortedFeed = useMemo(() => smartFeedSort(filteredBySource), [filteredBySource]);  const uniqueNews = useMemo(() => {
       const seen = new Set();
       return sortedFeed.filter(item => {
           if (seen.has(item.id)) return false;

@@ -131,6 +131,26 @@ function extractYoutubeId(url: string): string | null {
 }
 function repairXML(xml: string): string { return xml.replace(/&(?!(?:[a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});)/gi, '&amp;'); }
 
+// --- COLE ESTA FUNÇÃO AUXILIAR ---
+async function fetchYoutubeChannelAvatar(channelId: string): Promise<string | null> {
+  try {
+    const url = `https://www.youtube.com/channel/${channelId}`;
+    const res = await fetch(url, {
+      headers: { 
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' 
+      }
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) || 
+                  html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    return match ? match[1].trim() : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+
 // --- SUBSITUA A PARTIR DAQUI (LINHA 110 APROX.) ATÉ O FIM DO ARQUIVO ---
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -194,7 +214,16 @@ serve(async (req) => {
     const feed = await parser.parseString(repairXML(xmlText));
     let isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
 
-    let feedLogo = feed.image?.url;
+   let feedLogo = feed.image?.url;
+    
+    // Se for YouTube, busca o avatar oficial via raspagem em nível de servidor (evitando bloqueios no navegador)
+    if (isYoutube) {
+       const channelId = url.match(/channel_id=([^&]+)/)?.[1] || url.match(/user=([^&]+)/)?.[1];
+       if (channelId) {
+          const scrapedAvatar = await fetchYoutubeChannelAvatar(channelId);
+          if (scrapedAvatar) feedLogo = scrapedAvatar;
+       }
+    }
     if (!isYoutube && !feedLogo) {
        try {
          const domain = new URL(feed.link || url).hostname;
