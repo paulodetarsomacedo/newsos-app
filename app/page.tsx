@@ -630,11 +630,7 @@ const fetchMarketData = async () => {
     }
   };
 
-  useEffect(() => {
-    fetchMarketData();
-    const interval = setInterval(fetchMarketData, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+// (ticker movido p/ "Mercados Hoje" — busca de mercado desativada no header)
 
   const TICKERS = [
       { id: 'USDBRL=X', label: 'USD', icon: DollarSign },
@@ -2344,7 +2340,76 @@ const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
 };
 
 
+// === MARKET TICKER (Etapa 4.2) — autônomo: preços reais + faixa rolante ===
+// Movido p/ "Mercados Hoje". Busca própria (mesma lógica do header antigo).
+const MARKET_TICKERS = [
+  { id: 'USDBRL=X', label: 'USD', icon: DollarSign },
+  { id: 'EURBRL=X', label: 'EUR', icon: Euro },
+  { id: 'BTC-USD',  label: 'BTC', icon: Bitcoin },
+  { id: '^BVSP',    label: 'IBOV', icon: Activity },
+  { id: '^IXIC',    label: 'NDX',  icon: Zap },
+  { id: 'VALE3.SA', label: 'VALE3', icon: TrendingUp },
+  { id: 'PETR4.SA', label: 'PETR4', icon: TrendingDown },
+];
 
+const MarketTicker = ({ isDarkMode }) => {
+  const [data, setData] = useState({});
+  useEffect(() => {
+    let alive = true;
+    const fetchMarketData = async () => {
+      const symbols = ['USDBRL=X', 'EURBRL=X', 'BTC-USD', '^BVSP', '^IXIC', 'VALE3.SA', 'PETR4.SA'];
+      const newData = {};
+      await Promise.all(symbols.map(async (symbol) => {
+        try {
+          const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+          const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+          const res = await fetch(proxyUrl);
+          if (!res.ok) throw new Error('net');
+          const json = JSON.parse(await res.text());
+          const meta = json.chart?.result?.[0]?.meta;
+          if (meta) {
+            const price = meta.regularMarketPrice;
+            const isUp = (price - meta.chartPreviousClose) >= 0;
+            let valDisplay = '...';
+            if (price) {
+              valDisplay = (symbol === '^BVSP' || symbol === '^IXIC' || symbol === 'BTC-USD')
+                ? (price / 1000).toFixed(1) + 'k'
+                : price.toFixed(2).replace('.', ',');
+            }
+            newData[symbol] = { val: valDisplay, up: isUp };
+          }
+        } catch (e) { newData[symbol] = { val: 'err', up: false }; }
+      }));
+      if (alive) setData(prev => ({ ...prev, ...newData }));
+    };
+    fetchMarketData();
+    const interval = setInterval(fetchMarketData, 5 * 60 * 1000);
+    return () => { alive = false; clearInterval(interval); };
+  }, []);
+
+  return (
+    <div className="relative w-full overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]">
+      <style>{`@keyframes mkt-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
+      <div className="flex w-max animate-[mkt-scroll_45s_linear_infinite] hover:[animation-play-state:paused]">
+        {[...MARKET_TICKERS, ...MARKET_TICKERS, ...MARKET_TICKERS].map((t, i) => {
+          const d = data[t.id];
+          const up = d?.up;
+          const Icon = t.icon;
+          return (
+            <div key={`${t.id}-${i}`} className="flex items-center gap-2 px-3.5 py-2 mx-1.5 rounded-xl bg-white/70 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-sm shrink-0">
+              <Icon size={13} className="text-zinc-400 dark:text-zinc-500 shrink-0" />
+              <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">{t.label}</span>
+              <span className="text-[11px] font-bold text-zinc-900 dark:text-white">{d?.val || '...'}</span>
+              <span className={up ? 'text-emerald-500' : 'text-rose-500'}>
+                {up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 // --- WIDGET: MARKET PULSE (V6 - DESIGN PREMIUM E IA INTEGRADA) ---
 const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
@@ -5012,15 +5077,16 @@ const handleTouchEnd = async () => {
               </div>
               <h3 className="text-[20px] font-bold tracking-tight text-zinc-900 dark:text-white">Mercados Hoje</h3>
           </div>
-          <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
-            <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-              <MarketPulseWidget 
-                newsData={newsData}
-                getApiKey={getApiKey}
-                isDarkMode={isDarkMode}
-                openArticle={openArticle}
-              />
-            </div>
+     {/* 4.2: painel de vidro limpo (sem borda gradiente roxa) com ticker + análise */}
+          <div className="glass-card p-4 space-y-4">
+            <MarketTicker isDarkMode={isDarkMode} />
+            <div className="h-px bg-zinc-200/60 dark:bg-white/10" />
+            <MarketPulseWidget 
+              newsData={newsData}
+              getApiKey={getApiKey}
+              isDarkMode={isDarkMode}
+              openArticle={openArticle}
+            />
           </div>
       </div>
     </div>
