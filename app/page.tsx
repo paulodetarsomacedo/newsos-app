@@ -6882,319 +6882,263 @@ const handleStoryNavigation = (direction) => {
     }
 };
 
-  // --- FETCH FEEDS BLINDADO V5 (COMPLETO E SEM ABREVIAÇÕES) ---
-const fetchFeeds = async (forceRefresh = false) => {
-    // Se não houver feeds para carregar, limpa os estados e encerra a função.
-    if (userFeeds.length === 0) {
-        setRealNews([]);
-        setRealVideos([]);
-        setRealPodcasts([]);
-        return;
+// --- FUNÇÃO AUXILIAR: ORDENAÇÃO INTELIGENTE (ANTI-REPETIÇÃO E DEDUPLICAÇÃO) ---
+  const smartFeedSort = (items) => {
+    if (!items || items.length === 0) return [];
+    
+    // 1. Ordem inicial por data (mais recente primeiro)
+    let sorted = [...items].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+    
+    // 2. Remoção de duplicatas (Títulos iguais ou quase idênticos)
+    const unique = [];
+    const seenTitles = new Set();
+    
+    for (const item of sorted) {
+        // Pega as 4 primeiras palavras do título para checar repetição entre fontes
+        const titleSnippet = item.title.toLowerCase().replace(/[^\w\s]/gi, '').split(/\s+/).slice(0, 4).join(' ');
+        if (!seenTitles.has(titleSnippet)) {
+            seenTitles.add(titleSnippet);
+            unique.push(item);
+        }
     }
 
-    setIsLoadingFeeds(true);
-    
-    // Arrays temporários para acumular notícias de todos os feeds.
-    let allNewsItems = [];
-    let allVideoItems = [];
-    let allPodcastItems = [];
-    
-    // Array para feeds que precisam ter o título atualizado (ex: 'Nova Fonte').
-    let feedsThatNeedUpdate = [];
-    
-    // Buffer para manter o histórico de timestamps e evitar que notícias "pulem" na lista.
-    let newHistoryBuffer = { ...articleHistory };
+    // 3. Algoritmo Anti-Cluster (Não repetir fonte seguida)
+    const spaced = [];
+    let lastSource = null;
+    let lastLastSource = null; // Memoriza as duas últimas para evitar padrão A, B, A, B
 
-    // Tempo de vida do cache em milissegundos (20 minutos).
-    const CACHE_TTL = 20 * 60 * 1000; 
-
-    // Mapeia cada feed para uma Promise que vai buscar e processar seus dados.
-    const promises = userFeeds.map(async (feed) => {
-        // Pula feeds sem URL configurada.
-        if (!feed.url || !feed.url.trim()) {
-            console.warn(`[AVISO DE DADOS] Fonte ignorada por não ter URL:`, feed);
-            return;
+    while (unique.length > 0) {
+        // Procura uma notícia que não seja da mesma fonte das duas últimas
+        let foundIndex = unique.findIndex(item => item.source !== lastSource && item.source !== lastLastSource);
+        
+        // Se não achar, tenta apenas diferente da última
+        if (foundIndex === -1) {
+             foundIndex = unique.findIndex(item => item.source !== lastSource);
         }
         
-        // Variáveis de escopo para este feed específico.
-        let feedItems = [];
-        let currentFeedTitle = feed.name; 
-        let detectedXmlTitle = "";
-        let feedLogo = null;
-        let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
-        let usedCache = false;
-        const cacheKey = `${FEED_CACHE_PREFIX}${feed.id}`; 
-
-        // --- CAMADA 1: MEMÓRIA RAM (CACHE RÁPIDO) ---
-        if (!forceRefresh && feedMemoryBuffer.current[feed.id]) {
-            const memData = feedMemoryBuffer.current[feed.id];
-            const now = Date.now();
-            if (now - memData.timestamp < CACHE_TTL) {
-                feedItems = memData.items;
-                detectedXmlTitle = memData.title;
-                feedLogo = memData.logo;
-                if (memData.isYoutube) isFeedYoutube = true;
-                usedCache = true;
-            }
+        // Se ainda não achar, pega a primeira da fila (não há mais como evitar repetição)
+        if (foundIndex === -1) {
+            foundIndex = 0;
         }
 
-        // --- CAMADA 2: DISCO (CACHE PERSISTENTE) ---
-        if (!usedCache && !forceRefresh) {
-            try {
-                const cachedRaw = localStorage.getItem(cacheKey);
-                if (cachedRaw) {
-                    const cachedData = JSON.parse(cachedRaw);
-                    const now = Date.now();
-                    if (now - cachedData.timestamp < CACHE_TTL) {
-                        feedItems = cachedData.items || [];
-                        detectedXmlTitle = cachedData.title || "";
-                        feedLogo = cachedData.logo || null;
-                        if (cachedData.isYoutube) isFeedYoutube = true;
-                        feedMemoryBuffer.current[feed.id] = cachedData; 
-                        usedCache = true;
-                    }
-                }
-            } catch (cacheErr) {
-                console.warn(`Cache de disco ilegível para ${feed.name}`);
-            }
-        }
-
-        // --- CAMADA 3: BUSCA REAL ---
-        if (!usedCache) {
-            let success = false;
-            
-            // TENTATIVA 1: SUPABASE
-            try {
-                const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
-                if (!error && data && data.items && data.items.length > 0) {
-                    feedItems = data.items;
-                    detectedXmlTitle = data.title;
-                    feedLogo = data.image;
-                    if (data.isYoutube) isFeedYoutube = true;
-                    success = true;
-                }
-            } catch (e) {}
-
-            // TENTATIVA 2: PROXY VERCEL
-            if (!success) {
-                try {
-                    const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`;
-                    const res = await fetch(proxyUrl);
-                    if (!res.ok) throw new Error(`Proxy status: ${res.status}`);
-                    const xmlText = await res.text();
-                    if (!xmlText || xmlText.length < 50) throw new Error("XML Inválido");
-                    const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
-                    if (parsedData.items.length > 0) {
-                        feedItems = parsedData.items;
-                        detectedXmlTitle = parsedData.realTitle; 
-                        feedLogo = parsedData.realLogo;
-                        success = true;
-                    }
-                } catch (proxyErr) {
-                    console.error(`Erro total no fetch de ${feed.name}:`, proxyErr);
-                }
-            }
-            
-            if (success && feedItems.length > 0) {
-                const cachePayload = { timestamp: Date.now(), items: feedItems, title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube };
-                feedMemoryBuffer.current[feed.id] = cachePayload;
-                try {
-                    localStorage.setItem(cacheKey, JSON.stringify(cachePayload));
-                } catch (e) {
-                    cleanUpCache(); 
-                }
-            }
-        }
-
-        // Atualização de títulos genéricos
-        if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
-            currentFeedTitle = detectedXmlTitle || feed.name;
-            feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
-        }
-
-        // --- DEFINIÇÃO DE LOGO ---
-  let finalLogo = feedLogo;
-        const lowerName = safeLower(currentFeedTitle);
-const lowerUrl = safeLower(feed?.url);
-
-        // 1. Dicionário Manual de Ícones
-        if (lowerName.includes('investnews')) {
-            finalLogo = 'https://media.licdn.com/dms/image/v2/D4D0BAQES2TW4kCWAHg/company-logo_200_200/company-logo_200_200/0/1709575002406/investnewsbr_logo?e=2147483647&v=beta&t=8CtOWb8yD8V_BkdM-Oc82N44dygx6y6FXUYrnOPt0IM';
-        } 
-        else if (lowerName.includes('valor investe')) {
-            finalLogo = 'https://s2-valor-investe.glbimg.com/aDBdPPmCO_D-Ta4FTzx4OJmuWEE=/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_f035dd6fd91c438fa04ab718d608bbaa/internal_photos/bs/2019/Q/I/KlbOBJSh6NyJ7CNJz6jA/fb-investe.png'; 
-        }
-        else if (lowerName.includes('valor economico') || lowerName.includes('valor econômico')) {
-            finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSzaIMqhf99JTJqG1Cbu7Kil51_jH42uWGg0w&s';
-        }
-        else if (lowerName.includes('estadao investidor') || lowerName.includes('estadão e investidor')) {
-            finalLogo = 'https://m2comunicacao.com.br/wp-content/uploads/2024/06/imagem_2024-06-17_155521691.png';
-        }
-        else if (lowerName.includes('estadao') || lowerUrl.includes('estadao.com.br')) {
-            finalLogo = 'https://startse-uploader.s3.us-east-2.amazonaws.com/medium_estadao_72c3731a48.jpg';
-        }
-        else if (lowerName.includes('istoé dinheiro') || lowerName.includes('istoe dinheiro')) {
-            finalLogo = 'https://yt3.googleusercontent.com/aLYyxdR5JLMcp4KxNttXhoXM3lEDdUh22tXJsHe3rQYf71xQhv_PDAT75xpoSFtKgaALcMCw=s900-c-k-c0x00ffffff-no-rj';
-        }
-        else if (lowerName.includes('uol economia') || lowerUrl.includes('uol economia')) {
-            finalLogo = 'https://conteudo.imguol.com.br/c/noticias/a9/2020/06/15/logotipo-uol---junho-2020-1592225150823_v2_826x826.png';
-        }
-        else if (lowerName.includes('folha de sao paulo') || lowerUrl.includes('folhadesaopaulo.com.br')) {
-            finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/04/Folha-de-Sao-Paulo.png';
-        }
-        else if (lowerName.includes('uol notícias') || lowerUrl.includes('noticias.uol')) {
-            finalLogo = 'https://voxnews.com.br/wp-content/uploads/2019/06/uol_logo.png';
-        }
-        else if (lowerName.includes('portal band') || lowerUrl.includes('band.com.br')) {
-            finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/01/Logo-Band.png';
-        }
-        else if (lowerName.includes('fox news') || lowerUrl.includes('foxnews.com')) {
-            finalLogo = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png';
-        }
-        else if (lowerName.includes('tech tudo') || lowerUrl.includes('techtudo.com.br')) {
-            finalLogo = 'https://s2-techtudo.glbimg.com/ClxoTfu8WQM9Z32HOq8-JoIn6kQ=/0x0:1000x1000/https://i.s3.glbimg.com/v1/AUTH_08fbf48bc0524877943fe86e43087e7a/internal_photos/bs/2024/D/y/j1anEBTaq7PDyELOMlsQ/techtudo-logo.png';
-        }
-        else if (lowerName.includes('money times') || lowerUrl.includes('moneytimes.com.br')) {
-            finalLogo = 'https://yt3.googleusercontent.com/2_4tkB-A3O4dkQUh697ksz6cNVDltiVMlSFmnWF9-7yBytKquVH_myUmtYiv3PKufBreGsYlmQ=s900-c-k-c0x00ffffff-no-rj';
-        }
-        else if (lowerName.includes('piaui hoje') || lowerUrl.includes('piauihoje.com')) {
-            finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6uiO4AtPH2uxKoEbqmsLXA5qR0voQ7Dd3xg&s';
-        }
-        else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) {
-            finalLogo = 'https://motor1.uol.com.br/logo_square.png';
-        }
-        else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) {
-            finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
-        }
-        else if (lowerName.includes('extra') || lowerUrl.includes('extra.globo.com')) {
-            finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSHwU53hYcTA87KGMdvumyIbxKsOi-OflNnIw&s';
-        }
-        else if (isFeedYoutube) {
-            const letterAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128&bold=true`;
-            const channelIdMatch = feed.url.match(/channel_id=([^&]+)/);
-            const userMatch = feed.url.match(/user=([^&]+)/);
-            if (channelIdMatch) finalLogo = `https://unavatar.io/youtube/${channelIdMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
-            else if (userMatch) finalLogo = `https://unavatar.io/youtube/${userMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
-            else finalLogo = letterAvatar;
-        }
-        else if (!finalLogo) {
-           try {
-               const domain = new URL(feed.url).hostname;
-               finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-           } catch (e) {
-               finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`;
-           }
-        }
-
-        let LIMIT = 20; 
-        if (feed.type === 'podcast') LIMIT = 1; 
-        else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
-
-        // --- PROCESSAMENTO DOS ITENS E CORREÇÃO DE HORÁRIO ---
-        const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
-            const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
-            
-            // Tenta extrair a data de múltiplos campos comuns em RSS/Atom
-            const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
-            
-            let originalTimestamp;
-            const parsedDate = new Date(rawDateString);
-            
-            // Valida se a data extraída é real
-            if (rawDateString && !isNaN(parsedDate.getTime())) {
-                originalTimestamp = parsedDate.getTime();
-            } else {
-                // Se o feed não enviou data, usamos a hora atual menos um atraso base de 15 min
-                // Isso evita que notícias sem data "pulem" para o topo como se fossem de agora.
-                originalTimestamp = Date.now() - (15 * 60 * 1000);
-            }
-
-            // LÓGICA DE DESAGRUPAMENTO (OFFSET):
-            // Para evitar que notícias da mesma fonte fiquem com a hora idêntica (mesmo segundo),
-            // aplicamos um atraso artificial de 5 a 8 minutos multiplicado pela posição do item.
-            // Isso "espalha" as notícias da Veja/Uol/Estadão cronologicamente no feed.
-            const minutesToSubtract = index * (6 + Math.floor(Math.random() * 3)); 
-            const finalCalculatedTimestamp = originalTimestamp - (minutesToSubtract * 60 * 1000);
-
-            // Verifica histórico para manter a posição consistente durante a navegação
-            const finalTimestamp = newHistoryBuffer[uniqueId] || finalCalculatedTimestamp;
-            newHistoryBuffer[uniqueId] = finalTimestamp;
-            
-            const finalDateObj = new Date(finalTimestamp);
-            
-            // Correção para feeds com data no futuro (ex: Investing)
-            if (lowerName.includes('investing') || lowerUrl.includes('investing')) {
-                if (finalDateObj > new Date()) {
-                    finalDateObj.setTime(Date.now() - (20 * 60 * 1000));
-                }
-            }
-
-            const itemSummary = (item.summary || item.description || '').replace(/<[^>]*>?/gm, '').slice(0, 800) + '...';
-            const primaryLink = item.link;
-            const audioReal = item.audioFile;
-            const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
-            
-            let finalType = 'link'; 
-            if (isYoutubeItem) finalType = 'video';
-else if (audioReal || primaryLink?.endsWith('.mp3')) finalType = 'audio'; 
-            return {
-                id: uniqueId,
-                source: currentFeedTitle, 
-                logo: finalLogo, 
-                time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                rawDate: finalDateObj, 
-                title: item.title,
-                summary: itemSummary,
-                category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'),
-                type: finalType, 
-                img: item.img || item.image || finalLogo,
-                link: primaryLink, 
-                audio: audioReal || (primaryLink?.endsWith('.mp3') ? primaryLink : null),
-                videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
-                date: finalDateObj.toLocaleDateString(),
-            };
-        });
-
-
-        if (feed.type === 'podcast') {
-    console.log(`[FetchFeeds Check] Itens de Podcast para "${currentFeedTitle}":`, processedItems);
-}
-
-        if (feed.type === 'podcast') {
-            allPodcastItems.push(...processedItems);
-        } 
-        else if (feed.type === 'youtube' || isFeedYoutube) {
-            allVideoItems.push(...processedItems);
-        } 
-        else {
-            allNewsItems.push(...processedItems);
-        }
-    });
-
-    // Aguarda todas as buscas terminarem
-    await Promise.all(promises);
-
-    // Atualiza nomes de fontes se necessário
-    if (feedsThatNeedUpdate.length > 0) {
-        setUserFeeds(prev => prev.map(f => {
-            const update = feedsThatNeedUpdate.find(u => u.id === f.id);
-            return update ? { ...f, name: update.name } : f;
-        }));
+        const itemToInject = unique.splice(foundIndex, 1)[0];
+        spaced.push(itemToInject);
+        
+        lastLastSource = lastSource;
+        lastSource = itemToInject.source;
     }
 
-    // Salva o novo histórico de tempos
-    setArticleHistory(newHistoryBuffer);
+    return spaced;
+  };
 
-    // ORDENAÇÃO FINAL: Crucial para o feed não ficar bagunçado
-    // Com os milissegundos agora únicos graças ao "offset", o sort funciona perfeitamente.
-    const sortFn = (a, b) => b.rawDate.getTime() - a.rawDate.getTime();
-    
-    setRealNews([...allNewsItems].sort(sortFn));
-    setRealVideos([...allVideoItems].sort(sortFn));
-    setRealPodcasts([...allPodcastItems].sort(sortFn));
-    
-    setIsLoadingFeeds(false);
-};
+  // --- FETCH FEEDS BLINDADO V6 (LOTES + ANTI-CLUSTERING) ---
+  const fetchFeeds = async (forceRefresh = false) => {
+      if (userFeeds.length === 0) {
+          setRealNews([]); setRealVideos([]); setRealPodcasts([]); return;
+      }
+  
+      setIsLoadingFeeds(true);
+      
+      let allNewsItems = [];
+      let allVideoItems = [];
+      let allPodcastItems = [];
+      let feedsThatNeedUpdate = [];
+      let newHistoryBuffer = { ...articleHistory };
+      const CACHE_TTL = 20 * 60 * 1000; 
+  
+      // Filtra apenas os feeds válidos
+      const activeFeeds = userFeeds.filter(f => f.url && f.url.trim());
+      const BATCH_SIZE = 3; // O SEGREDO: Processa de 3 em 3 para não dar Timeout
+  
+      for (let i = 0; i < activeFeeds.length; i += BATCH_SIZE) {
+          const batch = activeFeeds.slice(i, i + BATCH_SIZE);
+          
+          await Promise.all(batch.map(async (feed) => {
+              let feedItems = [];
+              let currentFeedTitle = feed.name; 
+              let detectedXmlTitle = "";
+              let feedLogo = null;
+              let isFeedYoutube = feed.url.includes('youtube.com') || feed.url.includes('youtu.be');
+              let usedCache = false;
+              const cacheKey = `${FEED_CACHE_PREFIX}${feed.id}`; 
+      
+              // --- CAMADA 1: RAM ---
+              if (!forceRefresh && feedMemoryBuffer.current[feed.id]) {
+                  const memData = feedMemoryBuffer.current[feed.id];
+                  const now = Date.now();
+                  if (now - memData.timestamp < CACHE_TTL) {
+                      feedItems = memData.items; detectedXmlTitle = memData.title; feedLogo = memData.logo;
+                      if (memData.isYoutube) isFeedYoutube = true; usedCache = true;
+                  }
+              }
+      
+              // --- CAMADA 2: DISCO ---
+              if (!usedCache && !forceRefresh) {
+                  try {
+                      const cachedRaw = localStorage.getItem(cacheKey);
+                      if (cachedRaw) {
+                          const cachedData = JSON.parse(cachedRaw);
+                          if (Date.now() - cachedData.timestamp < CACHE_TTL) {
+                              feedItems = cachedData.items || []; detectedXmlTitle = cachedData.title || ""; feedLogo = cachedData.logo || null;
+                              if (cachedData.isYoutube) isFeedYoutube = true;
+                              feedMemoryBuffer.current[feed.id] = cachedData; usedCache = true;
+                          }
+                      }
+                  } catch (e) {}
+              }
+      
+              // --- CAMADA 3: BUSCA REAL ---
+              if (!usedCache) {
+                  let success = false;
+                  try {
+                      const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
+                      if (!error && data && data.items && data.items.length > 0) {
+                          feedItems = data.items; detectedXmlTitle = data.title; feedLogo = data.image;
+                          if (data.isYoutube) isFeedYoutube = true; success = true;
+                      }
+                  } catch (e) {}
+      
+                  if (!success) {
+                      try {
+                          const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`;
+                          const res = await fetch(proxyUrl);
+                          if (res.ok) {
+                              const xmlText = await res.text();
+                              const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
+                              if (parsedData.items.length > 0) {
+                                  feedItems = parsedData.items; detectedXmlTitle = parsedData.realTitle; feedLogo = parsedData.realLogo; success = true;
+                              }
+                          }
+                      } catch (e) { console.error(`Erro proxy ${feed.name}`); }
+                  }
+                  
+                  if (success && feedItems.length > 0) {
+                      const cachePayload = { timestamp: Date.now(), items: feedItems, title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube };
+                      feedMemoryBuffer.current[feed.id] = cachePayload;
+                      try { localStorage.setItem(cacheKey, JSON.stringify(cachePayload)); } catch (e) { cleanUpCache(); }
+                  }
+              }
+      
+              if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
+                  currentFeedTitle = detectedXmlTitle || feed.name;
+                  feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
+              }
+      
+              // --- DEFINIÇÃO DE LOGOS (MANTIDA) ---
+              let finalLogo = feedLogo;
+              const lowerName = String(currentFeedTitle).toLowerCase();
+              const lowerUrl = String(feed.url).toLowerCase();
+      
+              if (lowerName.includes('investnews')) finalLogo = 'https://media.licdn.com/dms/image/v2/D4D0BAQES2TW4kCWAHg/company-logo_200_200/company-logo_200_200/0/1709575002406/investnewsbr_logo?e=2147483647&v=beta&t=8CtOWb8yD8V_BkdM-Oc82N44dygx6y6FXUYrnOPt0IM';
+              else if (lowerName.includes('valor investe')) finalLogo = 'https://s2-valor-investe.glbimg.com/aDBdPPmCO_D-Ta4FTzx4OJmuWEE=/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_f035dd6fd91c438fa04ab718d608bbaa/internal_photos/bs/2019/Q/I/KlbOBJSh6NyJ7CNJz6jA/fb-investe.png'; 
+              else if (lowerName.includes('valor economico') || lowerName.includes('valor econômico')) finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSzaIMqhf99JTJqG1Cbu7Kil51_jH42uWGg0w&s';
+              else if (lowerName.includes('estadao investidor') || lowerName.includes('estadão e investidor')) finalLogo = 'https://m2comunicacao.com.br/wp-content/uploads/2024/06/imagem_2024-06-17_155521691.png';
+              else if (lowerName.includes('estadao') || lowerUrl.includes('estadao.com.br')) finalLogo = 'https://startse-uploader.s3.us-east-2.amazonaws.com/medium_estadao_72c3731a48.jpg';
+              else if (lowerName.includes('istoé dinheiro') || lowerName.includes('istoe dinheiro')) finalLogo = 'https://yt3.googleusercontent.com/aLYyxdR5JLMcp4KxNttXhoXM3lEDdUh22tXJsHe3rQYf71xQhv_PDAT75xpoSFtKgaALcMCw=s900-c-k-c0x00ffffff-no-rj';
+              else if (lowerName.includes('uol economia') || lowerUrl.includes('uol economia')) finalLogo = 'https://conteudo.imguol.com.br/c/noticias/a9/2020/06/15/logotipo-uol---junho-2020-1592225150823_v2_826x826.png';
+              else if (lowerName.includes('folha de sao paulo') || lowerUrl.includes('folhadesaopaulo.com.br')) finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/04/Folha-de-Sao-Paulo.png';
+              else if (lowerName.includes('uol notícias') || lowerUrl.includes('noticias.uol')) finalLogo = 'https://voxnews.com.br/wp-content/uploads/2019/06/uol_logo.png';
+              else if (lowerName.includes('portal band') || lowerUrl.includes('band.com.br')) finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/01/Logo-Band.png';
+              else if (lowerName.includes('fox news') || lowerUrl.includes('foxnews.com')) finalLogo = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png';
+              else if (lowerName.includes('tech tudo') || lowerUrl.includes('techtudo.com.br')) finalLogo = 'https://s2-techtudo.glbimg.com/ClxoTfu8WQM9Z32HOq8-JoIn6kQ=/0x0:1000x1000/https://i.s3.glbimg.com/v1/AUTH_08fbf48bc0524877943fe86e43087e7a/internal_photos/bs/2024/D/y/j1anEBTaq7PDyELOMlsQ/techtudo-logo.png';
+              else if (lowerName.includes('money times') || lowerUrl.includes('moneytimes.com.br')) finalLogo = 'https://yt3.googleusercontent.com/2_4tkB-A3O4dkQUh697ksz6cNVDltiVMlSFmnWF9-7yBytKquVH_myUmtYiv3PKufBreGsYlmQ=s900-c-k-c0x00ffffff-no-rj';
+              else if (lowerName.includes('piaui hoje') || lowerUrl.includes('piauihoje.com')) finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6uiO4AtPH2uxKoEbqmsLXA5qR0voQ7Dd3xg&s';
+              else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) finalLogo = 'https://motor1.uol.com.br/logo_square.png';
+              else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
+              else if (lowerName.includes('extra') || lowerUrl.includes('extra.globo.com')) finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSHwU53hYcTA87KGMdvumyIbxKsOi-OflNnIw&s';
+              else if (isFeedYoutube) {
+                  const letterAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128&bold=true`;
+                  const channelIdMatch = feed.url.match(/channel_id=([^&]+)/);
+                  const userMatch = feed.url.match(/user=([^&]+)/);
+                  if (channelIdMatch) finalLogo = `https://unavatar.io/youtube/${channelIdMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
+                  else if (userMatch) finalLogo = `https://unavatar.io/youtube/${userMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
+                  else finalLogo = letterAvatar;
+              }
+              else if (!finalLogo) {
+                 try { const domain = new URL(feed.url).hostname; finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`; } 
+                 catch (e) { finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`; }
+              }
+      
+              let LIMIT = 20; 
+              if (feed.type === 'podcast') LIMIT = 1; 
+              else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
+      
+              // --- PROCESSAMENTO DOS ITENS ---
+              const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
+                  const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
+                  const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
+                  
+                  let originalTimestamp;
+                  const parsedDate = new Date(rawDateString);
+                  if (rawDateString && !isNaN(parsedDate.getTime())) originalTimestamp = parsedDate.getTime();
+                  else originalTimestamp = Date.now() - (15 * 60 * 1000);
+      
+                  const minutesToSubtract = index * (6 + Math.floor(Math.random() * 3)); 
+                  const finalCalculatedTimestamp = originalTimestamp - (minutesToSubtract * 60 * 1000);
+      
+                  const finalTimestamp = newHistoryBuffer[uniqueId] || finalCalculatedTimestamp;
+                  newHistoryBuffer[uniqueId] = finalTimestamp;
+                  
+                  const finalDateObj = new Date(finalTimestamp);
+                  if ((lowerName.includes('investing') || lowerUrl.includes('investing')) && finalDateObj > new Date()) {
+                      finalDateObj.setTime(Date.now() - (20 * 60 * 1000));
+                  }
+      
+                  const itemSummary = (item.summary || item.description || '').replace(/<[^>]*>?/gm, '').slice(0, 800) + '...';
+                  const primaryLink = item.link;
+                  const audioReal = item.audioFile;
+                  const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
+                  
+                  let finalType = 'link'; 
+                  if (isYoutubeItem) finalType = 'video';
+                  else if (audioReal || primaryLink?.endsWith('.mp3')) finalType = 'audio'; 
+                  
+                  return {
+                      id: uniqueId,
+                      source: currentFeedTitle, 
+                      logo: finalLogo, 
+                      time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      rawDate: finalDateObj, 
+                      title: item.title,
+                      summary: itemSummary,
+                      category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'),
+                      type: finalType, 
+                      img: item.img || item.image || finalLogo,
+                      link: primaryLink, 
+                      audio: audioReal || (primaryLink?.endsWith('.mp3') ? primaryLink : null),
+                      videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
+                      date: finalDateObj.toLocaleDateString(),
+                  };
+              });
+      
+              if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
+              else if (feed.type === 'youtube' || isFeedYoutube) allVideoItems.push(...processedItems);
+              else allNewsItems.push(...processedItems);
+          }));
+          
+          // O SEGREDO DO BATCHING: Dá um "respiro" de 250ms para a CPU/Navegador desenhar a tela antes do próximo lote.
+          await new Promise(resolve => setTimeout(resolve, 250));
+      }
+  
+      if (feedsThatNeedUpdate.length > 0) {
+          setUserFeeds(prev => prev.map(f => {
+              const update = feedsThatNeedUpdate.find(u => u.id === f.id);
+              return update ? { ...f, name: update.name } : f;
+          }));
+      }
+  
+      setArticleHistory(newHistoryBuffer);
+  
+      // --- ORDENAÇÃO FINAL COM O ALGORITMO PREMIUM ---
+      setRealNews(smartFeedSort(allNewsItems));
+      
+      // Vídeos e Podcasts apenas ordenamos por data
+      const sortFn = (a, b) => b.rawDate.getTime() - a.rawDate.getTime();
+      setRealVideos([...allVideoItems].sort(sortFn));
+      setRealPodcasts([...allPodcastItems].sort(sortFn));
+      
+      setIsLoadingFeeds(false);
+  };
 
 
 

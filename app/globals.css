@@ -14,7 +14,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #09090b;
+    --background: #0a0a0a;
     --foreground: #ededed;
   }
 }
@@ -22,202 +22,190 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 /* ===================================================================== */
-/* === VETRA — ENGENHARIA REVERSA DO PRINT ORIGINAL (NAVY 3D) ========== */
+/* === VETRA — DESIGN SYSTEM (LIQUID GLASS) ============================ */
+/* Tokens extraídos pixel a pixel dos prints de referência.              */
+/* Aditivo: não altera nada do CSS original acima.                       */
 /* ===================================================================== */
 
 /* ----------------------------------------------------------------- */
-/* 1. HEADER GLOBAL — A "Barra" Azul Marinho Profunda                */
-/* Base densa, esculpida, com reflexo de luz no topo e sombra na base*/
+/* HEADER GLOBAL — barra navy "inflada", liquid glass premium         */
+/*   • realce no topo (#28386a) esvaindo p/ base escura (#0a1a3d)      */
+/*   • sheen branco no topo (::before)  • granulado sutil (::after)    */
+/*   • sombra externa suave + highlight interno = aspecto "puffy"      */
 /* ----------------------------------------------------------------- */
 .liquid-header-navy {
   position: relative;
-  /* O tom exato de azul noturno do seu print */
-  background: linear-gradient(180deg, #111a35 0%, #090e1f 100%);
-  border-radius: 1.9rem; /* Arredondamento perfeito */
-  
-  /* A mágica do 3D volumoso (Puffy) */
+  background: linear-gradient(180deg, #28386a 0%, #1b2b54 42%, #0a1a3d 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
-    inset 0 2px 3px rgba(255, 255, 255, 0.15),  /* Luz suave batendo no topo */
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),    /* Linha de luz dura na borda extrema superior */
-    inset 0 -8px 20px rgba(0, 0, 0, 0.6),       /* Sombra interna pesada na base para dar volume */
-    0 15px 35px -5px rgba(0, 0, 0, 0.25),       /* Sombra projetada no fundo do app */
-    0 4px 10px rgba(0, 0, 0, 0.1);              /* Sombra de contato */
-    
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: none;
-  z-index: 10;
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 22px 44px -26px rgba(6, 16, 40, 0.70),
+    0 6px 16px -10px rgba(6, 16, 40, 0.45);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+}
+/* sheen de vidro no topo */
+.liquid-header-navy::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 42%);
+  pointer-events: none;
+}
+/* granulado premium (sem "cara de IA") */
+.liquid-header-navy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url('https://grainy-gradients.vercel.app/noise.svg');
+  opacity: 0.08;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
 }
 
-/* ----------------------------------------------------------------- */
-/* 2. INSETS — Busca e Status "Escavados" no material                */
-/* ----------------------------------------------------------------- */
+/* Cápsula glossy do header (busca + status): inset com brilho no topo */
 .liquid-search-inset {
   position: relative;
-  /* Fundo ligeiramente mais escuro que a barra para simular o buraco */
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.15) 100%);
-  border-radius: 1rem;
-  
-  /* Efeito Debossed (Escavado) */
+  background: linear-gradient(180deg, #22324f 0%, #1a2741 52%, #0d1934 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow:
-    inset 0 4px 8px rgba(0, 0, 0, 0.6),        /* Sombra profunda caindo do topo do buraco */
-    inset 0 1px 2px rgba(0, 0, 0, 0.8),        /* Linha escura dura no topo */
-    inset 0 -1px 1px rgba(255, 255, 255, 0.12),/* Luz rebatendo na beirada inferior de DENTRO */
-    0 1px 0 rgba(255, 255, 255, 0.05);         /* Luz rebatendo na beirada inferior de FORA */
-  border: none;
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.42),
+    inset 0 1px 3px rgba(0, 0, 0, 0.28);
 }
 
-/* ----------------------------------------------------------------- */
-/* 3. TECLAS E BADGES (Pro, Ask AI, Cmd+K)                           */
-/* ----------------------------------------------------------------- */
+/* Keycap ⌘K — pequena tecla elevada */
 .liquid-keycap {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.5rem;
-  box-shadow: 
-    0 2px 4px rgba(0, 0, 0, 0.3),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  background: linear-gradient(180deg, #2b3b5b 0%, #1b2944 100%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 1px 1.5px rgba(0, 0, 0, 0.35);
 }
 
+/* Badge PRO — azul royal (#3b7ae6 → #1b50ad) */
 .liquid-badge-pro {
-  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
-  box-shadow: 
-    inset 0 1px 1px rgba(255, 255, 255, 0.4),
-    0 2px 6px rgba(29, 78, 216, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(180deg, #3b7ae6 0%, #1b50ad 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 2px 5px -1px rgba(27, 80, 173, 0.6);
 }
 
-/* ===================================================================== */
-/* === CARDS DO FEED E UI SECUNDÁRIA (GLASS DE VERDADE) ================ */
-/* Vidro transparente com reflexo premium, sem aspecto leitoso/nublado. */
-/* ===================================================================== */
-
-.feed-canvas { 
-  background: transparent; 
+/* ----------------------------------------------------------------- */
+/* PAINÉIS / CARTÕES LIQUID — Home, Caso em Foco, GlassBrowser         */
+/* ----------------------------------------------------------------- */
+.liquid-panel {
+  background: linear-gradient(180deg, #ffffff 0%, #f4f6fb 100%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 18px 40px -24px rgba(15, 23, 42, 0.35),
+    0 2px 6px -2px rgba(15, 23, 42, 0.12);
+}
+.liquid-panel-dark {
+  background: linear-gradient(180deg, rgba(28, 28, 38, 0.72) 0%, rgba(10, 10, 16, 0.82) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.5rem;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.10) inset, 0 30px 60px -30px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
 }
 
-/* CARDS DO FEED */
+/* ----------------------------------------------------------------- */
+/* FEED — LIQUID GLASS DISCRETO (a pedido: vidro sutil, não pesado)    */
+/*   Canvas claro neutro + cartões brancos translúcidos com realce     */
+/*   delicado no topo e sombra muito suave. Sem neumorfismo carregado.  */
+/* ----------------------------------------------------------------- */
+.feed-canvas { background: #eceef2; }
+
 .glass-card {
   position: relative;
-  /* Transparência inteligente: 60% branco no claro, 15% branco no escuro */
-  background: rgba(255, 255, 255, 0.6); 
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-bottom-color: rgba(255, 255, 255, 0.3);
-  border-right-color: rgba(255, 255, 255, 0.3);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(247, 249, 252, 0.86) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 1.6rem;
-  box-shadow: 
-    inset 0 1px 1px rgba(255, 255, 255, 0.9),
-    0 12px 30px -10px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(24px) saturate(120%);
-  -webkit-backdrop-filter: blur(24px) saturate(120%);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 12px 30px -20px rgba(30, 41, 59, 0.28),
+    0 1px 3px rgba(30, 41, 59, 0.05);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
 }
-
-:root.dark .glass-card, .dark .glass-card {
-  background: rgba(24, 24, 27, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-bottom-color: rgba(255, 255, 255, 0.02);
-  border-right-color: rgba(255, 255, 255, 0.02);
-  box-shadow: 
-    inset 0 1px 1px rgba(255, 255, 255, 0.15),
-    0 16px 40px -10px rgba(0, 0, 0, 0.6);
-}
-
 .glass-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 
-    inset 0 1px 1px rgba(255, 255, 255, 0.9),
-    0 20px 40px -10px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 20px 40px -22px rgba(30, 41, 59, 0.34);
 }
 
-:root.dark .glass-card:hover, .dark .glass-card:hover {
-  box-shadow: 
-    inset 0 1px 1px rgba(255, 255, 255, 0.15),
-    0 24px 48px -10px rgba(0, 0, 0, 0.8);
-}
-
-/* PÍLULAS DE FILTRO */
+/* Pill de filtro — discreto: inativo branco translúcido, ativo navy */
 .glass-pill {
-  background: rgba(255, 255, 255, 0.7);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(240, 243, 248, 0.85));
   color: #334155;
   border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 999px;
-  box-shadow: 
-    inset 0 1px 1px rgba(255, 255, 255, 0.9),
-    0 4px 12px -4px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  transition: all 0.2s ease;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 6px 14px -10px rgba(30, 41, 59, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
-
-:root.dark .glass-pill, .dark .glass-pill {
-  background: rgba(39, 39, 42, 0.5);
-  color: #e2e8f0;
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
-}
-
+.glass-pill:active { transform: scale(0.97); }
 .glass-pill[data-active="true"] {
-  background: linear-gradient(180deg, #1e293b, #0f172a);
+  background: linear-gradient(180deg, #28386a 0%, #0a1a3d 100%);
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2), 0 8px 16px rgba(15, 23, 42, 0.4);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 18px -10px rgba(10, 26, 61, 0.55);
 }
 
-/* BOTÕES DE ÍCONE (Ações do Card) */
+/* Botão de ícone discreto (salvar / curtir / play) */
 .glass-iconbtn {
-  background: rgba(255, 255, 255, 0.6);
-  color: #64748b;
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(240, 243, 248, 0.82));
+  color: #475569;
+  border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 0.9rem;
-  box-shadow: 
-    inset 0 1px 1px rgba(255, 255, 255, 0.9),
-    0 4px 10px -2px rgba(0, 0, 0, 0.06);
-  backdrop-filter: blur(12px);
-  transition: all 0.2s ease;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 5px 12px -8px rgba(30, 41, 59, 0.22);
+  transition: transform 0.14s ease, color 0.2s ease, box-shadow 0.18s ease;
 }
-
-:root.dark .glass-iconbtn, .dark .glass-iconbtn {
-  background: rgba(39, 39, 42, 0.4);
-  color: #a1a1aa;
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 4px 10px -2px rgba(0, 0, 0, 0.4);
-}
-
-.glass-iconbtn:hover {
-  transform: translateY(-2px);
-}
-
+.glass-iconbtn:hover { color: #0a1a3d; transform: translateY(-1px); }
 .glass-iconbtn:active, .glass-iconbtn[data-active="true"] {
-  background: rgba(59, 130, 246, 0.1);
-  color: #2563eb;
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: inset 0 2px 5px rgba(30, 41, 59, 0.18);
+  color: #1d4ed8;
 }
 
-:root.dark .glass-iconbtn:active, .dark .glass-iconbtn:active,
-:root.dark .glass-iconbtn[data-active="true"], .dark .glass-iconbtn[data-active="true"] {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
-  border-color: rgba(59, 130, 246, 0.4);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+/* Segmented tabs glass (Caso em Foco) */
+.liquid-tabbar {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 1rem;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 24px -16px rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.liquid-tab { border-radius: 0.75rem; color: #475569; transition: all 0.2s ease; }
+.liquid-tab[data-active="true"] {
+  background: linear-gradient(180deg, #28386a, #0a1a3d);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 10px 20px -12px rgba(10, 26, 61, 0.6);
 }
 
-/* OUTROS PAINÉIS */
-.liquid-panel, .liquid-panel-dark {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(32px) saturate(130%);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 1.5rem;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 24px 48px -12px rgba(0, 0, 0, 0.15);
+/* Botão primário liquid (CTAs) */
+.liquid-button {
+  background: linear-gradient(180deg, #2f56b8 0%, #16244b 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 1rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 14px 28px -14px rgba(16, 36, 75, 0.8);
+  transition: transform 0.15s ease, filter 0.15s ease;
 }
-
-:root.dark .liquid-panel-dark, .dark .liquid-panel-dark {
-  background: rgba(24, 24, 27, 0.5);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 32px 64px -16px rgba(0, 0, 0, 0.7);
-}
+.liquid-button:hover { filter: brightness(1.06); }
+.liquid-button:active { transform: scale(0.97); }
