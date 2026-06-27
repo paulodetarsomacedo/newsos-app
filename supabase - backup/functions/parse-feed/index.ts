@@ -174,7 +174,7 @@ serve(async (req) => {
 
     // FIM DA LÓGICA DE FETCH MODIFICADA
 
-const feed = await parser.parseString(repairXML(xmlText));
+    const feed = await parser.parseString(repairXML(xmlText));
     let isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
 
     let feedLogo = feed.image?.url;
@@ -185,26 +185,26 @@ const feed = await parser.parseString(repairXML(xmlText));
        } catch(e) {}
     }
 
-    // A SALVAÇÃO: Limitar estritamente a 30 itens!
-    // Evita 2000 requisições simultâneas de imagens que estouram o servidor.
-    const MAX_ITEMS = 30;
-    const itemsToProcess = feed.items.slice(0, MAX_ITEMS);
-
-    const cleanItems = await Promise.all(itemsToProcess.map(async (item, index) => {
+    const cleanItems = await Promise.all(feed.items.map(async (item, index) => {
       let videoId = item.videoId || extractYoutubeId(item.link);
       let img = null;
 
       if (videoId) {
           isYoutube = true;
+          // CRÍTICO: Thumb do YouTube (prioridade absoluta)
           img = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`; 
       } else {
+          // Lógica de Extração de Imagem
           img = extractImageFromItem(item); 
           if (!img && item.link) {
+              // TENTA fetchOgImage como fallback (a função do seu código original)
               img = await fetchOgImage(item.link);
           }
+          // CORREÇÃO: Aplica a limpeza de URL e HTTPS
           img = fixImageUrl(img, feed.link || url);
       }
 
+      // --- RETORNO DE DADOS ---
       return {
         id: videoId || item.guid || item.link || String(index),
         title: item.title,
@@ -227,9 +227,6 @@ const feed = await parser.parseString(repairXML(xmlText));
       status: 200
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    });
+    return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });

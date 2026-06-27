@@ -6882,19 +6882,22 @@ const handleStoryNavigation = (direction) => {
     }
 };
 
-// --- FUNÇÃO AUXILIAR: ORDENAÇÃO INTELIGENTE (ANTI-REPETIÇÃO E DEDUPLICAÇÃO) ---
+// --- FUNÇÃO AUXILIAR: ORDENAÇÃO INTELIGENTE E BLINDADA ---
   const smartFeedSort = (items) => {
     if (!items || items.length === 0) return [];
     
-    // 1. Ordem inicial por data (mais recente primeiro)
-    let sorted = [...items].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+    // 1. BLINDAGEM CONTRA O ERRO FATAL: Garante que a data é válida antes do getTime()
+    let sorted = [...items].sort((a, b) => {
+        const timeA = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
+        const timeB = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
+        return timeB - timeA;
+    });
     
-    // 2. Remoção de duplicatas (Títulos iguais ou quase idênticos)
+    // 2. Remoção de duplicatas
     const unique = [];
     const seenTitles = new Set();
     
     for (const item of sorted) {
-        // Pega as 4 primeiras palavras do título para checar repetição entre fontes
         const titleSnippet = item.title.toLowerCase().replace(/[^\w\s]/gi, '').split(/\s+/).slice(0, 4).join(' ');
         if (!seenTitles.has(titleSnippet)) {
             seenTitles.add(titleSnippet);
@@ -6905,21 +6908,12 @@ const handleStoryNavigation = (direction) => {
     // 3. Algoritmo Anti-Cluster (Não repetir fonte seguida)
     const spaced = [];
     let lastSource = null;
-    let lastLastSource = null; // Memoriza as duas últimas para evitar padrão A, B, A, B
+    let lastLastSource = null;
 
     while (unique.length > 0) {
-        // Procura uma notícia que não seja da mesma fonte das duas últimas
         let foundIndex = unique.findIndex(item => item.source !== lastSource && item.source !== lastLastSource);
-        
-        // Se não achar, tenta apenas diferente da última
-        if (foundIndex === -1) {
-             foundIndex = unique.findIndex(item => item.source !== lastSource);
-        }
-        
-        // Se ainda não achar, pega a primeira da fila (não há mais como evitar repetição)
-        if (foundIndex === -1) {
-            foundIndex = 0;
-        }
+        if (foundIndex === -1) foundIndex = unique.findIndex(item => item.source !== lastSource);
+        if (foundIndex === -1) foundIndex = 0;
 
         const itemToInject = unique.splice(foundIndex, 1)[0];
         spaced.push(itemToInject);
@@ -6927,27 +6921,10 @@ const handleStoryNavigation = (direction) => {
         lastLastSource = lastSource;
         lastSource = itemToInject.source;
     }
-
     return spaced;
   };
 
-// --- HELPER: TIMEOUT PARA REQUISIÇÕES ---
-  // Impede que fontes lentas ou gigantes (ex: 2000 podcasts) travem o app
-  const fetchWithTimeout = async (resource, options = {}) => {
-      const { timeout = 4000 } = options; // 4 segundos MÁXIMO de tolerância
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeout);
-      try {
-          const response = await fetch(resource, { ...options, signal: controller.signal });
-          clearTimeout(id);
-          return response;
-      } catch (error) {
-          clearTimeout(id);
-          throw error;
-      }
-  };
-
-  // --- FETCH FEEDS V7: BLINDAGEM DE MEMÓRIA E TIMEOUT ---
+  // --- FETCH FEEDS V8: RENDERIZAÇÃO PROGRESSIVA + PRIORIDADE ---
   const fetchFeeds = async (forceRefresh = false) => {
       if (userFeeds.length === 0) {
           setRealNews([]); setRealVideos([]); setRealPodcasts([]); return;
@@ -6960,15 +6937,19 @@ const handleStoryNavigation = (direction) => {
       let allPodcastItems = [];
       let feedsThatNeedUpdate = [];
       let newHistoryBuffer = { ...articleHistory };
-      const CACHE_TTL = 30 * 60 * 1000; // 30 minutos de cache
+      const CACHE_TTL = 20 * 60 * 1000; 
   
       const activeFeeds = userFeeds.filter(f => f.url && f.url.trim());
-      const BATCH_SIZE = 4; // Lotes levemente maiores
-  
-      for (let i = 0; i < activeFeeds.length; i += BATCH_SIZE) {
-          const batch = activeFeeds.slice(i, i + BATCH_SIZE);
-          
-          // Usamos Promise.allSettled para que uma fonte com erro não derrube as outras
+      
+      // ESTRATÉGIA DE CARREGAMENTO DEFERIDO (A sua ideia)
+      // Separa as fontes pesadas (YouTube e Podcasts) das fontes leves (Notícias)
+      const textFeeds = activeFeeds.filter(f => f.type !== 'youtube' && f.type !== 'podcast' && !f.url.includes('youtube.com'));
+      const mediaFeeds = activeFeeds.filter(f => f.type === 'youtube' || f.type === 'podcast' || f.url.includes('youtube.com'));
+      
+      const BATCH_SIZE = 4; 
+
+      // Função de processamento isolada para reutilizarmos nos dois lotes
+      const processFeedBatch = async (batch) => {
           await Promise.allSettled(batch.map(async (feed) => {
               let processedItems = [];
               let currentFeedTitle = feed.name; 
@@ -6978,16 +6959,13 @@ const handleStoryNavigation = (direction) => {
               let usedCache = false;
               const cacheKey = `${FEED_CACHE_PREFIX}${feed.id}`; 
       
-              // --- CAMADA 1: DISCO / MEMÓRIA ---
+              // CAMADA 1: DISCO / MEMÓRIA
               if (!forceRefresh) {
                   try {
-                      // Verifica RAM primeiro
                       if (feedMemoryBuffer.current[feed.id] && (Date.now() - feedMemoryBuffer.current[feed.id].timestamp < CACHE_TTL)) {
                           const mem = feedMemoryBuffer.current[feed.id];
                           processedItems = mem.items; detectedXmlTitle = mem.title; feedLogo = mem.logo; isFeedYoutube = mem.isYoutube; usedCache = true;
-                      } 
-                      // Verifica Disco depois
-                      else {
+                      } else {
                           const cachedRaw = localStorage.getItem(cacheKey);
                           if (cachedRaw) {
                               const cachedData = JSON.parse(cachedRaw);
@@ -6998,31 +6976,25 @@ const handleStoryNavigation = (direction) => {
                               }
                           }
                       }
-                  } catch (e) {
-                      console.warn(`[Cache] Ignorando cache corrompido para ${feed.name}`);
-                  }
+                  } catch (e) {}
               }
       
-              // --- CAMADA 2: BUSCA REAL (Com Timeout de 4s) ---
+              // CAMADA 2: BUSCA REAL
               if (!usedCache) {
                   let rawItems = [];
                   let success = false;
                   
-                  // TENTATIVA 1: Supabase (Rápido, mas pode falhar com feeds gigantes)
                   try {
-                      const { data, error } = await supabase.functions.invoke('parse-feed', { 
-                          body: { url: feed.url, brief: true } 
-                      });
+                      const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
                       if (!error && data?.items?.length > 0) {
                           rawItems = data.items; detectedXmlTitle = data.title; feedLogo = data.image; isFeedYoutube = !!data.isYoutube; success = true;
                       }
-                  } catch (e) { /* Falhou silenciosamente, vai pro Proxy */ }
+                  } catch (e) { }
       
-                  // TENTATIVA 2: Vercel Proxy com Timeout Rigoroso
                   if (!success) {
                       try {
                           const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`;
-                          const res = await fetchWithTimeout(proxyUrl, { timeout: 4000 }); // 4s limite!
+                          const res = await fetchWithTimeout(proxyUrl, { timeout: 4500 }); // Limite estrito de 4.5s!
                           if (res.ok) {
                               const xmlText = await res.text();
                               const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
@@ -7030,22 +7002,16 @@ const handleStoryNavigation = (direction) => {
                                   rawItems = parsedData.items; detectedXmlTitle = parsedData.realTitle; feedLogo = parsedData.realLogo; success = true;
                               }
                           }
-                      } catch (e) { 
-                          console.warn(`[Timeout/Erro] Fonte muito lenta ignorada: ${feed.name}`); 
-                      }
+                      } catch (e) {}
                   }
                   
-                  // Se conseguiu pegar os itens crus, vamos PROCESSAR antes de salvar no cache
                   if (success && rawItems.length > 0) {
-                      
-                      // DEFINIÇÃO DE LOGO (Simplificada para o exemplo)
                       let finalLogo = feedLogo;
                       if (!finalLogo) {
                          try { finalLogo = `https://www.google.com/s2/favicons?domain=${new URL(feed.url).hostname}&sz=128`; } 
                          catch (e) { finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`; }
                       }
                       
-                      // LIMITA a quantidade para economizar memória (15 notícias, 3 vídeos, 2 podcasts)
                       let LIMIT = 15; 
                       if (feed.type === 'podcast') LIMIT = 2; 
                       else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 3;
@@ -7058,7 +7024,6 @@ const handleStoryNavigation = (direction) => {
                           const parsedDate = new Date(rawDateString);
                           if (rawDateString && !isNaN(parsedDate.getTime())) originalTimestamp = parsedDate.getTime();
                           
-                          // Offset para evitar agrupamento de horário
                           const minutesToSubtract = index * (5 + Math.floor(Math.random() * 3)); 
                           const finalTimestamp = newHistoryBuffer[uniqueId] || (originalTimestamp - (minutesToSubtract * 60 * 1000));
                           newHistoryBuffer[uniqueId] = finalTimestamp;
@@ -7072,7 +7037,6 @@ const handleStoryNavigation = (direction) => {
                           if (isYoutubeItem) finalType = 'video';
                           else if (audioReal || primaryLink?.endsWith('.mp3')) finalType = 'audio'; 
                           
-                          // OTIMIZAÇÃO: Summary cortado curto e limpo para não pesar no LocalStorage
                           const cleanSummary = (item.summary || item.description || '').replace(/<[^>]*>?/gm, ' ').slice(0, 300);
 
                           return {
@@ -7093,16 +7057,9 @@ const handleStoryNavigation = (direction) => {
                           };
                       });
 
-                      // SALVA NO CACHE SOMENTE OS ITENS JÁ PROCESSADOS E CORTADOS
-                      // (Isso impede o estouro dos 5MB do LocalStorage)
                       const cachePayload = { timestamp: Date.now(), items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube };
                       feedMemoryBuffer.current[feed.id] = cachePayload;
-                      try { 
-                          localStorage.setItem(cacheKey, JSON.stringify(cachePayload)); 
-                      } catch (e) { 
-                          // Se estourar, não apaga o app inteiro, apaga só o cache específico
-                          localStorage.removeItem(cacheKey); 
-                      }
+                      try { localStorage.setItem(cacheKey, JSON.stringify(cachePayload)); } catch (e) { localStorage.removeItem(cacheKey); }
                   }
               }
       
@@ -7110,14 +7067,42 @@ const handleStoryNavigation = (direction) => {
                   feedsThatNeedUpdate.push({ id: feed.id, name: detectedXmlTitle || feed.name });
               }
       
-              // Joga os itens processados nos arrays finais
               if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
               else if (feed.type === 'youtube' || isFeedYoutube) allVideoItems.push(...processedItems);
               else allNewsItems.push(...processedItems);
           }));
+      };
+
+      // --- PISTA EXPRESSA: FONTES DE TEXTO ---
+      for (let i = 0; i < textFeeds.length; i += BATCH_SIZE) {
+          const batch = textFeeds.slice(i, i + BATCH_SIZE);
+          await processFeedBatch(batch);
+          // O SEGREDO: Atualiza a tela a CADA LOTE DE TEXTO!
+          // Se 4 fontes carregaram, o usuário já pode começar a ler. O app não fica travado.
+          setRealNews([...smartFeedSort(allNewsItems)]);
+          await new Promise(resolve => setTimeout(resolve, 50)); 
+      }
+
+      // Desliga o spinner de Loading. O App está pronto pro uso.
+      setIsLoadingFeeds(false);
+
+      // --- PISTA LENTA: MÍDIAS PESADAS (YOUTUBE E PODCASTS) ---
+      // Roda em background de forma invisível pro usuário
+      for (let i = 0; i < mediaFeeds.length; i += BATCH_SIZE) {
+          const batch = mediaFeeds.slice(i, i + BATCH_SIZE);
+          await processFeedBatch(batch);
           
-          // Pausa suave entre lotes para não travar a UI (100ms é imperceptível para a espera, mas vital pro processador)
-          await new Promise(resolve => setTimeout(resolve, 100));
+          const safeSort = (a, b) => {
+              const timeA = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
+              const timeB = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
+              return timeB - timeA;
+          };
+
+          setRealVideos([...allVideoItems].sort(safeSort));
+          setRealPodcasts([...allPodcastItems].sort(safeSort));
+          if (allNewsItems.length > 0) setRealNews([...smartFeedSort(allNewsItems)]);
+          
+          await new Promise(resolve => setTimeout(resolve, 100)); 
       }
   
       if (feedsThatNeedUpdate.length > 0) {
@@ -7128,17 +7113,7 @@ const handleStoryNavigation = (direction) => {
       }
   
       setArticleHistory(newHistoryBuffer);
-  
-      // Atualiza os estados finais
-      setRealNews(smartFeedSort(allNewsItems));
-      
-      const sortFn = (a, b) => b.rawDate.getTime() - a.rawDate.getTime();
-      setRealVideos([...allVideoItems].sort(sortFn));
-      setRealPodcasts([...allPodcastItems].sort(sortFn));
-      
-      setIsLoadingFeeds(false);
   };
-
 
 
 
