@@ -610,7 +610,7 @@ const fetchMarketData = async () => {
   );
 
   return (
-    <div className="relative z-20 px-3 sm:px-4 pt-[max(0.6rem,env(safe-area-inset-top))] pb-1">
+    <div className="relative z-20 px-2 sm:px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-1">
       {currentDate && <CalendarModal 
         isOpen={isCalendarOpen} 
         onClose={() => setIsCalendarOpen(false)}
@@ -620,41 +620,40 @@ const fetchMarketData = async () => {
       />}
 
       {/* ===================================================================== */}
-      {/* === HEADER GLOBAL — LIQUID GLASS NAVY (Vetra) ======================= */}
-      {/* VISUAL novo (cor navy dos prints, sem ticker — ticker migra p/ Home). */}
-      {/* LÓGICA PRESERVADA: busca (onSearch/searchInputRef/triggerSearch),     */}
-      {/* calendário (handleDrag* + handleDateChange), aiStatus, isLoading,     */}
-      {/* onOpenSettings. fetchMarketData/TICKERS continuam definidos.          */}
+      {/* === HEADER GLOBAL — LIQUID GLASS NAVY PREMIUM (Vetra) =============== */}
+      {/* Tokens dos prints: barra inflada (realce no topo + sheen + sombra     */}
+      {/* suave); cápsulas glossy (.liquid-search-inset); keycap; PRO azul.     */}
+      {/* LÓGICA PRESERVADA: busca, calendário (drag+handleDateChange),         */}
+      {/* aiStatus, isLoading, onOpenSettings. Ticker removido (migra p/ Home). */}
       {/* ===================================================================== */}
-      <div className="liquid-header-navy relative w-full overflow-hidden rounded-[1.75rem]">
-        {/* glows decorativos (puramente visual) */}
-        <div className="absolute -top-1/2 -left-[8%] w-[55%] h-[180%] bg-blue-500/10 blur-[90px] rounded-full pointer-events-none" />
-        <div className="absolute -bottom-1/2 right-[4%] w-[45%] h-[160%] bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none" />
+      <div className="liquid-header-navy relative w-full overflow-hidden rounded-[1.9rem]">
+        {/* glow decorativo interno (puramente visual) */}
+        <div className="absolute -top-1/2 left-[18%] w-[40%] h-[180%] bg-blue-400/8 blur-[80px] rounded-full pointer-events-none" />
 
-        <div className="relative px-3 sm:px-5 py-3 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-5">
+        <div className="relative px-4 sm:px-6 py-4 sm:py-5 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6">
 
-          {/* ---- MARCA: ícone Vetra + nome + Pro + saudação + data ---- */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-white to-zinc-200 flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(0,0,0,0.55)] border border-white/40 shrink-0">
-              <VetraMark className="w-7 h-7" />
+          {/* ---- MARCA: ícone Vetra + nome + PRO + saudação + data ---- */}
+          <div className="flex items-center gap-3.5 shrink-0">
+            <div className="w-14 h-14 rounded-[1.1rem] bg-gradient-to-br from-white to-zinc-200 flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_22px_-8px_rgba(0,0,0,0.55)] border border-white/50 shrink-0">
+              <VetraMark className="w-8 h-8" />
             </div>
             <div className="flex flex-col leading-tight">
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-black tracking-tight text-white">Vetra</span>
-                <span className="px-2 py-[2px] rounded-md text-[10px] font-bold uppercase tracking-wide bg-gradient-to-b from-blue-500 to-blue-700 text-white shadow-sm">Pro</span>
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl font-black tracking-tight text-white">Vetra</span>
+                <span className="liquid-badge-pro px-2.5 py-[3px] rounded-md text-[10px] font-bold uppercase tracking-wider text-white">Pro</span>
               </div>
-              {/* saudação dinâmica (Bom dia/tarde/noite) — MOCK nome "Tiago": trocar por user real */}
+              {/* saudação dinâmica — MOCK nome "Tiago": trocar por user real */}
               {currentDate && (() => {
                 const h = currentDate.getHours();
                 const g = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
                 const Ico = h < 18 ? Sun : Moon;
                 return (
-                  <span className="mt-0.5 text-[12px] font-semibold text-white/85 flex items-center gap-1.5">
-                    <Ico size={12} className="text-amber-300" /> {g}, Tiago
+                  <span className="mt-1 text-[13px] font-semibold text-white/85 flex items-center gap-1.5">
+                    <Ico size={13} className="text-amber-300" /> {g}, Tiago
                   </span>
                 );
               })()}
-              {/* DATA — tap abre calendário e arrasto troca o dia (lógica original) */}
+              {/* DATA — tap abre calendário, arrasto troca o dia (lógica original) */}
               {currentDate && (
                 <div
                   className="cursor-pointer select-none touch-none w-fit"
@@ -673,40 +672,40 @@ const fetchMarketData = async () => {
             </div>
           </div>
 
-          {/* ---- BUSCA + ASK AI (cápsula inset navy, Ask AI dentro) ---- */}
+          {/* ---- BUSCA + ASK AI (cápsula glossy, Ask AI dentro) ---- */}
           <div className="flex-1 min-w-0 w-full">
-            <div className="liquid-search-inset flex items-center gap-2 h-12 pl-4 pr-1.5 rounded-2xl">
-              <Search size={18} className="text-white/35 shrink-0" />
+            <div className="liquid-search-inset flex items-center gap-2.5 h-14 pl-4 pr-2 rounded-2xl">
+              <Search size={19} className="text-white/40 shrink-0" />
               <input
                 ref={searchInputRef}
                 type="text"
                 placeholder="Buscar notícias, fontes ou tópicos..."
-                className="flex-1 min-w-0 bg-transparent text-white placeholder:text-white/35 text-sm font-medium outline-none"
+                className="flex-1 min-w-0 bg-transparent text-white placeholder:text-white/40 text-[15px] font-medium outline-none"
                 onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { if (onSearch) { onSearch(e.target.value); } e.target.value = ''; } }}
               />
-              <span className="hidden sm:flex items-center gap-1 text-[11px] font-medium text-white/40 bg-white/5 border border-white/10 rounded-lg px-2 py-1 shrink-0">⌘ K</span>
-              <div className="hidden sm:block w-px h-6 bg-white/10 mx-1 shrink-0" />
-              <button onClick={triggerSearch} className="flex items-center gap-1.5 pl-2 pr-3 py-2 rounded-xl hover:bg-white/5 active:scale-95 transition-all shrink-0">
-                <Sparkles size={18} className="text-blue-300" />
-                <span className="text-sm font-semibold text-white">Ask AI</span>
+              <span className="liquid-keycap hidden sm:flex items-center gap-1 text-[11px] font-semibold text-white/55 rounded-lg px-2 py-1 shrink-0">⌘ K</span>
+              <div className="hidden sm:block w-px h-7 bg-white/12 mx-1.5 shrink-0" />
+              <button onClick={triggerSearch} className="flex items-center gap-2 pl-2 pr-3.5 py-2.5 rounded-xl hover:bg-white/8 active:scale-95 transition-all shrink-0">
+                <Sparkles size={19} className="text-blue-300" />
+                <span className="text-[15px] font-semibold text-white">Ask AI</span>
               </button>
             </div>
           </div>
 
           {/* ---- STATUS DO SISTEMA + AVATAR ---- */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="liquid-search-inset hidden sm:flex items-center gap-2.5 h-12 px-4 rounded-2xl">
+          <div className="flex items-center gap-3.5 shrink-0">
+            <div className="liquid-search-inset hidden sm:flex items-center gap-3 h-14 px-4 rounded-2xl">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-[0_0_10px_#34d399]" />
               </span>
-              <div className="flex flex-col leading-none">
-                <span className="text-[12px] font-bold text-white">{isLoading ? 'Sincronizando…' : 'Sistema ok.'}</span>
-                <span className="text-[11px] text-white/50 truncate max-w-[140px]">{isLoading ? aiStatus : 'Todos os serviços'}</span>
+              <div className="flex flex-col leading-tight">
+                <span className="text-[13px] font-bold text-white">{isLoading ? 'Sincronizando…' : 'Sistema ok.'}</span>
+                <span className="text-[11px] text-white/55 truncate max-w-[150px]">{isLoading ? aiStatus : 'Todos os serviços'}</span>
               </div>
             </div>
             {/* avatar abre Configurações (onOpenSettings preservado) */}
-            <button onClick={onOpenSettings} className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/15 shadow-lg hover:scale-105 transition-transform shrink-0">
+            <button onClick={onOpenSettings} className="w-14 h-14 rounded-full overflow-hidden border-2 border-white/15 shadow-[0_8px_18px_-8px_rgba(0,0,0,0.6)] hover:scale-105 transition-transform shrink-0">
               <img src="https://ui-avatars.com/api/?name=Tiago&background=1e3a8a&color=fff&bold=true" className="w-full h-full object-cover" alt="User" />
             </button>
           </div>
