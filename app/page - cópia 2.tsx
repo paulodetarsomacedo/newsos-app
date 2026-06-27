@@ -1239,7 +1239,7 @@ const NewsCard = React.memo(({
           <div className="mt-auto pt-3 flex items-end justify-between gap-3">
             {/* FONTE */}
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-11 h-11 rounded-xl bg-[#1e3a8a] flex items-center justify-center shrink-0 overflow-hidden">
+              <div className="w-8 h-8 rounded-full bg-[#1e3a8a] flex items-center justify-center shrink-0 overflow-hidden">
                 {news.logo
                   ? <img src={news.logo} className="w-full h-full object-cover" onError={(e)=>{ e.target.style.display='none'; }} alt="" />
                   : <span className="text-[10px] font-bold text-white">{(news.source||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}</span>}
@@ -1502,9 +1502,8 @@ const handleTouchEnd = async () => {
             </button>
             {srcOpen && (
               <>
-                <div className="fixed inset-0 z-[55]" onClick={() => setSrcOpen(false)} />
-                {/* SOBREPOSTO: absolute + translúcido. NÃO usar .glass-card aqui (força position:relative e empurraria o layout). */}
-                <div className="absolute left-0 top-12 z-[60] w-60 max-h-72 overflow-y-auto p-1.5 rounded-2xl scrollbar-hide bg-white/80 dark:bg-zinc-900/80 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-2xl">
+                <div className="fixed inset-0 z-[40]" onClick={() => setSrcOpen(false)} />
+                <div className="absolute left-0 top-12 z-[50] w-60 max-h-72 overflow-y-auto p-1.5 rounded-2xl glass-card scrollbar-hide">
                   <button onClick={() => { setSourceFilter('all'); setSrcOpen(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-[13px] font-medium transition-colors ${sourceFilter==='all' ? 'bg-[#0a1a3d] text-white' : 'text-zinc-600 hover:bg-black/5'}`}>Todas as fontes</button>
                   {Array.from(new Map(filteredByCategory.map(n => [n.source, n])).values()).map(n => (
                     <button key={n.source} onClick={() => { setSourceFilter(n.source); setSrcOpen(false); }} className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl text-[13px] font-medium transition-colors ${sourceFilter===n.source ? 'bg-[#0a1a3d] text-white' : 'text-zinc-600 hover:bg-black/5'}`}>
@@ -2840,124 +2839,64 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent }) => { // 
       }
   };
 
-
-  // RESUMO INTELIGENTE — MOCK visual (a lógica atual não gera resumo estruturado;
-  // row 1 usa article.summary real quando existe). Pronto p/ futura integração.
-  const _gbDate = article?.rawDate ? new Date(article.rawDate) : null;
-  const displayDate = _gbDate
-    ? _gbDate.toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : '';
-  const SUMMARY_ROWS = [
-    { label: 'Em uma frase', tile: 'bg-purple-500/15 text-purple-300', icon: <Zap size={18} />,
-      text: article?.summary ? article.summary.replace(/\.\.\.$/, '') : 'Síntese principal da notícia em uma linha objetiva.' },
-    { label: 'O que aconteceu?', tile: 'bg-blue-500/15 text-blue-300', icon: <FileText size={18} />,
-      text: 'Resumo factual do acontecimento central reportado pela fonte.' },
-    { label: 'Por que importa?', tile: 'bg-emerald-500/15 text-emerald-300', icon: <BrainCircuit size={18} />,
-      text: 'Contexto e relevância do tema para o leitor e para o cenário atual.' },
-    { label: 'Impacto provável', tile: 'bg-amber-500/15 text-amber-300', icon: <TrendingUp size={18} />,
-      text: 'Possíveis efeitos e desdobramentos a curto e médio prazo.' },
-    { label: 'O que acompanhar', tile: 'bg-violet-500/15 text-violet-300', icon: <Telescope size={18} />,
-      text: 'Próximos passos e pontos a observar no desenrolar da história.' },
-  ];
-  const QUOTES = [
-    'Trecho relevante extraído da reportagem aparecerá aqui quando a análise por IA estiver disponível.',
-    'Segundo trecho de destaque, com a citação mais importante do conteúdo original.',
-  ];
-
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-300">
-      {/* overlay compatível com o app (navy translúcido — não preto puro) */}
-      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" onClick={onClose} />
-
-      {/* ===== MODAL — NAVY LIQUID GLASS (Etapa 3) ===== */}
-      <div className="glassbrowser-shell relative w-full max-w-2xl h-[88vh] rounded-[1.9rem] overflow-hidden flex flex-col text-white">
-
-        {/* HERO */}
-        <div className="relative h-52 sm:h-56 shrink-0">
-          <img src={article.img} className="w-full h-full object-cover" onError={(e) => (e.target.style.display='none')} />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0b1a38] via-[#0b1a38]/35 to-[#0b1a38]/10" />
-          <div className="absolute top-4 left-5 right-4 flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md overflow-hidden shrink-0">
-                <img src={article.logo} className="w-full h-full object-cover" onError={(e) => (e.target.style.display='none')} alt="" />
-              </div>
-              <div className="leading-tight">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[15px] font-bold text-white drop-shadow">{article.source}</span>
-                  <CheckCircle size={14} className="text-blue-400" />
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
+      
+      <div className={`relative w-full max-w-2xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}>
+        
+        {/* Header com Imagem */}
+        <div className="relative h-64 shrink-0">
+            <img src={article.img} className="w-full h-full object-cover opacity-80" onError={(e) => (e.target.style.display='none')}/>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+            
+            <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60"><X size={20}/></button>
+            
+            <div className="absolute bottom-4 left-6 right-6">
+                <div className="flex items-center gap-2 mb-2">
+                    <img src={article.logo} className="w-6 h-6 rounded-full bg-white p-0.5" />
+                    <span className="text-xs font-bold text-white uppercase tracking-widest shadow-black">{article.source}</span>
                 </div>
-                {displayDate && <span className="text-[12px] text-white/65 drop-shadow">{displayDate}</span>}
-              </div>
+                <h2 className="text-2xl font-black text-white leading-tight font-serif drop-shadow-md">{article.title}</h2>
             </div>
-            <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/12 border border-white/20 backdrop-blur-md text-white flex items-center justify-center hover:bg-white/25 transition-colors shrink-0"><X size={18} /></button>
-          </div>
         </div>
 
-        {/* CONTEÚDO */}
-        <div className="flex-1 overflow-y-auto px-5 sm:px-6 pb-5 custom-scrollbar">
-          <h2 className="-mt-1 text-[22px] sm:text-[26px] font-black leading-tight tracking-tight text-white">{article.title}</h2>
-          <div className="flex flex-wrap gap-2 mt-3">
-            {(article.category ? [article.category, 'Análise'] : ['Notícia', 'Análise']).map((c, i) => (
-              <span key={i} className="px-3 py-1 rounded-full text-[12px] font-medium text-white/80 bg-white/5 border border-white/10">{c}</span>
-            ))}
-          </div>
-
-          {/* RESUMO INTELIGENTE (mock visual — pronto p/ gerador estruturado) */}
-          <div className="mt-5 rounded-2xl liquid-search-inset p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-purple-300" />
-                <span className="text-[15px] font-bold text-white">Resumo Inteligente</span>
-              </div>
-              <span className="text-[11px] text-white/45">Geração com IA</span>
-            </div>
-            <div className="space-y-2">
-              {SUMMARY_ROWS.map((row, i) => (
-                <div key={i} className="flex gap-3 items-start rounded-xl bg-white/[0.03] border border-white/5 p-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${row.tile}`}>{row.icon}</div>
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-bold text-white mb-0.5">{row.label}</div>
-                    <div className="text-[13px] text-white/70 leading-relaxed">{row.text}</div>
-                  </div>
+        {/* Corpo do Conteúdo Dinâmico */}
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
+            
+            {status === 'loading' && (
+                <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-60">
+                    <Loader2 size={32} className="animate-spin text-purple-500" />
+                    <p className="text-xs font-bold uppercase tracking-widest">Buscando e cortando as 16 linhas...</p>
                 </div>
-              ))}
-            </div>
-          </div>
+            )}
 
-          {/* TRECHOS RELEVANTES (mock) */}
-          <div className="mt-4 rounded-2xl liquid-search-inset p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-purple-300 text-2xl leading-none">&ldquo;</span>
-              <span className="text-[15px] font-bold text-white">Trechos relevantes</span>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {QUOTES.map((q, i) => (
-                <div key={i} className="rounded-xl bg-white/[0.03] border border-white/5 p-3 text-[13px] italic text-white/75 leading-relaxed">{q}</div>
-              ))}
-            </div>
-          </div>
+            {status === 'success' && (
+                <div className={`text-lg leading-relaxed font-serif whitespace-pre-line ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>
+                    {content}
+                </div>
+            )}
 
-          {/* LEITURA OTIMIZADA — conteúdo REAL do onFetchContent (lógica preservada) */}
-          {status === 'loading' && (
-            <div className="mt-4 flex items-center gap-2 text-white/55 text-[12px]"><Loader2 size={14} className="animate-spin" /> Otimizando leitura…</div>
-          )}
-          {status === 'success' && content && (
-            <div className="mt-4 rounded-2xl liquid-search-inset p-4">
-              <div className="flex items-center gap-2 mb-2"><FileText size={16} className="text-blue-300" /><span className="text-[14px] font-bold text-white">Leitura otimizada</span></div>
-              <div className="text-[14px] leading-relaxed text-white/80 whitespace-pre-line font-serif">{content}</div>
+            {status === 'error' && (
+                <div className="flex flex-col items-center justify-center py-10 gap-4 text-center">
+                    <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
+                        <FileText size={24} />
+                    </div>
+                    <div>
+                        <h3 className="font-bold mb-1">Conteúdo indisponível</h3>
+                        <p className="text-sm opacity-60 max-w-xs mx-auto">Não foi possível buscar as 16 linhas otimizadas. Isso pode ser um problema de rede ou o site está bloqueando o acesso.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Rodapé (sempre visível) */}
+            <div className="mt-8 pt-6 border-t border-dashed border-zinc-500/20">
+                <button onClick={openOriginal} className={`w-full py-4 rounded-xl font-bold text-sm uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
+                    Ler no site original <ArrowRight size={16}/>
+                </button>
             </div>
-          )}
-          {status === 'error' && (
-            <div className="mt-4 text-white/45 text-[12px]">Não foi possível otimizar o conteúdo. Use &ldquo;Ler no site&rdquo;.</div>
-          )}
         </div>
 
-        {/* RODAPÉ — Ler no site (real) / Análise IA / Chat (mock) */}
-        <div className="shrink-0 px-5 sm:px-6 py-4 border-t border-white/8 flex flex-col sm:flex-row gap-3">
-          <button onClick={openOriginal} className="flex-1 h-12 rounded-xl liquid-search-inset text-white text-[13px] font-semibold flex items-center justify-center gap-2 hover:brightness-125 transition"><ExternalLink size={16} /> Ler no site</button>
-          <button onClick={onClose} className="flex-1 h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2"><Sparkles size={16} /> Análise IA</button>
-          <button onClick={onClose} className="flex-1 h-12 rounded-xl liquid-search-inset text-white text-[13px] font-semibold flex items-center justify-center gap-2 hover:brightness-125 transition"><MessageCircle size={16} /> Chat com a notícia</button>
-        </div>
       </div>
     </div>
   );
