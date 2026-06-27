@@ -71,7 +71,58 @@ const smartFeedSort = (items) => {
 
 const safeLower = (v: any) => String(v ?? '').toLowerCase();
 
+// --- COPIE E COLE ESTA FUNÇÃO GLOBAL NO TOPO DO SEU page.tsx ---
+const smartFeedSort = (items) => {
+  if (!items || items.length === 0) return [];
+  
+  // 1. Filtra itens corrompidos e ordena estritamente por data (mais recente primeiro)
+  let sorted = [...items]
+    .filter(Boolean)
+    .sort((a, b) => {
+        const timeA = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
+        const timeB = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
+        return timeB - timeA;
+    });
+  
+  // 2. Remoção de duplicatas (Títulos muito parecidos)
+  const unique = [];
+  const seenTitles = new Set();
+  
+  for (const item of sorted) {
+      if (!item || !item.title) continue;
+      const titleSnippet = item.title.toLowerCase().replace(/[^\w\s]/gi, '').split(/\s+/).slice(0, 4).join(' ');
+      if (!seenTitles.has(titleSnippet)) {
+          seenTitles.add(titleSnippet);
+          unique.push(item);
+      }
+  }
 
+  // 3. Algoritmo Cronológico Micro-Shift (Deslocamento Suave)
+  // Se houver notícias consecutivas da mesma fonte, empurra a repetida ligeiramente para baixo 
+  // (no máximo 3 posições) para dar espaço a uma fonte diferente se houver alguma recente.
+  for (let i = 1; i < unique.length - 1; i++) {
+      if (unique[i].source === unique[i - 1].source) {
+          const windowSize = 3;
+          const searchEnd = Math.min(i + windowSize, unique.length - 1);
+          let swapIndex = -1;
+
+          for (let j = i + 1; j <= searchEnd; j++) {
+              if (unique[j].source !== unique[i - 1].source) {
+                  swapIndex = j;
+                  break;
+              }
+          }
+
+          if (swapIndex !== -1) {
+              const temp = unique[i];
+              unique[i] = unique[swapIndex];
+              unique[swapIndex] = temp;
+          }
+      }
+  }
+
+  return unique;
+};
 
 
 const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
@@ -1346,7 +1397,8 @@ function FeedTab({
   const safeNews = useMemo(() => stableData || [], [stableData]);
   const filteredByCategory = useMemo(() => category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category), [safeNews, category]);
   const filteredBySource = useMemo(() => sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter), [filteredByCategory, sourceFilter]);
-const sortedFeed = useMemo(() => smartFeedSort(filteredBySource), [filteredBySource]);  const uniqueNews = useMemo(() => {
+const sortedFeed = useMemo(() => smartFeedSort(filteredBySource), [filteredBySource]);  
+const uniqueNews = useMemo(() => {
       const seen = new Set();
       return sortedFeed.filter(item => {
           if (seen.has(item.id)) return false;
@@ -1364,11 +1416,16 @@ const sortedFeed = useMemo(() => smartFeedSort(filteredBySource), [filteredBySou
       setPullDistance(Math.min(diff * 0.45, 140));
     }
   };
-  const handleTouchEnd = async () => {
+const handleTouchEnd = async () => {
     if (pullDistance > 70) {
       setIsRefreshing(true);
-      if (onRefresh) await onRefresh();
-      setIsRefreshing(false);
+      try {
+        if (onRefresh) await onRefresh();
+      } catch (err) {
+        console.error("Falha ao atualizar FeedTab:", err);
+      } finally {
+        setIsRefreshing(false);
+      }
     }
     setPullDistance(0); setStartY(0);
   };
@@ -4819,10 +4876,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     }
   };
 
-  const handleTouchEnd = async () => {
-    // --- MUDANÇA CRÍTICA 2: Proteção total do clique ---
-    // Se o usuário não puxou a tela (pullDistance é 0), não fazemos NADA.
-    // O return imediato impede qualquer state update, preservando o clique nos filhos.
+const handleTouchEnd = async () => {
     if (pullDistance === 0) {
         startY.current = 0;
         return; 
@@ -4830,21 +4884,21 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
     if (pullDistance > 90) {
       setIsRefreshing(true);
-      setPullDistance(120); // Mantém o loading visível
+      setPullDistance(120); 
       setRefreshTrigger(prev => prev + 1);
       
-      if (onRefresh) await onRefresh();
-      
-      setTimeout(() => {
+      try {
+        if (onRefresh) await onRefresh();
+      } catch (err) {
+        console.error("Falha ao atualizar feed:", err);
+      } finally {
         setIsRefreshing(false);
         setPullDistance(0);
-      }, 1000);
+      }
     } else {
-      // Se puxou pouco, volta pro zero
       setPullDistance(0);
     }
     
-    // Reseta a referência
     startY.current = 0;
   };
 
@@ -7142,7 +7196,7 @@ const handleStoryNavigation = (direction) => {
           const batch = mediaFeeds.slice(i, i + BATCH_SIZE);
           await processFeedBatch(batch);
           
-          const safeSort = (a, b) => {
+      const safeSort = (a, b) => {
               const timeA = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
               const timeB = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
               return timeB - timeA;
