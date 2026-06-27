@@ -1239,10 +1239,10 @@ const NewsCard = React.memo(({
           <div className="mt-auto pt-3 flex items-end justify-between gap-3">
             {/* FONTE */}
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-11 h-11 rounded-xl bg-[#1e3a8a] flex items-center justify-center shrink-0 overflow-hidden">
+              <div className="w-11 h-11 rounded-xl bg-white border border-zinc-200/70 shadow-sm flex items-center justify-center shrink-0 overflow-hidden">
                 {news.logo
-                  ? <img src={news.logo} className="w-full h-full object-cover" onError={(e)=>{ e.target.style.display='none'; }} alt="" />
-                  : <span className="text-[10px] font-bold text-white">{(news.source||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}</span>}
+                  ? <img src={news.logo} className="w-full h-full object-contain p-1.5" onError={(e)=>{ e.target.style.display='none'; }} alt="" />
+                  : <span className="text-[11px] font-bold text-[#1e3a8a]">{(news.source||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}</span>}
               </div>
               <div className="flex items-center gap-2 min-w-0 text-[13px]">
                 <span className="font-semibold text-zinc-700 truncate">{news.source}</span>
@@ -2788,7 +2788,7 @@ ${context}
 // ==============================================================================
 // === GLASSBROWSER V7: Com Proteção Contra TypeError e Botão OK ===
 // ==============================================================================
-const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent }) => { // <--- RECEBE A PROP
+const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze }) => { // onAnalyze = abre painel lateral
   const [content, setContent] = useState(''); 
   const [status, setStatus] = useState('loading');
 
@@ -2866,58 +2866,58 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent }) => { // 
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-300">
-      {/* overlay compatível com o app (navy translúcido — não preto puro) */}
-      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" onClick={onClose} />
+      {/* overlay claro e suave */}
+      <div className="absolute inset-0 bg-slate-500/30 backdrop-blur-md" onClick={onClose} />
 
-      {/* ===== MODAL — NAVY LIQUID GLASS (Etapa 3) ===== */}
-      <div className="glassbrowser-shell relative w-full max-w-2xl h-[88vh] rounded-[1.9rem] overflow-hidden flex flex-col text-white">
+      {/* ===== MODAL — FROSTED GLASS CLARO (visual conforme print glass.png) ===== */}
+      <div className="glassbrowser-shell relative w-full max-w-2xl h-[88vh] rounded-[1.9rem] overflow-hidden flex flex-col text-zinc-900">
 
         {/* HERO */}
         <div className="relative h-52 sm:h-56 shrink-0">
           <img src={article.img} className="w-full h-full object-cover" onError={(e) => (e.target.style.display='none')} />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0b1a38] via-[#0b1a38]/35 to-[#0b1a38]/10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
           <div className="absolute top-4 left-5 right-4 flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md overflow-hidden shrink-0">
-                <img src={article.logo} className="w-full h-full object-cover" onError={(e) => (e.target.style.display='none')} alt="" />
+              <div className="w-11 h-11 rounded-xl bg-white border border-white/70 shadow-md overflow-hidden shrink-0 flex items-center justify-center">
+                <img src={article.logo} className="w-full h-full object-contain p-1.5" onError={(e) => (e.target.style.display='none')} alt="" />
               </div>
               <div className="leading-tight">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[15px] font-bold text-white drop-shadow">{article.source}</span>
-                  <CheckCircle size={14} className="text-blue-400" />
+                  <CheckCircle size={14} className="text-blue-300" />
                 </div>
-                {displayDate && <span className="text-[12px] text-white/65 drop-shadow">{displayDate}</span>}
+                {displayDate && <span className="text-[12px] text-white/85 drop-shadow">{displayDate}</span>}
               </div>
             </div>
-            <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/12 border border-white/20 backdrop-blur-md text-white flex items-center justify-center hover:bg-white/25 transition-colors shrink-0"><X size={18} /></button>
+            <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/25 border border-white/40 backdrop-blur-md text-white flex items-center justify-center hover:bg-white/45 transition-colors shrink-0"><X size={18} /></button>
           </div>
         </div>
 
         {/* CONTEÚDO */}
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 pb-5 custom-scrollbar">
-          <h2 className="-mt-1 text-[22px] sm:text-[26px] font-black leading-tight tracking-tight text-white">{article.title}</h2>
+          <h2 className="mt-4 text-[22px] sm:text-[26px] font-black leading-tight tracking-tight text-zinc-900">{article.title}</h2>
           <div className="flex flex-wrap gap-2 mt-3">
             {(article.category ? [article.category, 'Análise'] : ['Notícia', 'Análise']).map((c, i) => (
-              <span key={i} className="px-3 py-1 rounded-full text-[12px] font-medium text-white/80 bg-white/5 border border-white/10">{c}</span>
+              <span key={i} className="px-3 py-1 rounded-full text-[12px] font-medium text-zinc-600 bg-white/60 border border-white/70">{c}</span>
             ))}
           </div>
 
-          {/* RESUMO INTELIGENTE (mock visual — pronto p/ gerador estruturado) */}
-          <div className="mt-5 rounded-2xl liquid-search-inset p-4">
+          {/* RESUMO INTELIGENTE (mock visual) */}
+          <div className="mt-5 rounded-2xl bg-white/55 backdrop-blur-xl border border-white/70 p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-purple-300" />
-                <span className="text-[15px] font-bold text-white">Resumo Inteligente</span>
+                <Sparkles size={18} className="text-purple-500" />
+                <span className="text-[15px] font-bold text-zinc-900">Resumo Inteligente</span>
               </div>
-              <span className="text-[11px] text-white/45">Geração com IA</span>
+              <span className="text-[11px] text-zinc-400">Geração com IA</span>
             </div>
             <div className="space-y-2">
               {SUMMARY_ROWS.map((row, i) => (
-                <div key={i} className="flex gap-3 items-start rounded-xl bg-white/[0.03] border border-white/5 p-3">
+                <div key={i} className="flex gap-3 items-start rounded-xl bg-white/60 border border-white/70 p-3">
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${row.tile}`}>{row.icon}</div>
                   <div className="min-w-0">
-                    <div className="text-[13px] font-bold text-white mb-0.5">{row.label}</div>
-                    <div className="text-[13px] text-white/70 leading-relaxed">{row.text}</div>
+                    <div className="text-[13px] font-bold text-zinc-900 mb-0.5">{row.label}</div>
+                    <div className="text-[13px] text-zinc-500 leading-relaxed">{row.text}</div>
                   </div>
                 </div>
               ))}
@@ -2925,38 +2925,32 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent }) => { // 
           </div>
 
           {/* TRECHOS RELEVANTES (mock) */}
-          <div className="mt-4 rounded-2xl liquid-search-inset p-4">
+          <div className="mt-4 rounded-2xl bg-white/55 backdrop-blur-xl border border-white/70 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-purple-300 text-2xl leading-none">&ldquo;</span>
-              <span className="text-[15px] font-bold text-white">Trechos relevantes</span>
+              <span className="text-purple-500 text-2xl leading-none">&ldquo;</span>
+              <span className="text-[15px] font-bold text-zinc-900">Trechos relevantes</span>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               {QUOTES.map((q, i) => (
-                <div key={i} className="rounded-xl bg-white/[0.03] border border-white/5 p-3 text-[13px] italic text-white/75 leading-relaxed">{q}</div>
+                <div key={i} className="rounded-xl bg-white/60 border border-white/70 p-3 text-[13px] italic text-zinc-600 leading-relaxed">{q}</div>
               ))}
             </div>
           </div>
 
-          {/* LEITURA OTIMIZADA — conteúdo REAL do onFetchContent (lógica preservada) */}
+          {/* estado real do fetch (discreto) — sem subcontainer "Leitura otimizada" */}
           {status === 'loading' && (
-            <div className="mt-4 flex items-center gap-2 text-white/55 text-[12px]"><Loader2 size={14} className="animate-spin" /> Otimizando leitura…</div>
-          )}
-          {status === 'success' && content && (
-            <div className="mt-4 rounded-2xl liquid-search-inset p-4">
-              <div className="flex items-center gap-2 mb-2"><FileText size={16} className="text-blue-300" /><span className="text-[14px] font-bold text-white">Leitura otimizada</span></div>
-              <div className="text-[14px] leading-relaxed text-white/80 whitespace-pre-line font-serif">{content}</div>
-            </div>
+            <div className="mt-4 flex items-center gap-2 text-zinc-400 text-[12px]"><Loader2 size={14} className="animate-spin" /> Otimizando leitura…</div>
           )}
           {status === 'error' && (
-            <div className="mt-4 text-white/45 text-[12px]">Não foi possível otimizar o conteúdo. Use &ldquo;Ler no site&rdquo;.</div>
+            <div className="mt-4 text-zinc-400 text-[12px]">Não foi possível otimizar o conteúdo. Use &ldquo;Ler no site&rdquo;.</div>
           )}
         </div>
 
-        {/* RODAPÉ — Ler no site (real) / Análise IA / Chat (mock) */}
-        <div className="shrink-0 px-5 sm:px-6 py-4 border-t border-white/8 flex flex-col sm:flex-row gap-3">
-          <button onClick={openOriginal} className="flex-1 h-12 rounded-xl liquid-search-inset text-white text-[13px] font-semibold flex items-center justify-center gap-2 hover:brightness-125 transition"><ExternalLink size={16} /> Ler no site</button>
-          <button onClick={onClose} className="flex-1 h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2"><Sparkles size={16} /> Análise IA</button>
-          <button onClick={onClose} className="flex-1 h-12 rounded-xl liquid-search-inset text-white text-[13px] font-semibold flex items-center justify-center gap-2 hover:brightness-125 transition"><MessageCircle size={16} /> Chat com a notícia</button>
+        {/* RODAPÉ — Ler no site (real) / Análise IA (abre painel lateral) / Chat (mock) */}
+        <div className="shrink-0 px-5 sm:px-6 py-4 border-t border-white/50 flex flex-col sm:flex-row gap-3">
+          <button onClick={openOriginal} className="flex-1 h-12 rounded-xl bg-white/60 border border-white/70 text-zinc-700 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 transition"><ExternalLink size={16} /> Ler no site</button>
+          <button onClick={() => { if (onAnalyze) onAnalyze(article); onClose(); }} className="flex-1 h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2"><Sparkles size={16} /> Análise IA</button>
+          <button onClick={onClose} className="flex-1 h-12 rounded-xl bg-white/60 border border-white/70 text-zinc-700 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 transition"><MessageCircle size={16} /> Chat com a notícia</button>
         </div>
       </div>
     </div>
@@ -7724,7 +7718,8 @@ return (
           article={glassArticle}
           onClose={() => setGlassArticle(null)}
           isDarkMode={isDarkMode}
-          onFetchContent={fetchOptimizedContent} 
+          onFetchContent={fetchOptimizedContent}
+          onAnalyze={handleOpenArticle}
         />
       )}
 
