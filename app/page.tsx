@@ -7127,12 +7127,24 @@ const handleStoryNavigation = (direction) => {
                           const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
                           const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
                           
-                          let originalTimestamp = Date.now() - (15 * 60 * 1000);
+                      // --- DATA: sanidade + ordenação confiável (itens 1-3) ---
+                          const _now = Date.now();
                           const parsedDate = new Date(rawDateString);
-                          if (rawDateString && !isNaN(parsedDate.getTime())) originalTimestamp = parsedDate.getTime();
-                          
-                          const minutesToSubtract = index * (5 + Math.floor(Math.random() * 3)); 
-                          const finalTimestamp = newHistoryBuffer[uniqueId] || (originalTimestamp - (minutesToSubtract * 60 * 1000));
+                          let baseTimestamp;
+                          let dateEstimated = false;
+                          if (rawDateString && !isNaN(parsedDate.getTime())) {
+                              // data válida: usa a real, mas NUNCA no futuro (corrige relógios errados de fontes)
+                              baseTimestamp = Math.min(parsedDate.getTime(), _now);
+                          } else {
+                              // sem data confiável: NÃO finge "15 min atrás". Estima abaixo das datadas recentes,
+                              // preservando a ordem do feed (RSS vem do mais novo p/ o mais antigo).
+                              dateEstimated = true;
+                              baseTimestamp = _now - (3 * 60 * 60 * 1000) - (index * 10 * 60 * 1000);
+                          }
+                          // desempate mínimo dentro do MESMO feed (1s por posição) — não altera ordem real entre fontes
+                          const computed = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
+                          // No pull-to-refresh (forceRefresh) reordena pelos dados frescos; senão mantém estabilidade via histórico
+                          const finalTimestamp = forceRefresh ? computed : (newHistoryBuffer[uniqueId] || computed);
                           newHistoryBuffer[uniqueId] = finalTimestamp;
                           const finalDateObj = new Date(finalTimestamp);
                           
