@@ -71,58 +71,6 @@ const smartFeedSort = (items) => {
 
 const safeLower = (v: any) => String(v ?? '').toLowerCase();
 
-// --- COPIE E COLE ESTA FUNÇÃO GLOBAL NO TOPO DO SEU page.tsx ---
-const smartFeedSort = (items) => {
-  if (!items || items.length === 0) return [];
-  
-  // 1. Filtra itens corrompidos e ordena estritamente por data (mais recente primeiro)
-  let sorted = [...items]
-    .filter(Boolean)
-    .sort((a, b) => {
-        const timeA = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
-        const timeB = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
-        return timeB - timeA;
-    });
-  
-  // 2. Remoção de duplicatas (Títulos muito parecidos)
-  const unique = [];
-  const seenTitles = new Set();
-  
-  for (const item of sorted) {
-      if (!item || !item.title) continue;
-      const titleSnippet = item.title.toLowerCase().replace(/[^\w\s]/gi, '').split(/\s+/).slice(0, 4).join(' ');
-      if (!seenTitles.has(titleSnippet)) {
-          seenTitles.add(titleSnippet);
-          unique.push(item);
-      }
-  }
-
-  // 3. Algoritmo Cronológico Micro-Shift (Deslocamento Suave)
-  // Se houver notícias consecutivas da mesma fonte, empurra a repetida ligeiramente para baixo 
-  // (no máximo 3 posições) para dar espaço a uma fonte diferente se houver alguma recente.
-  for (let i = 1; i < unique.length - 1; i++) {
-      if (unique[i].source === unique[i - 1].source) {
-          const windowSize = 3;
-          const searchEnd = Math.min(i + windowSize, unique.length - 1);
-          let swapIndex = -1;
-
-          for (let j = i + 1; j <= searchEnd; j++) {
-              if (unique[j].source !== unique[i - 1].source) {
-                  swapIndex = j;
-                  break;
-              }
-          }
-
-          if (swapIndex !== -1) {
-              const temp = unique[i];
-              unique[i] = unique[swapIndex];
-              unique[swapIndex] = temp;
-          }
-      }
-  }
-
-  return unique;
-};
 
 
 const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
