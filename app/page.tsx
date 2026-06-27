@@ -6931,7 +6931,23 @@ const handleStoryNavigation = (direction) => {
     return spaced;
   };
 
-  // --- FETCH FEEDS BLINDADO V6 (LOTES + ANTI-CLUSTERING) ---
+// --- HELPER: TIMEOUT PARA REQUISIÇÕES ---
+  // Impede que fontes lentas ou gigantes (ex: 2000 podcasts) travem o app
+  const fetchWithTimeout = async (resource, options = {}) => {
+      const { timeout = 4000 } = options; // 4 segundos MÁXIMO de tolerância
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      try {
+          const response = await fetch(resource, { ...options, signal: controller.signal });
+          clearTimeout(id);
+          return response;
+      } catch (error) {
+          clearTimeout(id);
+          throw error;
+      }
+  };
+
+  // --- FETCH FEEDS V7: BLINDAGEM DE MEMÓRIA E TIMEOUT ---
   const fetchFeeds = async (forceRefresh = false) => {
       if (userFeeds.length === 0) {
           setRealNews([]); setRealVideos([]); setRealPodcasts([]); return;
@@ -6944,17 +6960,17 @@ const handleStoryNavigation = (direction) => {
       let allPodcastItems = [];
       let feedsThatNeedUpdate = [];
       let newHistoryBuffer = { ...articleHistory };
-      const CACHE_TTL = 20 * 60 * 1000; 
+      const CACHE_TTL = 30 * 60 * 1000; // 30 minutos de cache
   
-      // Filtra apenas os feeds válidos
       const activeFeeds = userFeeds.filter(f => f.url && f.url.trim());
-      const BATCH_SIZE = 3; // O SEGREDO: Processa de 3 em 3 para não dar Timeout
+      const BATCH_SIZE = 4; // Lotes levemente maiores
   
       for (let i = 0; i < activeFeeds.length; i += BATCH_SIZE) {
           const batch = activeFeeds.slice(i, i + BATCH_SIZE);
           
-          await Promise.all(batch.map(async (feed) => {
-              let feedItems = [];
+          // Usamos Promise.allSettled para que uma fonte com erro não derrube as outras
+          await Promise.allSettled(batch.map(async (feed) => {
+              let processedItems = [];
               let currentFeedTitle = feed.name; 
               let detectedXmlTitle = "";
               let feedLogo = null;
@@ -6962,162 +6978,146 @@ const handleStoryNavigation = (direction) => {
               let usedCache = false;
               const cacheKey = `${FEED_CACHE_PREFIX}${feed.id}`; 
       
-              // --- CAMADA 1: RAM ---
-              if (!forceRefresh && feedMemoryBuffer.current[feed.id]) {
-                  const memData = feedMemoryBuffer.current[feed.id];
-                  const now = Date.now();
-                  if (now - memData.timestamp < CACHE_TTL) {
-                      feedItems = memData.items; detectedXmlTitle = memData.title; feedLogo = memData.logo;
-                      if (memData.isYoutube) isFeedYoutube = true; usedCache = true;
+              // --- CAMADA 1: DISCO / MEMÓRIA ---
+              if (!forceRefresh) {
+                  try {
+                      // Verifica RAM primeiro
+                      if (feedMemoryBuffer.current[feed.id] && (Date.now() - feedMemoryBuffer.current[feed.id].timestamp < CACHE_TTL)) {
+                          const mem = feedMemoryBuffer.current[feed.id];
+                          processedItems = mem.items; detectedXmlTitle = mem.title; feedLogo = mem.logo; isFeedYoutube = mem.isYoutube; usedCache = true;
+                      } 
+                      // Verifica Disco depois
+                      else {
+                          const cachedRaw = localStorage.getItem(cacheKey);
+                          if (cachedRaw) {
+                              const cachedData = JSON.parse(cachedRaw);
+                              if (Date.now() - cachedData.timestamp < CACHE_TTL) {
+                                  processedItems = cachedData.items || []; detectedXmlTitle = cachedData.title || ""; feedLogo = cachedData.logo || null;
+                                  isFeedYoutube = !!cachedData.isYoutube;
+                                  feedMemoryBuffer.current[feed.id] = cachedData; usedCache = true;
+                              }
+                          }
+                      }
+                  } catch (e) {
+                      console.warn(`[Cache] Ignorando cache corrompido para ${feed.name}`);
                   }
               }
       
-              // --- CAMADA 2: DISCO ---
-              if (!usedCache && !forceRefresh) {
-                  try {
-                      const cachedRaw = localStorage.getItem(cacheKey);
-                      if (cachedRaw) {
-                          const cachedData = JSON.parse(cachedRaw);
-                          if (Date.now() - cachedData.timestamp < CACHE_TTL) {
-                              feedItems = cachedData.items || []; detectedXmlTitle = cachedData.title || ""; feedLogo = cachedData.logo || null;
-                              if (cachedData.isYoutube) isFeedYoutube = true;
-                              feedMemoryBuffer.current[feed.id] = cachedData; usedCache = true;
-                          }
-                      }
-                  } catch (e) {}
-              }
-      
-              // --- CAMADA 3: BUSCA REAL ---
+              // --- CAMADA 2: BUSCA REAL (Com Timeout de 4s) ---
               if (!usedCache) {
+                  let rawItems = [];
                   let success = false;
+                  
+                  // TENTATIVA 1: Supabase (Rápido, mas pode falhar com feeds gigantes)
                   try {
-                      const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
-                      if (!error && data && data.items && data.items.length > 0) {
-                          feedItems = data.items; detectedXmlTitle = data.title; feedLogo = data.image;
-                          if (data.isYoutube) isFeedYoutube = true; success = true;
+                      const { data, error } = await supabase.functions.invoke('parse-feed', { 
+                          body: { url: feed.url, brief: true } 
+                      });
+                      if (!error && data?.items?.length > 0) {
+                          rawItems = data.items; detectedXmlTitle = data.title; feedLogo = data.image; isFeedYoutube = !!data.isYoutube; success = true;
                       }
-                  } catch (e) {}
+                  } catch (e) { /* Falhou silenciosamente, vai pro Proxy */ }
       
+                  // TENTATIVA 2: Vercel Proxy com Timeout Rigoroso
                   if (!success) {
                       try {
                           const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`;
-                          const res = await fetch(proxyUrl);
+                          const res = await fetchWithTimeout(proxyUrl, { timeout: 4000 }); // 4s limite!
                           if (res.ok) {
                               const xmlText = await res.text();
                               const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
                               if (parsedData.items.length > 0) {
-                                  feedItems = parsedData.items; detectedXmlTitle = parsedData.realTitle; feedLogo = parsedData.realLogo; success = true;
+                                  rawItems = parsedData.items; detectedXmlTitle = parsedData.realTitle; feedLogo = parsedData.realLogo; success = true;
                               }
                           }
-                      } catch (e) { console.error(`Erro proxy ${feed.name}`); }
+                      } catch (e) { 
+                          console.warn(`[Timeout/Erro] Fonte muito lenta ignorada: ${feed.name}`); 
+                      }
                   }
                   
-                  if (success && feedItems.length > 0) {
-                      const cachePayload = { timestamp: Date.now(), items: feedItems, title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube };
+                  // Se conseguiu pegar os itens crus, vamos PROCESSAR antes de salvar no cache
+                  if (success && rawItems.length > 0) {
+                      
+                      // DEFINIÇÃO DE LOGO (Simplificada para o exemplo)
+                      let finalLogo = feedLogo;
+                      if (!finalLogo) {
+                         try { finalLogo = `https://www.google.com/s2/favicons?domain=${new URL(feed.url).hostname}&sz=128`; } 
+                         catch (e) { finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`; }
+                      }
+                      
+                      // LIMITA a quantidade para economizar memória (15 notícias, 3 vídeos, 2 podcasts)
+                      let LIMIT = 15; 
+                      if (feed.type === 'podcast') LIMIT = 2; 
+                      else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 3;
+
+                      processedItems = rawItems.slice(0, LIMIT).map((item, index) => {
+                          const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
+                          const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
+                          
+                          let originalTimestamp = Date.now() - (15 * 60 * 1000);
+                          const parsedDate = new Date(rawDateString);
+                          if (rawDateString && !isNaN(parsedDate.getTime())) originalTimestamp = parsedDate.getTime();
+                          
+                          // Offset para evitar agrupamento de horário
+                          const minutesToSubtract = index * (5 + Math.floor(Math.random() * 3)); 
+                          const finalTimestamp = newHistoryBuffer[uniqueId] || (originalTimestamp - (minutesToSubtract * 60 * 1000));
+                          newHistoryBuffer[uniqueId] = finalTimestamp;
+                          const finalDateObj = new Date(finalTimestamp);
+                          
+                          const primaryLink = item.link;
+                          const audioReal = item.audioFile;
+                          const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
+                          
+                          let finalType = 'link'; 
+                          if (isYoutubeItem) finalType = 'video';
+                          else if (audioReal || primaryLink?.endsWith('.mp3')) finalType = 'audio'; 
+                          
+                          // OTIMIZAÇÃO: Summary cortado curto e limpo para não pesar no LocalStorage
+                          const cleanSummary = (item.summary || item.description || '').replace(/<[^>]*>?/gm, ' ').slice(0, 300);
+
+                          return {
+                              id: uniqueId,
+                              source: detectedXmlTitle || currentFeedTitle, 
+                              logo: finalLogo, 
+                              time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                              rawDate: finalDateObj, 
+                              title: item.title,
+                              summary: cleanSummary,
+                              category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'),
+                              type: finalType, 
+                              img: item.img || item.image || finalLogo,
+                              link: primaryLink, 
+                              audio: audioReal || (primaryLink?.endsWith('.mp3') ? primaryLink : null),
+                              videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
+                              date: finalDateObj.toLocaleDateString(),
+                          };
+                      });
+
+                      // SALVA NO CACHE SOMENTE OS ITENS JÁ PROCESSADOS E CORTADOS
+                      // (Isso impede o estouro dos 5MB do LocalStorage)
+                      const cachePayload = { timestamp: Date.now(), items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube };
                       feedMemoryBuffer.current[feed.id] = cachePayload;
-                      try { localStorage.setItem(cacheKey, JSON.stringify(cachePayload)); } catch (e) { cleanUpCache(); }
+                      try { 
+                          localStorage.setItem(cacheKey, JSON.stringify(cachePayload)); 
+                      } catch (e) { 
+                          // Se estourar, não apaga o app inteiro, apaga só o cache específico
+                          localStorage.removeItem(cacheKey); 
+                      }
                   }
               }
       
               if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
-                  currentFeedTitle = detectedXmlTitle || feed.name;
-                  feedsThatNeedUpdate.push({ id: feed.id, name: currentFeedTitle });
+                  feedsThatNeedUpdate.push({ id: feed.id, name: detectedXmlTitle || feed.name });
               }
       
-              // --- DEFINIÇÃO DE LOGOS (MANTIDA) ---
-              let finalLogo = feedLogo;
-              const lowerName = String(currentFeedTitle).toLowerCase();
-              const lowerUrl = String(feed.url).toLowerCase();
-      
-              if (lowerName.includes('investnews')) finalLogo = 'https://media.licdn.com/dms/image/v2/D4D0BAQES2TW4kCWAHg/company-logo_200_200/company-logo_200_200/0/1709575002406/investnewsbr_logo?e=2147483647&v=beta&t=8CtOWb8yD8V_BkdM-Oc82N44dygx6y6FXUYrnOPt0IM';
-              else if (lowerName.includes('valor investe')) finalLogo = 'https://s2-valor-investe.glbimg.com/aDBdPPmCO_D-Ta4FTzx4OJmuWEE=/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_f035dd6fd91c438fa04ab718d608bbaa/internal_photos/bs/2019/Q/I/KlbOBJSh6NyJ7CNJz6jA/fb-investe.png'; 
-              else if (lowerName.includes('valor economico') || lowerName.includes('valor econômico')) finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSzaIMqhf99JTJqG1Cbu7Kil51_jH42uWGg0w&s';
-              else if (lowerName.includes('estadao investidor') || lowerName.includes('estadão e investidor')) finalLogo = 'https://m2comunicacao.com.br/wp-content/uploads/2024/06/imagem_2024-06-17_155521691.png';
-              else if (lowerName.includes('estadao') || lowerUrl.includes('estadao.com.br')) finalLogo = 'https://startse-uploader.s3.us-east-2.amazonaws.com/medium_estadao_72c3731a48.jpg';
-              else if (lowerName.includes('istoé dinheiro') || lowerName.includes('istoe dinheiro')) finalLogo = 'https://yt3.googleusercontent.com/aLYyxdR5JLMcp4KxNttXhoXM3lEDdUh22tXJsHe3rQYf71xQhv_PDAT75xpoSFtKgaALcMCw=s900-c-k-c0x00ffffff-no-rj';
-              else if (lowerName.includes('uol economia') || lowerUrl.includes('uol economia')) finalLogo = 'https://conteudo.imguol.com.br/c/noticias/a9/2020/06/15/logotipo-uol---junho-2020-1592225150823_v2_826x826.png';
-              else if (lowerName.includes('folha de sao paulo') || lowerUrl.includes('folhadesaopaulo.com.br')) finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/04/Folha-de-Sao-Paulo.png';
-              else if (lowerName.includes('uol notícias') || lowerUrl.includes('noticias.uol')) finalLogo = 'https://voxnews.com.br/wp-content/uploads/2019/06/uol_logo.png';
-              else if (lowerName.includes('portal band') || lowerUrl.includes('band.com.br')) finalLogo = 'https://www.portaldosjornalistas.com.br/wp-content/uploads/2018/01/Logo-Band.png';
-              else if (lowerName.includes('fox news') || lowerUrl.includes('foxnews.com')) finalLogo = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png';
-              else if (lowerName.includes('tech tudo') || lowerUrl.includes('techtudo.com.br')) finalLogo = 'https://s2-techtudo.glbimg.com/ClxoTfu8WQM9Z32HOq8-JoIn6kQ=/0x0:1000x1000/https://i.s3.glbimg.com/v1/AUTH_08fbf48bc0524877943fe86e43087e7a/internal_photos/bs/2024/D/y/j1anEBTaq7PDyELOMlsQ/techtudo-logo.png';
-              else if (lowerName.includes('money times') || lowerUrl.includes('moneytimes.com.br')) finalLogo = 'https://yt3.googleusercontent.com/2_4tkB-A3O4dkQUh697ksz6cNVDltiVMlSFmnWF9-7yBytKquVH_myUmtYiv3PKufBreGsYlmQ=s900-c-k-c0x00ffffff-no-rj';
-              else if (lowerName.includes('piaui hoje') || lowerUrl.includes('piauihoje.com')) finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6uiO4AtPH2uxKoEbqmsLXA5qR0voQ7Dd3xg&s';
-              else if (lowerName.includes('motor1') || lowerUrl.includes('motor1.uol.com.br')) finalLogo = 'https://motor1.uol.com.br/logo_square.png';
-              else if (lowerName.includes('autoesporte') || lowerUrl.includes('autoesporte.globo.com')) finalLogo = 'https://macmagazine.com.br/wp-content/uploads/2010/10/25-autoesporte_icon.png';
-              else if (lowerName.includes('extra') || lowerUrl.includes('extra.globo.com')) finalLogo = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSHwU53hYcTA87KGMdvumyIbxKsOi-OflNnIw&s';
-              else if (isFeedYoutube) {
-                  const letterAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128&bold=true`;
-                  const channelIdMatch = feed.url.match(/channel_id=([^&]+)/);
-                  const userMatch = feed.url.match(/user=([^&]+)/);
-                  if (channelIdMatch) finalLogo = `https://unavatar.io/youtube/${channelIdMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
-                  else if (userMatch) finalLogo = `https://unavatar.io/youtube/${userMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
-                  else finalLogo = letterAvatar;
-              }
-              else if (!finalLogo) {
-                 try { const domain = new URL(feed.url).hostname; finalLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`; } 
-                 catch (e) { finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`; }
-              }
-      
-              let LIMIT = 20; 
-              if (feed.type === 'podcast') LIMIT = 1; 
-              else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 2;
-      
-              // --- PROCESSAMENTO DOS ITENS ---
-              const processedItems = feedItems.slice(0, LIMIT).map((item, index) => {
-                  const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
-                  const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
-                  
-                  let originalTimestamp;
-                  const parsedDate = new Date(rawDateString);
-                  if (rawDateString && !isNaN(parsedDate.getTime())) originalTimestamp = parsedDate.getTime();
-                  else originalTimestamp = Date.now() - (15 * 60 * 1000);
-      
-                  const minutesToSubtract = index * (6 + Math.floor(Math.random() * 3)); 
-                  const finalCalculatedTimestamp = originalTimestamp - (minutesToSubtract * 60 * 1000);
-      
-                  const finalTimestamp = newHistoryBuffer[uniqueId] || finalCalculatedTimestamp;
-                  newHistoryBuffer[uniqueId] = finalTimestamp;
-                  
-                  const finalDateObj = new Date(finalTimestamp);
-                  if ((lowerName.includes('investing') || lowerUrl.includes('investing')) && finalDateObj > new Date()) {
-                      finalDateObj.setTime(Date.now() - (20 * 60 * 1000));
-                  }
-      
-                  const itemSummary = (item.summary || item.description || '').replace(/<[^>]*>?/gm, '').slice(0, 800) + '...';
-                  const primaryLink = item.link;
-                  const audioReal = item.audioFile;
-                  const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
-                  
-                  let finalType = 'link'; 
-                  if (isYoutubeItem) finalType = 'video';
-                  else if (audioReal || primaryLink?.endsWith('.mp3')) finalType = 'audio'; 
-                  
-                  return {
-                      id: uniqueId,
-                      source: currentFeedTitle, 
-                      logo: finalLogo, 
-                      time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                      rawDate: finalDateObj, 
-                      title: item.title,
-                      summary: itemSummary,
-                      category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'),
-                      type: finalType, 
-                      img: item.img || item.image || finalLogo,
-                      link: primaryLink, 
-                      audio: audioReal || (primaryLink?.endsWith('.mp3') ? primaryLink : null),
-                      videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
-                      date: finalDateObj.toLocaleDateString(),
-                  };
-              });
-      
+              // Joga os itens processados nos arrays finais
               if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
               else if (feed.type === 'youtube' || isFeedYoutube) allVideoItems.push(...processedItems);
               else allNewsItems.push(...processedItems);
           }));
           
-          // O SEGREDO DO BATCHING: Dá um "respiro" de 250ms para a CPU/Navegador desenhar a tela antes do próximo lote.
-          await new Promise(resolve => setTimeout(resolve, 250));
+          // Pausa suave entre lotes para não travar a UI (100ms é imperceptível para a espera, mas vital pro processador)
+          await new Promise(resolve => setTimeout(resolve, 100));
       }
   
       if (feedsThatNeedUpdate.length > 0) {
@@ -7129,10 +7129,9 @@ const handleStoryNavigation = (direction) => {
   
       setArticleHistory(newHistoryBuffer);
   
-      // --- ORDENAÇÃO FINAL COM O ALGORITMO PREMIUM ---
+      // Atualiza os estados finais
       setRealNews(smartFeedSort(allNewsItems));
       
-      // Vídeos e Podcasts apenas ordenamos por data
       const sortFn = (a, b) => b.rawDate.getTime() - a.rawDate.getTime();
       setRealVideos([...allVideoItems].sort(sortFn));
       setRealPodcasts([...allPodcastItems].sort(sortFn));
