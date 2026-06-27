@@ -6779,7 +6779,7 @@ const handleStoryNavigation = (direction) => {
       setIsSyncing(false);
   };
 
-  // 3. Função para Salvar (Debounced effect)
+// 3. Função para Salvar (Debounced effect)
   useEffect(() => {
       if (!user || isSyncing) return;
 
@@ -6788,12 +6788,17 @@ const handleStoryNavigation = (direction) => {
               user_id: user.id,
               feeds: userFeeds,
               saved_items: savedItems,
-              read_history: readHistory,
+              // Mantém o histórico no banco de dados controlado
+              read_history: readHistory.slice(-300), 
               liked_items: likedItems,
               api_key: JSON.stringify(apiKeys),
               is_dark_mode: isDarkMode,
-              seen_story_ids: seenStoryIds, 
-              article_history: articleHistory,
+              // Mantém as histórias vistas de forma enxuta
+              seen_story_ids: seenStoryIds.slice(-200), 
+              
+              // REMOVIDO: O article_history não é mais persistido no banco
+              // para evitar o inchaço de dados e travamento do Postgres.
+              
               updated_at: new Date()
           };
 
@@ -6804,12 +6809,15 @@ const handleStoryNavigation = (direction) => {
           if (error) console.error("Erro ao salvar:", error);
       };
 
+      // Aumentado para 15 segundos para dar folga operacional ao disco do banco
       const timer = setTimeout(() => {
           saveData();
-      }, 5000);
+      }, 15000); 
 
       return () => clearTimeout(timer);
-  }, [user, userFeeds, savedItems, readHistory, likedItems, apiKeys, isDarkMode, seenStoryIds, articleHistory]);
+  }, [user, userFeeds, savedItems, readHistory, likedItems, apiKeys, isDarkMode, seenStoryIds]); 
+  // articleHistory e as variáveis dependentes foram retiradas das dependências 
+  // para evitar disparos desnecessários.
 
 
   // --- FUNÇÕES DE AUXÍLIO ---
