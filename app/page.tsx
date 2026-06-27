@@ -6699,6 +6699,9 @@ const handleStoryNavigation = (direction) => {
     return () => subscription.unsubscribe();
   }, []);
 
+// Chave de proteção contra re-escrita automática do banco de dados
+  const isInitialLoadRef = useRef(true);
+
   // 2. Função para Carregar Dados do Banco
   const loadUserData = async (userId) => {
       setIsSyncing(true);
@@ -6709,70 +6712,57 @@ const handleStoryNavigation = (direction) => {
           .single();
 
       if (data) {
-          if (data.feeds) setUserFeeds(data.feeds);
-          if (data.saved_items) setSavedItems(data.saved_items);
-          if (data.read_history) setReadHistory(data.read_history);
-          if (data.liked_items) setLikedItems(data.liked_items);
-          
-          if (data.api_key) {
-              try {
-                  const parsedFromDB = JSON.parse(data.api_key);
-
-                  if (Array.isArray(parsedFromDB)) {
-               const defaultKeysStructure = [
-    // Pool 1: Widgets (Leve) - Agora com 6 chaves
-    { id: 1, value: '', type: 'free_widget' },
-    { id: 2, value: '', type: 'free_widget' },
-    { id: 3, value: '', type: 'free_widget' },
-    { id: 4, value: '', type: 'free_widget' },
-    { id: 14, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
-    { id: 16, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
-    
-    // Legado / Backup
-    { id: 5, value: '', type: 'legacy_text' },
-    { id: 6, value: '', type: 'legacy_audio' },
-
-    // Pool 2: Usina de IA (Pesado) - Agora com 7 chaves
-    { id: 7, value: '', type: 'heavy_rotation' },
-    { id: 8, value: '', type: 'heavy_rotation' },
-    { id: 9, value: '', type: 'heavy_rotation' },
-    { id: 10, value: '', type: 'heavy_rotation' },
-    { id: 11, value: '', type: 'heavy_rotation' },
-    { id: 15, value: '', type: 'heavy_rotation' },
-    { id: 17, value: '', type: 'heavy_rotation' }, // <<-- NOVA CHAVE
-
-    // Pool 3: Chat - Agora com 3 chaves
-    { id: 12, value: '', type: 'chat_key' },
-    { id: 13, value: '', type: 'chat_key' },
-    { id: 18, value: '', type: 'chat_key' }, // <<-- NOVA CHAVE
-];
-
-                      // ==========================================================
-                      // === A MUDANÇA CRÍTICA ESTÁ AQUI ===
-                      // ==========================================================
-                      const mergedKeys = defaultKeysStructure.map(defaultKey => {
-                          const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
-                          
-                          // LÓGICA DE FUSÃO SEGURA E EXPLÍCITA
-                          return {
-                              id: defaultKey.id,           // Usa o ID do padrão, sempre.
-                              type: defaultKey.type,         // Usa o TYPE do padrão, sempre.
-                              value: keyFromDB?.value || ''  // Pega o VALUE do banco, ou retorna '' se não existir.
-                          };
-                      });
-                      
-                      setApiKeys(mergedKeys);
-
-                  } else {
-                      console.warn("Formato de chaves antigo no banco. Mantendo estado padrão.");
+          // Só carrega do banco de dados se for a PRIMEIRA montagem do app
+          if (isInitialLoadRef.current) {
+              if (data.feeds) setUserFeeds(data.feeds);
+              if (data.saved_items) setSavedItems(data.saved_items);
+              if (data.read_history) setReadHistory(data.read_history);
+              if (data.liked_items) setLikedItems(data.liked_items);
+              
+              if (data.api_key) {
+                  try {
+                      const parsedFromDB = JSON.parse(data.api_key);
+                      if (Array.isArray(parsedFromDB)) {
+                           const defaultKeysStructure = [
+                                { id: 1, value: '', type: 'free_widget' },
+                                { id: 2, value: '', type: 'free_widget' },
+                                { id: 3, value: '', type: 'free_widget' },
+                                { id: 4, value: '', type: 'free_widget' },
+                                { id: 14, value: '', type: 'free_widget' },
+                                { id: 16, value: '', type: 'free_widget' },
+                                { id: 5, value: '', type: 'legacy_text' },
+                                { id: 6, value: '', type: 'legacy_audio' },
+                                { id: 7, value: '', type: 'heavy_rotation' },
+                                { id: 8, value: '', type: 'heavy_rotation' },
+                                { id: 9, value: '', type: 'heavy_rotation' },
+                                { id: 10, value: '', type: 'heavy_rotation' },
+                                { id: 11, value: '', type: 'heavy_rotation' },
+                                { id: 15, value: '', type: 'heavy_rotation' },
+                                { id: 17, value: '', type: 'heavy_rotation' },
+                                { id: 12, value: '', type: 'chat_key' },
+                                { id: 13, value: '', type: 'chat_key' },
+                                { id: 18, value: '', type: 'chat_key' },
+                           ];
+                           const mergedKeys = defaultKeysStructure.map(defaultKey => {
+                               const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
+                               return {
+                                   id: defaultKey.id,
+                                   type: defaultKey.type,
+                                   value: keyFromDB?.value || ''
+                               };
+                           });
+                           setApiKeys(mergedKeys);
+                      }
+                  } catch (e) {
+                      console.error("Erro ao fazer parse das chaves do banco:", e);
                   }
-              } catch (e) {
-                  console.error("Erro ao fazer parse das chaves do banco:", e);
               }
+              if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
+              if (data.seen_story_ids) setSeenStoryIds(data.seen_story_ids);
+              if (data.article_history) setArticleHistory(data.article_history);
+              
+              isInitialLoadRef.current = false; // Desativa novas cargas para não dar o efeito de rebote
           }
-          if (data.is_dark_mode !== null) setIsDarkMode(data.is_dark_mode);
-          if (data.seen_story_ids) setSeenStoryIds(data.seen_story_ids);
-          if (data.article_history) setArticleHistory(data.article_history);
       } else if (!error) {
           await supabase.from('user_preferences').insert([{ user_id: userId }]);
       }
@@ -7005,9 +6995,22 @@ const handleStoryNavigation = (direction) => {
                       } catch (e) {}
                   }
                   
-                  if (success && rawItems.length > 0) {
+               if (success && rawItems.length > 0) {
                       let finalLogo = feedLogo;
-                      if (!finalLogo) {
+                      
+                      // RESTAURAÇÃO: Motor de logos reais para canais do YouTube
+                      if (isFeedYoutube) {
+                          const letterAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128&bold=true`;
+                          const channelIdMatch = feed.url.match(/channel_id=([^&]+)/);
+                          const userMatch = feed.url.match(/user=([^&]+)/);
+                          if (channelIdMatch) {
+                              finalLogo = `https://unavatar.io/youtube/${channelIdMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
+                          } else if (userMatch) {
+                              finalLogo = `https://unavatar.io/youtube/${userMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
+                          } else {
+                              finalLogo = letterAvatar;
+                          }
+                      } else if (!finalLogo) {
                          try { finalLogo = `https://www.google.com/s2/favicons?domain=${new URL(feed.url).hostname}&sz=128`; } 
                          catch (e) { finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`; }
                       }

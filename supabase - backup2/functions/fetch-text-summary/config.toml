@@ -1,0 +1,26 @@
+# config.toml
+name = "fetch-text-summary"
+entrypoint = "index.ts"
+# A flag 'main_service' pode ser true se for um endpoint primário.
+main_service = false
+# As dependências são definidas aqui:
+# Deno usa a URL "npm:" para buscar dependências do NPM.
+declarations = [
+  { module = "npm:jsdom@22.1.0", types = "./types/jsdom/index.d.ts" },
+  { module = "npm:@mozilla/readability@0.4.4", types = "./types/mozilla__readability/index.d.ts" }
+]
+# Exclui pacotes que o Deno tem nativamente, mas o NPM pode tentar incluir
+exclude = [
+  "node_modules"
+]
+```*(Nota: No deploy, o Supabase fará o download e mapeamento dessas dependências do NPM para o Deno)*
+
+### Passos Finais de Instalação e Deploy
+
+**1. Instale as dependências no seu projeto local (somente para type-checking):**
+
+Embora a Edge Function use Deno, é bom instalar as dependências no seu projeto Node principal para que o TypeScript e o seu editor de código não reclamem (opcional, mas recomendado):
+
+```bash
+# Na raiz do seu projeto (onde está o package.json)
+npm install jsdom@22.1.0 @mozilla/readability@0.4.4

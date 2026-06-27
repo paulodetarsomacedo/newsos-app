@@ -131,7 +131,6 @@ function extractYoutubeId(url: string): string | null {
 }
 function repairXML(xml: string): string { return xml.replace(/&(?!(?:[a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});)/gi, '&amp;'); }
 
-// --- SUBSITUA A PARTIR DAQUI (LINHA 110 APROX.) ATÉ O FIM DO ARQUIVO ---
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -142,42 +141,24 @@ serve(async (req) => {
     let xmlText = "";
     let isSuccess = false;
 
+    // --- LÓGICA DE FETCH MODIFICADA: ANTI-BLOQUEIO ---
     try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 segundos limite
-
+        // MÁGICA: ANTI-BLOQUEIO + AGRESSIVIDADE NO FETCH
         const res = await fetch(url, { 
             headers: { 
+                // CRÍTICO: Finge ser um navegador real para furar bloqueios
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' 
             },
-            cache: 'no-store',
-            signal: controller.signal
+            // CRÍTICO: Não deixa o Supabase tentar cachear uma resposta de erro
+            cache: 'no-store' 
         });
-        clearTimeout(timeoutId);
         
         if (!res.ok) throw new Error(`Status ${res.status}`);
         
-        // --- MOTOR DE DETECÇÃO DE ENCODING ---
-        const buffer = await res.arrayBuffer();
-        let decoder = new TextDecoder("utf-8");
-        let tempText = decoder.decode(buffer);
-        
-        // Se o XML declarar explicitamente codificação Latin-1/ISO/Windows-1252, decodifica novamente com o formato correto
-        if (
-            tempText.includes('encoding="ISO-8859-1"') || 
-            tempText.includes('encoding="iso-8859-1"') || 
-            tempText.includes('encoding="windows-1252"') ||
-            tempText.includes('encoding="Windows-1252"')
-        ) {
-            console.log(`[Encoding] Detectado ISO-8859-1 para ${url}. Re-decodificando...`);
-            decoder = new TextDecoder("iso-8859-1");
-            xmlText = decoder.decode(buffer);
-        } else {
-            xmlText = tempText;
-        }
-        
+        xmlText = await res.text();
         isSuccess = true;
     } catch(e) {
+        // Se a tentativa com Supabase e User-Agent falhar (ERRO 400), usa o Proxy de fallback
         console.warn(`Fetch primário falhou para ${url}: ${e.message}. Tentando Proxy...`);
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
         const res = await fetch(proxyUrl);
@@ -191,7 +172,9 @@ serve(async (req) => {
     
     if (!isSuccess) throw new Error("Falha ao carregar XML: Bloqueado pelo site ou URL inválida.");
 
-    const feed = await parser.parseString(repairXML(xmlText));
+    // FIM DA LÓGICA DE FETCH MODIFICADA
+
+const feed = await parser.parseString(repairXML(xmlText));
     let isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
 
     let feedLogo = feed.image?.url;
@@ -202,8 +185,8 @@ serve(async (req) => {
        } catch(e) {}
     }
 
-    // --- PROTEÇÃO CONTRA ESTOURO DE MEMÓRIA ---
-    // Limita estritamente o processamento de imagens e tags para no máximo 30 itens
+    // A SALVAÇÃO: Limitar estritamente a 30 itens!
+    // Evita 2000 requisições simultâneas de imagens que estouram o servidor.
     const MAX_ITEMS = 30;
     const itemsToProcess = feed.items.slice(0, MAX_ITEMS);
 
@@ -244,6 +227,9 @@ serve(async (req) => {
       status: 200
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: error.message }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
   }
 });
