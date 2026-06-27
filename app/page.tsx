@@ -7031,7 +7031,7 @@ const handleStoryNavigation = (direction) => {
       let allPodcastItems = [];
       let feedsThatNeedUpdate = [];
       let newHistoryBuffer = { ...articleHistory };
-      const CACHE_TTL = 20 * 60 * 1000; 
+      const CACHE_TTL = 5 * 60 * 1000; // cache LEVE (troca de aba), não persistente 
   
       const activeFeeds = userFeeds.filter(f => f.url && f.url.trim());
       
@@ -7053,24 +7053,13 @@ const handleStoryNavigation = (direction) => {
               let usedCache = false;
               const cacheKey = `${FEED_CACHE_PREFIX}${feed.id}`; 
       
-              // CAMADA 1: DISCO / MEMÓRIA
+       // CACHE LEVE: só em memória (sobrevive à troca de aba, NÃO ao reload).
+              // Sem leitura de cache persistente em disco → push/refresh sempre traz dados frescos.
               if (!forceRefresh) {
-                  try {
-                      if (feedMemoryBuffer.current[feed.id] && (Date.now() - feedMemoryBuffer.current[feed.id].timestamp < CACHE_TTL)) {
-                          const mem = feedMemoryBuffer.current[feed.id];
-                          processedItems = mem.items; detectedXmlTitle = mem.title; feedLogo = mem.logo; isFeedYoutube = mem.isYoutube; usedCache = true;
-                      } else {
-                          const cachedRaw = localStorage.getItem(cacheKey);
-                          if (cachedRaw) {
-                              const cachedData = JSON.parse(cachedRaw);
-                              if (Date.now() - cachedData.timestamp < CACHE_TTL) {
-                                  processedItems = cachedData.items || []; detectedXmlTitle = cachedData.title || ""; feedLogo = cachedData.logo || null;
-                                  isFeedYoutube = !!cachedData.isYoutube;
-                                  feedMemoryBuffer.current[feed.id] = cachedData; usedCache = true;
-                              }
-                          }
-                      }
-                  } catch (e) {}
+                  if (feedMemoryBuffer.current[feed.id] && (Date.now() - feedMemoryBuffer.current[feed.id].timestamp < CACHE_TTL)) {
+                      const mem = feedMemoryBuffer.current[feed.id];
+                      processedItems = mem.items; detectedXmlTitle = mem.title; feedLogo = mem.logo; isFeedYoutube = mem.isYoutube; usedCache = true;
+                  }
               }
       
               // CAMADA 2: BUSCA REAL
@@ -7127,23 +7116,18 @@ const handleStoryNavigation = (direction) => {
                           const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
                           const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
                           
-                      // --- DATA: sanidade + ordenação confiável (itens 1-3) ---
+                 // --- DATA: sanidade + ordenação confiável ---
                           const _now = Date.now();
                           const parsedDate = new Date(rawDateString);
                           let baseTimestamp;
                           let dateEstimated = false;
                           if (rawDateString && !isNaN(parsedDate.getTime())) {
-                              // data válida: usa a real, mas NUNCA no futuro (corrige relógios errados de fontes)
-                              baseTimestamp = Math.min(parsedDate.getTime(), _now);
+                              baseTimestamp = Math.min(parsedDate.getTime(), _now); // nunca no futuro
                           } else {
-                              // sem data confiável: NÃO finge "15 min atrás". Estima abaixo das datadas recentes,
-                              // preservando a ordem do feed (RSS vem do mais novo p/ o mais antigo).
                               dateEstimated = true;
                               baseTimestamp = _now - (3 * 60 * 60 * 1000) - (index * 10 * 60 * 1000);
                           }
-                          // desempate mínimo dentro do MESMO feed (1s por posição) — não altera ordem real entre fontes
                           const computed = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
-                          // No pull-to-refresh (forceRefresh) reordena pelos dados frescos; senão mantém estabilidade via histórico
                           const finalTimestamp = forceRefresh ? computed : (newHistoryBuffer[uniqueId] || computed);
                           newHistoryBuffer[uniqueId] = finalTimestamp;
                           const finalDateObj = new Date(finalTimestamp);
@@ -7178,7 +7162,7 @@ const handleStoryNavigation = (direction) => {
 
                       const cachePayload = { timestamp: Date.now(), items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube };
                       feedMemoryBuffer.current[feed.id] = cachePayload;
-                      try { localStorage.setItem(cacheKey, JSON.stringify(cachePayload)); } catch (e) { localStorage.removeItem(cacheKey); }
+                      try { localStorage.removeItem(cacheKey); } catch (e) {} // remove cache persistente antigo (não gravamos mais em disco)
                   }
               }
       
@@ -7646,7 +7630,7 @@ return (
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}
                     onToggleLike={handleToggleLike}
-                    onRefresh={fetchFeeds}
+                    onRefresh={() => fetchFeeds(true)}
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
                     apiKey={analysisApiKey} 

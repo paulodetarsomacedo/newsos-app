@@ -255,7 +255,7 @@ serve(async (req) => {
         id: videoId || item.guid || item.link || String(index),
         title: item.title,
         link: item.link,
-        pubDate: item.pubDate || new Date().toISOString(),
+pubDate: item.pubDate || item.isoDate || null,
         img: img,
         videoId: videoId,
         description: item.description, 
