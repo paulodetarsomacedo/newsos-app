@@ -4908,7 +4908,7 @@ const handleTouchEnd = async () => {
   const displayClusters = savedClusters && savedClusters.length > 0 ? savedClusters : heuristicClusters;
 
   return (
-    <div className="animate-in fade-in duration-700 pb-10 min-h-screen touch-pan-y space-y-8" 
+    <div className="animate-in fade-in duration-700 pb-16 min-h-screen touch-pan-y space-y-10"
          onTouchStart={handleTouchStart} 
          onTouchMove={handleTouchMove} 
          onTouchEnd={handleTouchEnd}>      
@@ -4973,12 +4973,11 @@ const handleTouchEnd = async () => {
       
           {/* Manchete e o NOVO Widget */}
       <div className="space-y-4">
-        <div className="flex items-center gap-3 px-4">
-            <div className={"text-pink-500 animate-pulse"}> 
-                <Sparkles size={25} />
-            </div>
-            <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                As principais notícias de agora, em múltiplos ângulos.
+    {/* 4.1: cabeçalho editorial limpo (sem gradiente neon) */}
+        <div className="flex items-center gap-2.5 px-4">
+            <Sparkles size={22} className="text-indigo-500 shrink-0" />
+            <h3 className="text-[22px] font-bold tracking-tight leading-tight text-zinc-900 dark:text-white">
+                As principais notícias de agora, em <span className="text-indigo-600 dark:text-indigo-400">múltiplos ângulos</span>.
             </h3>
         </div>
         
@@ -5004,15 +5003,14 @@ const handleTouchEnd = async () => {
         />
       </div>
       
-      {/* Market Pulse */}
-      <div className="space-y-4 px-4 pt-4">
-          <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-xl shadow-lg ${isDarkMode ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-indigo-600 shadow-indigo-200'}`}>
+  {/* Market Pulse */}
+      <div className="space-y-4 px-4 pt-2">
+          {/* 4.1: cabeçalho editorial limpo */}
+          <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-white text-indigo-600 border border-zinc-200/70 shadow-sm dark:bg-white/10 dark:text-white dark:border-white/10">
                   <TrendingUp size={18} />
               </div>
-              <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 animate-shimmer-text">
-                  Mercados Hoje
-              </h3>
+              <h3 className="text-[20px] font-bold tracking-tight text-zinc-900 dark:text-white">Mercados Hoje</h3>
           </div>
           <div className="rounded-[1.75rem] p-1 bg-gradient-to-br from-purple-500/50 via-purple-500/20 to-transparent">
             <div className={`rounded-[1.5rem] p-4 ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
