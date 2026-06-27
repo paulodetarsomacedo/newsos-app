@@ -3,25 +3,6 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  
-  /* ===================================================================== */
-  /* VETRA: LIQUID GLASS DESIGN SYSTEM (APPLE WWDC25 STYLE)              */
-  /* Base 100% transparente. Volume criado apenas por luz e sombra.      */
-  /* ===================================================================== */
-  
-  /* LIGHT MODE TOKENS */
-  /* Fundo quase nulo, apenas 2% de branco para não sujar a cor de trás */
-  --liquid-bg: rgba(255, 255, 255, 0.02); 
-  /* Linha de luz dura (Specular Highlight) no topo e esquerda */
-  --liquid-highlight: rgba(255, 255, 255, 0.7);
-  /* Sombra interna para dar a curva do vidro na base */
-  --liquid-inner-shadow: rgba(0, 0, 0, 0.04);
-  /* Sombra externa (Drop shadow) super difusa */
-  --liquid-drop-shadow: rgba(0, 0, 0, 0.06);
-  /* Brilho da superfície curva (Sheen) */
-  --liquid-surface-glare: radial-gradient(120% 120% at 0% 0%, rgba(255, 255, 255, 0.3) 0%, transparent 40%);
-  /* Refração óptica */
-  --liquid-refraction: blur(14px) saturate(115%);
 }
 
 @theme inline {
@@ -33,17 +14,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #09090b; /* Zinc 950 */
-    --foreground: #fafafa;
-    
-    /* DARK MODE TOKENS */
-    /* No escuro, o vidro precisa de um leve tom escuro (4%) para contraste */
-    --liquid-bg: rgba(0, 0, 0, 0.04); 
-    --liquid-highlight: rgba(255, 255, 255, 0.25);
-    --liquid-inner-shadow: rgba(0, 0, 0, 0.4);
-    --liquid-drop-shadow: rgba(0, 0, 0, 0.5);
-    --liquid-surface-glare: radial-gradient(120% 120% at 0% 0%, rgba(255, 255, 255, 0.08) 0%, transparent 40%);
-    --liquid-refraction: blur(16px) saturate(120%);
+    --background: #09090b;
+    --foreground: #ededed;
   }
 }
 
@@ -54,236 +26,198 @@ body {
 }
 
 /* ===================================================================== */
-/* 1. HEADER GLOBAL — NAVY TINTED LIQUID GLASS                           */
-/* Mantém a identidade "Navy", mas agora como um vidro colorido cristalino*/
+/* === VETRA — ENGENHARIA REVERSA DO PRINT ORIGINAL (NAVY 3D) ========== */
 /* ===================================================================== */
 
+/* ----------------------------------------------------------------- */
+/* 1. HEADER GLOBAL — A "Barra" Azul Marinho Profunda                */
+/* Base densa, esculpida, com reflexo de luz no topo e sombra na base*/
+/* ----------------------------------------------------------------- */
 .liquid-header-navy {
   position: relative;
-  /* Cor navy aplicada como uma fina película transparente (15% opacidade) */
-  background: rgba(15, 30, 65, 0.15); 
-  backdrop-filter: var(--liquid-refraction);
-  -webkit-backdrop-filter: var(--liquid-refraction);
-  border: 1px solid transparent; /* Impede vazamento de pixel no Safari */
+  /* O tom exato de azul noturno do seu print */
+  background: linear-gradient(180deg, #111a35 0%, #090e1f 100%);
+  border-radius: 1.9rem; /* Arredondamento perfeito */
   
-  /* A forma 3D do vidro: Luz em cima, Sombra embaixo, Sombra Projetada */
+  /* A mágica do 3D volumoso (Puffy) */
   box-shadow:
-    inset 1px 1px 1px var(--liquid-highlight),
-    inset -1px -1px 2px var(--liquid-inner-shadow),
-    0 20px 40px -10px var(--liquid-drop-shadow);
+    inset 0 2px 3px rgba(255, 255, 255, 0.15),  /* Luz suave batendo no topo */
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),    /* Linha de luz dura na borda extrema superior */
+    inset 0 -8px 20px rgba(0, 0, 0, 0.6),       /* Sombra interna pesada na base para dar volume */
+    0 15px 35px -5px rgba(0, 0, 0, 0.25),       /* Sombra projetada no fundo do app */
+    0 4px 10px rgba(0, 0, 0, 0.1);              /* Sombra de contato */
+    
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: none;
   z-index: 10;
 }
 
-/* Superfície curva do vidro (Glare) */
-.liquid-header-navy::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--liquid-surface-glare);
-  pointer-events: none;
-}
-
 /* ----------------------------------------------------------------- */
-/* 2. CAPSULAS INTERNAS DO HEADER (Busca, Ask AI, Badge Pro)         */
+/* 2. INSETS — Busca e Status "Escavados" no material                */
 /* ----------------------------------------------------------------- */
-
 .liquid-search-inset {
   position: relative;
-  background: rgba(0, 0, 0, 0.08); /* Furo no vidro, levemente mais escuro */
+  /* Fundo ligeiramente mais escuro que a barra para simular o buraco */
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.15) 100%);
+  border-radius: 1rem;
+  
+  /* Efeito Debossed (Escavado) */
   box-shadow:
-    inset 0 2px 6px var(--liquid-inner-shadow), /* Sombra profunda em cima */
-    inset 0 -1px 1px var(--liquid-highlight); /* Reflexo da luz batendo na base do furo */
-  border: 1px solid transparent;
+    inset 0 4px 8px rgba(0, 0, 0, 0.6),        /* Sombra profunda caindo do topo do buraco */
+    inset 0 1px 2px rgba(0, 0, 0, 0.8),        /* Linha escura dura no topo */
+    inset 0 -1px 1px rgba(255, 255, 255, 0.12),/* Luz rebatendo na beirada inferior de DENTRO */
+    0 1px 0 rgba(255, 255, 255, 0.05);         /* Luz rebatendo na beirada inferior de FORA */
+  border: none;
 }
 
+/* ----------------------------------------------------------------- */
+/* 3. TECLAS E BADGES (Pro, Ask AI, Cmd+K)                           */
+/* ----------------------------------------------------------------- */
 .liquid-keycap {
-  background: var(--liquid-bg);
-  backdrop-filter: var(--liquid-refraction);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
   box-shadow: 
-    inset 1px 1px 1px var(--liquid-highlight),
-    0 2px 4px var(--liquid-drop-shadow);
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 
 .liquid-badge-pro {
-  /* Um vidro colorido de azul vibrante */
-  background: rgba(37, 99, 235, 0.2); 
-  backdrop-filter: blur(8px);
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
   box-shadow: 
-    inset 1px 1px 1px rgba(255, 255, 255, 0.4),
-    0 4px 12px rgba(37, 99, 235, 0.3);
+    inset 0 1px 1px rgba(255, 255, 255, 0.4),
+    0 2px 6px rgba(29, 78, 216, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 /* ===================================================================== */
-/* 3. FEED CARDS — A LÂMINA DE VIDRO (REPLICA DO PRINT WWDC25)           */
+/* === CARDS DO FEED E UI SECUNDÁRIA (GLASS DE VERDADE) ================ */
+/* Vidro transparente com reflexo premium, sem aspecto leitoso/nublado. */
 /* ===================================================================== */
 
 .feed-canvas { 
   background: transparent; 
 }
 
+/* CARDS DO FEED */
 .glass-card {
   position: relative;
-  background: var(--liquid-bg); /* TOTALMENTE TRANSPARENTE */
-  backdrop-filter: var(--liquid-refraction);
-  -webkit-backdrop-filter: var(--liquid-refraction);
-  border: 1px solid transparent; /* O volume real vem das sombras */
-  
-  /* ESSÊNCIA DA ENGENHARIA REVERSA: */
-  box-shadow:
-    inset 1px 1px 0px var(--liquid-highlight), /* Borda fina de luz (Topo/Esq) */
-    inset -1px -1px 2px var(--liquid-inner-shadow), /* Borda de sombra sutil (Base/Dir) */
-    0 12px 32px -8px var(--liquid-drop-shadow); /* Sombra difusa projetada */
-    
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease;
-  overflow: hidden;
+  /* Transparência inteligente: 60% branco no claro, 15% branco no escuro */
+  background: rgba(255, 255, 255, 0.6); 
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-bottom-color: rgba(255, 255, 255, 0.3);
+  border-right-color: rgba(255, 255, 255, 0.3);
+  border-radius: 1.6rem;
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 12px 30px -10px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(24px) saturate(120%);
+  -webkit-backdrop-filter: blur(24px) saturate(120%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
 }
 
-/* O brilho superficial do vidro (Curve Reflection) */
-.glass-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--liquid-surface-glare);
-  border-radius: inherit;
-  pointer-events: none;
+:root.dark .glass-card, .dark .glass-card {
+  background: rgba(24, 24, 27, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom-color: rgba(255, 255, 255, 0.02);
+  border-right-color: rgba(255, 255, 255, 0.02);
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    0 16px 40px -10px rgba(0, 0, 0, 0.6);
 }
 
 .glass-card:hover {
   transform: translateY(-3px);
-  box-shadow:
-    inset 1px 1px 0px var(--liquid-highlight),
-    inset -1px -1px 2px var(--liquid-inner-shadow),
-    0 24px 48px -12px var(--liquid-drop-shadow);
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 20px 40px -10px rgba(0, 0, 0, 0.12);
 }
 
-/* ===================================================================== */
-/* 4. PÍLULAS E BOTÕES DO FEED (Cristais Menores)                        */
-/* ===================================================================== */
+:root.dark .glass-card:hover, .dark .glass-card:hover {
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    0 24px 48px -10px rgba(0, 0, 0, 0.8);
+}
 
+/* PÍLULAS DE FILTRO */
 .glass-pill {
-  position: relative;
-  background: var(--liquid-bg);
-  backdrop-filter: var(--liquid-refraction);
-  -webkit-backdrop-filter: var(--liquid-refraction);
-  border: 1px solid transparent;
-  box-shadow:
-    inset 1px 1px 0px var(--liquid-highlight),
-    inset -1px -1px 1px var(--liquid-inner-shadow),
-    0 4px 12px var(--liquid-drop-shadow);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  overflow: hidden;
+  background: rgba(255, 255, 255, 0.7);
+  color: #334155;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 4px 12px -4px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: all 0.2s ease;
 }
 
-.glass-pill::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--liquid-surface-glare);
-  pointer-events: none;
-}
-
-.glass-pill:active { 
-  transform: scale(0.95); 
+:root.dark .glass-pill, .dark .glass-pill {
+  background: rgba(39, 39, 42, 0.5);
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
 }
 
 .glass-pill[data-active="true"] {
-  /* Vidro azul cristalino */
-  background: rgba(10, 26, 61, 0.3);
-  box-shadow:
-    inset 1px 1px 0px rgba(255, 255, 255, 0.3),
-    inset -1px -1px 2px rgba(0, 0, 0, 0.5),
-    0 8px 16px var(--liquid-drop-shadow);
+  background: linear-gradient(180deg, #1e293b, #0f172a);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2), 0 8px 16px rgba(15, 23, 42, 0.4);
 }
 
+/* BOTÕES DE ÍCONE (Ações do Card) */
 .glass-iconbtn {
-  position: relative;
-  background: var(--liquid-bg);
-  backdrop-filter: blur(12px) saturate(110%);
-  -webkit-backdrop-filter: blur(12px) saturate(110%);
-  border: 1px solid transparent;
-  box-shadow:
-    inset 1px 1px 0px var(--liquid-highlight),
-    inset -1px -1px 1px var(--liquid-inner-shadow),
-    0 4px 10px -2px var(--liquid-drop-shadow);
+  background: rgba(255, 255, 255, 0.6);
+  color: #64748b;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 0.9rem;
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 4px 10px -2px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(12px);
   transition: all 0.2s ease;
-  overflow: hidden;
 }
 
-.glass-iconbtn::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--liquid-surface-glare);
-  pointer-events: none;
+:root.dark .glass-iconbtn, .dark .glass-iconbtn {
+  background: rgba(39, 39, 42, 0.4);
+  color: #a1a1aa;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 4px 10px -2px rgba(0, 0, 0, 0.4);
 }
 
 .glass-iconbtn:hover {
   transform: translateY(-2px);
-  box-shadow:
-    inset 1px 1px 0px var(--liquid-highlight),
-    inset -1px -1px 1px var(--liquid-inner-shadow),
-    0 8px 16px -4px var(--liquid-drop-shadow);
 }
 
 .glass-iconbtn:active, .glass-iconbtn[data-active="true"] {
-  background: rgba(59, 130, 246, 0.15);
-  box-shadow:
-    inset 1px 1px 2px rgba(0, 0, 0, 0.1),
-    inset -1px -1px 1px rgba(255, 255, 255, 0.2);
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-/* ===================================================================== */
-/* 5. PAINÉIS GERAIS (GlassBrowser, Modais)                              */
-/* ===================================================================== */
+:root.dark .glass-iconbtn:active, .dark .glass-iconbtn:active,
+:root.dark .glass-iconbtn[data-active="true"], .dark .glass-iconbtn[data-active="true"] {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
 
+/* OUTROS PAINÉIS */
 .liquid-panel, .liquid-panel-dark {
-  background: var(--liquid-bg);
-  backdrop-filter: var(--liquid-refraction);
-  -webkit-backdrop-filter: var(--liquid-refraction);
-  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(32px) saturate(130%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 1.5rem;
-  box-shadow:
-    inset 1px 1px 0px var(--liquid-highlight),
-    inset -1px -1px 2px var(--liquid-inner-shadow),
-    0 32px 64px -16px var(--liquid-drop-shadow);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 24px 48px -12px rgba(0, 0, 0, 0.15);
 }
 
-.liquid-tabbar {
-  background: var(--liquid-bg);
-  backdrop-filter: var(--liquid-refraction);
-  border: 1px solid transparent;
-  box-shadow:
-    inset 1px 1px 0px var(--liquid-highlight),
-    0 10px 30px var(--liquid-drop-shadow);
-}
-
-.liquid-tab { 
-  border-radius: 0.75rem; 
-  transition: all 0.2s ease; 
-}
-
-.liquid-tab[data-active="true"] {
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 2px 5px var(--liquid-inner-shadow);
-}
-
-.liquid-button {
-  background: rgba(47, 86, 184, 0.4);
-  backdrop-filter: blur(12px);
-  border: 1px solid transparent;
-  border-radius: 1rem;
-  box-shadow: 
-    inset 1px 1px 0px rgba(255, 255, 255, 0.4), 
-    0 8px 24px rgba(16, 36, 75, 0.4);
-  transition: transform 0.2s ease, filter 0.2s ease;
-}
-
-.liquid-button:hover { 
-  filter: brightness(1.1); 
-  transform: translateY(-2px); 
-}
-
-.liquid-button:active { 
-  transform: scale(0.96); 
+:root.dark .liquid-panel-dark, .dark .liquid-panel-dark {
+  background: rgba(24, 24, 27, 0.5);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 32px 64px -16px rgba(0, 0, 0, 0.7);
 }
