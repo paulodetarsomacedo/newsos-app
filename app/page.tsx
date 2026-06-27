@@ -6760,8 +6760,10 @@ const storiesForHappeningTab = useMemo(() => {
 
 
 const handleHappeningRefresh = async () => {
-    // Passamos TRUE para dizer: "Ignore a RAM, ignore o Disco, vá no Supabase agora!"
-    await fetchFeeds(true); 
+    // Opção A: NÃO aguardamos o fetch inteiro. Disparamos o refetch e voltamos na hora →
+    // o indicador de "atualizando" some imediatamente e os cards se repovoam em segundo
+    // plano (lote a lote), conforme as fontes respondem.
+    fetchFeeds(true);
 };
 
 const handleStoryNavigation = (direction) => {
@@ -7040,7 +7042,7 @@ const handleStoryNavigation = (direction) => {
       const textFeeds = activeFeeds.filter(f => f.type !== 'youtube' && f.type !== 'podcast' && !f.url.includes('youtube.com'));
       const mediaFeeds = activeFeeds.filter(f => f.type === 'youtube' || f.type === 'podcast' || f.url.includes('youtube.com'));
       
-      const BATCH_SIZE = 4; 
+      const BATCH_SIZE = 8; 
 
       // Função de processamento isolada para reutilizarmos nos dois lotes
       const processFeedBatch = async (batch) => {
@@ -7077,7 +7079,7 @@ const handleStoryNavigation = (direction) => {
                   if (!success) {
                       try {
                           const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`;
-                          const res = await fetchWithTimeout(proxyUrl, { timeout: 4500 }); // Limite estrito de 4.5s!
+                         const res = await fetchWithTimeout(proxyUrl, { timeout: 3000 }); // Opção A: timeout menor (3s)
                           if (res.ok) {
                               const xmlText = await res.text();
                               const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
@@ -7630,7 +7632,7 @@ return (
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}
                     onToggleLike={handleToggleLike}
-                    onRefresh={() => fetchFeeds(true)}
+                    onRefresh={() => { fetchFeeds(true); }}
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
                     apiKey={analysisApiKey} 
