@@ -608,118 +608,118 @@ const fetchMarketData = async () => {
         isDarkMode={isDarkMode}
       />}
 
-      {/* ===================================================================== */}
-      {/* === HEADER GLOBAL — LIQUID GLASS PREMIUM (NewsOS / Vetra) ============ */}
-      {/* VISUAL: novo design system.                                           */}
-      {/* LÓGICA PRESERVADA: busca, calendário (drag + handleDateChange),       */}
-      {/* ticker de mercado, aiStatus e status do sistema.                      */}
-      {/* ===================================================================== */}
-      <div className="liquid-header-shell relative w-full overflow-hidden rounded-b-[2.2rem]">
-        {/* glows decorativos (puramente visual) */}
-        <div className="absolute top-[-60%] left-[-15%] w-[70%] h-[160%] bg-indigo-600/20 blur-[110px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-[-30%] right-[-15%] w-[55%] h-[110%] bg-teal-500/10 blur-[90px] rounded-full pointer-events-none" />
+      <div className={`
+        relative w-full overflow-hidden rounded-b-[2.5rem] shadow-2xl border-b border-white/10 
+        transition-all duration-500 ease-in-out
+        ${isDarkMode ? 'bg-zinc-950' : 'bg-slate-900'}
+      `}>
+        <div className="absolute top-[-50%] left-[-20%] w-[80%] h-[150%] bg-indigo-600/20 blur-[100px] rounded-full animate-pulse pointer-events-none" />
+        <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[100%] bg-teal-600/10 blur-[80px] rounded-full pointer-events-none" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 mix-blend-soft-light pointer-events-none"></div>
 
-        <div className="relative px-4 sm:px-6 pt-[max(0.9rem,env(safe-area-inset-top))] pb-3">
-          {/* ---- BARRA PRINCIPAL ---- */}
-          <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
-
-            {/* MARCA: logo + NewsOS / Vetra + Pro + data */}
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-white via-zinc-200 to-zinc-400 flex items-center justify-center shadow-lg border border-white/30">
-                <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-zinc-900 to-zinc-700">N</span>
-              </div>
-              <div className="flex flex-col leading-none">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-black tracking-tight text-white">NewsOS</span>
-                  <span className="text-lg font-semibold text-white/35">/ Vetra</span>
-                  <span className="px-2 py-[2px] rounded-md text-[9px] font-black uppercase tracking-widest bg-indigo-500/25 text-indigo-200 border border-indigo-400/30">Pro</span>
+        <div className="relative px-6 pt-6 pb-4 flex flex-col gap-4">
+           <div className="absolute top-2 left-3 flex items-center gap-3 opacity-95">
+                <div className="w-10 h-10 bg-gradient-to-br from-white via-zinc-200 to-zinc-500 rounded-lg flex items-center justify-center shadow-sm border border-white/20">
+                    <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-black to-zinc-800">N</span>
                 </div>
-                {/* DATA — tap abre calendário e arrasto troca o dia (lógica original via handleDrag*) */}
-                <div
-                  className="mt-1 cursor-pointer select-none touch-none w-fit"
-                  onMouseDown={(e) => handleDragStart(e.clientX)}
-                  onMouseMove={(e) => handleDragMove(e.clientX)}
-                  onMouseUp={handleDragEnd}
-                  onMouseLeave={handleDragEnd}
-                  onTouchStart={(e) => handleDragStart(e.touches[0].clientX)}
-                  onTouchMove={(e) => handleDragMove(e.touches[0].clientX)}
-                  onTouchEnd={handleDragEnd}
-                  style={{ transform: `translateX(${dragOffset}px)` }}
-                >
-                  <span className="text-[11px] font-medium text-white/45 flex items-center gap-1.5">
-                    {currentDate ? formatDate(currentDate) : <>&nbsp;</>}
-                    <CalendarIcon size={11} className="opacity-50" />
-                  </span>
-                </div>
-              </div>
+                <span className="text-xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">NewsOS</span>
             </div>
 
-            {/* BUSCA CENTRAL — input sempre visível, ligado a onSearch (lógica original) */}
-            <div className="flex-1 min-w-0 w-full">
-              <div className="flex items-center gap-2 h-12 px-3 rounded-2xl liquid-button-glass">
-                <Search size={18} className="text-white/40 shrink-0" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Buscar notícias, fontes ou tópicos..."
-                  className="flex-1 min-w-0 bg-transparent text-white placeholder:text-white/35 text-sm font-medium outline-none"
-                  onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { if (onSearch) { onSearch(e.target.value); } e.target.value = ''; } }}
-                />
-                <span className="hidden sm:flex items-center gap-1 text-[10px] font-bold text-white/30 border border-white/15 rounded-md px-1.5 py-0.5">⌘ K</span>
-              </div>
-            </div>
-
-            {/* AÇÕES: Ask AI + (PodNews opcional) + Status + Avatar */}
-            <div className="flex items-center gap-2.5 shrink-0">
-              <button
-                onClick={() => { setIsSearchOpen(true); searchInputRef.current?.focus(); }}
-                className="flex items-center gap-2 h-12 px-4 rounded-2xl liquid-button-glass"
+           <div 
+             className="absolute top-0 right-0 z-50 cursor-ew-resize select-none touch-none group"
+             onMouseDown={(e) => handleDragStart(e.clientX)}
+             onMouseMove={(e) => handleDragMove(e.clientX)}
+             onMouseUp={handleDragEnd}
+             onMouseLeave={handleDragEnd}
+             onTouchStart={(e) => handleDragStart(e.touches[0].clientX)}
+             onTouchMove={(e) => handleDragMove(e.touches[0].clientX)}
+             onTouchEnd={handleDragEnd}
+           >
+              <div 
+                className={`flex items-center gap-3 px-5 py-3 rounded-b-2xl border-x border-b border-white/10 bg-black/20 backdrop-blur-xl shadow-lg transition-all duration-200 ease-out ${Math.abs(dragOffset) > 0 ? 'translate-y-1 bg-black/40' : 'hover:bg-black/30 hover:pt-4'}`}
+                style={{ transform: `translateX(${dragOffset}px)` }}
               >
-                <Sparkles size={18} className="text-purple-300" />
-                <span className="text-sm font-semibold text-white">Ask AI</span>
-              </button>
-
-              {/* PodNews só aparece se a prop existir (hoje não é passada → não vira botão morto) */}
-              {onOpenPodNews && (
-                <button onClick={onOpenPodNews} className="hidden md:flex items-center gap-2 h-12 px-3 rounded-2xl liquid-button-glass">
-                  <Headphones size={18} className="text-purple-300" />
-                  <div className="flex flex-col items-start leading-none">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white">PodNews</span>
-                    <span className="text-[9px] text-white/55">Resumo 07:00</span>
-                  </div>
-                </button>
-              )}
-
-              {/* STATUS DO SISTEMA — usa aiStatus/isLoading existentes */}
-              <div className="hidden sm:flex items-center gap-2.5 h-12 px-3.5 rounded-2xl liquid-button-glass">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-                </span>
-                <div className="flex flex-col leading-none">
-                  <span className="text-[11px] font-bold text-white">
-                    {isLoading ? 'Sincronizando...' : 'Sistema ok.'}
+                  <ChevronLeft size={14} className={`text-white/40 transition-opacity ${Math.abs(dragOffset) > 0 ? 'opacity-100' : 'group-hover:opacity-100'}`} />
+                  <span className="text-sm font-bold text-green-400 whitespace-nowrap tracking-wide flex items-center gap-2 uppercase text-[10px]">
+                      {currentDate ? formatDate(currentDate) : <>&nbsp;</>}
+                      <CalendarIcon size={10} className="opacity-50" />
                   </span>
-                  <span className="text-[10px] text-white/50 truncate max-w-[140px]">{aiStatus}</span>
-                </div>
+                  <ChevronRight size={14} className={`text-white/40 transition-opacity ${Math.abs(dragOffset) > 0 ? 'opacity-100' : 'group-hover:opacity-100'}`} />
+              </div>
+           </div>
+
+           {/* ========================================================== */}
+           {/* === A MUDANÇA PRINCIPAL ESTÁ AQUI === */}
+           {/* ========================================================== */}
+           <div className="flex justify-between items-center mt-12">
+              {/* --- Lado Esquerdo: Avatar e Status --- */}
+              <div className="flex items-center gap-3 -translate-x-3">
+                 <div onClick={onOpenSettings} className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] cursor-pointer hover:scale-105 transition-transform shadow-lg">
+                    <img src="https://ui-avatars.com/api/?name=User&background=000&color=fff" className="rounded-full w-full h-full border-2 border-black" alt="User" />
+                 </div>
+                 <div className="flex flex-col">
+                    <h1 className="text-[10px] font-black uppercase text-white/40 tracking-[0.15em] leading-none mb-1">System Status</h1>
+                    <div className="flex items-center gap-1.5">
+                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+                       <span className="text-xs font-bold text-white tracking-wide animate-in fade-in slide-in-from-left-2 duration-500" key={aiStatus}>
+                           {aiStatus}
+                       </span>
+                    </div>
+                 </div>
               </div>
 
-              {/* AVATAR / CONFIGURAÇÕES (onOpenSettings preservado) */}
-              <button onClick={onOpenSettings} className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-500 to-purple-500 p-[2px] hover:scale-105 transition-transform shadow-lg shrink-0">
-                <img src="https://ui-avatars.com/api/?name=TS&background=0b0b14&color=fff" className="rounded-[0.85rem] w-full h-full" alt="User" />
-              </button>
-            </div>
-          </div>
+              {/* --- Lado Direito: PodNews e Ask AI --- */}
+              <div className="flex items-center gap-3">
+                {/* O NOVO BOTÃO PODNEWS */}
+                <button
+                    onClick={onOpenPodNews}
+                    className="group relative flex items-center gap-3 px-4 h-11 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 active:scale-95 transition-all"
+                >
+                    <div className="relative">
+                        <div className="absolute -inset-1 bg-purple-500 rounded-full blur-md opacity-0 group-hover:opacity-50 transition-opacity duration-300 animate-pulse" />
+                        <Headphones size={20} className="relative text-purple-400" />
+                    </div>
+                    <div className="flex flex-col items-start leading-none">
+                        <span className="text-[10px] font-black uppercase tracking-widest">PodNews</span>
+                        <span className="text-[9px] font-bold text-white/60">Resumo 07:00</span>
+                    </div>
+                </button>
 
-          {/* ---- TICKER DE MERCADO (lógica original 100% preservada) ---- */}
-          <div className="relative w-full overflow-hidden mt-3 [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
-            <style>{`@keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
-            <div className="flex w-max animate-[scroll_40s_linear_infinite] hover:[animation-play-state:paused]">
-              {[...TICKERS, ...TICKERS, ...TICKERS].map((item, index) => (
-                <TickerItem key={`${item.id}-${index}`} label={item.label} value={data[item.id]?.val || '...'} up={data[item.id]?.up} icon={item.icon} />
-              ))}
-            </div>
-          </div>
+                {/* O BOTÃO ASK AI (com margem ajustada) */}
+                <button 
+                  onClick={() => setIsSearchOpen(!isSearchOpen)}
+                  className={`relative z-[60] p-2.5 rounded-xl transition-all duration-500 flex items-center gap-2 border ${isSearchOpen ? 'bg-white text-black border-white shadow-[0_0_30px_rgba(255,255,255,0.2)] scale-90' : 'bg-white/5 border-white/10 text-white hover:bg-white/10 active:scale-95'}`}
+                >
+                  {isSearchOpen ? <X size={18} /> : <Sparkles size={18} className="text-purple-400 animate-pulse" />}
+                  {!isSearchOpen && <span className="text-[10px] font-black uppercase tracking-widest px-4">Ask AI</span>}
+                </button>
+              </div>
+           </div>
+
+           <div className={`grid transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isSearchOpen ? 'grid-rows-[1fr] mt-2 mb-2' : 'grid-rows-[0fr] mt-0 mb-0'}`}>
+              <div className="overflow-hidden">
+                <div className={`transition-all duration-500 delay-[50ms] origin-top-right ${isSearchOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-0 opacity-0 -translate-y-4'}`}>
+                    <div className="relative flex items-center bg-white/5 backdrop-blur-3xl border border-white/20 rounded-2xl p-1 shadow-inner">
+                        <div className="pl-4 pr-3 text-white/30"><Search size={18} /></div>
+                        <input ref={searchInputRef} type="text" autoFocus={isSearchOpen} placeholder="O que você deseja saber?" className="w-full bg-transparent text-white placeholder:text-white/30 text-sm font-medium py-3 outline-none" onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { if (onSearch) { onSearch(e.target.value); setIsSearchOpen(false); } e.target.value = ''; } }} />
+                        <div className="pr-1.5">
+                            <button onClick={triggerSearch} className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-all active:scale-95 shadow-lg">
+                                <ArrowRight size={16} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+              </div>
+           </div>
+           
+           <div className={`relative w-full overflow-hidden transition-all duration-700 [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)] ${isSearchOpen ? 'opacity-20  scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
+              <style>{`@keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
+              <div className="flex w-max animate-[scroll_40s_linear_infinite] hover:[animation-play-state:paused]">
+                  {[...TICKERS, ...TICKERS, ...TICKERS].map((item, index) => (
+                      <TickerItem key={`${item.id}-${index}`} label={item.label} value={data[item.id]?.val || '...'} up={data[item.id]?.up} icon={item.icon} />
+                  ))}
+              </div>
+           </div>
         </div>
       </div>
     </div>
