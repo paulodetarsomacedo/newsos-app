@@ -1814,8 +1814,11 @@ function YouTubeTab({ isDarkMode, onToggleSave, savedItems, realVideos, isLoadin
           const type = safeLower(video?.type || video?.format || video?.contentType || '');
           const duration = Number(video?.durationSeconds || video?.duration || video?.lengthSeconds || 0);
           const explicitShort = link.includes('/shorts/') || title.includes('#shorts') || title.includes(' shorts') || type === 'short' || type === 'shorts';
+          const rssShort = link.includes('youtube.com/shorts') || safeLower(video?.guid || '').includes('/shorts/');
           const verticalShort = (video?.isShort === true || video?.short === true) && (!duration || duration <= 90);
-          return explicitShort || verticalShort;
+          // V4: story da aba YouTube só é povoado por Short identificado.
+          // Sem sinal explícito/vertical, não entra no rail de stories.
+          return explicitShort || rssShort || verticalShort;
       };
 
       const byChannel = new Map();
@@ -4421,8 +4424,8 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
           return (
             <div key={slideIndex} className="vetra-cluster-slide">
               <div className="vetra-cluster-slide-grid">
-                {main && <MainClusterCard cluster={main} />}
                 {sideA && <SideClusterCard cluster={sideA} fallbackCategory="Tecnologia e política" />}
+                {main && <MainClusterCard cluster={main} />}
                 {sideB && <SideClusterCard cluster={sideB} fallbackCategory="Economia e meio ambiente" />}
               </div>
             </div>
@@ -7799,8 +7802,21 @@ const handleStoryNavigation = (direction) => {
 
 
 const handleOpenArticle = async (article, options = {}) => {
-    if (!article || !article.link) return;
+    if (!article) return;
 
+    // V4: quando o Glass Browser pede Chat/WhatsApp, NÃO roteia para Browser/InAppBrowser.
+    // Abre diretamente o painel lateral no modo chat, mesmo que a URL seja YouTube/UOL/etc.
+    if (options?.initialViewMode === 'chat' || options?.openWhatsAppPanel || options?.forcePanel) {
+        setArticlePanelInitialViewMode('chat');
+        setSelectedArticle(article);
+        setPanelWidth(680);
+        if (article.id && !readHistory.includes(article.id)) {
+            setReadHistory(prev => [...prev, article.id]);
+        }
+        return;
+    }
+
+    if (!article.link) return;
     const url = article.link;
 
     // 1. TENTA EXTRAIR ID DO YOUTUBE (Lógica exata do seu código antigo)
