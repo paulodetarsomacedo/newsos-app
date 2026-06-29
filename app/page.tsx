@@ -7744,12 +7744,7 @@ const handleStoryNavigation = (direction) => {
                               dateEstimated = true;
                               baseTimestamp = _now - (3 * 60 * 60 * 1000) - (index * 10 * 60 * 1000);
                           }
-                          // Bug 2 mantido: já-vista fica congelada. Mas item NOVO sem data, num push manual,
-                          // sobe pro topo (vira "recém-chegado") em vez de nascer 3h atrás e ficar enterrado.
-                          const freshTop = _now - index * 1000;
-                          const computed = dateEstimated
-                              ? (forceRefresh ? freshTop : baseTimestamp)
-                              : (baseTimestamp - index * 1000);
+                          const computed = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
                           // Se já conhecemos a notícia, mantemos o carimbo ORIGINAL (estável p/ ordem e "lida").
                           const finalTimestamp = (newHistoryBuffer[stableKey] != null) ? newHistoryBuffer[stableKey] : computed;
                           newHistoryBuffer[stableKey] = finalTimestamp;
@@ -7800,16 +7795,24 @@ const handleStoryNavigation = (direction) => {
           }));
       };
 
-      // --- PISTA EXPRESSA SILENCIOSA: FONTES DE TEXTO ---
-      // Processa tudo em buffer invisível e renderiza uma única vez ao final.
-      // Isso elimina o feed dançante durante leitura/scroll no iPad.
+      // --- PISTA EXPRESSA: FONTES DE TEXTO ---
+      // Abre RÁPIDO (como combinado): pinta logo após o 1º lote — o feed já aparece —
+      // e estabiliza com UMA pintura final. No máximo 1 reordenação, não o "feed dançante"
+      // de N reordenações por lote. Combinado com o Bug 2 (datas estáveis), o salto final
+      // é mínimo.
+      let firstTextPaint = false;
       for (let i = 0; i < textFeeds.length; i += BATCH_SIZE) {
           const batch = textFeeds.slice(i, i + BATCH_SIZE);
           await processFeedBatch(batch);
+          if (!firstTextPaint && allNewsItems.length > 0) {
+              setRealNews([...smartFeedSort(allNewsItems)]); // 1ª pintura: tela não fica vazia
+              firstTextPaint = true;
+              setIsLoadingFeeds(false); // já tem conteúdo: tira o spinner cedo
+          }
           await new Promise(resolve => setTimeout(resolve, 25)); 
       }
       const sortedTextNews = smartFeedSort(allNewsItems);
-      if (sortedTextNews.length > 0 || forceRefresh) setRealNews([...sortedTextNews]);
+      if (sortedTextNews.length > 0 || forceRefresh) setRealNews([...sortedTextNews]); // pintura final única
 
       // Desliga o spinner depois do texto: a Home fica pronta sem solavancos.
       setIsLoadingFeeds(false);
@@ -7821,10 +7824,13 @@ const handleStoryNavigation = (direction) => {
       };
 
       // --- PISTA LENTA: MÍDIAS PESADAS (YOUTUBE E PODCASTS) ---
-      // Também usa buffer e só publica no fim, sem empurrar o layout enquanto o usuário lê.
+      // Stories ficam num rail separado (não é o feed que rola), então pintar a cada lote
+      // NÃO causa "feed dançante" — os stories/vídeos vão pipocando conforme os canais chegam.
       for (let i = 0; i < mediaFeeds.length; i += BATCH_SIZE) {
           const batch = mediaFeeds.slice(i, i + BATCH_SIZE);
           await processFeedBatch(batch);
+          if (allVideoItems.length > 0) setRealVideos([...allVideoItems].sort(safeSort));
+          if (allPodcastItems.length > 0) setRealPodcasts([...allPodcastItems].sort(safeSort));
           await new Promise(resolve => setTimeout(resolve, 50)); 
       }
       const sortedVideos = [...allVideoItems].sort(safeSort);
@@ -8269,7 +8275,7 @@ return (
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}
                     onToggleLike={handleToggleLike}
-                    onRefresh={() => fetchFeeds(true)}
+                    onRefresh={() => { fetchFeeds(true); }}
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
                     apiKey={analysisApiKey} 
