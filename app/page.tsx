@@ -71,17 +71,7 @@ const smartFeedSort = (items) => {
 
 const safeLower = (v: any) => String(v ?? '').toLowerCase();
 
-const isVideoShort = (video) => {
-    if (!video) return false;
-    const link = safeLower(video?.link || video?.url || video?.externalUrl || '');
-    const title = safeLower(video?.title || '');
-    const type = safeLower(video?.type || video?.format || video?.contentType || '');
-    const duration = Number(video?.durationSeconds || video?.duration || video?.lengthSeconds || 0);
-    const explicitShort = link.includes('/shorts/') || title.includes('#shorts') || title.includes(' shorts') || type === 'short' || type === 'shorts';
-    const rssShort = link.includes('youtube.com/shorts') || safeLower(video?.guid || '').includes('/shorts/');
-    const verticalShort = (video?.isShort === true || video?.short === true) && (!duration || duration <= 90);
-    return explicitShort || rssShort || verticalShort;
-};
+
 
 const useLongPress = (onLongPress, onClick, { threshold = 400 } = {}) => {
   const timerRef = useRef();
@@ -1805,12 +1795,35 @@ const YouTubeStoryModal = ({ story, onClose, onWatchVideo }) => {
 function YouTubeTab({ isDarkMode, onToggleSave, savedItems, realVideos, isLoading, onPlayVideo, seenStoryIds, onMarkAsSeen, channelFilter, setChannelFilter }) {
   const [category, setCategory] = useState('Tudo');
   
-  const safeVideos = (realVideos && realVideos.length > 0) ? realVideos : YOUTUBE_FEED;
+  // REMOVIDO: O estado do modal não é mais necessário
+  // const [activeStory, setActiveStory] = useState(null); 
   
+  const safeVideos = (realVideos && realVideos.length > 0) ? realVideos : YOUTUBE_FEED;
+  const displayedVideos = useMemo(() => {
+    return safeVideos.filter(v => {
+        const matchesCategory = category === 'Tudo' || v.category === category || v.source === category;
+        const matchesChannel = channelFilter === 'all' || (v.source === channelFilter) || (v.channel === channelFilter);
+        return matchesCategory && matchesChannel;
+    });
+  }, [safeVideos, category, channelFilter]);
+
   const channelStories = useMemo(() => {
+      const getShortSignal = (video) => {
+          const link = safeLower(video?.link || video?.url || video?.externalUrl || '');
+          const title = safeLower(video?.title || '');
+          const type = safeLower(video?.type || video?.format || video?.contentType || '');
+          const duration = Number(video?.durationSeconds || video?.duration || video?.lengthSeconds || 0);
+          const explicitShort = link.includes('/shorts/') || title.includes('#shorts') || title.includes(' shorts') || type === 'short' || type === 'shorts';
+          const rssShort = link.includes('youtube.com/shorts') || safeLower(video?.guid || '').includes('/shorts/');
+          const verticalShort = (video?.isShort === true || video?.short === true) && (!duration || duration <= 90);
+          // V4: story da aba YouTube só é povoado por Short identificado.
+          // Sem sinal explícito/vertical, não entra no rail de stories.
+          return explicitShort || rssShort || verticalShort;
+      };
+
       const byChannel = new Map();
       safeVideos
-        .filter(isVideoShort) // APENAS SHORTS AQUI
+        .filter(getShortSignal)
         .sort((a, b) => new Date(b?.rawDate || 0).getTime() - new Date(a?.rawDate || 0).getTime())
         .forEach(video => {
             const channelName = video.channel || video.source || 'Canal';
@@ -1822,32 +1835,38 @@ function YouTubeTab({ isDarkMode, onToggleSave, savedItems, realVideos, isLoadin
         .map(items => items[0])
         .filter(Boolean)
         .filter(video => !seenStoryIds?.includes(video.id))
+        .sort((a, b) => new Date(b?.rawDate || 0).getTime() - new Date(a?.rawDate || 0).getTime())
         .map(video => ({ ...video, hasNew: true, isShort: true, storyType: 'youtube-short' }));
   }, [safeVideos, seenStoryIds]);
 
-  const displayedVideos = useMemo(() => {
-    return safeVideos.filter(v => {
-        if (isVideoShort(v)) return false; // REJEITA SHORTS AQUI
-
-        const matchesCategory = category === 'Tudo' || v.category === category || v.source === category;
-        const matchesChannel = channelFilter === 'all' || (v.source === channelFilter) || (v.channel === channelFilter);
-        return matchesCategory && matchesChannel;
-    });
-  }, [safeVideos, category, channelFilter]);
-
+  // LÓGICA DE STORIES SIMPLIFICADA: Marca como visto e abre o player principal DIRETAMENTE
   const handleOpenStory = (story) => {
-      if (onMarkAsSeen) { onMarkAsSeen(story.id); }
-      if (onPlayVideo) { onPlayVideo(story); }
+      // 1. Marca como visto (mantém a lógica original)
+      if (onMarkAsSeen) {
+          onMarkAsSeen(story.id);
+      }
+      // 2. Chama a função principal de abrir vídeo (a mesma dos cards normais)
+      if (onPlayVideo) {
+          onPlayVideo(story);
+      }
   };
 
   return (
     <div className="space-y-6 pb-24 pt-4 animate-in fade-in px-2 pl-16 relative min-h-screen">
+    
       <div className="absolute top-0 left-0 z-30">
-        <YouTubeChannelSelector videos={safeVideos} selectedChannel={channelFilter} onSelect={setChannelFilter} isDarkMode={isDarkMode} />
+        <YouTubeChannelSelector 
+            videos={safeVideos} 
+            selectedChannel={channelFilter} 
+            onSelect={setChannelFilter} 
+            isDarkMode={isDarkMode} 
+        />
       </div>
    
+      {/* Filtro Lateral */}
       <YouTubeVerticalFilter categories={YOUTUBE_CATEGORIES} active={category} onChange={setCategory} isDarkMode={isDarkMode} />
       
+      {/* --- ÁREA DE STORIES --- */}
       {(channelStories.length > 0 || isLoading) && (
         <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-hide snap-x items-center px-1 min-h-[120px]">
             {isLoading && channelStories.length === 0 && (
@@ -1858,26 +1877,49 @@ function YouTubeTab({ isDarkMode, onToggleSave, savedItems, realVideos, isLoadin
                     </div>
                 ))
             )}
+
             {channelStories.map((story) => (
-            <div key={story.id} onClick={() => handleOpenStory(story)} className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0 animate-in zoom-in-50 duration-300">
-                <div className={`relative w-[80px] h-[80px] rounded-full p-[3px] transition-transform duration-300 group-hover:scale-105 bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600 shadow-md`}>
+            <div 
+                key={story.id} 
+                // AQUI ESTÁ A MUDANÇA PRINCIPAL
+                onClick={() => handleOpenStory(story)} 
+                className="flex flex-col items-center space-y-2 snap-center cursor-pointer group flex-shrink-0 animate-in zoom-in-50 duration-300"
+            >
+                <div className={`
+                    relative w-[80px] h-[80px] rounded-full p-[3px] transition-transform duration-300 group-hover:scale-105
+                    bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600 shadow-md
+                `}>
                 <div className={`w-full h-full rounded-full border-[3px] overflow-hidden ${isDarkMode ? 'border-black bg-black' : 'border-white bg-white'}`}>
-                    <img src={story.logo || story.img} className="w-full h-full object-cover" onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${story.source}&background=random`} />
+                    <img 
+                        src={story.logo || story.img} 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${story.source}&background=random`}
+                    />
                 </div>
                 </div>
-                <span className={`text-[10px] font-bold max-w-[80px] truncate text-center transition-colors ${isDarkMode ? 'text-zinc-400 group-hover:text-white' : 'text-zinc-600 group-hover:text-black'}`}>{story.channel || story.source}</span>
+                
+                <span className={`text-[10px] font-bold max-w-[80px] truncate text-center transition-colors ${isDarkMode ? 'text-zinc-400 group-hover:text-white' : 'text-zinc-600 group-hover:text-black'}`}>
+                    {story.channel || story.source}
+                </span>
             </div>
             ))}
         </div>
       )}
 
+      {/* --- LISTA DE VÍDEOS (FEED) --- */}
       <div className="grid md:grid-cols-1 gap-10">
+        {/* ... O resto do componente (lista de vídeos) permanece exatamente o mesmo ... */}
         {displayedVideos.map((video) => {
             const isSaved = savedItems?.some(i => i.id === video.id);
             const isSeen = seenStoryIds?.includes(video.id);
 
             return (
-                 <div key={video.id} onClick={() => onPlayVideo(video)} className={`group relative md:w-[520px] rounded-3xl overflow-hidden border shadow-lg hover:shadow-xl transition-all cursor-pointer ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'} ${isSeen ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                 <div 
+                    key={video.id} 
+                    onClick={() => onPlayVideo(video)} 
+                    className={`group relative md:w-[520px] rounded-3xl overflow-hidden border shadow-lg hover:shadow-xl transition-all cursor-pointer ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'} ${isSeen ? 'opacity-60 grayscale-[0.5]' : ''}`}
+                 >
+                    {/* ... conteúdo interno do card ... */}
                     <div className={`flex items-center justify-between px-5 py-4 border-b ${isDarkMode ? 'border-white/5' : 'border-zinc-100'}`}>
                         <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-full p-[2px] ${isSeen ? 'bg-zinc-500' : 'bg-gradient-to-r from-red-600 to-orange-600'}`}>
@@ -1908,6 +1950,8 @@ function YouTubeTab({ isDarkMode, onToggleSave, savedItems, realVideos, isLoadin
             )
         })}
       </div>
+
+      {/* REMOVIDO: O modal de story foi completamente removido daqui */}
     </div>
   );
 }
@@ -4266,61 +4310,136 @@ function DivergenceRow({ row }) {
 
 function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters }) {
   const [loading, setLoading] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [selectedCluster, setSelectedCluster] = useState(null);
+  const carouselRef = useRef(null);
 
-  // Usa heuristico ou a IA
   const displayClusters = useMemo(() => {
     const base = clusters && clusters.length > 0 ? clusters : heuristicClusters;
-    return (base || []).filter(c => (c.related_articles || []).length > 0).slice(0, 9);
+    return (base || []).filter(c => normalizeClusterArticles(c).length > 0).slice(0, 9);
   }, [clusters, heuristicClusters]);
 
-  // Se não tem dados, retorna null
-  if (!displayClusters.length) return null;
+  const slides = useMemo(() => {
+    const out = [];
+    for (let i = 0; i < displayClusters.length; i += 3) out.push(displayClusters.slice(i, i + 3));
+    return out;
+  }, [displayClusters]);
+
+  const runAI = async () => {
+    const currentApiKey = getApiKey?.('widgets');
+    if (!currentApiKey || !news || news.length < 10) {
+      alert('Aguarde o carregamento das notícias ou configure a API Key.');
+      return;
+    }
+    setLoading(true);
+    setClusters?.(null);
+    const result = await generateSmartClustering(news, currentApiKey, 300);
+    if (result) setClusters?.(result);
+    else alert('IA indisponível no momento. Mantendo clusters heurísticos.');
+    setLoading(false);
+  };
+
+  const goToSlide = (idx) => {
+    const el = carouselRef.current;
+    if (!el) return;
+    el.scrollTo({ left: idx * el.clientWidth, behavior: 'smooth' });
+    setActiveSlide(idx);
+  };
+
+  const onCarouselScroll = () => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+    if (idx !== activeSlide) setActiveSlide(idx);
+  };
+
+  if (!displayClusters.length) return <WhileYouWereAwaySkeleton isDarkMode={isDarkMode} />;
+
+  const MainClusterCard = ({ cluster }) => {
+    const meta = getClusterMeta(cluster);
+    return (
+      <button onClick={() => setSelectedCluster(cluster)} className="vetra-main-cluster-card group">
+        <img src={meta.image} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        <div className="main-cluster-overlay" />
+        <div className="main-cluster-top">
+          <ClusterMetricBadge tone="consensus" icon={<CheckCircle size={15}/>} label={`${meta.consensus}% consenso`} />
+          <ClusterMetricBadge tone="hot" icon={<Activity size={15}/>} label="Assunto quente" />
+        </div>
+        <div className="main-cluster-content">
+          <span className="case-chip">{meta.category}</span>
+          <h2>{meta.title}</h2>
+          <p>{meta.summary}</p>
+          <div className="main-cluster-bottom">
+            <div className="main-cluster-sources">
+              {meta.sources.slice(0,4).map((source, i) => <ClusterSourceAvatar key={source.name} source={source} index={i} />)}
+              {meta.sources.length > 4 && <span className="vetra-plus-orb dark">+{meta.sources.length - 4}</span>}
+            </div>
+            <span className="open-case-button">Abrir caso <ArrowUpRight size={18}/></span>
+          </div>
+          <div className="main-cluster-insight"><Sparkles size={19}/> <span>{meta.summary}</span></div>
+        </div>
+      </button>
+    );
+  };
+
+  const SideClusterCard = ({ cluster, fallbackCategory }) => {
+    const meta = getClusterMeta(cluster);
+    return (
+      <button onClick={() => setSelectedCluster(cluster)} className="vetra-side-cluster-card group">
+        <div className="side-image-wrap">
+          <img src={meta.image} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <ClusterMetricBadge tone="consensus" icon={<CheckCircle size={14}/>} label={`${meta.consensus}% consenso`} />
+        </div>
+        <div className="side-content">
+          <small>{meta.category || fallbackCategory}</small>
+          <h3>{meta.title}</h3>
+          <p>{meta.summary}</p>
+          <div className="side-sources">
+            {meta.sources.slice(0,3).map((src, i) => <ClusterSourceAvatar key={src.name} source={src} index={i} compact />)}
+            {meta.sources.length > 3 && <span className="vetra-plus-orb mini">+{meta.sources.length - 3}</span>}
+          </div>
+          <span className="side-open-button">Abrir caso <ArrowUpRight size={16}/></span>
+        </div>
+      </button>
+    );
+  };
 
   return (
-    <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 mt-6">
-      <div className="px-5 mb-4 flex justify-between items-end">
+    <section className="vetra-clusters-section animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="vetra-clusters-header">
         <div>
-          <h2 className="text-3xl font-black font-serif text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Sparkles size={24} className="text-purple-500" /> Em Foco
-          </h2>
-          <p className="text-zinc-500 dark:text-zinc-400 font-medium mt-1">Os temas que dominam a cobertura agora</p>
+          <div className="vetra-clusters-title-row"><h2>Clusters em destaque</h2><span>i</span></div>
+          <p>Os temas que dominam a cobertura agora</p>
         </div>
+        <button onClick={runAI} className="vetra-see-all-button">
+          {loading ? <Loader2 size={17} className="animate-spin"/> : <span>Ver todos os clusters</span>} <ArrowRight size={18}/>
+        </button>
       </div>
 
-      <div className="premium-cluster-carousel">
-        {displayClusters.map((cluster, idx) => {
-          const articles = cluster.related_articles || [];
-          const mainArticle = articles[0] || {};
-          const title = cluster.ai_title || mainArticle.title || 'Destaque';
-          const summary = cluster.ai_summary || mainArticle.summary || '';
-          const img = cluster.representative_image || mainArticle.img;
-          
+      <div ref={carouselRef} onScroll={onCarouselScroll} className="vetra-cluster-carousel scrollbar-hide">
+        {slides.map((slide, slideIndex) => {
+          const main = slide[0];
+          const sideA = slide[1];
+          const sideB = slide[2];
           return (
-            <div key={idx} onClick={() => openArticle(mainArticle)} className="premium-cluster-card group">
-              <img src={img} className="bg-layer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-              <div className="premium-cluster-gradient" />
-              
-              <div className="premium-cluster-content">
-                <div className="premium-cluster-badge mb-2">
-                   <CheckCircle size={14} className="text-green-400" /> 
-                   <span>{(Math.max(58, Math.min(88, 50 + articles.length * 5)))}% Consenso</span>
-                </div>
-                <h2>{title}</h2>
-                <p className="opacity-80 mt-2 text-sm line-clamp-2 max-w-[90%]">{stripTags(summary)}</p>
-                
-                <div className="premium-cluster-sources">
-                  {articles.slice(0, 4).map((art, i) => (
-                    <div key={i} className="w-8 h-8 rounded-full border-2 border-white/20 overflow-hidden -ml-2 first:ml-0 bg-white shadow-lg">
-                      <img src={art.logo} className="w-full h-full object-contain p-0.5" />
-                    </div>
-                  ))}
-                  <span className="text-xs font-bold opacity-70 ml-2">Abrir Cobertura <ArrowUpRight size={14} className="inline"/></span>
-                </div>
+            <div key={slideIndex} className="vetra-cluster-slide">
+              <div className="vetra-cluster-slide-grid">
+                {sideA && <SideClusterCard cluster={sideA} fallbackCategory="Tecnologia e política" />}
+                {main && <MainClusterCard cluster={main} />}
+                {sideB && <SideClusterCard cluster={sideB} fallbackCategory="Economia e meio ambiente" />}
               </div>
             </div>
           );
         })}
       </div>
+
+      {slides.length > 1 && (
+        <div className="vetra-carousel-dots">
+          {slides.map((_, i) => <button key={i} onClick={() => goToSlide(i)} className={activeSlide === i ? 'active' : ''} />)}
+        </div>
+      )}
+
+      {selectedCluster && <ClusterCaseModal cluster={selectedCluster} onClose={() => setSelectedCluster(null)} openArticle={openArticle} getApiKey={getApiKey}/>}    
     </section>
   );
 }
@@ -5441,21 +5560,30 @@ const handleTouchEnd = async () => {
       
     {/* 4.3: TrendRadar removido — espaço liberado p/ o cluster ser o destaque */}
       
-
+          {/* Manchete e o NOVO Widget */}
+      <div className="space-y-4">
+    {/* 4.1: cabeçalho editorial limpo (sem gradiente neon) */}
+        <div className="flex items-center gap-2.5 px-4">
+            <Sparkles size={22} className="text-indigo-500 shrink-0" />
+            <h3 className="text-[22px] font-bold tracking-tight leading-tight text-zinc-900 dark:text-white">
+                As principais notícias de agora, em <span className="text-indigo-600 dark:text-indigo-400">múltiplos ângulos</span>.
+            </h3>
+        </div>
         
         {/* --- SUBSTITUA O WIDGET ANTIGO POR ESTE --- */}
- <WhileYouWereAwayWidget 
-      news={newsData} 
-      openArticle={openArticle} 
-      isDarkMode={isDarkMode} 
-      getApiKey={getApiKey}
-      clusters={savedClusters}
-      setClusters={setSavedClusters}
-      heuristicClusters={heuristicClusters} // Esta é a chave!
-    />
-
-{/* === AI DIGEST + PODNEWS === */}
-  <div className="grid md:grid-cols-2 gap-4 px-4">
+   <WhileYouWereAwayWidget 
+          news={newsData} 
+          openArticle={openArticle} 
+          isDarkMode={isDarkMode} 
+          getApiKey={getApiKey}
+          clusters={savedClusters}
+          setClusters={setSavedClusters}
+          heuristicClusters={heuristicClusters} // Esta é a chave!
+        />
+      </div>
+    
+  {/* === AI DIGEST + PODNEWS === */}
+      <div className="grid md:grid-cols-2 gap-4 px-4">
         {/* AI DIGEST (teaser; expande o SmartDigestWidget) */}
         <div className="glass-card relative overflow-hidden p-5">
           <div className="absolute -right-8 -bottom-10 w-44 h-44 rounded-full bg-gradient-to-br from-purple-400/30 to-indigo-400/10 blur-2xl pointer-events-none" />
@@ -7449,7 +7577,7 @@ const handleStoryNavigation = (direction) => {
   };
 
   // --- FETCH FEEDS V8: RENDERIZAÇÃO PROGRESSIVA + PRIORIDADE ---
-const fetchFeeds = async (forceRefresh = false) => {
+  const fetchFeeds = async (forceRefresh = false) => {
       if (userFeeds.length === 0) {
           setRealNews([]); setRealVideos([]); setRealPodcasts([]); return;
       }
@@ -7461,15 +7589,18 @@ const fetchFeeds = async (forceRefresh = false) => {
       let allPodcastItems = [];
       let feedsThatNeedUpdate = [];
       let newHistoryBuffer = { ...articleHistory };
-      const CACHE_TTL = 5 * 60 * 1000; 
+      const CACHE_TTL = 5 * 60 * 1000; // cache LEVE (troca de aba), não persistente 
   
       const activeFeeds = userFeeds.filter(f => f.url && f.url.trim());
       
+      // ESTRATÉGIA DE CARREGAMENTO DEFERIDO (A sua ideia)
+      // Separa as fontes pesadas (YouTube e Podcasts) das fontes leves (Notícias)
       const textFeeds = activeFeeds.filter(f => f.type !== 'youtube' && f.type !== 'podcast' && !f.url.includes('youtube.com'));
       const mediaFeeds = activeFeeds.filter(f => f.type === 'youtube' || f.type === 'podcast' || f.url.includes('youtube.com'));
       
       const BATCH_SIZE = 8; 
 
+      // Função de processamento isolada para reutilizarmos nos dois lotes
       const processFeedBatch = async (batch) => {
           await Promise.allSettled(batch.map(async (feed) => {
               let processedItems = [];
@@ -7480,6 +7611,8 @@ const fetchFeeds = async (forceRefresh = false) => {
               let usedCache = false;
               const cacheKey = `${FEED_CACHE_PREFIX}${feed.id}`; 
       
+       // CACHE LEVE: só em memória (sobrevive à troca de aba, NÃO ao reload).
+              // Sem leitura de cache persistente em disco → push/refresh sempre traz dados frescos.
               if (!forceRefresh) {
                   if (feedMemoryBuffer.current[feed.id] && (Date.now() - feedMemoryBuffer.current[feed.id].timestamp < CACHE_TTL)) {
                       const mem = feedMemoryBuffer.current[feed.id];
@@ -7487,6 +7620,7 @@ const fetchFeeds = async (forceRefresh = false) => {
                   }
               }
       
+              // CAMADA 2: BUSCA REAL
               if (!usedCache) {
                   let rawItems = [];
                   let success = false;
@@ -7501,8 +7635,7 @@ const fetchFeeds = async (forceRefresh = false) => {
                   if (!success) {
                       try {
                           const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`;
-                          // Função fetchWithTimeout mockada ou nativa do seu código, se der erro tire o timeout
-                          const res = await fetch(proxyUrl);
+                         const res = await fetchWithTimeout(proxyUrl, { timeout: 3000 }); // Opção A: timeout menor (3s)
                           if (res.ok) {
                               const xmlText = await res.text();
                               const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
@@ -7516,6 +7649,7 @@ const fetchFeeds = async (forceRefresh = false) => {
                if (success && rawItems.length > 0) {
                       let finalLogo = feedLogo;
                       
+                      // RESTAURAÇÃO: Motor de logos reais para canais do YouTube
                       if (isFeedYoutube) {
                           const letterAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128&bold=true`;
                           const channelIdMatch = feed.url.match(/channel_id=([^&]+)/);
@@ -7538,28 +7672,22 @@ const fetchFeeds = async (forceRefresh = false) => {
 
                       processedItems = rawItems.slice(0, LIMIT).map((item, index) => {
                           const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
+                          const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
                           
-                          // --- CORREÇÃO DA DATA ZUMBI (LOCK DE TIMESTAMP) ---
-                          let finalTimestamp;
-                          if (articleHistory[uniqueId] && !forceRefresh) {
-                              // Se já vimos essa notícia, a data de nascimento dela está congelada.
-                              finalTimestamp = articleHistory[uniqueId]; 
+                 // --- DATA: sanidade + ordenação confiável ---
+                          const _now = Date.now();
+                          const parsedDate = new Date(rawDateString);
+                          let baseTimestamp;
+                          let dateEstimated = false;
+                          if (rawDateString && !isNaN(parsedDate.getTime())) {
+                              baseTimestamp = Math.min(parsedDate.getTime(), _now); // nunca no futuro
                           } else {
-                              const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
-                              const _now = Date.now();
-                              const parsedDate = new Date(rawDateString);
-                              let baseTimestamp;
-                              let dateEstimated = false;
-                              if (rawDateString && !isNaN(parsedDate.getTime())) {
-                                  baseTimestamp = Math.min(parsedDate.getTime(), _now); 
-                              } else {
-                                  dateEstimated = true;
-                                  baseTimestamp = _now - (3 * 60 * 60 * 1000) - (index * 10 * 60 * 1000);
-                              }
-                              finalTimestamp = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
-                              newHistoryBuffer[uniqueId] = finalTimestamp;
+                              dateEstimated = true;
+                              baseTimestamp = _now - (3 * 60 * 60 * 1000) - (index * 10 * 60 * 1000);
                           }
-
+                          const computed = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
+                          const finalTimestamp = forceRefresh ? computed : (newHistoryBuffer[uniqueId] || computed);
+                          newHistoryBuffer[uniqueId] = finalTimestamp;
                           const finalDateObj = new Date(finalTimestamp);
                           
                           const primaryLink = item.link;
@@ -7592,7 +7720,7 @@ const fetchFeeds = async (forceRefresh = false) => {
 
                       const cachePayload = { timestamp: Date.now(), items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube };
                       feedMemoryBuffer.current[feed.id] = cachePayload;
-                      try { localStorage.removeItem(cacheKey); } catch (e) {} 
+                      try { localStorage.removeItem(cacheKey); } catch (e) {} // remove cache persistente antigo (não gravamos mais em disco)
                   }
               }
       
@@ -7606,30 +7734,38 @@ const fetchFeeds = async (forceRefresh = false) => {
           }));
       };
 
+      // --- PISTA EXPRESSA: FONTES DE TEXTO ---
       for (let i = 0; i < textFeeds.length; i += BATCH_SIZE) {
           const batch = textFeeds.slice(i, i + BATCH_SIZE);
           await processFeedBatch(batch);
+          // O SEGREDO: Atualiza a tela a CADA LOTE DE TEXTO!
+          // Se 4 fontes carregaram, o usuário já pode começar a ler. O app não fica travado.
+          setRealNews([...smartFeedSort(allNewsItems)]);
+          await new Promise(resolve => setTimeout(resolve, 50)); 
       }
 
-      // CORREÇÃO FEED "DANÇANTE": Atualiza a tela UMA ÚNICA VEZ após carregar todo o texto
-      setRealNews([...smartFeedSort(allNewsItems)]);
+      // Desliga o spinner de Loading. O App está pronto pro uso.
       setIsLoadingFeeds(false);
 
+      // --- PISTA LENTA: MÍDIAS PESADAS (YOUTUBE E PODCASTS) ---
+      // Roda em background de forma invisível pro usuário
       for (let i = 0; i < mediaFeeds.length; i += BATCH_SIZE) {
           const batch = mediaFeeds.slice(i, i + BATCH_SIZE);
           await processFeedBatch(batch);
-      }
           
       const safeSort = (a, b) => {
-          const timeA = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
-          const timeB = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
-          return timeB - timeA;
-      };
+              const timeA = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
+              const timeB = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
+              return timeB - timeA;
+          };
 
-      setRealVideos([...allVideoItems].sort(safeSort));
-      setRealPodcasts([...allPodcastItems].sort(safeSort));
-      if (allNewsItems.length > 0) setRealNews([...smartFeedSort(allNewsItems)]);
+          setRealVideos([...allVideoItems].sort(safeSort));
+          setRealPodcasts([...allPodcastItems].sort(safeSort));
+          if (allNewsItems.length > 0) setRealNews([...smartFeedSort(allNewsItems)]);
           
+          await new Promise(resolve => setTimeout(resolve, 100)); 
+      }
+  
       if (feedsThatNeedUpdate.length > 0) {
           setUserFeeds(prev => prev.map(f => {
               const update = feedsThatNeedUpdate.find(u => u.id === f.id);
