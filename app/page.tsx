@@ -2966,7 +2966,7 @@ ${context}
 // ==============================================================================
 // === GLASSBROWSER V7: Com Proteção Contra TypeError e Botão OK ===
 // ==============================================================================
-const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze }) => { // onAnalyze = abre painel lateral ou chat
+const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze }) => { // onAnalyze = abre painel lateral / chat WhatsApp
   const [content, setContent] = useState(''); 
   const [status, setStatus] = useState('loading');
 
@@ -3016,6 +3016,14 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
           window.open(article.link, '_blank'); 
           onClose();
       }
+  };
+
+
+  const openArticleChatFromGlass = () => {
+      if (onAnalyze && typeof onAnalyze === 'function') {
+          onAnalyze(article, { initialViewMode: 'chat', source: 'glassbrowser', openWhatsAppPanel: true });
+      }
+      onClose();
   };
 
 
@@ -3128,7 +3136,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
         <div className="shrink-0 px-5 sm:px-6 py-4 border-t border-white/50 flex flex-col sm:flex-row gap-3">
           <button onClick={openOriginal} className="flex-1 h-12 rounded-xl bg-white/60 border border-white/70 text-zinc-700 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 transition"><ExternalLink size={16} /> Ler no site</button>
           <button onClick={() => { if (onAnalyze) onAnalyze(article); onClose(); }} className="flex-1 h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2"><Sparkles size={16} /> Análise IA</button>
-          <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat' }); onClose(); }} className="flex-1 h-12 rounded-xl bg-emerald-500/90 border border-white/40 text-white text-[13px] font-bold flex items-center justify-center gap-2 hover:bg-emerald-500 transition shadow-[0_10px_24px_-12px_rgba(16,185,129,.9)]"><WhatsAppGlyph className="w-5 h-5" /> Chat com a notícia</button>
+          <button onClick={openArticleChatFromGlass} className="flex-1 h-12 rounded-xl vetra-whatsapp-glass-button text-[13px] font-bold flex items-center justify-center gap-2"><WhatsAppGlyph className="w-5 h-5" /> Chat com a notícia</button>
         </div>
       </div>
     </div>
@@ -3138,7 +3146,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
 
 
 
-const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) => {
+const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger, openArticle }) => {
   const [digest, setDigest] = useState(null);
   const [status, setStatus] = useState('idle');
   const [expandedIndex, setExpandedIndex] = useState(null);
@@ -3650,7 +3658,8 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger }) 
               article={glassArticle}
               onClose={() => setGlassArticle(null)}
               isDarkMode={isDarkMode}
-              onFetchContent={fetchOptimizedContent} 
+              onFetchContent={fetchOptimizedContent}
+              onAnalyze={openArticle}
             />
           )}
         </div>
@@ -5496,74 +5505,53 @@ const handleTouchEnd = async () => {
                     </div>
                 )}
             </div>
-            {/* === ÚLTIMAS URGENTES + TRENDING === */}
-      <div className="grid md:grid-cols-2 gap-4 px-4">
-        {/* ÚLTIMAS URGENTES (top-3 reais) */}
-        <div className="rounded-[1.6rem] p-4 bg-gradient-to-br from-red-600 via-red-700 to-red-900 shadow-[0_18px_40px_-20px_rgba(190,18,60,0.6)] border border-white/10">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Zap size={18} className="text-white" fill="currentColor" />
-              <span className="text-[13px] font-black uppercase tracking-widest text-white">Últimas Urgentes</span>
-            </div>
-            <span className="flex items-center gap-1 text-[11px] font-semibold text-white/70">Ver todas <ChevronRight size={13} /></span>
-          </div>
-          <div className="space-y-2.5">
-            {(newsData || []).slice(0, 3).map((n, i) => {
-              const mins = Math.max(1, Math.round((Date.now() - new Date(n.rawDate).getTime()) / 60000));
-              const rel = mins < 60 ? `há ${mins} min` : `há ${Math.round(mins / 60)}h`;
-              return (
-                <div key={n.id || i} onClick={() => openArticle(n)} className="flex items-center gap-3 cursor-pointer group">
-                  <span className="shrink-0 w-7 h-7 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center text-[13px] font-black text-white">{i + 1}</span>
-                  <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-black/20">
-                    <img src={n.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} alt="" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-white/60">{(n.category || 'Notícia')} · {rel}</div>
-                    <div className="text-[13px] font-bold text-white leading-snug line-clamp-2 group-hover:underline">{n.title}</div>
-                  </div>
-                  <Bookmark size={16} className="text-white/50 shrink-0" />
+            {/* === NOTÍCIAS EM DESTAQUE + TRENDING AGORA — design system NewsOS liquid === */}
+            <div className="vetra-home-top-grid px-4">
+              <section className="vetra-breaking-panel">
+                <div className="vetra-breaking-title"><Zap size={18} fill="currentColor" /> <span>NOTÍCIAS EM DESTAQUE</span></div>
+                <div className="vetra-breaking-list">
+                  {(newsData || []).slice(0, 3).map((n, i) => {
+                    const mins = Math.max(1, Math.round((Date.now() - new Date(n.rawDate || Date.now()).getTime()) / 60000));
+                    const rel = mins < 60 ? `há ${mins} min` : `há ${Math.round(mins / 60)}h`;
+                    return (
+                      <button key={n.id || i} onClick={() => openArticle(n)} className="vetra-breaking-row group">
+                        <span className="vetra-breaking-rank">{i + 1}</span>
+                        <span className="vetra-breaking-thumb"><img src={n.img} onError={(e) => e.currentTarget.style.display='none'} alt="" /></span>
+                        <span className="vetra-breaking-copy">
+                          <b>{n.title}</b>
+                          <small>{stripClusterText(n.summary || n.category || 'Acompanhe os principais desdobramentos desta notícia em tempo real.').slice(0, 96)}</small>
+                        </span>
+                        <em>{rel}</em>
+                      </button>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-        {/* TRENDING (MOCK) */}
-        <div className="glass-card p-4">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <TrendingUp size={18} className="text-indigo-500" />
-              <div className="leading-tight">
-                <div className="text-[15px] font-bold text-zinc-900 dark:text-white">Trending</div>
-                <div className="text-[11px] text-zinc-400">Assuntos que estão em alta agora</div>
-              </div>
-            </div>
-            <span className="flex items-center gap-1 text-[11px] font-semibold text-indigo-500">Ver todos <ChevronRight size={13} /></span>
-          </div>
-          <div className="space-y-2.5">
-            {[
-              { t: 'Reforma Tributária', n: '98.7K', v: 100 },
-              { t: 'Inteligência Artificial', n: '76.4K', v: 78 },
-              { t: 'Seleção Brasileira', n: '64.2K', v: 65 },
-              { t: 'COP30', n: '52.1K', v: 53 },
-              { t: 'iOS 18', n: '41.3K', v: 42 },
-            ].map((it, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <span className="w-4 text-[13px] font-bold text-zinc-400 tabular-nums">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-100 truncate">{it.t}</span>
-                    {i < 3 && <span className="text-[11px] leading-none">🔥</span>}
-                  </div>
-                  <div className="h-1.5 rounded-full bg-zinc-200/70 dark:bg-white/10 overflow-hidden">
-                    <div className="h-full rounded-full bg-gradient-to-r from-orange-400 to-red-500" style={{ width: `${it.v}%` }} />
-                  </div>
+                <button className="vetra-breaking-more" onClick={() => onTriggerWidgetRotation && onTriggerWidgetRotation()}>
+                  Ver todas as notícias em destaque <ChevronRight size={18}/>
+                </button>
+              </section>
+
+              <section className="vetra-trending-panel-home">
+                <div className="vetra-trending-title"><Activity size={18} fill="currentColor" /> <span>TRENDING AGORA</span></div>
+                <div className="vetra-trending-list-home">
+                  {[
+                    { t: 'Alta do dólar', n: '42 mil menções', v: 100 },
+                    { t: 'Inteligência artificial', n: '31 mil menções', v: 76 },
+                    { t: 'Greve dos servidores', n: '18 mil menções', v: 58 },
+                    { t: 'Exploração espacial', n: '14 mil menções', v: 48 },
+                    { t: 'Copa do Mundo 2026', n: '9 mil menções', v: 32 },
+                  ].map((it, i) => (
+                    <button key={it.t} className="vetra-trending-row-home">
+                      <strong>{i + 1}</strong>
+                      <span>{it.t}</span>
+                      <small>{it.n}</small>
+                      <i><b style={{ width: `${it.v}%` }} /></i>
+                    </button>
+                  ))}
                 </div>
-                <span className="text-[12px] font-semibold text-zinc-400 tabular-nums shrink-0">{it.n}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+                <button className="vetra-trending-more-home">Ver todos os assuntos em alta <ChevronRight size={18}/></button>
+              </section>
+            </div>
         </div>
       </div>
       
@@ -5648,7 +5636,8 @@ const handleTouchEnd = async () => {
               newsData={newsData} 
               getApiKey={getApiKey}
               isDarkMode={isDarkMode} 
-              refreshTrigger={refreshTrigger} 
+              refreshTrigger={refreshTrigger}
+              openArticle={openArticle}
           />
         </div>
       )}
