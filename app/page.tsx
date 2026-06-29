@@ -7744,7 +7744,12 @@ const handleStoryNavigation = (direction) => {
                               dateEstimated = true;
                               baseTimestamp = _now - (3 * 60 * 60 * 1000) - (index * 10 * 60 * 1000);
                           }
-                          const computed = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
+                          // Bug 2 mantido: já-vista fica congelada. Mas item NOVO sem data, num push manual,
+                          // sobe pro topo (vira "recém-chegado") em vez de nascer 3h atrás e ficar enterrado.
+                          const freshTop = _now - index * 1000;
+                          const computed = dateEstimated
+                              ? (forceRefresh ? freshTop : baseTimestamp)
+                              : (baseTimestamp - index * 1000);
                           // Se já conhecemos a notícia, mantemos o carimbo ORIGINAL (estável p/ ordem e "lida").
                           const finalTimestamp = (newHistoryBuffer[stableKey] != null) ? newHistoryBuffer[stableKey] : computed;
                           newHistoryBuffer[stableKey] = finalTimestamp;
@@ -8264,7 +8269,7 @@ return (
                     setSourceFilter={setSourceFilter}
                     likedItems={likedItems}
                     onToggleLike={handleToggleLike}
-                    onRefresh={() => { fetchFeeds(true); }}
+                    onRefresh={() => fetchFeeds(true)}
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
                     apiKey={analysisApiKey} 
