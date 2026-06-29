@@ -4997,9 +4997,9 @@ const searchTerms = safeLower(word).split(' ').filter(term => term.length > 1);
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters }) {
- 
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters, onOpenPodNews }) { 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showDigest, setShowDigest] = useState(false); // AI Digest expansível
   
   // --- MUDANÇA CRÍTICA 1: startY agora é REF (Não causa re-render ao tocar) ---
   // Isso impede que o componente pisque quando você encosta o dedo.
@@ -5115,6 +5115,74 @@ const handleTouchEnd = async () => {
                     </div>
                 )}
             </div>
+            {/* === ÚLTIMAS URGENTES + TRENDING === */}
+      <div className="grid md:grid-cols-2 gap-4 px-4">
+        {/* ÚLTIMAS URGENTES (top-3 reais) */}
+        <div className="rounded-[1.6rem] p-4 bg-gradient-to-br from-red-600 via-red-700 to-red-900 shadow-[0_18px_40px_-20px_rgba(190,18,60,0.6)] border border-white/10">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Zap size={18} className="text-white" fill="currentColor" />
+              <span className="text-[13px] font-black uppercase tracking-widest text-white">Últimas Urgentes</span>
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-semibold text-white/70">Ver todas <ChevronRight size={13} /></span>
+          </div>
+          <div className="space-y-2.5">
+            {(newsData || []).slice(0, 3).map((n, i) => {
+              const mins = Math.max(1, Math.round((Date.now() - new Date(n.rawDate).getTime()) / 60000));
+              const rel = mins < 60 ? `há ${mins} min` : `há ${Math.round(mins / 60)}h`;
+              return (
+                <div key={n.id || i} onClick={() => openArticle(n)} className="flex items-center gap-3 cursor-pointer group">
+                  <span className="shrink-0 w-7 h-7 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center text-[13px] font-black text-white">{i + 1}</span>
+                  <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-black/20">
+                    <img src={n.img} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} alt="" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-white/60">{(n.category || 'Notícia')} · {rel}</div>
+                    <div className="text-[13px] font-bold text-white leading-snug line-clamp-2 group-hover:underline">{n.title}</div>
+                  </div>
+                  <Bookmark size={16} className="text-white/50 shrink-0" />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        {/* TRENDING (MOCK) */}
+        <div className="glass-card p-4">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={18} className="text-indigo-500" />
+              <div className="leading-tight">
+                <div className="text-[15px] font-bold text-zinc-900 dark:text-white">Trending</div>
+                <div className="text-[11px] text-zinc-400">Assuntos que estão em alta agora</div>
+              </div>
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-semibold text-indigo-500">Ver todos <ChevronRight size={13} /></span>
+          </div>
+          <div className="space-y-2.5">
+            {[
+              { t: 'Reforma Tributária', n: '98.7K', v: 100 },
+              { t: 'Inteligência Artificial', n: '76.4K', v: 78 },
+              { t: 'Seleção Brasileira', n: '64.2K', v: 65 },
+              { t: 'COP30', n: '52.1K', v: 53 },
+              { t: 'iOS 18', n: '41.3K', v: 42 },
+            ].map((it, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="w-4 text-[13px] font-bold text-zinc-400 tabular-nums">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-100 truncate">{it.t}</span>
+                    {i < 3 && <span className="text-[11px] leading-none">🔥</span>}
+                  </div>
+                  <div className="h-1.5 rounded-full bg-zinc-200/70 dark:bg-white/10 overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-orange-400 to-red-500" style={{ width: `${it.v}%` }} />
+                  </div>
+                </div>
+                <span className="text-[12px] font-semibold text-zinc-400 tabular-nums shrink-0">{it.n}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
         </div>
       </div>
       
@@ -5142,15 +5210,67 @@ const handleTouchEnd = async () => {
         />
       </div>
     
-      {/* Smart Digest */}
-      <div className="px-4">
-        <SmartDigestWidget 
-            newsData={newsData} 
-            getApiKey={getApiKey}
-            isDarkMode={isDarkMode} 
-            refreshTrigger={refreshTrigger} 
-        />
+  {/* === AI DIGEST + PODNEWS === */}
+      <div className="grid md:grid-cols-2 gap-4 px-4">
+        {/* AI DIGEST (teaser; expande o SmartDigestWidget) */}
+        <div className="glass-card relative overflow-hidden p-5">
+          <div className="absolute -right-8 -bottom-10 w-44 h-44 rounded-full bg-gradient-to-br from-purple-400/30 to-indigo-400/10 blur-2xl pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shrink-0">
+                <Sparkles size={20} className="text-white" />
+              </div>
+              <div className="leading-tight">
+                <div className="text-[16px] font-bold text-zinc-900 dark:text-white">AI Digest</div>
+                <div className="text-[12px] text-zinc-400">Seu briefing inteligente do dia</div>
+              </div>
+            </div>
+            <p className="text-[13px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-4 max-w-[88%]">
+              Resumimos <span className="font-bold text-zinc-700 dark:text-zinc-200">{(newsData || []).length}</span> fatos relevantes em 5 minutos. Foco no que realmente importa para você.
+            </p>
+            <button onClick={() => setShowDigest(v => !v)} className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-white/80 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-sm text-[13px] font-semibold text-zinc-800 dark:text-white hover:bg-white transition">
+              {showDigest ? 'Ocultar resumo' : 'Ver resumo de hoje'} <ChevronRight size={15} className={showDigest ? 'rotate-90 transition-transform' : 'transition-transform'} />
+            </button>
+          </div>
+        </div>
+        {/* PODNEWS (teaser; abre o PodNewsModal) */}
+        <div className="glass-card relative overflow-hidden p-5">
+          <span className="absolute top-4 right-4 text-[10px] font-semibold text-zinc-500 dark:text-zinc-300 bg-white/70 dark:bg-white/10 border border-white/80 dark:border-white/10 rounded-full px-2.5 py-1">Novo episódio disponível</span>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg shrink-0">
+              <Headphones size={20} className="text-white" />
+            </div>
+            <div className="leading-tight">
+              <div className="text-[16px] font-bold text-zinc-900 dark:text-white">PodNews</div>
+              <div className="text-[12px] text-zinc-400">Resumo em áudio</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mb-4">
+            <p className="text-[13px] text-zinc-500 dark:text-zinc-400 leading-relaxed flex-1">Ouça os principais destaques do dia em 7 minutos.</p>
+            <div className="flex items-end gap-[2px] h-7 shrink-0">
+              {[...Array(14)].map((_, i) => (
+                <span key={i} className="w-[2px] rounded-full bg-indigo-300 dark:bg-indigo-400/60" style={{ height: `${25 + Math.abs(Math.sin(i * 1.1)) * 70}%` }} />
+              ))}
+            </div>
+            <button onClick={() => onOpenPodNews && onOpenPodNews()} className="shrink-0 w-12 h-12 rounded-full bg-white dark:bg-white/10 border border-white/80 dark:border-white/10 shadow-md flex items-center justify-center text-indigo-600 dark:text-white hover:scale-105 transition">
+              <Play size={18} fill="currentColor" />
+            </button>
+          </div>
+          <button onClick={() => onOpenPodNews && onOpenPodNews()} className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-white/80 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-sm text-[13px] font-semibold text-zinc-800 dark:text-white hover:bg-white transition">
+            Ouvir resumo 07:00 <Play size={13} fill="currentColor" />
+          </button>
+        </div>
       </div>
+      {showDigest && (
+        <div className="px-4">
+          <SmartDigestWidget 
+              newsData={newsData} 
+              getApiKey={getApiKey}
+              isDarkMode={isDarkMode} 
+              refreshTrigger={refreshTrigger} 
+          />
+        </div>
+      )}
       
   {/* Market Pulse */}
       <div className="space-y-4 px-4 pt-2">
@@ -7714,6 +7834,7 @@ return (
                     heuristicClusters={heuristicClusters}
                     // AÇÃO 1: Pull-to-Refresh
                     onRefresh={handleHappeningRefresh}
+                    onOpenPodNews={handleOpenPodNews}
                     seenStoryIds={seenStoryIds} 
                     onMarkAsSeen={markStoryAsSeen}
                     heuristicClusters={heuristicClusters}
