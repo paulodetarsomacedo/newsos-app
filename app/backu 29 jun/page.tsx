@@ -140,21 +140,6 @@ const VetraMark = ({ className = "" }) => (
   </svg>
 );
 
-
-// Glyphs locais para evitar novas dependências/imports no arquivo grande.
-const WhatsAppGlyph = ({ className = "" }) => (
-  <svg viewBox="0 0 32 32" fill="none" className={className} xmlns="http://www.w3.org/2000/svg" aria-label="WhatsApp">
-    <path d="M16 3.2c-7.05 0-12.78 5.56-12.78 12.41 0 2.19.6 4.32 1.73 6.19L3.2 28.8l7.28-1.86a13.07 13.07 0 0 0 5.52 1.23c7.05 0 12.78-5.56 12.78-12.41C28.78 8.91 23.05 3.2 16 3.2Z" fill="currentColor"/>
-    <path d="M22.98 19.1c-.38 1.06-1.88 1.95-2.83 2.08-.73.1-1.68.18-4.88-1.11-4.1-1.65-6.75-5.66-6.96-5.92-.2-.25-1.66-2.13-1.66-4.06 0-1.93 1.03-2.87 1.4-3.26.37-.39.8-.49 1.06-.49h.76c.24 0 .57-.09.89.67.34.8 1.15 2.75 1.25 2.95.1.2.17.44.03.7-.13.27-.2.43-.4.67-.2.24-.42.53-.6.7-.2.2-.4.42-.17.82.24.4 1.05 1.68 2.25 2.72 1.55 1.34 2.86 1.75 3.27 1.95.41.2.65.17.9-.1.24-.27 1.03-1.17 1.3-1.57.27-.4.54-.34.92-.2.37.13 2.39 1.09 2.8 1.29.41.2.68.3.78.46.1.17.1.96-.28 2.02Z" fill="white"/>
-  </svg>
-);
-
-const ScaleIcon = ({ className = "" }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <path d="M12 4v15M5 7h14M7 7l-3 6h6L7 7Zm10 0-3 6h6l-3-6Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
 const STORIES = [
   { id: 1, name: 'G1', avatar: 'https://ui-avatars.com/api/?name=G1&background=c0392b&color=fff', items: [{ id: 101, type: 'image', img: 'https://images.unsplash.com/photo-1542204165-65bf26472b9b?w=600&q=80', title: 'Chuva recorde', time: '10 min' }] },
   { id: 2, name: 'Verge', avatar: 'https://ui-avatars.com/api/?name=TV&background=000&color=fff', items: [{ id: 201, type: 'image', img: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=600&q=80', title: 'Review M3', time: '30 min' }] },
@@ -1808,26 +1793,21 @@ function YouTubeTab({ isDarkMode, onToggleSave, savedItems, realVideos, isLoadin
   }, [safeVideos, category, channelFilter]);
 
   const channelStories = useMemo(() => {
-      const isShortVideo = (video) => {
-          const link = safeLower(video?.link || video?.url || '');
-          const title = safeLower(video?.title || '');
-          const type = safeLower(video?.type || video?.format || '');
-          return link.includes('/shorts/') || title.includes('#shorts') || title.includes('shorts') || type === 'short' || type === 'shorts';
-      };
+      const processedChannels = new Set();
+      const stories = [];
+      
+      safeVideos.forEach(video => {
+          const channelName = video.channel || video.source;
+          if (processedChannels.has(channelName)) return;
 
-      const byChannel = new Map();
-      safeVideos
-        .filter(isShortVideo)
-        .sort((a, b) => new Date(b?.rawDate || 0).getTime() - new Date(a?.rawDate || 0).getTime())
-        .forEach(video => {
-            const channelName = video.channel || video.source || 'Canal';
-            if (!byChannel.has(channelName)) byChannel.set(channelName, video);
-        });
+          processedChannels.add(channelName);
+          const isSeen = seenStoryIds?.includes(video.id);
 
-      return Array.from(byChannel.values())
-        .filter(video => !seenStoryIds?.includes(video.id))
-        .sort((a, b) => new Date(b?.rawDate || 0).getTime() - new Date(a?.rawDate || 0).getTime())
-        .map(video => ({ ...video, hasNew: true, isShort: true }));
+          if (!isSeen) {
+              stories.push({ ...video, hasNew: true });
+          }
+      });
+      return stories;
   }, [safeVideos, seenStoryIds]);
 
   // LÓGICA DE STORIES SIMPLIFICADA: Marca como visto e abre o player principal DIRETAMENTE
@@ -2960,7 +2940,7 @@ ${context}
 // ==============================================================================
 // === GLASSBROWSER V7: Com Proteção Contra TypeError e Botão OK ===
 // ==============================================================================
-const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze }) => { // onAnalyze = abre painel lateral ou chat
+const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze }) => { // onAnalyze = abre painel lateral
   const [content, setContent] = useState(''); 
   const [status, setStatus] = useState('loading');
 
@@ -3042,10 +3022,10 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
       <div className="absolute inset-0 bg-slate-500/30 backdrop-blur-md" onClick={onClose} />
 
       {/* ===== MODAL — FROSTED GLASS CLARO (visual conforme print glass.png) ===== */}
-      <div className="glassbrowser-shell relative w-full max-w-[980px] h-[72vh] min-h-[620px] rounded-[1.9rem] overflow-hidden flex flex-col text-zinc-900">
+      <div className="glassbrowser-shell relative w-full max-w-2xl h-[88vh] rounded-[1.9rem] overflow-hidden flex flex-col text-zinc-900">
 
         {/* HERO */}
-        <div className="relative h-40 sm:h-44 shrink-0">
+        <div className="relative h-52 sm:h-56 shrink-0">
           <img src={article.img} className="w-full h-full object-cover" onError={(e) => (e.target.style.display='none')} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
           <div className="absolute top-4 left-5 right-4 flex items-start justify-between">
@@ -3122,7 +3102,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
         <div className="shrink-0 px-5 sm:px-6 py-4 border-t border-white/50 flex flex-col sm:flex-row gap-3">
           <button onClick={openOriginal} className="flex-1 h-12 rounded-xl bg-white/60 border border-white/70 text-zinc-700 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 transition"><ExternalLink size={16} /> Ler no site</button>
           <button onClick={() => { if (onAnalyze) onAnalyze(article); onClose(); }} className="flex-1 h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2"><Sparkles size={16} /> Análise IA</button>
-          <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat' }); onClose(); }} className="flex-1 h-12 rounded-xl bg-emerald-500/90 border border-white/40 text-white text-[13px] font-bold flex items-center justify-center gap-2 hover:bg-emerald-500 transition shadow-[0_10px_24px_-12px_rgba(16,185,129,.9)]"><WhatsAppGlyph className="w-5 h-5" /> Chat com a notícia</button>
+          <button onClick={onClose} className="flex-1 h-12 rounded-xl bg-white/60 border border-white/70 text-zinc-700 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 transition"><MessageCircle size={16} /> Chat com a notícia</button>
         </div>
       </div>
     </div>
@@ -3855,392 +3835,219 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
 // === WIDGET DE CLUSTER FINAL (Carrossel + Imagem Grande + Chips + Logos Bonitos) ===
 // ==============================================================================
 
-
-const normalizeClusterArticles = (cluster) => {
-  const articles = Array.isArray(cluster?.related_articles) ? cluster.related_articles.filter(Boolean) : [];
-  return [...articles].sort((a, b) => {
-    const tb = a?.rawDate ? new Date(a.rawDate).getTime() : 0;
-    const ta = b?.rawDate ? new Date(b.rawDate).getTime() : 0;
-    return ta - tb;
-  });
-};
-
-const getClusterSources = (cluster) => {
-  const seen = new Set();
-  return normalizeClusterArticles(cluster).reduce((acc, article) => {
-    const name = article?.source || 'Fonte';
-    if (!seen.has(name)) {
-      seen.add(name);
-      acc.push({ name, logo: article?.logo, article });
-    }
-    return acc;
-  }, []);
-};
-
-const getClusterConsensus = (cluster) => {
-  const sources = getClusterSources(cluster).length;
-  const articles = normalizeClusterArticles(cluster).length;
-  return Math.max(52, Math.min(92, 50 + sources * 6 + articles * 2));
-};
-
-const getClusterMeta = (cluster) => {
-  const articles = normalizeClusterArticles(cluster);
-  const sources = getClusterSources(cluster);
-  const latest = articles[0];
-  const title = cluster?.ai_title || latest?.title || 'Caso em foco';
-  const summary = (cluster?.ai_summary || latest?.summary || 'Cobertura agrupada a partir das fontes monitoradas pelo Vetra.').replace(/<[^>]*>?/gm, '').trim();
-  const image = cluster?.representative_image || latest?.img || 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&q=80';
-  const latestTime = latest?.rawDate ? new Date(latest.rawDate) : null;
-  return { articles, sources, latest, title, summary, image, latestTime, consensus: getClusterConsensus(cluster) };
-};
-
-function ClusterSourceAvatar({ source, index = 0, compact = false }) {
-  const fallback = (source?.name || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-  const colors = ['from-[#07163d] to-[#15295e]', 'from-blue-700 to-sky-500', 'from-orange-600 to-amber-500', 'from-green-700 to-lime-500', 'from-purple-700 to-violet-500', 'from-teal-700 to-emerald-500'];
-  return (
-    <div className={`${compact ? 'w-8 h-8 text-[10px]' : 'w-10 h-10 text-xs'} rounded-full p-[1.5px] bg-white/70 shadow-[0_7px_15px_-8px_rgba(15,23,42,.75)] border border-white/50 shrink-0`} title={source?.name}>
-      <div className={`w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br ${colors[index % colors.length]} text-white font-black`}>
-        {source?.logo ? <img src={source.logo} className="w-full h-full object-contain bg-white p-1" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : fallback}
-      </div>
-    </div>
-  );
-}
-
-function ClusterTabButton({ icon, label, active, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`vetra-cluster-tab h-14 rounded-[1.05rem] flex items-center justify-center gap-2 px-4 text-[13px] font-semibold transition-all active:scale-[.98] ${active ? 'is-active text-white' : 'text-[#2f3e61] hover:bg-white/50'}`}
-    >
-      {icon}
-      <span className="hidden sm:inline">{label}</span>
-    </button>
-  );
-}
-
-function ClusterCaseModal({ cluster, onClose, openArticle, getApiKey }) {
-  const [tab, setTab] = useState('overview');
-  const [aiXray, setAiXray] = useState(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const meta = useMemo(() => getClusterMeta(cluster), [cluster]);
-  const sources = meta.sources;
-  const articles = meta.articles;
-  const divergenceRows = [
-    { label: 'Impacto fiscal de curto prazo', level: 'Alta', score: 86 },
-    { label: 'Efeito sobre juros e mercado', level: 'Alta', score: 74 },
-    { label: 'Benefícios sociais e redistribuição', level: 'Média', score: 58 },
-    { label: 'Viabilidade política no Congresso', level: 'Média', score: 52 },
-    { label: 'Riscos de longo prazo para a dívida', level: 'Baixa', score: 28 },
-  ];
-  const timeline = useMemo(() => {
-    return [...articles]
-      .sort((a, b) => new Date(a?.rawDate || 0).getTime() - new Date(b?.rawDate || 0).getTime())
-      .slice(0, 6)
-      .map((a, idx) => ({
-        time: a?.rawDate ? new Date(a.rawDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : `T${idx + 1}`,
-        title: a?.title || 'Atualização do caso',
-        source: a?.source || 'Fonte',
-        logo: a?.logo,
-        article: a,
-      }));
-  }, [articles]);
-
-  const runXray = async () => {
-    const apiKey = getApiKey?.('widgets') || getApiKey?.('analysis');
-    if (!apiKey) {
-      setAiXray({
-        headline: 'Raio-X em modo local',
-        bullets: [
-          'Configure uma chave de IA para gerar uma síntese editorial completa.',
-          `O caso reúne ${sources.length} fontes e ${articles.length} matérias correlacionadas.`,
-          'A leitura atual mostra pontos de consenso, diferenças de enquadramento e sequência temporal.'
-        ]
-      });
-      return;
-    }
-    setAiLoading(true);
-    try {
-      const context = articles.slice(0, 10).map((a, i) => `${i + 1}. ${a.source}: ${a.title}`).join('\n');
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Analise este cluster de notícias em português. Retorne JSON estrito com headline e 4 bullets objetivos.\n${context}` }] }],
-          generationConfig: { response_mime_type: 'application/json', temperature: 0.25 }
-        })
-      });
-      const data = await response.json();
-      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      const parsed = raw ? JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim()) : null;
-      setAiXray(parsed || { headline: 'Raio-X indisponível', bullets: ['Não foi possível gerar a análise agora.'] });
-    } catch (e) {
-      setAiXray({ headline: 'Raio-X indisponível', bullets: ['A análise por IA falhou. Tente novamente depois.'] });
-    }
-    setAiLoading(false);
-  };
-
-  const summaryBullets = [
-    meta.summary,
-    `Cobertura reunida a partir de ${sources.length} fontes e ${articles.length} publicações relacionadas.`,
-    'O Vetra destaca consenso, divergência editorial e pontos que merecem acompanhamento nas próximas horas.',
-  ];
-
-  const renderTab = () => {
-    if (tab === 'overview') {
-      return (
-        <div className="grid lg:grid-cols-[1.05fr_.95fr] gap-4">
-          <div className="vetra-case-card p-5 min-h-[265px]">
-            <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><LayoutGrid size={18} className="text-blue-500"/> O fato central</div>
-            <div className="space-y-4 text-[14px] leading-relaxed text-[#46536d]">
-              {summaryBullets.map((b, i) => <p key={i}>{b}</p>)}
-            </div>
-          </div>
-          <div className="grid gap-4">
-            <div className="vetra-case-card p-5">
-              <div className="flex items-center gap-2 mb-3 text-[#0b1b40] font-black"><CheckCircle size={18} className="text-emerald-500"/> Consenso entre fontes</div>
-              <div className="text-5xl font-black text-emerald-500 leading-none">{meta.consensus}%</div>
-              <p className="text-[14px] text-[#526078] mt-2">das fontes concordam sobre o núcleo factual do caso.</p>
-              <div className="mt-4 h-4 rounded-full overflow-hidden bg-slate-200/70 flex gap-1 p-[2px]">
-                <div className="rounded-full bg-emerald-500" style={{ width: `${Math.min(meta.consensus, 72)}%` }} />
-                <div className="rounded-full bg-amber-400 flex-1" />
-                <div className="rounded-full bg-red-400 w-[10%]" />
-              </div>
-            </div>
-            <div className="vetra-case-card p-5">
-              <div className="flex items-center gap-2 mb-3 text-[#0b1b40] font-black"><FileText size={18} className="text-violet-500"/> Resumo do assunto</div>
-              <ul className="space-y-2 text-[14px] text-[#526078] list-disc pl-5">
-                <li>{meta.title}</li>
-                <li>Debate avança com leituras diferentes entre as fontes.</li>
-                <li>Mercado, política e impacto social aparecem como eixos principais.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (tab === 'perspectives') {
-      return (
-        <div className="grid lg:grid-cols-2 gap-4">
-          <div className="vetra-case-card p-5">
-            <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><Layers size={18} className="text-blue-500"/> Perspectivas da cobertura</div>
-            <div className="space-y-2">
-              {sources.slice(0, 6).map((source, i) => (
-                <button key={source.name} onClick={() => source.article && openArticle(source.article)} className="w-full flex items-center gap-3 p-3 rounded-2xl bg-white/45 border border-white/60 hover:bg-white/75 transition text-left">
-                  <ClusterSourceAvatar source={source} index={i} compact />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[14px] font-bold text-[#12264f] truncate">{source.name} — foco {i % 3 === 0 ? 'econômico' : i % 3 === 1 ? 'político' : 'social'}</div>
-                    <div className="text-[12px] text-[#68758d] truncate">{source.article?.title}</div>
-                  </div>
-                  <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 text-xs font-black">{Math.max(54, meta.consensus - i * 6)}%</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="vetra-case-card p-5">
-            <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><ScaleIcon className="w-[18px] h-[18px] text-blue-600"/> Diferenças de cobertura</div>
-            <div className="space-y-3">
-              {divergenceRows.map((row, i) => (
-                <div key={row.label} className="grid grid-cols-[1fr_170px_64px] gap-3 items-center">
-                  <span className="text-[14px] font-semibold text-[#243555] truncate">{row.label}</span>
-                  <div className="h-2.5 rounded-full bg-slate-200/70 overflow-hidden"><div className={`${row.score > 70 ? 'bg-red-500' : row.score > 45 ? 'bg-amber-400' : 'bg-emerald-500'} h-full rounded-full`} style={{ width: `${row.score}%` }} /></div>
-                  <span className={`${row.score > 70 ? 'text-red-600 bg-red-50' : row.score > 45 ? 'text-amber-700 bg-amber-50' : 'text-emerald-700 bg-emerald-50'} text-[11px] text-center font-black rounded-full py-1`}>{row.level}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (tab === 'differences') {
-      return (
-        <div className="vetra-case-card p-5">
-          <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><ScaleIcon className="w-[18px] h-[18px] text-blue-600"/> Diferenças editoriais</div>
-          <div className="grid md:grid-cols-2 gap-3">
-            {divergenceRows.map((row, i) => (
-              <div key={row.label} className="rounded-2xl bg-white/50 border border-white/70 p-4">
-                <div className="flex items-center justify-between gap-3"><h4 className="font-bold text-[#14264e] text-[15px]">{row.label}</h4><span className="text-xs font-black text-blue-600">{row.level}</span></div>
-                <p className="text-[13px] text-[#657188] mt-2">As fontes variam no grau de ênfase, no enquadramento e nos atores destacados.</p>
-                <div className="mt-4 h-2 rounded-full bg-slate-200 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-blue-500 via-amber-400 to-red-500" style={{ width: `${row.score}%` }} /></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    if (tab === 'timeline') {
-      return (
-        <div className="grid lg:grid-cols-[.9fr_1.1fr] gap-4">
-          <div className="vetra-case-card p-5">
-            <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><History size={18} className="text-blue-500"/> Linha do tempo</div>
-            <div className="relative pl-5 space-y-5 before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-[#152a5d]/25">
-              {timeline.map((item, i) => (
-                <button key={`${item.time}-${i}`} onClick={() => item.article && openArticle(item.article)} className="relative w-full text-left group">
-                  <span className="absolute -left-[22px] top-1.5 w-3 h-3 rounded-full bg-[#10265c] ring-4 ring-white/80" />
-                  <div className="grid grid-cols-[55px_1fr] gap-3">
-                    <span className="text-[13px] text-[#7a869d] font-bold">{item.time}</span>
-                    <div>
-                      <div className="text-[14px] font-black text-[#17284d] line-clamp-1 group-hover:text-blue-600">{item.title}</div>
-                      <div className="text-[12px] text-[#68758d] mt-1">{item.source}</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="vetra-case-card p-5">
-            <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><FileText size={18} className="text-blue-500"/> Fontes</div>
-            <div className="space-y-2">
-              {articles.slice(0, 7).map((article, i) => (
-                <button key={article.id || i} onClick={() => openArticle(article)} className="w-full grid grid-cols-[36px_1fr_54px] gap-3 items-center p-3 rounded-2xl bg-white/45 border border-white/60 hover:bg-white/75 transition text-left">
-                  <ClusterSourceAvatar source={{ name: article.source, logo: article.logo }} index={i} compact />
-                  <div className="min-w-0"><div className="text-[13px] font-bold text-[#12264f] truncate">{article.source}</div><div className="text-[12px] text-[#68758d] truncate">{article.title}</div></div>
-                  <span className="text-blue-600 text-[12px] font-black flex items-center gap-1">Abrir <ArrowUpRight size={13}/></span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (tab === 'sources') {
-      return (
-        <div className="vetra-case-card p-5">
-          <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><Globe size={18} className="text-blue-500"/> Fontes que compõem o caso</div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {articles.map((article, i) => (
-              <button key={article.id || i} onClick={() => openArticle(article)} className="rounded-2xl bg-white/50 border border-white/70 p-4 text-left hover:shadow-lg hover:bg-white/80 transition">
-                <div className="flex items-center gap-3 mb-3"><ClusterSourceAvatar source={{ name: article.source, logo: article.logo }} index={i} compact /><div className="min-w-0"><div className="font-black text-[#102452] truncate">{article.source}</div><div className="text-[11px] text-[#7a869d]">{article.rawDate ? new Date(article.rawDate).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : 'Agora'}</div></div></div>
-                <p className="text-[13px] leading-snug text-[#526078] line-clamp-3">{article.title}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="vetra-case-card p-6 min-h-[300px]">
-        <div className="flex items-center justify-between gap-3 mb-5">
-          <div className="flex items-center gap-2 text-[#0b1b40] font-black"><Sparkles size={19} className="text-violet-500"/> Raio-X IA</div>
-          <button onClick={runXray} disabled={aiLoading} className="h-11 px-5 rounded-2xl liquid-button font-bold text-[13px] flex items-center gap-2">{aiLoading ? <Loader2 size={15} className="animate-spin"/> : <Sparkles size={15}/>} Gerar Raio-X</button>
-        </div>
-        {aiXray ? (
-          <div className="rounded-[1.4rem] bg-white/55 border border-white/70 p-5">
-            <h3 className="text-2xl font-black text-[#0d1b3f] mb-4">{aiXray.headline || 'Síntese do caso'}</h3>
-            <ul className="space-y-3 list-disc pl-5 text-[#526078] text-[14px] leading-relaxed">
-              {(aiXray.bullets || []).map((b, i) => <li key={i}>{b}</li>)}
-            </ul>
-          </div>
-        ) : (
-          <div className="h-52 rounded-[1.5rem] bg-white/45 border border-white/70 flex flex-col items-center justify-center text-center px-6">
-            <BrainCircuit size={42} className="text-violet-500 mb-3"/>
-            <h3 className="font-black text-[#102452] text-lg">Raio-X inteligente do caso</h3>
-            <p className="text-[14px] text-[#6b768d] mt-2 max-w-md">Gere uma leitura cruzada com síntese, riscos, pontos de consenso e próximos movimentos.</p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="fixed inset-0 z-[8500] p-4 sm:p-8 flex items-center justify-center animate-in fade-in duration-200">
-      <div className="absolute inset-0 bg-slate-800/25 backdrop-blur-xl" onClick={onClose}/>
-      <div className="vetra-case-shell relative w-full max-w-[1320px] h-[88vh] rounded-[2rem] overflow-hidden flex flex-col">
-        <div className="relative px-5 sm:px-7 py-5 shrink-0">
-          <button onClick={onClose} className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/55 border border-white/70 backdrop-blur-xl flex items-center justify-center text-[#17284d] hover:bg-white/80 z-20"><X size={18}/></button>
-          <div className="flex items-center gap-3 text-[13px] font-semibold text-[#53627f] mb-4"><button onClick={onClose} className="w-10 h-10 rounded-xl bg-white/50 border border-white/70 flex items-center justify-center"><ChevronLeft size={18}/></button><span>Clusters</span><ChevronRight size={14}/><span>Caso em Foco</span></div>
-          <div className="vetra-hero-case p-4 sm:p-5 rounded-[1.8rem] grid md:grid-cols-[390px_1fr] gap-6 items-center">
-            <div className="relative h-[190px] rounded-[1.35rem] overflow-hidden shadow-xl"><img src={meta.image} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }}/><div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent"/><span className="absolute left-4 bottom-4 px-4 py-2 rounded-full bg-black/45 border border-white/20 backdrop-blur-xl text-white text-[12px] font-black flex items-center gap-2"><Activity size={14} className="text-orange-400"/> Assunto quente</span></div>
-            <div className="min-w-0 pr-10"><h2 className="text-[28px] sm:text-[32px] font-black tracking-tight text-[#081536] leading-tight">{meta.title}</h2><div className="flex flex-wrap items-center gap-4 mt-4 text-[14px] text-[#58667f]"><span>{sources.length} fontes</span><span>•</span><span>últimas 2h</span><span>•</span><span className="text-rose-500 font-semibold">assunto quente</span></div><div className="flex items-center gap-3 mt-6">{sources.slice(0,4).map((src, i) => <ClusterSourceAvatar key={src.name} source={src} index={i}/>) }{sources.length > 4 && <span className="w-10 h-10 rounded-full bg-white/45 border border-white/70 flex items-center justify-center font-black text-[#17284d] shadow-sm">+{sources.length - 4}</span>}</div></div>
-          </div>
-          <div className="vetra-tabs-wrap mt-4 p-2 rounded-[1.45rem] grid grid-cols-6 gap-3">
-            <ClusterTabButton label="Visão Geral" icon={<LayoutGrid size={18}/>} active={tab === 'overview'} onClick={() => setTab('overview')} />
-            <ClusterTabButton label="Perspectivas" icon={<Layers size={18}/>} active={tab === 'perspectives'} onClick={() => setTab('perspectives')} />
-            <ClusterTabButton label="Diferenças" icon={<ScaleIcon className="w-[18px] h-[18px]"/>} active={tab === 'differences'} onClick={() => setTab('differences')} />
-            <ClusterTabButton label="Linha do Tempo" icon={<History size={18}/>} active={tab === 'timeline'} onClick={() => setTab('timeline')} />
-            <ClusterTabButton label="Fontes" icon={<FileText size={18}/>} active={tab === 'sources'} onClick={() => setTab('sources')} />
-            <ClusterTabButton label="Raio-X IA" icon={<Sparkles size={18}/>} active={tab === 'xray'} onClick={() => setTab('xray')} />
-          </div>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-7 pb-6 custom-scrollbar">{renderTab()}</div>
-      </div>
-    </div>
-  );
-}
-
 function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters }) {
+  
+
+  
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(0);
-  const [selectedCluster, setSelectedCluster] = useState(null);
-  const displayClusters = useMemo(() => {
-    const base = clusters && clusters.length > 0 ? clusters : heuristicClusters;
-    return (base || []).filter(c => normalizeClusterArticles(c).length > 0).slice(0, 9);
-  }, [clusters, heuristicClusters]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef(null);
+  const [modalContent, setModalContent] = useState(null); // { type: 'details' | 'timeline', cluster: {...} }
+  const [keywordModalData, setKeywordModalData] = useState(null);
+
+  const displayClusters = clusters && clusters.length > 0 ? clusters : heuristicClusters;
 
   const runAI = async () => {
-    const currentApiKey = getApiKey?.('widgets');
+    const currentApiKey = getApiKey('widgets');
     if (!currentApiKey || !news || news.length < 10) {
-      alert('Aguarde o carregamento das notícias ou configure a API Key.');
+      alert("Aguarde o carregamento ou configure a API Key.");
       return;
     }
     setLoading(true);
-    setClusters?.(null);
+    setClusters(null);
     const result = await generateSmartClustering(news, currentApiKey, 300);
-    if (result) setClusters?.(result);
-    else alert('IA indisponível no momento. Mantendo clusters heurísticos.');
+    if (result) setClusters(result);
+    else alert("IA indisponível no momento.");
     setLoading(false);
   };
 
-  const pages = useMemo(() => {
-    const groups = [];
-    for (let i = 0; i < displayClusters.length; i += 3) groups.push(displayClusters.slice(i, i + 3));
-    return groups;
-  }, [displayClusters]);
-  const current = pages[page] || pages[0] || [];
-  const main = current[0];
-  const side = current.slice(1, 3);
-
-  if (!displayClusters.length) return <WhileYouWereAwaySkeleton isDarkMode={isDarkMode} />;
-
-  const MainClusterCard = ({ cluster }) => {
-    const meta = getClusterMeta(cluster);
-    return (
-      <button onClick={() => setSelectedCluster(cluster)} className="group relative h-[610px] rounded-[2rem] overflow-hidden text-left shadow-[0_24px_60px_-28px_rgba(15,23,42,.55)] border border-white/70 bg-slate-900 active:scale-[.995] transition w-full">
-        <img src={meta.image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" onError={(e) => { e.currentTarget.style.display = 'none'; }}/>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#071126]/95 via-[#071126]/45 to-transparent"/>
-        <div className="absolute top-5 left-5 right-5 flex justify-between items-center z-10"><span className="px-4 py-2 rounded-xl bg-black/45 border border-white/15 backdrop-blur-xl text-white text-[13px] font-black flex items-center gap-2"><CheckCircle size={15} className="text-emerald-400"/> {meta.consensus}% consenso</span><span className="px-4 py-2 rounded-xl bg-rose-500/30 border border-white/15 backdrop-blur-xl text-white text-[13px] font-black flex items-center gap-2"><Activity size={15} className="text-orange-300"/> Assunto quente</span></div>
-        <div className="absolute left-7 right-7 bottom-7 z-10"><span className="px-3 py-1.5 rounded-lg bg-violet-500/20 text-violet-100 border border-violet-300/20 text-[12px] font-black uppercase">Caso em foco</span><h2 className="mt-4 text-4xl sm:text-5xl font-black text-white leading-[1.05] tracking-tight drop-shadow-xl max-w-3xl">{meta.title}</h2><p className="mt-4 text-white/80 text-[17px] leading-relaxed max-w-2xl line-clamp-2">{meta.summary}</p><div className="mt-7 flex items-end justify-between gap-5 border-t border-white/15 pt-5"><div className="flex items-center gap-3">{meta.sources.slice(0,4).map((source, i) => <ClusterSourceAvatar key={source.name} source={source} index={i}/>) }{meta.sources.length > 4 && <span className="w-11 h-11 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-white font-black">+{meta.sources.length - 4}</span>}</div><span className="h-14 px-8 rounded-[1.2rem] bg-blue-500/80 border border-white/25 text-white font-black text-[15px] flex items-center gap-3 shadow-[0_12px_25px_-10px_rgba(37,99,235,.8)]">Abrir caso <ArrowUpRight size={18}/></span></div></div>
-      </button>
-    );
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const scrollLeft = scrollRef.current.scrollLeft;
+      const cardWidth = scrollRef.current.offsetWidth;
+      const newIndex = Math.round(scrollLeft / cardWidth);
+      if (newIndex !== activeIndex) setActiveIndex(newIndex);
+    }
+  };
+  
+  const timeAgo = (date) => {
+    if(!date) return '';
+    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    let interval = seconds / 3600;
+    if (interval > 1) return `HÁ ${Math.floor(interval)}H`;
+    interval = seconds / 60;
+    if (interval > 1) return `HÁ ${Math.floor(interval)}MIN`;
+    return "AGORA";
   };
 
-  const SideClusterCard = ({ cluster, index }) => {
-    const meta = getClusterMeta(cluster);
-    return (
-      <button onClick={() => setSelectedCluster(cluster)} className="vetra-home-side-card group h-full rounded-[2rem] p-4 overflow-hidden text-left transition active:scale-[.995]">
-        <div className="relative h-[220px] rounded-[1.35rem] overflow-hidden bg-slate-200"><img src={meta.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.05]" onError={(e) => { e.currentTarget.style.display = 'none'; }}/><div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"/><span className="absolute top-4 left-4 px-3 py-1.5 rounded-xl bg-black/45 text-white text-[12px] font-black border border-white/15 backdrop-blur-xl flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400"/> {meta.consensus}% consenso</span></div>
-        <div className="p-2 pt-5"><div className="text-[12px] font-black uppercase tracking-wide text-blue-700 mb-3">{index === 0 ? 'Tecnologia e política' : 'Economia e meio ambiente'}</div><h3 className="text-[22px] leading-tight font-black text-[#0d1a3d] line-clamp-3">{meta.title}</h3><p className="text-[14px] leading-relaxed text-[#657188] mt-3 line-clamp-3">{meta.summary}</p><div className="mt-6 flex items-center gap-2">{meta.sources.slice(0,3).map((src, i) => <ClusterSourceAvatar key={src.name} source={src} index={i} compact />)}{meta.sources.length > 3 && <span className="w-8 h-8 rounded-full bg-white/50 border border-white/70 flex items-center justify-center text-xs font-black text-[#33415f]">+{meta.sources.length - 3}</span>}</div><div className="mt-6 h-14 rounded-[1.2rem] bg-white/55 border border-white/70 flex items-center justify-center font-black text-[#293a5f] shadow-inner">Abrir caso <ArrowUpRight size={16} className="ml-3"/></div></div>
-      </button>
-    );
+  // CORREÇÃO APLICADA AQUI: A função agora busca em TODAS as notícias.
+  const handleKeywordClick = (keyword) => {
+    // Filtra a lista completa de notícias (`news`) recebida pelo widget.
+    const relatedArticles = (news ?? []).filter(article => 
+  safeLower(article?.title).includes(safeLower(keyword))
+);
+    // Define os dados para abrir o modal com a lista completa.
+    setKeywordModalData({ keyword: keyword, articles: relatedArticles });
   };
+
+  if (!displayClusters || displayClusters.length === 0) {
+      return <WhileYouWereAwaySkeleton isDarkMode={isDarkMode} />;
+  }
 
   return (
-    <section className="px-2 sm:px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-start justify-between gap-4 mb-6 px-1">
-        <div><div className="flex items-center gap-2"><h2 className="text-[30px] sm:text-[34px] font-black tracking-tight text-[#0b1733]">Clusters em destaque</h2><span className="w-6 h-6 rounded-full border border-[#94a3b8]/60 text-[#7c8aa3] flex items-center justify-center text-sm font-bold">i</span></div><p className="text-[#64748b] text-[16px] mt-1">Os temas que dominam a cobertura agora</p></div>
-        <button onClick={runAI} className="hidden sm:flex h-12 px-5 rounded-[1.1rem] vetra-soft-button items-center gap-2 text-[13px] font-bold text-[#243555]">{loading ? <Loader2 size={15} className="animate-spin"/> : <Sparkles size={15}/>} {clusters ? 'Atualizar clusters' : 'Análise IA'}</button>
+    <div className="relative">
+      
+      {/* Botão de Análise IA (Canto Superior Direito) */}
+      <div className="absolute top-[-3rem] right-4 z-20">
+        <button
+          onClick={runAI}
+          className="group relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-lg bg-purple-600 text-white hover:bg-purple-500 shadow-purple-500/30"
+        >
+          {loading ? ( <div className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /><span>Analisando</span></div> ) 
+          : clusters ? ( <div className="flex items-center gap-2"><RefreshCw size={12} /><span>Atualizar</span></div> ) 
+          : ( <div className="flex items-center gap-2"><Sparkles size={16} /><span>Análise IA</span></div> )}
+        </button>
       </div>
-      <div className="grid xl:grid-cols-[1.55fr_.62fr_.62fr] gap-4 items-stretch">
-        {main && <MainClusterCard cluster={main} />}
-        {side.map((cluster, i) => <SideClusterCard key={`${cluster.ai_title}-${i}`} cluster={cluster} index={i}/>)}
+
+      {/* CARROSSEL */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+      >
+        {displayClusters.map((cluster, idx) => (
+          <div key={cluster.ai_title + idx} className="w-full flex-shrink-0 snap-center p-2">
+            <div className={`w-full rounded-[2.5rem] overflow-hidden flex flex-col relative shadow-2xl ${isDarkMode ? 'bg-zinc-900 border border-zinc-800' : 'bg-white ring-1 ring-black/5'}`}>
+              
+              {/* IMAGEM GRANDE */}
+              <div className="relative w-full h-[500px] bg-zinc-800">
+                <img
+                  src={cluster.representative_image}
+                  className="w-full h-full object-cover transition-transform duration-700"
+                  alt={cluster.ai_title}
+                  onError={(e) => e.target.style.display = 'none'}
+                />
+                
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                
+                {/* CABEÇALHO DO CARD (Logos + Tempo) */}
+                <div className="absolute top-5 left-5 right-5 z-10 flex justify-between items-center">
+                  
+                  <div className="flex items-center gap-2 p-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 shadow-lg">
+                      {(() => {
+                          const uniqueSources = [];
+                          const seen = new Set();
+                          cluster.related_articles.forEach(a => {
+                              if(!seen.has(a.source)) {
+                                  seen.add(a.source);
+                                  uniqueSources.push({ name: a.source, logo: a.logo });
+                              }
+                          });
+                          
+                          return uniqueSources.slice(0, 4).map((source, i) => (
+                              <div key={i} className="w-8 h-8 rounded-full bg-white p-0.5 overflow-hidden shadow-md border-1 border-white/20" title={source.name}>
+                                  <img src={source.logo} className="w-full h-full object-contain rounded-full" />
+                              </div>
+                          ));
+                      })()}
+                      
+                      {cluster.related_articles.length > 4 && (
+                          <div className="w-10 h-10 rounded-full bg-zinc-800 text-white flex items-center justify-center text-xs font-bold border-2 border-white/20">
+                              +{cluster.related_articles.length - 4}
+                          </div>
+                      )}
+                  </div>
+
+                  <span className="text-white text-[10px] font-black uppercase tracking-wider bg-red-600/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-white/10">
+                      {timeAgo(cluster.related_articles[0]?.rawDate)}
+                  </span>
+                </div>
+
+                {/* CONTEÚDO INFERIOR */}
+                <div className="absolute bottom-0 left-0 right-0 p-6 z-20">
+                  
+                  <h2 className="text-2xl md:text-3xl font-black text-white leading-tight drop-shadow-xl font-serif mb-3 line-clamp-3">
+                    {cluster.ai_title}
+                  </h2>
+                  
+                  <div className="mb-5">
+                    <HighlightedSummary 
+                      text={cluster.ai_summary}
+                      keywords={cluster.keyEntities}
+                      // A chamada agora não precisa mais passar o cluster
+                      onKeywordClick={handleKeywordClick}
+                      isDarkMode={isDarkMode}
+                    />
+                  </div>
+                  
+                  {/* CHIPS MODERNOS */}
+                  <div className="flex flex-wrap gap-3">
+                      <button 
+                        onClick={() => setModalContent({ type: 'details', cluster })} 
+                        className="flex items-center gap-2 pl-1 pr-4 py-1 rounded-full bg-white text-black font-bold text-xs shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:scale-105 transition-transform active:scale-95"
+                      >
+                          <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center">
+                              <Layers size={12} />
+                          </div>
+                          Entenda o Caso
+                      </button>
+
+                      <button 
+                        onClick={() => setModalContent({ type: 'timeline', cluster })} 
+                        className="flex items-center gap-2 pl-1 pr-4 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white font-bold text-xs hover:bg-black/80 transition-colors active:scale-95"
+                      >
+                          <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                              <History size={12} />
+                          </div>
+                          Linha do Tempo
+                      </button>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
-      {pages.length > 1 && <div className="flex justify-center gap-3 mt-5">{pages.map((_, i) => <button key={i} onClick={() => setPage(i)} className={`h-2 rounded-full transition-all ${page === i ? 'w-8 bg-blue-600' : 'w-2 bg-slate-300'}`} />)}</div>}
-      {selectedCluster && <ClusterCaseModal cluster={selectedCluster} onClose={() => setSelectedCluster(null)} openArticle={openArticle} getApiKey={getApiKey}/>}    
-    </section>
+
+      {/* Paginação */}
+      {displayClusters.length > 1 && (
+        <div className="flex justify-center gap-2 mt-4 pb-4">
+          {displayClusters.map((_, idx) => (
+            <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${activeIndex === idx ? 'bg-indigo-500 w-6' : 'bg-zinc-400 dark:bg-zinc-700 w-1.5'}`} />
+          ))}
+        </div>
+      )}
+
+      {/* Renderização Condicional dos Modais */}
+      {modalContent?.type === 'details' && (
+          <ClusterDetailModal 
+              cluster={modalContent.cluster} 
+              onClose={() => setModalContent(null)} 
+              isDarkMode={isDarkMode} 
+              openArticle={openArticle} 
+              getApiKey={getApiKey} 
+          />
+      )}
+      {modalContent?.type === 'timeline' && (
+          <ClusterTimelineModal 
+              cluster={modalContent.cluster} 
+              onClose={() => setModalContent(null)} 
+              isDarkMode={isDarkMode} 
+              getApiKey={getApiKey} 
+          />
+      )}
+      
+      {/* Renderização do Modal de Foco em Palavra-Chave */}
+      {keywordModalData && (
+          <KeywordFocusModal 
+              data={keywordModalData}
+              onClose={() => setKeywordModalData(null)}
+              openArticle={openArticle}
+              isDarkMode={isDarkMode}
+          />
+      )}
+    </div>
   );
 }
 
@@ -6689,43 +6496,121 @@ const StoryOverlay = ({ story, onClose, onRead, onMarkAsSeen, allStories, onNavi
 const generateSmartStories = (news, allClusters) => {
     if (!news || news.length === 0) return [];
 
-    // Regra Vetra: cada story deve representar a SEGUNDA notícia mais recente de cada fonte.
-    // Isso evita conflito visual com o Feed, que já prioriza a manchete mais recente.
-    // Depois de escolhido o segundo item de cada fonte, a ordenação volta a ser pela hora exata da notícia.
-    const bySource = new Map();
-    [...news]
-      .filter(Boolean)
-      .sort((a, b) => {
-        const tb = b?.rawDate ? new Date(b.rawDate).getTime() : 0;
-        const ta = a?.rawDate ? new Date(a.rawDate).getTime() : 0;
-        return tb - ta;
-      })
-      .forEach((item) => {
-        const source = item?.source || 'Fonte';
-        if (!bySource.has(source)) bySource.set(source, []);
-        bySource.get(source).push(item);
-      });
+    // --- CONFIGURAÇÕES DA LÓGICA ---
+    const BREAKING_NEWS_SOURCES = new Set(['Terra', 'Extra', 'Veja', 'CNN Brasil', 'Times Brasil', 'UOL', 'Jovem Pan', 'Istoé', 'G1 Mundo', 'G1 Nacional', 'Metropoles', 'Leo Dias', 'Fox News']);
+    const BREAKING_NEWS_KEYWORDS = ['urgente', 'agora', 'ao vivo', 'última hora', 'alerta', 'plantão', 'acontece', 'acaba de', 'últimas informações', 'exclusivo', 'bomba', 'morre', 'desastre', 'acabou de', 'breaking news', 'ultimos acontecimentos', 'operação', 'deflagra', 'deflagrada', 'crise', 'explosão'];
+    const BREAKING_NEWS_TIMESPAN_MS = 45 * 60 * 1000;
+    const ANCHOR_CACHE_TTL_MS = 40 * 60 * 1000;
+    const ANCHOR_CACHE_KEY = 'newsos_anchor_story_cache';
 
-    const selected = Array.from(bySource.values())
-      .map((items) => items[1] || items[0])
-      .filter(Boolean)
-      .sort((a, b) => {
-        const tb = b?.rawDate ? new Date(b.rawDate).getTime() : 0;
-        const ta = a?.rawDate ? new Date(a.rawDate).getTime() : 0;
-        return tb - ta;
-      });
+    const now = Date.now();
+    let breakingNewsArticle = null;
+    let anchorArticle = null;
 
-    return selected.map((item) => {
-        const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
-        const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
-        return {
-            id: item.id,
-            name: item.source,
-            avatar: item.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.source || 'News')}&background=random&color=fff`,
-            isBreaking: false,
-            isAnchor: false,
-            items: [{ ...item, img: finalImg, origin: 'story' }]
-        };
+    // --- ETAPA 1: TENTAR RESTAURAR A ÂNCORA DO CACHE ---
+    try {
+        const cachedAnchorRaw = localStorage.getItem(ANCHOR_CACHE_KEY);
+        if (cachedAnchorRaw) {
+            const cachedAnchor = JSON.parse(cachedAnchorRaw);
+            // Verifica se o cache ainda é válido (tempo não expirou)
+            if (now - cachedAnchor.timestamp < ANCHOR_CACHE_TTL_MS) {
+                // Procura o artigo exato do cache na lista de notícias ATUAIS.
+                // Isso garante que a âncora só persiste se ainda for relevante no feed.
+                const foundArticle = news.find(n => n && n.id === cachedAnchor.article.id);
+                if (foundArticle) {
+                    anchorArticle = foundArticle; // Usa a versão "fresca" do artigo
+                }
+            } else {
+                localStorage.removeItem(ANCHOR_CACHE_KEY); // Limpa o cache se expirou
+            }
+        }
+    } catch (e) {
+        localStorage.removeItem(ANCHOR_CACHE_KEY); // Limpa se o cache estiver corrompido
+    }
+
+    // --- ETAPA 2: SE NÃO HÁ ÂNCORA NO CACHE, CALCULA UMA NOVA ---
+    if (!anchorArticle) {
+        if (allClusters && allClusters.length > 0 && allClusters[0].related_articles && allClusters[0].related_articles.length > 0) {
+            anchorArticle = allClusters[0].related_articles[0];
+        } else if (news.length > 0) {
+            // Fallback: A âncora é a notícia mais recente de todas se não houver clusters
+            anchorArticle = news.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())[0];
+        }
+        
+        // Salva a nova âncora no cache, se encontrada
+        if (anchorArticle) {
+            try {
+                localStorage.setItem(ANCHOR_CACHE_KEY, JSON.stringify({ article: anchorArticle, timestamp: now }));
+            } catch (e) {
+                console.warn("Falha ao salvar âncora no cache:", e);
+            }
+        }
+    }
+
+    // --- ETAPA 3: IDENTIFICA A BREAKING NEWS ---
+    const potentialBreaking = news.filter(article => {
+        if (!article) return false;
+        const articleTime = new Date(article.rawDate).getTime();
+        if (now - articleTime > BREAKING_NEWS_TIMESPAN_MS) return false;
+        if (!BREAKING_NEWS_SOURCES.has(article.source)) return false;
+const titleLower = safeLower(article?.title);
+return BREAKING_NEWS_KEYWORDS.some(keyword => titleLower.includes(safeLower(keyword)));
+    });
+
+    if (potentialBreaking.length > 0) {
+        breakingNewsArticle = potentialBreaking.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())[0];
+    }
+
+    // --- ETAPA 4: MONTAGEM DA LISTA FINAL COM RECONCILIAÇÃO ---
+    const finalStoryList = [];
+    const usedIds = new Set();
+    const usedSources = new Set(); // <<< NOVO: Para garantir que a fonte da âncora não se repita
+
+    if (breakingNewsArticle) {
+        finalStoryList.push({ ...breakingNewsArticle, isBreaking: true });
+        usedIds.add(breakingNewsArticle.id);
+        usedSources.add(breakingNewsArticle.source);
+    }
+    if (anchorArticle && !usedIds.has(anchorArticle.id)) {
+        finalStoryList.push({ ...anchorArticle, isAnchor: true });
+        usedIds.add(anchorArticle.id);
+        usedSources.add(anchorArticle.source);
+    }
+    
+    // --- ETAPA 5: GERAÇÃO DOS STORIES RESTANTES (EMBARALHADOS) ---
+    const latestBySource = new Map();
+    news.forEach(item => {
+        if (item && !latestBySource.has(item.source)) {
+            latestBySource.set(item.source, item);
+        }
+    });
+
+    let remainingCandidates = Array.from(latestBySource.values()).filter(article => {
+        if (!article) return false;
+        // Garante que não vamos adicionar um story de uma fonte que já é Âncora ou Breaking News
+        return !usedIds.has(article.id) && !usedSources.has(article.source);
+    });
+
+    const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+    remainingCandidates.sort(() => (Math.sin(dayOfYear + remainingCandidates.length) - 0.5));
+    
+    finalStoryList.push(...remainingCandidates);
+
+    // --- ETAPA 6: FORMATAÇÃO FINAL PARA A UI ---
+    return finalStoryList
+        .filter(Boolean)
+        .map(item => {
+            const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
+            const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
+
+            return {
+                id: item.id,
+                name: item.source,
+                avatar: item.logo || `https://ui-avatars.com/api/?name=${item.source}&background=random&color=fff`,
+                isBreaking: !!item.isBreaking,
+                isAnchor: !!item.isAnchor,
+                items: [{ ...item, img: finalImg, origin: 'story' }]
+            };
     });
 };
 
@@ -6737,7 +6622,6 @@ export default function NewsOS_V12() {
   const [activeTab, setActiveTab] = useState('happening'); 
   const [globalClusters, setGlobalClusters] = useState(null); 
   const [selectedArticle, setSelectedArticle] = useState(null);
-  const [articlePanelInitialViewMode, setArticlePanelInitialViewMode] = useState('analysis');
   const [selectedOutlet, setSelectedOutlet] = useState(null); 
   const [selectedStory, setSelectedStory] = useState(null);
   const navTimerRef = useRef(null); 
@@ -7621,7 +7505,7 @@ const handleStoryNavigation = (direction) => {
 
 
 
-const handleOpenArticle = async (article, options = {}) => {
+const handleOpenArticle = async (article) => {
     if (!article || !article.link) return;
 
     const url = article.link;
@@ -7670,9 +7554,8 @@ const handleOpenArticle = async (article, options = {}) => {
     }
 
     // 5. ARTIGO NORMAL -> PAINEL LATERAL DE IA
-    setArticlePanelInitialViewMode(options?.initialViewMode || 'analysis');
     setSelectedArticle(article);
-    setPanelWidth(options?.initialViewMode === 'chat' ? 680 : 600); 
+    setPanelWidth(600); 
 
     if (article.id && !readHistory.includes(article.id)) {
         setReadHistory(prev => [...prev, article.id]);
@@ -8152,8 +8035,7 @@ return (
                      apiKey={analysisApiKey} 
                     getChatApiKey={getChatApiKey}
                     isDarkMode={isDarkMode}
-                    isResizing={isResizing.current}
-                    initialViewMode={articlePanelInitialViewMode}
+                    isResizing={isResizing.current} 
                 />
             )}
         </div>
@@ -8945,7 +8827,7 @@ const WhatsappChat = ({ articleText, apiKey, isDarkMode }) => {
 // 2. O PAINEL DE IA PRINCIPAL
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, isResizing, getChatApiKey, initialViewMode = 'analysis' }) => {
+const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, isResizing, getChatApiKey }) => {
   const [aiData, setAiData] = useState(null);
   const [loadingState, setLoadingState] = useState('idle'); 
   const [viewMode, setViewMode] = useState('analysis');
@@ -8967,9 +8849,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setAiData(null);
           setReaderContent(null);
           setLoadingState('extracting');
-          const nextMode = initialViewMode === 'chat' ? 'chat' : 'analysis';
-          setViewMode(nextMode);
-          if (nextMode === 'chat') setCurrentChatApiKey(getChatApiKey?.());
+          setViewMode('analysis');
           setFocusedNode(null);
           setHighlightRequest(null);
           setShowCenterModal(false);
@@ -8979,7 +8859,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           
           runSuperPrompt();
       }
-  }, [article?.id, isOpen, initialViewMode]);
+  }, [article?.id, isOpen]);
 
   // A NOVA FUNÇÃO SINCRONIZADA COM A REALIDADE
 const runSuperPrompt = useCallback(async () => {
@@ -9135,7 +9015,7 @@ return (
     // AS CLASSES DE ESTILO FORAM RESTAURADAS AQUI
     className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
 >
-    <WhatsAppGlyph className="w-7 h-7" />
+    <MessageCircle size={26} />
     <span className="text-sm font-bold">Chat</span>
 </button>
 
