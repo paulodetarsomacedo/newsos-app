@@ -5453,7 +5453,7 @@ const handleTouchEnd = async () => {
           setClusters={setSavedClusters}
           heuristicClusters={heuristicClusters} // Esta é a chave!
         />
-      </div>
+      
     
   {/* === AI DIGEST + PODNEWS === */}
       <div className="grid md:grid-cols-2 gap-4 px-4">
