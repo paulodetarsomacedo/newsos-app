@@ -5444,19 +5444,18 @@ const handleTouchEnd = async () => {
 
         
         {/* --- SUBSTITUA O WIDGET ANTIGO POR ESTE --- */}
-   <WhileYouWereAwayWidget 
-          news={newsData} 
-          openArticle={openArticle} 
-          isDarkMode={isDarkMode} 
-          getApiKey={getApiKey}
-          clusters={savedClusters}
-          setClusters={setSavedClusters}
-          heuristicClusters={heuristicClusters} // Esta é a chave!
-        />
-      
-    
-  {/* === AI DIGEST + PODNEWS === */}
-      <div className="grid md:grid-cols-2 gap-4 px-4">
+ <WhileYouWereAwayWidget 
+      news={newsData} 
+      openArticle={openArticle} 
+      isDarkMode={isDarkMode} 
+      getApiKey={getApiKey}
+      clusters={savedClusters}
+      setClusters={setSavedClusters}
+      heuristicClusters={heuristicClusters} // Esta é a chave!
+    />
+
+{/* === AI DIGEST + PODNEWS === */}
+  <div className="grid md:grid-cols-2 gap-4 px-4">
         {/* AI DIGEST (teaser; expande o SmartDigestWidget) */}
         <div className="glass-card relative overflow-hidden p-5">
           <div className="absolute -right-8 -bottom-10 w-44 h-44 rounded-full bg-gradient-to-br from-purple-400/30 to-indigo-400/10 blur-2xl pointer-events-none" />
