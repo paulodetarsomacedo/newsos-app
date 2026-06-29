@@ -1808,26 +1808,32 @@ function YouTubeTab({ isDarkMode, onToggleSave, savedItems, realVideos, isLoadin
   }, [safeVideos, category, channelFilter]);
 
   const channelStories = useMemo(() => {
-      const isShortVideo = (video) => {
-          const link = safeLower(video?.link || video?.url || '');
+      const getShortSignal = (video) => {
+          const link = safeLower(video?.link || video?.url || video?.externalUrl || '');
           const title = safeLower(video?.title || '');
-          const type = safeLower(video?.type || video?.format || '');
-          return link.includes('/shorts/') || title.includes('#shorts') || title.includes('shorts') || type === 'short' || type === 'shorts';
+          const type = safeLower(video?.type || video?.format || video?.contentType || '');
+          const duration = Number(video?.durationSeconds || video?.duration || video?.lengthSeconds || 0);
+          const explicitShort = link.includes('/shorts/') || title.includes('#shorts') || title.includes(' shorts') || type === 'short' || type === 'shorts';
+          const verticalShort = (video?.isShort === true || video?.short === true) && (!duration || duration <= 90);
+          return explicitShort || verticalShort;
       };
 
       const byChannel = new Map();
       safeVideos
-        .filter(isShortVideo)
+        .filter(getShortSignal)
         .sort((a, b) => new Date(b?.rawDate || 0).getTime() - new Date(a?.rawDate || 0).getTime())
         .forEach(video => {
             const channelName = video.channel || video.source || 'Canal';
-            if (!byChannel.has(channelName)) byChannel.set(channelName, video);
+            if (!byChannel.has(channelName)) byChannel.set(channelName, []);
+            byChannel.get(channelName).push(video);
         });
 
       return Array.from(byChannel.values())
+        .map(items => items[0])
+        .filter(Boolean)
         .filter(video => !seenStoryIds?.includes(video.id))
         .sort((a, b) => new Date(b?.rawDate || 0).getTime() - new Date(a?.rawDate || 0).getTime())
-        .map(video => ({ ...video, hasNew: true, isShort: true }));
+        .map(video => ({ ...video, hasNew: true, isShort: true, storyType: 'youtube-short' }));
   }, [safeVideos, seenStoryIds]);
 
   // LÓGICA DE STORIES SIMPLIFICADA: Marca como visto e abre o player principal DIRETAMENTE
@@ -3042,7 +3048,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
       <div className="absolute inset-0 bg-slate-500/30 backdrop-blur-md" onClick={onClose} />
 
       {/* ===== MODAL — FROSTED GLASS CLARO (visual conforme print glass.png) ===== */}
-      <div className="glassbrowser-shell relative w-full max-w-[980px] h-[72vh] min-h-[620px] rounded-[1.9rem] overflow-hidden flex flex-col text-zinc-900">
+      <div className="glassbrowser-shell relative w-full max-w-[1120px] h-[68vh] min-h-[520px] rounded-[1.9rem] overflow-hidden flex flex-col text-zinc-900">
 
         {/* HERO */}
         <div className="relative h-40 sm:h-44 shrink-0">
@@ -3856,19 +3862,20 @@ const WhileYouWereAwaySkeleton = ({ isDarkMode }) => {
 // ==============================================================================
 
 
+
 const normalizeClusterArticles = (cluster) => {
   const articles = Array.isArray(cluster?.related_articles) ? cluster.related_articles.filter(Boolean) : [];
   return [...articles].sort((a, b) => {
-    const tb = a?.rawDate ? new Date(a.rawDate).getTime() : 0;
-    const ta = b?.rawDate ? new Date(b.rawDate).getTime() : 0;
-    return ta - tb;
+    const timeA = a?.rawDate ? new Date(a.rawDate).getTime() : 0;
+    const timeB = b?.rawDate ? new Date(b.rawDate).getTime() : 0;
+    return timeB - timeA;
   });
 };
 
 const getClusterSources = (cluster) => {
   const seen = new Set();
   return normalizeClusterArticles(cluster).reduce((acc, article) => {
-    const name = article?.source || 'Fonte';
+    const name = article?.source || article?.channel || 'Fonte';
     if (!seen.has(name)) {
       seen.add(name);
       acc.push({ name, logo: article?.logo, article });
@@ -3880,70 +3887,183 @@ const getClusterSources = (cluster) => {
 const getClusterConsensus = (cluster) => {
   const sources = getClusterSources(cluster).length;
   const articles = normalizeClusterArticles(cluster).length;
-  return Math.max(52, Math.min(92, 50 + sources * 6 + articles * 2));
+  return Math.max(58, Math.min(88, 50 + sources * 5 + articles * 2));
 };
+
+const stripClusterText = (value) => String(value || '').replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim();
 
 const getClusterMeta = (cluster) => {
   const articles = normalizeClusterArticles(cluster);
   const sources = getClusterSources(cluster);
   const latest = articles[0];
-  const title = cluster?.ai_title || latest?.title || 'Caso em foco';
-  const summary = (cluster?.ai_summary || latest?.summary || 'Cobertura agrupada a partir das fontes monitoradas pelo Vetra.').replace(/<[^>]*>?/gm, '').trim();
-  const image = cluster?.representative_image || latest?.img || 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&q=80';
+  const title = stripClusterText(cluster?.ai_title || latest?.title || 'Caso em foco');
+  const rawSummary = stripClusterText(cluster?.ai_summary || latest?.summary || 'Cobertura agrupada a partir das fontes monitoradas pelo Vetra.');
+  const summary = rawSummary.length > 210 ? `${rawSummary.slice(0, 207)}...` : rawSummary;
+  const image = cluster?.representative_image || latest?.img || 'https://images.unsplash.com/photo-1589994965851-a8f479c573a9?w=1600&q=85';
   const latestTime = latest?.rawDate ? new Date(latest.rawDate) : null;
-  return { articles, sources, latest, title, summary, image, latestTime, consensus: getClusterConsensus(cluster) };
+  const consensus = getClusterConsensus(cluster);
+  const category = cluster?.category || latest?.category || (title.toLowerCase().includes('ia') ? 'Tecnologia e política' : title.toLowerCase().includes('energia') ? 'Economia e meio ambiente' : 'Caso em foco');
+  return { articles, sources, latest, title, summary, image, latestTime, consensus, category };
+};
+
+const formatClusterClock = (date) => {
+  if (!date) return 'Agora';
+  try { return new Date(date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch { return 'Agora'; }
+};
+
+const formatClusterRecency = (date) => {
+  if (!date) return 'agora';
+  const diff = Math.max(0, Date.now() - new Date(date).getTime());
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 2) return 'agora';
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+};
+
+const getClusterInitials = (name = '') => {
+  const clean = String(name || '?').replace(/[^\p{L}\p{N}\s]/gu, ' ').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  return (parts.length ? parts.slice(0, 2).map(w => w[0]).join('') : '?').toUpperCase();
 };
 
 function ClusterSourceAvatar({ source, index = 0, compact = false }) {
-  const fallback = (source?.name || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-  const colors = ['from-[#07163d] to-[#15295e]', 'from-blue-700 to-sky-500', 'from-orange-600 to-amber-500', 'from-green-700 to-lime-500', 'from-purple-700 to-violet-500', 'from-teal-700 to-emerald-500'];
+  const initials = getClusterInitials(source?.name);
+  const gradients = [
+    'linear-gradient(145deg,#061138,#132b69)',
+    'linear-gradient(145deg,#075db9,#2f8cf1)',
+    'linear-gradient(145deg,#e04400,#ff8a25)',
+    'linear-gradient(145deg,#2e6b10,#75b82a)',
+    'linear-gradient(145deg,#5f2bb8,#9b5cff)',
+    'linear-gradient(145deg,#00796b,#14b8a6)',
+  ];
   return (
-    <div className={`${compact ? 'w-8 h-8 text-[10px]' : 'w-10 h-10 text-xs'} rounded-full p-[1.5px] bg-white/70 shadow-[0_7px_15px_-8px_rgba(15,23,42,.75)] border border-white/50 shrink-0`} title={source?.name}>
-      <div className={`w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br ${colors[index % colors.length]} text-white font-black`}>
-        {source?.logo ? <img src={source.logo} className="w-full h-full object-contain bg-white p-1" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : fallback}
+    <div
+      className={`vetra-source-orb ${compact ? 'is-compact' : ''}`}
+      title={source?.name}
+    >
+      <div className="vetra-source-orb-inner" style={{ background: gradients[index % gradients.length] }}>
+        {source?.logo ? (
+          <img src={source.logo} alt={source.name || 'Fonte'} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        ) : (
+          <span>{initials}</span>
+        )}
       </div>
     </div>
   );
+}
+
+function ClusterMetricBadge({ icon, label, tone = 'dark' }) {
+  return <span className={`vetra-cluster-badge ${tone}`}>{icon}{label}</span>;
 }
 
 function ClusterTabButton({ icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`vetra-cluster-tab h-14 rounded-[1.05rem] flex items-center justify-center gap-2 px-4 text-[13px] font-semibold transition-all active:scale-[.98] ${active ? 'is-active text-white' : 'text-[#2f3e61] hover:bg-white/50'}`}
+      className={`vetra-cluster-tab ${active ? 'is-active' : ''}`}
     >
       {icon}
-      <span className="hidden sm:inline">{label}</span>
+      <span>{label}</span>
     </button>
   );
 }
 
+function ClusterCaseHeader({ meta, sources, onClose }) {
+  return (
+    <>
+      <div className="vetra-case-breadcrumb">
+        <button onClick={onClose} className="vetra-case-back"><ChevronLeft size={18}/></button>
+        <span>Clusters</span><ChevronRight size={14}/><span>Caso em Foco</span>
+      </div>
+
+      <div className="vetra-case-hero">
+        <div className="vetra-case-hero-image-wrap">
+          <img src={meta.image} className="vetra-case-hero-image" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <ClusterMetricBadge tone="hot" icon={<Activity size={14}/>} label="Assunto quente" />
+        </div>
+        <div className="vetra-case-hero-content">
+          <h2>{meta.title}</h2>
+          <div className="vetra-case-hero-meta">
+            <span>{sources.length} fontes</span><span>•</span><span>últimas {formatClusterRecency(meta.latestTime)}</span><span>•</span><b>assunto quente</b>
+          </div>
+          <div className="vetra-case-source-row">
+            {sources.slice(0, 4).map((source, i) => <ClusterSourceAvatar key={source.name} source={source} index={i} />)}
+            {sources.length > 4 && <span className="vetra-plus-orb">+{sources.length - 4}</span>}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ClusterFooterSources({ sources, openArticle }) {
+  return (
+    <div className="vetra-case-footer-row">
+      <div className="vetra-case-footer-title"><Rss size={17}/> Fontes que mais abordam</div>
+      <div className="vetra-case-footer-pills">
+        {sources.slice(0, 5).map((source, i) => (
+          <button key={source.name} onClick={() => source.article && openArticle(source.article)} className="vetra-source-pill">
+            <ClusterSourceAvatar source={source} index={i} compact />
+            <span><b>{source.name}</b><small>{Math.max(4, 12 - i * 2)} menções</small></span>
+          </button>
+        ))}
+        <button className="vetra-source-pill is-more"><span><b>Ver todas</b><small>{sources.length} fontes</small></span></button>
+      </div>
+    </div>
+  );
+}
+
+function MiniWatchList() {
+  const rows = [
+    { icon: <Globe size={17}/>, text: 'Votação e possíveis mudanças', tag: 'Hoje', tone: 'blue' },
+    { icon: <TrendingUp size={17}/>, text: 'Reação do mercado e do câmbio', tag: '24h', tone: 'green' },
+    { icon: <Layers size={17}/>, text: 'Posicionamento das lideranças', tag: '48h', tone: 'purple' },
+  ];
+  return (
+    <div className="vetra-watch-list">
+      {rows.map((row, i) => (
+        <div className="vetra-watch-row" key={i}>
+          <span className={`watch-icon ${row.tone}`}>{row.icon}</span>
+          <span>{row.text}</span>
+          <b className={row.tone}>{row.tag}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ClusterCaseModal({ cluster, onClose, openArticle, getApiKey }) {
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState(cluster?.__startTab || 'overview');
   const [aiXray, setAiXray] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const meta = useMemo(() => getClusterMeta(cluster), [cluster]);
   const sources = meta.sources;
   const articles = meta.articles;
-  const divergenceRows = [
-    { label: 'Impacto fiscal de curto prazo', level: 'Alta', score: 86 },
-    { label: 'Efeito sobre juros e mercado', level: 'Alta', score: 74 },
-    { label: 'Benefícios sociais e redistribuição', level: 'Média', score: 58 },
-    { label: 'Viabilidade política no Congresso', level: 'Média', score: 52 },
-    { label: 'Riscos de longo prazo para a dívida', level: 'Baixa', score: 28 },
-  ];
+
   const timeline = useMemo(() => {
     return [...articles]
       .sort((a, b) => new Date(a?.rawDate || 0).getTime() - new Date(b?.rawDate || 0).getTime())
       .slice(0, 6)
-      .map((a, idx) => ({
-        time: a?.rawDate ? new Date(a.rawDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : `T${idx + 1}`,
-        title: a?.title || 'Atualização do caso',
-        source: a?.source || 'Fonte',
-        logo: a?.logo,
-        article: a,
+      .map((article, idx) => ({
+        time: formatClusterClock(article?.rawDate),
+        source: article?.source || 'Fonte',
+        title: article?.title || 'Atualização do caso',
+        summary: stripClusterText(article?.summary || meta.summary),
+        logo: article?.logo,
+        article,
+        index: idx,
       }));
-  }, [articles]);
+  }, [articles, meta.summary]);
+
+  const divergenceRows = [
+    { label: 'Impacto de curto prazo', level: 'Alta', values: ['hot','hot','hot','high'] },
+    { label: 'Efeito sobre mercado e opinião pública', level: 'Alta', values: ['mid','hot','hot','empty'] },
+    { label: 'Benefícios sociais e redistribuição', level: 'Média', values: ['soft','mid','empty','empty'] },
+    { label: 'Viabilidade política e institucional', level: 'Média', values: ['soft','mid','good','empty'] },
+    { label: 'Riscos de longo prazo', level: 'Baixa', values: ['good','mid','empty','empty'] },
+  ];
 
   const runXray = async () => {
     const apiKey = getApiKey?.('widgets') || getApiKey?.('analysis');
@@ -3951,19 +4071,19 @@ function ClusterCaseModal({ cluster, onClose, openArticle, getApiKey }) {
       setAiXray({
         headline: 'Raio-X em modo local',
         bullets: [
-          'Configure uma chave de IA para gerar uma síntese editorial completa.',
-          `O caso reúne ${sources.length} fontes e ${articles.length} matérias correlacionadas.`,
-          'A leitura atual mostra pontos de consenso, diferenças de enquadramento e sequência temporal.'
+          `O caso reúne ${sources.length} fontes e ${articles.length} publicações correlacionadas.`,
+          `Consenso estimado em ${meta.consensus}% sobre o núcleo factual da cobertura.`,
+          'As divergências aparecem principalmente na interpretação de impacto, ritmo e consequências.',
+          'Acompanhe novas fontes para detectar mudança de enquadramento nas próximas horas.',
         ]
       });
       return;
     }
     setAiLoading(true);
     try {
-      const context = articles.slice(0, 10).map((a, i) => `${i + 1}. ${a.source}: ${a.title}`).join('\n');
+      const context = articles.slice(0, 12).map((a, i) => `${i + 1}. ${a.source}: ${a.title}`).join('\n');
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: `Analise este cluster de notícias em português. Retorne JSON estrito com headline e 4 bullets objetivos.\n${context}` }] }],
           generationConfig: { response_mime_type: 'application/json', temperature: 0.25 }
@@ -3979,185 +4099,173 @@ function ClusterCaseModal({ cluster, onClose, openArticle, getApiKey }) {
     setAiLoading(false);
   };
 
-  const summaryBullets = [
+  const centralParagraphs = [
     meta.summary,
-    `Cobertura reunida a partir de ${sources.length} fontes e ${articles.length} publicações relacionadas.`,
-    'O Vetra destaca consenso, divergência editorial e pontos que merecem acompanhamento nas próximas horas.',
+    `A cobertura reúne ${sources.length} fontes e ${articles.length} matérias relacionadas, com consenso estimado em ${meta.consensus}% sobre o núcleo factual do caso.`,
+    'O Vetra destaca o que é fato central, onde as fontes divergem e quais movimentos devem ser acompanhados nas próximas horas.',
   ];
 
-  const renderTab = () => {
-    if (tab === 'overview') {
-      return (
-        <div className="grid lg:grid-cols-[1.05fr_.95fr] gap-4">
-          <div className="vetra-case-card p-5 min-h-[265px]">
-            <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><LayoutGrid size={18} className="text-blue-500"/> O fato central</div>
-            <div className="space-y-4 text-[14px] leading-relaxed text-[#46536d]">
-              {summaryBullets.map((b, i) => <p key={i}>{b}</p>)}
-            </div>
-          </div>
-          <div className="grid gap-4">
-            <div className="vetra-case-card p-5">
-              <div className="flex items-center gap-2 mb-3 text-[#0b1b40] font-black"><CheckCircle size={18} className="text-emerald-500"/> Consenso entre fontes</div>
-              <div className="text-5xl font-black text-emerald-500 leading-none">{meta.consensus}%</div>
-              <p className="text-[14px] text-[#526078] mt-2">das fontes concordam sobre o núcleo factual do caso.</p>
-              <div className="mt-4 h-4 rounded-full overflow-hidden bg-slate-200/70 flex gap-1 p-[2px]">
-                <div className="rounded-full bg-emerald-500" style={{ width: `${Math.min(meta.consensus, 72)}%` }} />
-                <div className="rounded-full bg-amber-400 flex-1" />
-                <div className="rounded-full bg-red-400 w-[10%]" />
-              </div>
-            </div>
-            <div className="vetra-case-card p-5">
-              <div className="flex items-center gap-2 mb-3 text-[#0b1b40] font-black"><FileText size={18} className="text-violet-500"/> Resumo do assunto</div>
-              <ul className="space-y-2 text-[14px] text-[#526078] list-disc pl-5">
-                <li>{meta.title}</li>
-                <li>Debate avança com leituras diferentes entre as fontes.</li>
-                <li>Mercado, política e impacto social aparecem como eixos principais.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (tab === 'perspectives') {
-      return (
-        <div className="grid lg:grid-cols-2 gap-4">
-          <div className="vetra-case-card p-5">
-            <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><Layers size={18} className="text-blue-500"/> Perspectivas da cobertura</div>
-            <div className="space-y-2">
-              {sources.slice(0, 6).map((source, i) => (
-                <button key={source.name} onClick={() => source.article && openArticle(source.article)} className="w-full flex items-center gap-3 p-3 rounded-2xl bg-white/45 border border-white/60 hover:bg-white/75 transition text-left">
-                  <ClusterSourceAvatar source={source} index={i} compact />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[14px] font-bold text-[#12264f] truncate">{source.name} — foco {i % 3 === 0 ? 'econômico' : i % 3 === 1 ? 'político' : 'social'}</div>
-                    <div className="text-[12px] text-[#68758d] truncate">{source.article?.title}</div>
-                  </div>
-                  <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 text-xs font-black">{Math.max(54, meta.consensus - i * 6)}%</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="vetra-case-card p-5">
-            <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><ScaleIcon className="w-[18px] h-[18px] text-blue-600"/> Diferenças de cobertura</div>
-            <div className="space-y-3">
-              {divergenceRows.map((row, i) => (
-                <div key={row.label} className="grid grid-cols-[1fr_170px_64px] gap-3 items-center">
-                  <span className="text-[14px] font-semibold text-[#243555] truncate">{row.label}</span>
-                  <div className="h-2.5 rounded-full bg-slate-200/70 overflow-hidden"><div className={`${row.score > 70 ? 'bg-red-500' : row.score > 45 ? 'bg-amber-400' : 'bg-emerald-500'} h-full rounded-full`} style={{ width: `${row.score}%` }} /></div>
-                  <span className={`${row.score > 70 ? 'text-red-600 bg-red-50' : row.score > 45 ? 'text-amber-700 bg-amber-50' : 'text-emerald-700 bg-emerald-50'} text-[11px] text-center font-black rounded-full py-1`}>{row.level}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (tab === 'differences') {
-      return (
-        <div className="vetra-case-card p-5">
-          <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><ScaleIcon className="w-[18px] h-[18px] text-blue-600"/> Diferenças editoriais</div>
-          <div className="grid md:grid-cols-2 gap-3">
-            {divergenceRows.map((row, i) => (
-              <div key={row.label} className="rounded-2xl bg-white/50 border border-white/70 p-4">
-                <div className="flex items-center justify-between gap-3"><h4 className="font-bold text-[#14264e] text-[15px]">{row.label}</h4><span className="text-xs font-black text-blue-600">{row.level}</span></div>
-                <p className="text-[13px] text-[#657188] mt-2">As fontes variam no grau de ênfase, no enquadramento e nos atores destacados.</p>
-                <div className="mt-4 h-2 rounded-full bg-slate-200 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-blue-500 via-amber-400 to-red-500" style={{ width: `${row.score}%` }} /></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    if (tab === 'timeline') {
-      return (
-        <div className="grid lg:grid-cols-[.9fr_1.1fr] gap-4">
-          <div className="vetra-case-card p-5">
-            <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><History size={18} className="text-blue-500"/> Linha do tempo</div>
-            <div className="relative pl-5 space-y-5 before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-[#152a5d]/25">
-              {timeline.map((item, i) => (
-                <button key={`${item.time}-${i}`} onClick={() => item.article && openArticle(item.article)} className="relative w-full text-left group">
-                  <span className="absolute -left-[22px] top-1.5 w-3 h-3 rounded-full bg-[#10265c] ring-4 ring-white/80" />
-                  <div className="grid grid-cols-[55px_1fr] gap-3">
-                    <span className="text-[13px] text-[#7a869d] font-bold">{item.time}</span>
-                    <div>
-                      <div className="text-[14px] font-black text-[#17284d] line-clamp-1 group-hover:text-blue-600">{item.title}</div>
-                      <div className="text-[12px] text-[#68758d] mt-1">{item.source}</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="vetra-case-card p-5">
-            <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><FileText size={18} className="text-blue-500"/> Fontes</div>
-            <div className="space-y-2">
-              {articles.slice(0, 7).map((article, i) => (
-                <button key={article.id || i} onClick={() => openArticle(article)} className="w-full grid grid-cols-[36px_1fr_54px] gap-3 items-center p-3 rounded-2xl bg-white/45 border border-white/60 hover:bg-white/75 transition text-left">
-                  <ClusterSourceAvatar source={{ name: article.source, logo: article.logo }} index={i} compact />
-                  <div className="min-w-0"><div className="text-[13px] font-bold text-[#12264f] truncate">{article.source}</div><div className="text-[12px] text-[#68758d] truncate">{article.title}</div></div>
-                  <span className="text-blue-600 text-[12px] font-black flex items-center gap-1">Abrir <ArrowUpRight size={13}/></span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (tab === 'sources') {
-      return (
-        <div className="vetra-case-card p-5">
-          <div className="flex items-center gap-2 mb-4 text-[#0b1b40] font-black"><Globe size={18} className="text-blue-500"/> Fontes que compõem o caso</div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {articles.map((article, i) => (
-              <button key={article.id || i} onClick={() => openArticle(article)} className="rounded-2xl bg-white/50 border border-white/70 p-4 text-left hover:shadow-lg hover:bg-white/80 transition">
-                <div className="flex items-center gap-3 mb-3"><ClusterSourceAvatar source={{ name: article.source, logo: article.logo }} index={i} compact /><div className="min-w-0"><div className="font-black text-[#102452] truncate">{article.source}</div><div className="text-[11px] text-[#7a869d]">{article.rawDate ? new Date(article.rawDate).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : 'Agora'}</div></div></div>
-                <p className="text-[13px] leading-snug text-[#526078] line-clamp-3">{article.title}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="vetra-case-card p-6 min-h-[300px]">
-        <div className="flex items-center justify-between gap-3 mb-5">
-          <div className="flex items-center gap-2 text-[#0b1b40] font-black"><Sparkles size={19} className="text-violet-500"/> Raio-X IA</div>
-          <button onClick={runXray} disabled={aiLoading} className="h-11 px-5 rounded-2xl liquid-button font-bold text-[13px] flex items-center gap-2">{aiLoading ? <Loader2 size={15} className="animate-spin"/> : <Sparkles size={15}/>} Gerar Raio-X</button>
-        </div>
-        {aiXray ? (
-          <div className="rounded-[1.4rem] bg-white/55 border border-white/70 p-5">
-            <h3 className="text-2xl font-black text-[#0d1b3f] mb-4">{aiXray.headline || 'Síntese do caso'}</h3>
-            <ul className="space-y-3 list-disc pl-5 text-[#526078] text-[14px] leading-relaxed">
-              {(aiXray.bullets || []).map((b, i) => <li key={i}>{b}</li>)}
-            </ul>
-          </div>
-        ) : (
-          <div className="h-52 rounded-[1.5rem] bg-white/45 border border-white/70 flex flex-col items-center justify-center text-center px-6">
-            <BrainCircuit size={42} className="text-violet-500 mb-3"/>
-            <h3 className="font-black text-[#102452] text-lg">Raio-X inteligente do caso</h3>
-            <p className="text-[14px] text-[#6b768d] mt-2 max-w-md">Gere uma leitura cruzada com síntese, riscos, pontos de consenso e próximos movimentos.</p>
-          </div>
-        )}
+  const renderOverview = () => (
+    <div className="vetra-case-overview-grid">
+      <div className="vetra-case-card fact-card">
+        <div className="case-card-title"><Telescope size={20}/> O fato central</div>
+        <div className="case-paragraphs">{centralParagraphs.map((p, i) => <p key={i}>{p}</p>)}</div>
       </div>
-    );
+      <div className="vetra-case-card consensus-card">
+        <div className="case-card-title"><CheckCircle size={19}/> Consenso entre fontes</div>
+        <div className="consensus-number">{meta.consensus}%</div>
+        <p>das fontes concordam sobre os objetivos e o impacto principal do caso.</p>
+        <div className="consensus-bar"><span className="ok"/><span className="warn"/><span className="hot"/><span className="soft"/></div>
+      </div>
+      <div className="vetra-case-card summary-card">
+        <div className="case-card-title"><FileText size={19}/> Resumo do assunto</div>
+        <ul>
+          <li>{meta.title}</li>
+          <li>Fontes convergem no fato principal, mas variam no enquadramento.</li>
+          <li>O debate deve evoluir conforme novas atualizações forem publicadas.</li>
+          <li>Mercado e lideranças podem alterar a leitura do tema.</li>
+        </ul>
+      </div>
+      <div className="vetra-case-card watch-card">
+        <div className="case-card-title"><Telescope size={19}/> O que acompanhar</div>
+        <MiniWatchList />
+      </div>
+    </div>
+  );
+
+  const renderPerspectives = () => (
+    <div className="vetra-case-two-col">
+      <div className="vetra-case-card">
+        <div className="case-card-title"><Layers size={20}/> Perspectivas da cobertura <small>Índice de alinhamento</small></div>
+        <div className="perspective-list">
+          {sources.slice(0, 6).map((source, i) => (
+            <button key={source.name} onClick={() => source.article && openArticle(source.article)} className="perspective-row">
+              <ClusterSourceAvatar source={source} index={i} compact />
+              <span><b>{source.name} — foco {i % 3 === 0 ? 'econômico' : i % 3 === 1 ? 'político' : 'social'}</b><small>{source.article?.title}</small></span>
+              <em>{Math.max(54, meta.consensus - i * 6)}%</em>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="vetra-case-card">
+        <div className="case-card-title"><ScaleIcon className="w-5 h-5"/> Diferenças de cobertura <small>Baixa divergência • Alta divergência</small></div>
+        <div className="divergence-list">{divergenceRows.map((row, i) => <DivergenceRow key={i} row={row} />)}</div>
+      </div>
+      <div className="vetra-case-card read-card">
+        <div className="case-card-title"><Zap size={19}/> Leituras do tema</div>
+        <div className="reading-list">
+          <p><Sparkles size={17}/> Predomínio de análises factuais nas primeiras horas de cobertura.</p>
+          <p><Layers size={17}/> Divergência moderada sobre impactos e distribuição de efeitos.</p>
+          <p><CheckCircle size={17}/> Consenso razoável sobre a necessidade de acompanhamento contínuo.</p>
+        </div>
+      </div>
+      <div className="vetra-case-card watch-card compact">
+        <div className="case-card-title"><Telescope size={19}/> O que acompanhar</div>
+        <MiniWatchList />
+      </div>
+    </div>
+  );
+
+  const renderDifferences = () => (
+    <div className="vetra-case-two-col emphasize-differences">
+      <div className="vetra-case-card">
+        <div className="case-card-title"><ScaleIcon className="w-5 h-5"/> Matriz de divergência editorial</div>
+        <div className="divergence-list large">{divergenceRows.map((row, i) => <DivergenceRow key={i} row={row} />)}</div>
+      </div>
+      <div className="vetra-case-card">
+        <div className="case-card-title"><BrainCircuit size={20}/> Onde as fontes mudam o enquadramento</div>
+        <div className="difference-notes">
+          <p><b>Ênfase econômica:</b> fontes priorizam impacto, custo e reação de mercado.</p>
+          <p><b>Ênfase política:</b> foco em negociação, tramitação e resistência institucional.</p>
+          <p><b>Ênfase social:</b> atenção a grupos afetados e consequências práticas.</p>
+          <p><b>Consenso:</b> o fato central é estável, mas a leitura de consequência ainda varia.</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTimeline = () => (
+    <div className="vetra-case-timeline-grid">
+      <div className="vetra-case-card timeline-card">
+        <div className="case-card-title">Linha do tempo</div>
+        <div className="timeline-list">
+          {timeline.map((item, i) => (
+            <button key={`${item.title}-${i}`} onClick={() => item.article && openArticle(item.article)} className="timeline-item">
+              <span className="timeline-dot" />
+              <time>{item.time}</time>
+              <ClusterSourceAvatar source={{ name: item.source, logo: item.logo }} index={i} compact />
+              <span><b>{item.title}</b><small>{item.summary}</small></span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="vetra-case-card timeline-sources-card">
+        <div className="case-card-title">Fontes</div>
+        <div className="source-table">
+          {articles.slice(0, 6).map((article, i) => (
+            <button key={article.id || i} onClick={() => openArticle(article)} className="source-table-row">
+              <ClusterSourceAvatar source={{ name: article.source, logo: article.logo }} index={i} />
+              <b>{article.source}</b><time>{formatClusterClock(article.rawDate)}</time><span>{article.title}</span><em>Abrir <ExternalLink size={16}/></em>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSources = () => (
+    <div className="vetra-case-card sources-full-card">
+      <div className="case-card-title"><FileText size={20}/> Fontes do caso</div>
+      <div className="sources-grid">
+        {articles.map((article, i) => (
+          <button key={article.id || i} onClick={() => openArticle(article)} className="source-detail-card">
+            <ClusterSourceAvatar source={{ name: article.source, logo: article.logo }} index={i} />
+            <span><b>{article.source}</b><small>{formatClusterClock(article.rawDate)}</small></span>
+            <p>{article.title}</p>
+            <em>Abrir fonte <ArrowUpRight size={15}/></em>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderXray = () => (
+    <div className="vetra-case-card xray-card">
+      <div className="case-card-title"><Sparkles size={20}/> Raio-X IA</div>
+      {!aiXray && (
+        <div className="xray-empty">
+          <div className="xray-orb"><Sparkles size={34}/></div>
+          <h3>Gerar leitura editorial do caso</h3>
+          <p>A IA resume consenso, divergências, sinais fracos e próximos pontos de atenção sem substituir a leitura das fontes.</p>
+          <button onClick={runXray} disabled={aiLoading} className="vetra-ai-gradient-button">{aiLoading ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>} Gerar Raio-X com IA</button>
+        </div>
+      )}
+      {aiXray && (
+        <div className="xray-result">
+          <h3>{aiXray.headline}</h3>
+          <ul>{(aiXray.bullets || []).map((b, i) => <li key={i}>{b}</li>)}</ul>
+          <button onClick={runXray} disabled={aiLoading} className="vetra-ai-gradient-button small">{aiLoading ? <Loader2 className="animate-spin" size={16}/> : <RefreshCw size={16}/>} Atualizar análise</button>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderTab = () => {
+    if (tab === 'overview') return renderOverview();
+    if (tab === 'perspectives') return renderPerspectives();
+    if (tab === 'differences') return renderDifferences();
+    if (tab === 'timeline') return renderTimeline();
+    if (tab === 'sources') return renderSources();
+    return renderXray();
   };
 
   return (
-    <div className="fixed inset-0 z-[8500] p-4 sm:p-8 flex items-center justify-center animate-in fade-in duration-200">
-      <div className="absolute inset-0 bg-slate-800/25 backdrop-blur-xl" onClick={onClose}/>
-      <div className="vetra-case-shell relative w-full max-w-[1320px] h-[88vh] rounded-[2rem] overflow-hidden flex flex-col">
-        <div className="relative px-5 sm:px-7 py-5 shrink-0">
-          <button onClick={onClose} className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/55 border border-white/70 backdrop-blur-xl flex items-center justify-center text-[#17284d] hover:bg-white/80 z-20"><X size={18}/></button>
-          <div className="flex items-center gap-3 text-[13px] font-semibold text-[#53627f] mb-4"><button onClick={onClose} className="w-10 h-10 rounded-xl bg-white/50 border border-white/70 flex items-center justify-center"><ChevronLeft size={18}/></button><span>Clusters</span><ChevronRight size={14}/><span>Caso em Foco</span></div>
-          <div className="vetra-hero-case p-4 sm:p-5 rounded-[1.8rem] grid md:grid-cols-[390px_1fr] gap-6 items-center">
-            <div className="relative h-[190px] rounded-[1.35rem] overflow-hidden shadow-xl"><img src={meta.image} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }}/><div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent"/><span className="absolute left-4 bottom-4 px-4 py-2 rounded-full bg-black/45 border border-white/20 backdrop-blur-xl text-white text-[12px] font-black flex items-center gap-2"><Activity size={14} className="text-orange-400"/> Assunto quente</span></div>
-            <div className="min-w-0 pr-10"><h2 className="text-[28px] sm:text-[32px] font-black tracking-tight text-[#081536] leading-tight">{meta.title}</h2><div className="flex flex-wrap items-center gap-4 mt-4 text-[14px] text-[#58667f]"><span>{sources.length} fontes</span><span>•</span><span>últimas 2h</span><span>•</span><span className="text-rose-500 font-semibold">assunto quente</span></div><div className="flex items-center gap-3 mt-6">{sources.slice(0,4).map((src, i) => <ClusterSourceAvatar key={src.name} source={src} index={i}/>) }{sources.length > 4 && <span className="w-10 h-10 rounded-full bg-white/45 border border-white/70 flex items-center justify-center font-black text-[#17284d] shadow-sm">+{sources.length - 4}</span>}</div></div>
-          </div>
-          <div className="vetra-tabs-wrap mt-4 p-2 rounded-[1.45rem] grid grid-cols-6 gap-3">
+    <div className="fixed inset-0 z-[9998] p-3 sm:p-5 animate-in fade-in duration-200">
+      <div className="absolute inset-0 bg-slate-100/78 backdrop-blur-xl" onClick={onClose} />
+      <div className="vetra-case-shell relative mx-auto h-[calc(100vh-1.5rem)] sm:h-[calc(100vh-2.5rem)] max-w-[1540px] overflow-hidden rounded-[2.05rem] flex flex-col">
+        <div className="vetra-case-scroll custom-scrollbar">
+          <ClusterCaseHeader meta={meta} sources={sources} onClose={onClose} />
+          <div className="vetra-tabs-wrap">
             <ClusterTabButton label="Visão Geral" icon={<LayoutGrid size={18}/>} active={tab === 'overview'} onClick={() => setTab('overview')} />
             <ClusterTabButton label="Perspectivas" icon={<Layers size={18}/>} active={tab === 'perspectives'} onClick={() => setTab('perspectives')} />
             <ClusterTabButton label="Diferenças" icon={<ScaleIcon className="w-[18px] h-[18px]"/>} active={tab === 'differences'} onClick={() => setTab('differences')} />
@@ -4165,21 +4273,45 @@ function ClusterCaseModal({ cluster, onClose, openArticle, getApiKey }) {
             <ClusterTabButton label="Fontes" icon={<FileText size={18}/>} active={tab === 'sources'} onClick={() => setTab('sources')} />
             <ClusterTabButton label="Raio-X IA" icon={<Sparkles size={18}/>} active={tab === 'xray'} onClick={() => setTab('xray')} />
           </div>
+          <div className="vetra-case-body">{renderTab()}</div>
+          <div className="vetra-case-footer">
+            <ClusterFooterSources sources={sources} openArticle={openArticle} />
+            <button onClick={runXray} className="vetra-ai-gradient-button footer"><Sparkles size={21}/> Gerar Raio-X com IA</button>
+          </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-7 pb-6 custom-scrollbar">{renderTab()}</div>
       </div>
+    </div>
+  );
+}
+
+function DivergenceRow({ row }) {
+  return (
+    <div className="divergence-row">
+      <span>{row.label}</span>
+      <div className="divergence-meter">
+        {row.values.map((v, i) => <i key={i} className={v} />)}
+      </div>
+      <em className={row.level === 'Alta' ? 'high' : row.level === 'Média' ? 'mid' : 'low'}>{row.level}</em>
     </div>
   );
 }
 
 function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters }) {
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(0);
+  const [activeSlide, setActiveSlide] = useState(0);
   const [selectedCluster, setSelectedCluster] = useState(null);
+  const carouselRef = useRef(null);
+
   const displayClusters = useMemo(() => {
     const base = clusters && clusters.length > 0 ? clusters : heuristicClusters;
     return (base || []).filter(c => normalizeClusterArticles(c).length > 0).slice(0, 9);
   }, [clusters, heuristicClusters]);
+
+  const slides = useMemo(() => {
+    const out = [];
+    for (let i = 0; i < displayClusters.length; i += 3) out.push(displayClusters.slice(i, i + 3));
+    return out;
+  }, [displayClusters]);
 
   const runAI = async () => {
     const currentApiKey = getApiKey?.('widgets');
@@ -4195,50 +4327,106 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
     setLoading(false);
   };
 
-  const pages = useMemo(() => {
-    const groups = [];
-    for (let i = 0; i < displayClusters.length; i += 3) groups.push(displayClusters.slice(i, i + 3));
-    return groups;
-  }, [displayClusters]);
-  const current = pages[page] || pages[0] || [];
-  const main = current[0];
-  const side = current.slice(1, 3);
+  const goToSlide = (idx) => {
+    const el = carouselRef.current;
+    if (!el) return;
+    el.scrollTo({ left: idx * el.clientWidth, behavior: 'smooth' });
+    setActiveSlide(idx);
+  };
+
+  const onCarouselScroll = () => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+    if (idx !== activeSlide) setActiveSlide(idx);
+  };
 
   if (!displayClusters.length) return <WhileYouWereAwaySkeleton isDarkMode={isDarkMode} />;
 
   const MainClusterCard = ({ cluster }) => {
     const meta = getClusterMeta(cluster);
     return (
-      <button onClick={() => setSelectedCluster(cluster)} className="group relative h-[610px] rounded-[2rem] overflow-hidden text-left shadow-[0_24px_60px_-28px_rgba(15,23,42,.55)] border border-white/70 bg-slate-900 active:scale-[.995] transition w-full">
-        <img src={meta.image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" onError={(e) => { e.currentTarget.style.display = 'none'; }}/>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#071126]/95 via-[#071126]/45 to-transparent"/>
-        <div className="absolute top-5 left-5 right-5 flex justify-between items-center z-10"><span className="px-4 py-2 rounded-xl bg-black/45 border border-white/15 backdrop-blur-xl text-white text-[13px] font-black flex items-center gap-2"><CheckCircle size={15} className="text-emerald-400"/> {meta.consensus}% consenso</span><span className="px-4 py-2 rounded-xl bg-rose-500/30 border border-white/15 backdrop-blur-xl text-white text-[13px] font-black flex items-center gap-2"><Activity size={15} className="text-orange-300"/> Assunto quente</span></div>
-        <div className="absolute left-7 right-7 bottom-7 z-10"><span className="px-3 py-1.5 rounded-lg bg-violet-500/20 text-violet-100 border border-violet-300/20 text-[12px] font-black uppercase">Caso em foco</span><h2 className="mt-4 text-4xl sm:text-5xl font-black text-white leading-[1.05] tracking-tight drop-shadow-xl max-w-3xl">{meta.title}</h2><p className="mt-4 text-white/80 text-[17px] leading-relaxed max-w-2xl line-clamp-2">{meta.summary}</p><div className="mt-7 flex items-end justify-between gap-5 border-t border-white/15 pt-5"><div className="flex items-center gap-3">{meta.sources.slice(0,4).map((source, i) => <ClusterSourceAvatar key={source.name} source={source} index={i}/>) }{meta.sources.length > 4 && <span className="w-11 h-11 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-white font-black">+{meta.sources.length - 4}</span>}</div><span className="h-14 px-8 rounded-[1.2rem] bg-blue-500/80 border border-white/25 text-white font-black text-[15px] flex items-center gap-3 shadow-[0_12px_25px_-10px_rgba(37,99,235,.8)]">Abrir caso <ArrowUpRight size={18}/></span></div></div>
+      <button onClick={() => setSelectedCluster(cluster)} className="vetra-main-cluster-card group">
+        <img src={meta.image} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        <div className="main-cluster-overlay" />
+        <div className="main-cluster-top">
+          <ClusterMetricBadge tone="consensus" icon={<CheckCircle size={15}/>} label={`${meta.consensus}% consenso`} />
+          <ClusterMetricBadge tone="hot" icon={<Activity size={15}/>} label="Assunto quente" />
+        </div>
+        <div className="main-cluster-content">
+          <span className="case-chip">{meta.category}</span>
+          <h2>{meta.title}</h2>
+          <p>{meta.summary}</p>
+          <div className="main-cluster-bottom">
+            <div className="main-cluster-sources">
+              {meta.sources.slice(0,4).map((source, i) => <ClusterSourceAvatar key={source.name} source={source} index={i} />)}
+              {meta.sources.length > 4 && <span className="vetra-plus-orb dark">+{meta.sources.length - 4}</span>}
+            </div>
+            <span className="open-case-button">Abrir caso <ArrowUpRight size={18}/></span>
+          </div>
+          <div className="main-cluster-insight"><Sparkles size={19}/> <span>{meta.summary}</span></div>
+        </div>
       </button>
     );
   };
 
-  const SideClusterCard = ({ cluster, index }) => {
+  const SideClusterCard = ({ cluster, fallbackCategory }) => {
     const meta = getClusterMeta(cluster);
     return (
-      <button onClick={() => setSelectedCluster(cluster)} className="vetra-home-side-card group h-full rounded-[2rem] p-4 overflow-hidden text-left transition active:scale-[.995]">
-        <div className="relative h-[220px] rounded-[1.35rem] overflow-hidden bg-slate-200"><img src={meta.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.05]" onError={(e) => { e.currentTarget.style.display = 'none'; }}/><div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"/><span className="absolute top-4 left-4 px-3 py-1.5 rounded-xl bg-black/45 text-white text-[12px] font-black border border-white/15 backdrop-blur-xl flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400"/> {meta.consensus}% consenso</span></div>
-        <div className="p-2 pt-5"><div className="text-[12px] font-black uppercase tracking-wide text-blue-700 mb-3">{index === 0 ? 'Tecnologia e política' : 'Economia e meio ambiente'}</div><h3 className="text-[22px] leading-tight font-black text-[#0d1a3d] line-clamp-3">{meta.title}</h3><p className="text-[14px] leading-relaxed text-[#657188] mt-3 line-clamp-3">{meta.summary}</p><div className="mt-6 flex items-center gap-2">{meta.sources.slice(0,3).map((src, i) => <ClusterSourceAvatar key={src.name} source={src} index={i} compact />)}{meta.sources.length > 3 && <span className="w-8 h-8 rounded-full bg-white/50 border border-white/70 flex items-center justify-center text-xs font-black text-[#33415f]">+{meta.sources.length - 3}</span>}</div><div className="mt-6 h-14 rounded-[1.2rem] bg-white/55 border border-white/70 flex items-center justify-center font-black text-[#293a5f] shadow-inner">Abrir caso <ArrowUpRight size={16} className="ml-3"/></div></div>
+      <button onClick={() => setSelectedCluster(cluster)} className="vetra-side-cluster-card group">
+        <div className="side-image-wrap">
+          <img src={meta.image} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <ClusterMetricBadge tone="consensus" icon={<CheckCircle size={14}/>} label={`${meta.consensus}% consenso`} />
+        </div>
+        <div className="side-content">
+          <small>{meta.category || fallbackCategory}</small>
+          <h3>{meta.title}</h3>
+          <p>{meta.summary}</p>
+          <div className="side-sources">
+            {meta.sources.slice(0,3).map((src, i) => <ClusterSourceAvatar key={src.name} source={src} index={i} compact />)}
+            {meta.sources.length > 3 && <span className="vetra-plus-orb mini">+{meta.sources.length - 3}</span>}
+          </div>
+          <span className="side-open-button">Abrir caso <ArrowUpRight size={16}/></span>
+        </div>
       </button>
     );
   };
 
   return (
-    <section className="px-2 sm:px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-start justify-between gap-4 mb-6 px-1">
-        <div><div className="flex items-center gap-2"><h2 className="text-[30px] sm:text-[34px] font-black tracking-tight text-[#0b1733]">Clusters em destaque</h2><span className="w-6 h-6 rounded-full border border-[#94a3b8]/60 text-[#7c8aa3] flex items-center justify-center text-sm font-bold">i</span></div><p className="text-[#64748b] text-[16px] mt-1">Os temas que dominam a cobertura agora</p></div>
-        <button onClick={runAI} className="hidden sm:flex h-12 px-5 rounded-[1.1rem] vetra-soft-button items-center gap-2 text-[13px] font-bold text-[#243555]">{loading ? <Loader2 size={15} className="animate-spin"/> : <Sparkles size={15}/>} {clusters ? 'Atualizar clusters' : 'Análise IA'}</button>
+    <section className="vetra-clusters-section animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="vetra-clusters-header">
+        <div>
+          <div className="vetra-clusters-title-row"><h2>Clusters em destaque</h2><span>i</span></div>
+          <p>Os temas que dominam a cobertura agora</p>
+        </div>
+        <button onClick={runAI} className="vetra-see-all-button">
+          {loading ? <Loader2 size={17} className="animate-spin"/> : <span>Ver todos os clusters</span>} <ArrowRight size={18}/>
+        </button>
       </div>
-      <div className="grid xl:grid-cols-[1.55fr_.62fr_.62fr] gap-4 items-stretch">
-        {main && <MainClusterCard cluster={main} />}
-        {side.map((cluster, i) => <SideClusterCard key={`${cluster.ai_title}-${i}`} cluster={cluster} index={i}/>)}
+
+      <div ref={carouselRef} onScroll={onCarouselScroll} className="vetra-cluster-carousel scrollbar-hide">
+        {slides.map((slide, slideIndex) => {
+          const main = slide[0];
+          const sideA = slide[1];
+          const sideB = slide[2];
+          return (
+            <div key={slideIndex} className="vetra-cluster-slide">
+              <div className="vetra-cluster-slide-grid">
+                {main && <MainClusterCard cluster={main} />}
+                {sideA && <SideClusterCard cluster={sideA} fallbackCategory="Tecnologia e política" />}
+                {sideB && <SideClusterCard cluster={sideB} fallbackCategory="Economia e meio ambiente" />}
+              </div>
+            </div>
+          );
+        })}
       </div>
-      {pages.length > 1 && <div className="flex justify-center gap-3 mt-5">{pages.map((_, i) => <button key={i} onClick={() => setPage(i)} className={`h-2 rounded-full transition-all ${page === i ? 'w-8 bg-blue-600' : 'w-2 bg-slate-300'}`} />)}</div>}
+
+      {slides.length > 1 && (
+        <div className="vetra-carousel-dots">
+          {slides.map((_, i) => <button key={i} onClick={() => goToSlide(i)} className={activeSlide === i ? 'active' : ''} />)}
+        </div>
+      )}
+
       {selectedCluster && <ClusterCaseModal cluster={selectedCluster} onClose={() => setSelectedCluster(null)} openArticle={openArticle} getApiKey={getApiKey}/>}    
     </section>
   );
