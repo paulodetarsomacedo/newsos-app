@@ -2411,6 +2411,93 @@ const MarketTicker = ({ isDarkMode }) => {
   );
 };
 
+
+// === MERCADOS HOJE (Etapa 4.3) — cards largos com sparkline (print) ===
+const MARKET_CARDS = [
+  { id: '^BVSP',    label: 'IBOVESPA' },
+  { id: 'USDBRL=X', label: 'DÓLAR (PTAX)' },
+  { id: 'EURBRL=X', label: 'EURO (PTAX)' },
+  { id: 'BTC-USD',  label: 'BITCOIN' },
+  { id: 'PETR4.SA', label: 'PETR4' },
+  { id: 'VALE3.SA', label: 'VALE3' },
+  { id: '^IFIX',    label: 'IFIX' },
+];
+
+const Sparkline = ({ points, up }) => {
+  if (!points || points.length < 2) return <div className="h-[34px]" />;
+  const w = 96, h = 34;
+  const min = Math.min(...points), max = Math.max(...points);
+  const range = (max - min) || 1;
+  const step = w / (points.length - 1);
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${(i * step).toFixed(1)} ${(h - ((p - min) / range) * h).toFixed(1)}`).join(' ');
+  const color = up ? '#10b981' : '#ef4444';
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      <path d={`${d} L ${w} ${h} L 0 ${h} Z`} fill={color} opacity="0.10" />
+      <path d={d} fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
+const MarketCards = ({ isDarkMode }) => {
+  const [data, setData] = useState({});
+  useEffect(() => {
+    let alive = true;
+    const fetchAll = async () => {
+      const nd = {};
+      await Promise.all(MARKET_CARDS.map(async ({ id }) => {
+        try {
+          const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${id}?interval=15m&range=1d`;
+          const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+          const res = await fetch(proxyUrl);
+          if (!res.ok) throw new Error('net');
+          const json = JSON.parse(await res.text());
+          const r = json.chart?.result?.[0];
+          const meta = r?.meta;
+          const closes = (r?.indicators?.quote?.[0]?.close || []).filter(v => typeof v === 'number');
+          if (meta && meta.regularMarketPrice != null) {
+            const price = meta.regularMarketPrice;
+            const prev = meta.chartPreviousClose || price;
+            const pct = prev ? ((price - prev) / prev) * 100 : 0;
+            const up = (price - prev) >= 0;
+            let val;
+            if (id === '^BVSP' || id === '^IFIX') val = price.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+            else if (id === 'BTC-USD') val = '$ ' + price.toLocaleString('en-US', { maximumFractionDigits: 0 });
+            else val = 'R$ ' + price.toFixed(2).replace('.', ',');
+            nd[id] = { val, pct, up, spark: closes.slice(-26) };
+          } else { nd[id] = null; }
+        } catch (e) { nd[id] = null; }
+      }));
+      if (alive) setData(prev => ({ ...prev, ...nd }));
+    };
+    fetchAll();
+    const t = setInterval(fetchAll, 5 * 60 * 1000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  return (
+    <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1 px-4">
+      {MARKET_CARDS.map(({ id, label }) => {
+        const d = data[id];
+        const up = d?.up ?? true;
+        return (
+          <div key={id} className="shrink-0 w-[155px] rounded-2xl p-3.5 bg-white/80 dark:bg-white/[0.05] border border-white/80 dark:border-white/10 shadow-[0_6px_16px_-10px_rgba(15,23,42,0.25)]">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate">{label}</div>
+            <div className="mt-1 text-[17px] font-black text-zinc-900 dark:text-white tabular-nums">{d?.val || '—'}</div>
+            <div className="mt-2 flex items-end justify-between gap-2">
+              <span className={`text-[12px] font-bold tabular-nums ${up ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {d ? `${up ? '+' : ''}${d.pct.toFixed(2)}%` : '...'}
+              </span>
+              <Sparkline points={d?.spark} up={up} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+
 // --- WIDGET: MARKET PULSE (V6 - DESIGN PREMIUM E IA INTEGRADA) ---
 const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
   const [analysisData, setAnalysisData] = useState(null);
@@ -5031,10 +5118,7 @@ const handleTouchEnd = async () => {
         </div>
       </div>
       
-      {/* Trend Radar */}
-      <div className="px-4">
-        <TrendRadar newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} openArticle={openArticle} />
-      </div>
+    {/* 4.3: TrendRadar removido — espaço liberado p/ o cluster ser o destaque */}
       
           {/* Manchete e o NOVO Widget */}
       <div className="space-y-4">
@@ -5078,16 +5162,8 @@ const handleTouchEnd = async () => {
               <h3 className="text-[20px] font-bold tracking-tight text-zinc-900 dark:text-white">Mercados Hoje</h3>
           </div>
      {/* 4.2: painel de vidro limpo (sem borda gradiente roxa) com ticker + análise */}
-          <div className="glass-card p-4 space-y-4">
-            <MarketTicker isDarkMode={isDarkMode} />
-            <div className="h-px bg-zinc-200/60 dark:bg-white/10" />
-            <MarketPulseWidget 
-              newsData={newsData}
-              getApiKey={getApiKey}
-              isDarkMode={isDarkMode}
-              openArticle={openArticle}
-            />
-          </div>
+      {/* 4.3: cards largos com sparkline (substitui ticker + análise) */}
+          <MarketCards isDarkMode={isDarkMode} />
       </div>
     </div>
   );
