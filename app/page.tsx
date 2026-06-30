@@ -6446,17 +6446,24 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 
 
 
-// --- COMPONENTE: SPLASH SCREEN (AJUSTADO) ---
-const SplashScreen = ({ onFinish }) => {
+// --- COMPONENTE: SPLASH SCREEN (premium, com duração adaptativa) ---
+const SplashScreen = ({ onFinish, durationMs = 5200, hasWarmSnapshot = false }) => {
   const [step, setStep] = useState(0);
+  const [statusIndex, setStatusIndex] = useState(0);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setStep(1), 100);
-    const t2 = setTimeout(() => setStep(2), 1200);
-    const t3 = setTimeout(() => setStep(3), 2500);
-    const t4 = setTimeout(onFinish, 3000);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
-  }, [onFinish]);
+    const safeDuration = Math.max(1200, durationMs);
+    const t1 = setTimeout(() => setStep(1), 120);
+    const t2 = setTimeout(() => setStep(2), hasWarmSnapshot ? 450 : 1250);
+    const t3 = setTimeout(() => setStep(3), Math.max(700, safeDuration - 650));
+    const t4 = setTimeout(onFinish, safeDuration);
+    const statusTimer = setInterval(() => setStatusIndex(i => (i + 1) % 4), 1050);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearInterval(statusTimer); };
+  }, [onFinish, durationMs, hasWarmSnapshot]);
+
+  const loadingMessages = hasWarmSnapshot
+    ? ['Restaurando último snapshot...', 'Sincronizando em segundo plano...', 'Preparando interface...','Pronto.']
+    : ['Coletando fontes prioritárias...', 'Montando feed inicial...', 'Organizando stories...', 'Preparando clusters...'];
 
   // Ajustei a posição dos ícones para ficarem um pouco mais afastados já que o logo vai crescer
   const icons = [
@@ -6529,6 +6536,18 @@ const SplashScreen = ({ onFinish }) => {
             <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
                 Vetra
             </h1>
+        </div>
+
+        <div className={`mt-7 transition-all duration-700 delay-200 ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            <div className="px-5 py-3 rounded-2xl bg-white/8 border border-white/10 backdrop-blur-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,.14),0_18px_60px_-30px_rgba(0,0,0,.75)]">
+                <div className="flex items-center gap-3 text-white/80 text-xs font-bold uppercase tracking-[0.18em]">
+                    <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-40" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-300" />
+                    </span>
+                    {loadingMessages[statusIndex]}
+                </div>
+            </div>
         </div>
 
       </div>
@@ -6652,14 +6671,18 @@ const askGeminiWithContext = async (question, contextResults, apiKey) => {
 const FEED_CACHE_PREFIX = 'newsos_cache_v1_';
 
 // --- VETRA FEED ENGINE HELPERS (snapshot, logos, RSS/Atom e timeout) ---
-const FEED_FETCH_TIMEOUT_MS = 2200;
-const FEED_EDGE_TIMEOUT_MS = 2800;
-const FEED_FIRST_PAINT_MIN_ITEMS = 12;
+const FEED_FETCH_TIMEOUT_MS = 2400;
+const FEED_EDGE_TIMEOUT_MS = 3400;
+const FEED_FIRST_PAINT_MIN_ITEMS = 18;
 const FEED_FIRST_PAINT_MIN_SOURCES = 3;
-const FEED_FIRST_PAINT_MAX_FEEDS = 4;
-const FEED_TEXT_CONCURRENCY = 6;
-const FEED_MEDIA_CONCURRENCY = 3;
-const FEED_MEMORY_TTL = 4 * 60 * 1000;
+const FEED_FIRST_PAINT_MAX_FEEDS = 6;
+const FEED_TEXT_CONCURRENCY = 5;
+const FEED_MEDIA_CONCURRENCY = 2;
+const FEED_MEMORY_TTL = 5 * 60 * 1000;
+const FEED_STARTUP_WINDOW_MS = 5000;
+const FEED_STARTUP_HARD_LIMIT_MS = 8000;
+const FEED_FAILURE_BACKOFF_MS = 8 * 60 * 1000;
+const VETRA_VISIBLE_SNAPSHOT_KEY = 'vetra_visible_snapshot_v3';
 
 const SOURCE_LOGO_OVERRIDES = [
   { match: ['portal band', 'band notícias', 'band news', 'band'], domains: ['band.uol.com.br', 'www.band.uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=band.uol.com.br&sz=128' },
@@ -6786,6 +6809,129 @@ const mergeSmartStoriesStable = (previousStories, nextStories, maxStories = 18, 
   for (const previous of previousStories) { const key = previous.name || previous.source || previous.id; const replacement = nextBySource.get(key); if (replacement) { merged.push(replacement); used.add(key); } else merged.push(previous); }
   for (const story of cleanNext) { const key = story.name || story.source || story.id; if (!used.has(key) && !merged.some(item => item.id === story.id)) { merged.push(story); used.add(key); } }
   return merged.slice(0, maxStories);
+};
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const sortByDateSafe = (items) => [...(items || [])].sort((a, b) => {
+  const timeA = a?.rawDate ? new Date(a.rawDate).getTime() : 0;
+  const timeB = b?.rawDate ? new Date(b.rawDate).getTime() : 0;
+  return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+});
+
+const buildSnapshotHash = (snapshot) => {
+  const newsIds = (snapshot?.news || []).slice(0, 80).map(item => item?.id || item?.link || item?.title).join('|');
+  const videoIds = (snapshot?.videos || []).slice(0, 20).map(item => item?.id || item?.link || item?.title).join('|');
+  const podcastIds = (snapshot?.podcasts || []).slice(0, 20).map(item => item?.id || item?.link || item?.title).join('|');
+  return `${newsIds}::${videoIds}::${podcastIds}`;
+};
+
+const normalizeSnapshotForStorage = (snapshot) => ({
+  news: Array.isArray(snapshot?.news) ? snapshot.news.slice(0, 180) : [],
+  videos: Array.isArray(snapshot?.videos) ? snapshot.videos.slice(0, 80) : [],
+  podcasts: Array.isArray(snapshot?.podcasts) ? snapshot.podcasts.slice(0, 80) : [],
+  clusters: Array.isArray(snapshot?.clusters) ? snapshot.clusters.slice(0, 8) : [],
+  stories: Array.isArray(snapshot?.stories) ? snapshot.stories.slice(0, 24) : [],
+  timestamp: snapshot?.timestamp || Date.now(),
+  version: snapshot?.version || Date.now(),
+});
+
+const readVisibleSnapshotFromStorage = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(VETRA_VISIBLE_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.news)) return null;
+    const totalItems = (parsed.news?.length || 0) + (parsed.videos?.length || 0) + (parsed.podcasts?.length || 0);
+    if (totalItems === 0) return null;
+    return normalizeSnapshotForStorage(parsed);
+  } catch (error) {
+    console.warn('Snapshot local inválido, ignorando:', error);
+    return null;
+  }
+};
+
+const persistVisibleSnapshot = (snapshot) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(VETRA_VISIBLE_SNAPSHOT_KEY, JSON.stringify(normalizeSnapshotForStorage(snapshot)));
+  } catch (error) {
+    console.warn('Não foi possível salvar snapshot visível:', error);
+  }
+};
+
+const isInitialSnapshotGoodEnough = (snapshot, completedAllTextFeeds = false) => {
+  const news = snapshot?.news || [];
+  const sourceCount = countDistinctSources(news);
+  if (sourceCount >= FEED_FIRST_PAINT_MIN_SOURCES && news.length >= FEED_FIRST_PAINT_MIN_ITEMS) return true;
+  if (completedAllTextFeeds && sourceCount >= 2 && news.length >= 10) return true;
+  if (completedAllTextFeeds && news.length >= 8) return true;
+  return false;
+};
+
+const hasMeaningfulSnapshot = (snapshot) => {
+  return ((snapshot?.news?.length || 0) + (snapshot?.videos?.length || 0) + (snapshot?.podcasts?.length || 0)) > 0;
+};
+
+const createFallbackEditorialClusters = (news) => {
+  const sorted = sortByDateSafe(news).filter(Boolean);
+  if (sorted.length < 5) return [];
+
+  const groups = [
+    { key: 'Economia', label: 'Mercado e economia concentram atenção do dia', words: ['dólar', 'dolar', 'bolsa', 'ibovespa', 'juros', 'selic', 'inflação', 'inflacao', 'mercado', 'economia', 'petr', 'vale', 'bitcoin', 'cripto'] },
+    { key: 'Política', label: 'Política nacional tem novos desdobramentos', words: ['lula', 'bolsonaro', 'congresso', 'senado', 'câmara', 'camara', 'stf', 'governo', 'ministro', 'política', 'politica', 'eleição', 'eleicao'] },
+    { key: 'Mundo', label: 'Cenário internacional movimenta o noticiário', words: ['eua', 'trump', 'china', 'rússia', 'russia', 'ucrânia', 'ucrania', 'israel', 'gaza', 'europa', 'argentina', 'venezuela', 'paraguai'] },
+    { key: 'Brasil', label: 'Brasil reúne os principais destaques recentes', words: ['brasil', 'brasileiro', 'federal', 'polícia', 'policia', 'justiça', 'justica', 'cidade', 'estado', 'df'] },
+    { key: 'Esportes', label: 'Esportes puxam forte interesse dos leitores', words: ['copa', 'futebol', 'seleção', 'selecao', 'jogo', 'vitória', 'vitoria', 'alemanha', 'brasil', 'paraguai'] },
+  ];
+
+  const usedIds = new Set();
+  const clusters = [];
+
+  for (const group of groups) {
+    const related = sorted.filter(article => {
+      if (usedIds.has(article.id)) return false;
+      const haystack = normalizeSourceKey(`${article.title || ''} ${article.summary || ''} ${article.category || ''}`);
+      return group.words.some(word => haystack.includes(normalizeSourceKey(word)));
+    }).slice(0, 5);
+
+    if (related.length >= 2) {
+      related.forEach(article => usedIds.add(article.id));
+      const uniqueSources = new Set(related.map(article => article.source).filter(Boolean)).size;
+      const representative = related.find(article => article.img && !String(article.img).includes('ui-avatars.com')) || related[0];
+      clusters.push({
+        ai_title: related[0]?.title || group.label,
+        ai_summary: `Agrupamento editorial inicial com ${related.length} notícias e ${uniqueSources || 1} fonte${uniqueSources === 1 ? '' : 's'}. O caso pode ser refinado quando mais fontes terminarem de carregar.`,
+        representative_image: representative?.img,
+        related_articles: related,
+        keyEntities: [group.key],
+        isFallbackCluster: true,
+      });
+    }
+
+    if (clusters.length >= 5) break;
+  }
+
+  if (clusters.length < 3) {
+    const remaining = sorted.filter(article => !usedIds.has(article.id)).slice(0, 12);
+    for (let i = 0; i < remaining.length; i += 4) {
+      const related = remaining.slice(i, i + 4);
+      if (related.length < 2) continue;
+      const representative = related.find(article => article.img && !String(article.img).includes('ui-avatars.com')) || related[0];
+      clusters.push({
+        ai_title: related[0]?.title || 'Destaques recentes do momento',
+        ai_summary: `Seleção temporal inicial com ${related.length} notícias recentes. O agrupamento fica estável até o próximo refresh.`,
+        representative_image: representative?.img,
+        related_articles: related,
+        keyEntities: ['Destaques'],
+        isFallbackCluster: true,
+      });
+      if (clusters.length >= 5) break;
+    }
+  }
+
+  return clusters.slice(0, 5);
 };
 
 
@@ -6964,30 +7110,76 @@ const StoryOverlay = ({ story, onClose, onRead, onMarkAsSeen, allStories, onNavi
 
 const generateSmartStories = (news, allClusters) => {
     if (!news || news.length === 0) return [];
+
+    const sortedNews = [...news]
+      .filter(Boolean)
+      .sort((a, b) => (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0));
+
+    const topFeedIds = new Set(sortedNews.slice(0, 20).map(item => item?.id).filter(Boolean));
     const clusterLeadIds = new Set();
     const clusterArticleIds = new Set();
+
     (allClusters || []).forEach(cluster => {
         const articles = typeof normalizeClusterArticles === 'function' ? normalizeClusterArticles(cluster) : (cluster?.related_articles || []);
         if (articles?.[0]?.id) clusterLeadIds.add(articles[0].id);
         articles?.forEach(article => article?.id && clusterArticleIds.add(article.id));
     });
+
     const bySource = new Map();
-    [...news].filter(Boolean).sort((a, b) => (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0)).forEach((item) => {
+    sortedNews.forEach((item) => {
         const source = item?.source || 'Fonte';
         if (!bySource.has(source)) bySource.set(source, []);
         bySource.get(source).push(item);
     });
+
+    const hasGoodVisual = (item) => {
+        const img = String(item?.img || '');
+        return img.length > 12 && !img.includes('ui-avatars.com') && !img.includes('favicon') && !img.includes('s2/favicons');
+    };
+
     const selected = Array.from(bySource.values()).map((items) => {
-        const nonLead = items.find(item => !clusterLeadIds.has(item.id));
-        const secondFresh = items[1] || items[0];
-        const nonCluster = items.find(item => !clusterArticleIds.has(item.id));
-        return nonLead || secondFresh || nonCluster || items[0];
-    }).filter(Boolean).sort((a, b) => (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0));
-    return selected.map((item) => {
+        if (!items || items.length === 0) return null;
+
+        // Stories não devem ser a cópia da manchete mais recente da fonte.
+        // A prioridade é segunda/terceira notícia, com imagem boa, fora do topo temporal e fora do lead de cluster.
+        const editorialCandidates = items.slice(1, 6);
+        const bestSecondary = editorialCandidates.find(item =>
+            !topFeedIds.has(item.id) &&
+            !clusterLeadIds.has(item.id) &&
+            !clusterArticleIds.has(item.id) &&
+            hasGoodVisual(item)
+        );
+        const secondaryNonTop = editorialCandidates.find(item => !topFeedIds.has(item.id) && !clusterLeadIds.has(item.id));
+        const secondaryVisual = editorialCandidates.find(item => hasGoodVisual(item));
+        const secondaryAny = items[1] || items[2] || null;
+        const nonCluster = items.find(item => !clusterArticleIds.has(item.id) && !clusterLeadIds.has(item.id));
+
+        return bestSecondary || secondaryNonTop || secondaryVisual || secondaryAny || nonCluster || items[0];
+    }).filter(Boolean);
+
+    const deduped = [];
+    const usedArticleIds = new Set();
+    selected
+      .sort((a, b) => (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0))
+      .forEach(item => {
+        if (!item?.id || usedArticleIds.has(item.id)) return;
+        usedArticleIds.add(item.id);
+        deduped.push(item);
+      });
+
+    return deduped.map((item) => {
         const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent((item.title || item.source || 'News').slice(0, 40))}&background=random&color=fff&size=800&font-size=0.33&length=3`;
         const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
-        return { id: `story-${item.id}`, sourceArticleId: item.id, name: item.source, avatar: item.logo || resolveLogoUrl({ source: item.source, feedUrl: item.link, feedLogo: null, siteUrl: item.link }), isBreaking: false, isAnchor: false, items: [{ ...item, img: finalImg, origin: 'story' }] };
-    });
+        return {
+          id: `story-${item.id}`,
+          sourceArticleId: item.id,
+          name: item.source,
+          avatar: item.logo || resolveLogoUrl({ source: item.source, feedUrl: item.link, feedLogo: null, siteUrl: item.link }),
+          isBreaking: false,
+          isAnchor: false,
+          items: [{ ...item, img: finalImg, origin: 'story' }]
+        };
+    }).slice(0, 18);
 };
 
 
@@ -7373,32 +7565,91 @@ const [stableHeuristicClusters, setStableHeuristicClusters] = useState([]);
 const [storiesForHappeningTab, setStoriesForHappeningTab] = useState([]);
 const storyRailRef = useRef([]);
 const feedRequestIdRef = useRef(0);
-const warmingSnapshotRef = useRef({ news: [], videos: [], podcasts: [], clusters: [], stories: [], timestamp: 0 });
+const visibleSnapshotRef = useRef({ news: [], videos: [], podcasts: [], clusters: [], stories: [], timestamp: 0, version: 0 });
+const stagingSnapshotRef = useRef(null);
+const warmingSnapshotRef = useRef({ news: [], videos: [], podcasts: [], clusters: [], stories: [], timestamp: 0, version: 0 });
+const lastCommittedSnapshotHashRef = useRef('');
+const feedFailureBackoffRef = useRef({});
+const feedAutoFetchKeyRef = useRef('');
+const lastTabRefreshAtRef = useRef(0);
+const didMountTabRefreshRef = useRef(false);
 const [feedUpdateToast, setFeedUpdateToast] = useState(null);
 const heuristicClusters = stableHeuristicClusters;
 
-const promoteEditorialSnapshot = useCallback((newsItems, { forceReset = false, reason = 'background' } = {}) => {
-    const safeNews = Array.isArray(newsItems) ? newsItems : [];
-    if (safeNews.length === 0) return;
-    const shouldUpdateClusters = forceReset || stableHeuristicClusters.length === 0;
-    let clustersForStories = globalClusters || stableHeuristicClusters;
-    if (shouldUpdateClusters && safeNews.length >= 5) {
-        const nextClusters = generateHeuristicClusters(safeNews);
-        clustersForStories = nextClusters;
-        setStableHeuristicClusters(nextClusters);
-        if (forceReset) setGlobalClusters(nextClusters);
+const showFeedToast = useCallback((message) => {
+    setFeedUpdateToast({ id: Date.now(), message });
+    window.setTimeout(() => {
+        setFeedUpdateToast(current => current?.message === message ? null : current);
+    }, 2800);
+}, []);
+
+const buildStableSnapshot = useCallback((newsItems = [], videoItems = [], podcastItems = []) => {
+    const sortedNews = smartFeedSort(newsItems);
+    const sortedVideos = sortByDateSafe(videoItems);
+    const sortedPodcasts = sortByDateSafe(podcastItems);
+    let clusters = generateHeuristicClusters(sortedNews);
+    if (!clusters || clusters.length < 3) {
+        const fallbackClusters = createFallbackEditorialClusters(sortedNews);
+        const existingKeys = new Set((clusters || []).map(cluster => normalizeSourceKey(cluster?.ai_title || '')));
+        fallbackClusters.forEach(cluster => {
+            const key = normalizeSourceKey(cluster?.ai_title || '');
+            if (!existingKeys.has(key)) clusters.push(cluster);
+        });
+        clusters = clusters.slice(0, 5);
     }
-    const nextStories = generateSmartStories(safeNews, clustersForStories);
-    const mergedStories = mergeSmartStoriesStable(storyRailRef.current, nextStories, 18, forceReset);
-    storyRailRef.current = mergedStories;
-    setStoriesForHappeningTab(mergedStories);
-}, [globalClusters, stableHeuristicClusters]);
+    const stories = generateSmartStories(sortedNews, clusters);
+    return normalizeSnapshotForStorage({
+        news: sortedNews,
+        videos: sortedVideos,
+        podcasts: sortedPodcasts,
+        clusters,
+        stories,
+        timestamp: Date.now(),
+        version: Date.now(),
+    });
+}, []);
+
+const commitVisibleSnapshot = useCallback((snapshot, options = {}) => {
+    let normalized = normalizeSnapshotForStorage(snapshot);
+    if (normalized.news?.length && ((!normalized.clusters || normalized.clusters.length === 0) || (!normalized.stories || normalized.stories.length === 0))) {
+        normalized = buildStableSnapshot(normalized.news, normalized.videos, normalized.podcasts);
+    }
+    if (!hasMeaningfulSnapshot(normalized) && !options.allowEmpty) return false;
+
+    const hash = buildSnapshotHash(normalized);
+    if (!options.forceCommit && hash && hash === lastCommittedSnapshotHashRef.current) {
+        if (options.toastMessage) showFeedToast(options.toastMessage);
+        return false;
+    }
+
+    lastCommittedSnapshotHashRef.current = hash;
+    visibleSnapshotRef.current = normalized;
+    storyRailRef.current = normalized.stories || [];
+    warmingSnapshotRef.current = normalized;
+
+    setRealNews(normalized.news || []);
+    setRealVideos(normalized.videos || []);
+    setRealPodcasts(normalized.podcasts || []);
+    setStableHeuristicClusters(normalized.clusters || []);
+    setStoriesForHappeningTab(normalized.stories || []);
+
+    if (options.updateGlobalClusters) {
+        setGlobalClusters(normalized.clusters || []);
+    } else {
+        setGlobalClusters(prev => prev && prev.length ? prev : (normalized.clusters || []));
+    }
+
+    persistVisibleSnapshot(normalized);
+    if (options.toastMessage) showFeedToast(options.toastMessage);
+    return true;
+}, [buildStableSnapshot, showFeedToast]);
 
 useEffect(() => {
-    if (realNews.length > 0 && (stableHeuristicClusters.length === 0 || storiesForHappeningTab.length === 0)) {
-        promoteEditorialSnapshot(realNews, { forceReset: stableHeuristicClusters.length === 0, reason: 'bootstrap' });
+    const cachedSnapshot = readVisibleSnapshotFromStorage();
+    if (cachedSnapshot && hasMeaningfulSnapshot(cachedSnapshot)) {
+        commitVisibleSnapshot(cachedSnapshot, { reason: 'local-cache', updateGlobalClusters: true, forceCommit: true });
     }
-}, [realNews, stableHeuristicClusters.length, storiesForHappeningTab.length, promoteEditorialSnapshot]);
+}, [commitVisibleSnapshot]);
 
 
  const handleAskAI = async (query) => {
@@ -7696,44 +7947,79 @@ const handleStoryNavigation = (direction) => {
     return spaced;
   };
 
-  // --- FETCH FEEDS VETRA ENGINE: snapshot rápido + refresh soberano + cache quente ---
+  // --- FETCH FEEDS VETRA ENGINE: snapshot visível congelado + staging em background ---
   const fetchFeeds = async (forceRefresh = false) => {
       const requestId = ++feedRequestIdRef.current;
       const isLatestRequest = () => requestId === feedRequestIdRef.current;
       const activeFeeds = userFeeds.filter(f => String(f?.url ?? '').trim());
+
       if (activeFeeds.length === 0) {
-          setRealNews([]); setRealVideos([]); setRealPodcasts([]);
-          setStableHeuristicClusters([]); setStoriesForHappeningTab([]); storyRailRef.current = [];
-          warmingSnapshotRef.current = { news: [], videos: [], podcasts: [], clusters: [], stories: [], timestamp: Date.now() };
+          const emptySnapshot = { news: [], videos: [], podcasts: [], clusters: [], stories: [], timestamp: Date.now(), version: Date.now() };
+          visibleSnapshotRef.current = emptySnapshot;
+          stagingSnapshotRef.current = null;
+          warmingSnapshotRef.current = emptySnapshot;
+          lastCommittedSnapshotHashRef.current = '';
+          setRealNews([]);
+          setRealVideos([]);
+          setRealPodcasts([]);
+          setStableHeuristicClusters([]);
+          setStoriesForHappeningTab([]);
+          storyRailRef.current = [];
+          setIsLoadingFeeds(false);
           return;
       }
-      const hasVisibleContent = realNews.length > 0 || realVideos.length > 0 || realPodcasts.length > 0;
+
+      const hasVisibleContent = hasMeaningfulSnapshot(visibleSnapshotRef.current);
       if (!hasVisibleContent) setIsLoadingFeeds(true);
+      if (forceRefresh && !stagingSnapshotRef.current) setIsLoadingFeeds(true);
+
       const textFeeds = activeFeeds.filter(f => f.type !== 'youtube' && f.type !== 'podcast' && !String(f?.url ?? '').includes('youtube.com'));
       const mediaFeeds = activeFeeds.filter(f => f.type === 'youtube' || f.type === 'podcast' || String(f?.url ?? '').includes('youtube.com'));
+
       const allNewsItems = [];
       const allVideoItems = [];
       const allPodcastItems = [];
-      const feedsThatNeedUpdate = [];
       const newHistoryBuffer = { ...articleHistory };
       let completedTextFeeds = 0;
-      let firstTextPaintDone = false;
-      const sortByDate = (items) => [...items].sort((a, b) => (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0));
-      const promoteToast = (message) => { setFeedUpdateToast({ id: Date.now(), message }); setTimeout(() => setFeedUpdateToast(current => current?.message === message ? null : current), 2600); };
+      let initialSnapshotCommitted = false;
+      let stagedSnapshotWasCommitted = false;
+
+      const maybeCommitStagedSnapshot = () => {
+          const staged = stagingSnapshotRef.current;
+          if (!forceRefresh || !staged || !hasMeaningfulSnapshot(staged)) return false;
+          const didCommit = commitVisibleSnapshot(staged, {
+              reason: 'manual-staged',
+              updateGlobalClusters: true,
+              toastMessage: 'Feed atualizado',
+              forceCommit: false,
+          });
+          if (didCommit) {
+              stagedSnapshotWasCommitted = true;
+              stagingSnapshotRef.current = null;
+              setIsLoadingFeeds(false);
+          }
+          return didCommit;
+      };
+
+      maybeCommitStagedSnapshot();
+
       const normalizeFeedItems = (feed, rawItems, detectedXmlTitle, feedLogo, isFeedYoutube, siteLink) => {
           const currentFeedTitle = String(feed?.name ?? detectedXmlTitle ?? 'Fonte');
           const resolvedSource = detectedXmlTitle || currentFeedTitle;
-          const finalLogo = resolveLogoUrl({ source: resolvedSource, feedUrl: feed.url, feedLogo, siteUrl: siteLink || feed.url });
-          let LIMIT = 18; if (feed.type === 'podcast') LIMIT = 4; else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 5;
-          return (rawItems || []).slice(0, LIMIT).map((item, index) => {
-              const itemTitle = normalizeSpaces(String(item?.title ?? item?.name ?? item?.description ?? '').replace(/<[^>]*>?/gm, ' '));
-              const itemLink = String(item?.link ?? item?.url ?? item?.guid ?? '').trim();
-              if (!itemTitle && !itemLink) return null;
-              const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
-              const now = Date.now(); const parsedDate = new Date(rawDateString);
-              let baseTimestamp; let dateEstimated = false;
+          const finalLogo = resolveLogoUrl({ source: resolvedSource, feedUrl: feed.url, feedLogo: feedLogo || feed.logo, siteUrl: siteLink || feed.url });
+          return (rawItems || []).slice(0, 30).map((item, index) => {
+              const itemTitle = stripFeedText(item?.title || item?.name || item?.description || item?.summary || '', 180);
+              const itemLink = item?.link || item?.url || item?.guid || '';
+              const rawDateString = item?.pubDate || item?.isoDate || item?.date || item?.published || item?.updated;
+              const parsedDate = new Date(rawDateString);
+              const now = Date.now();
+              let baseTimestamp;
+              let dateEstimated = false;
               if (rawDateString && !isNaN(parsedDate.getTime())) baseTimestamp = Math.min(parsedDate.getTime(), now);
-              else { dateEstimated = true; baseTimestamp = now - (2 * 60 * 60 * 1000) - (index * 7 * 60 * 1000); }
+              else {
+                  dateEstimated = true;
+                  baseTimestamp = now - (2 * 60 * 60 * 1000) - (index * 7 * 60 * 1000);
+              }
               const stableKey = buildArticleStableKey(feed, { title: itemTitle, link: itemLink });
               const computed = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
               const finalTimestamp = (newHistoryBuffer[stableKey] != null) ? newHistoryBuffer[stableKey] : computed;
@@ -7742,85 +8028,193 @@ const handleStoryNavigation = (direction) => {
               const primaryLink = itemLink || item.link;
               const audioReal = item.audioFile || item.audio;
               const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube || item.isYoutube;
-              let finalType = 'link'; if (isYoutubeItem) finalType = 'video'; else if (audioReal || primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i)) finalType = 'audio';
+              let finalType = 'link';
+              if (isYoutubeItem) finalType = 'video';
+              else if (audioReal || primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i)) finalType = 'audio';
               const imageFromItem = item.img || item.image || item.thumbnail || item.mediaThumbnail;
               const finalImage = absolutizeUrl(imageFromItem, primaryLink || siteLink || feed.url) || finalLogo;
               const cleanSummary = stripFeedText(item?.summary || item?.description || item?.contentEncoded || '', 300);
               const stableHash = stringToHash(`${feed.id}-${item.id || itemTitle}-${primaryLink || index}`);
-              return { id: `${feed.id}-${stableHash}`, source: resolvedSource, logo: finalLogo, time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), rawDate: finalDateObj, historicalTimestamp: finalTimestamp, title: itemTitle || 'Notícia sem título', summary: cleanSummary, category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'), type: finalType, img: finalImage, link: primaryLink, audio: audioReal || (primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i) ? primaryLink : null), videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null), date: finalDateObj.toLocaleDateString() };
+              return {
+                  id: `${feed.id}-${stableHash}`,
+                  source: resolvedSource,
+                  logo: finalLogo,
+                  time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  rawDate: finalDateObj,
+                  historicalTimestamp: finalTimestamp,
+                  title: itemTitle || 'Notícia sem título',
+                  summary: cleanSummary,
+                  category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'),
+                  type: finalType,
+                  img: finalImage,
+                  link: primaryLink,
+                  audio: audioReal || (primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i) ? primaryLink : null),
+                  videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
+                  date: finalDateObj.toLocaleDateString()
+              };
           }).filter(Boolean);
       };
+
       const processSingleFeed = async (feed) => {
+          const feedKey = String(feed?.id || feed?.url || feed?.name || 'feed');
+          const failureState = feedFailureBackoffRef.current[feedKey];
+          if (!forceRefresh && failureState && (Date.now() - failureState.timestamp < FEED_FAILURE_BACKOFF_MS)) {
+              return { feed, items: [], title: feed.name, logo: feed.logo, isYoutube: String(feed?.url ?? '').includes('youtube.com'), fromBackoff: true };
+          }
+
           const mem = feedMemoryBuffer.current[feed.id];
-          if (!forceRefresh && mem && (Date.now() - mem.timestamp < FEED_MEMORY_TTL)) return { feed, items: mem.items || [], title: mem.title, logo: mem.logo, isYoutube: mem.isYoutube, fromCache: true };
-          let rawItems = []; let detectedXmlTitle = String(feed?.name ?? 'Fonte'); let feedLogo = feed.logo || null; let siteLink = feed.url; let isFeedYoutube = String(feed?.url ?? '').includes('youtube.com') || String(feed?.url ?? '').includes('youtu.be'); let success = false;
+          if (!forceRefresh && mem && (Date.now() - mem.timestamp < FEED_MEMORY_TTL)) {
+              return { feed, items: mem.items || [], title: mem.title, logo: mem.logo, isYoutube: mem.isYoutube, fromCache: true };
+          }
+
+          let rawItems = [];
+          let detectedXmlTitle = String(feed?.name ?? 'Fonte');
+          let feedLogo = feed.logo || null;
+          let siteLink = feed.url;
+          let isFeedYoutube = String(feed?.url ?? '').includes('youtube.com') || String(feed?.url ?? '').includes('youtu.be');
+          let success = false;
+
           try {
               let invokeResult = await withPromiseTimeout(
-                  supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } }),
+                  supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true, allowProxy: false } }),
                   FEED_EDGE_TIMEOUT_MS,
                   `parse-feed ${feed.name || feed.url}`
               );
+
               if (!invokeResult?.error && !invokeResult?.data?.items?.length && forceRefresh) {
                   invokeResult = await withPromiseTimeout(
-                      supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: false } }),
+                      supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: false, allowProxy: false } }),
                       FEED_EDGE_TIMEOUT_MS,
                       `parse-feed completo ${feed.name || feed.url}`
                   );
               }
+
               const data = invokeResult?.data;
-              if (!invokeResult?.error && data?.items?.length > 0) { rawItems = data.items; detectedXmlTitle = data.title || detectedXmlTitle; feedLogo = data.image || data.logo || feedLogo; siteLink = data.link || data.feedUrl || data.url || siteLink; isFeedYoutube = !!data.isYoutube; success = true; }
-          } catch (e) { console.warn('Falha/timeout na Edge Function parse-feed:', feed.url, e?.message || e); }
-          // Fallback externo é lento e não deve travar a abertura do app. Só roda no pull-to-refresh.
+              if (!invokeResult?.error && data?.items?.length > 0) {
+                  rawItems = data.items;
+                  detectedXmlTitle = data.title || detectedXmlTitle;
+                  feedLogo = data.image || data.logo || feedLogo;
+                  siteLink = data.link || data.feedUrl || data.url || siteLink;
+                  isFeedYoutube = !!data.isYoutube;
+                  success = true;
+              }
+          } catch (error) {
+              const lastLog = failureState?.lastLog || 0;
+              if (Date.now() - lastLog > 60000) {
+                  console.warn('Feed degradado temporariamente:', feed.url, error?.message || error);
+              }
+              feedFailureBackoffRef.current[feedKey] = { timestamp: Date.now(), lastLog: Date.now() };
+          }
+
+          // Fallback externo fica reservado para refresh manual e mesmo assim curto.
           if (!success && forceRefresh) {
               const proxyCandidates = [`https://api.allorigins.win/raw?url=${encodeURIComponent(feed.url)}`];
               for (const proxyUrl of proxyCandidates) {
-                  try { const res = await fetchWithTimeout(proxyUrl, { timeout: FEED_FETCH_TIMEOUT_MS }); if (!res.ok) continue; const xmlText = await res.text(); const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id, feed.url); if (parsedData.items.length > 0) { rawItems = parsedData.items; detectedXmlTitle = parsedData.realTitle || detectedXmlTitle; feedLogo = parsedData.realLogo || feedLogo; siteLink = parsedData.siteLink || siteLink; success = true; break; } } catch (e) {}
+                  try {
+                      const res = await fetchWithTimeout(proxyUrl, { timeout: 1800 });
+                      if (!res.ok) continue;
+                      const xmlText = await res.text();
+                      const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id, feed.url);
+                      if (parsedData.items.length > 0) {
+                          rawItems = parsedData.items;
+                          detectedXmlTitle = parsedData.realTitle || detectedXmlTitle;
+                          feedLogo = parsedData.realLogo || feedLogo;
+                          siteLink = parsedData.siteLink || siteLink;
+                          success = true;
+                          break;
+                      }
+                  } catch (_error) {}
               }
           }
-          if (!success || rawItems.length === 0) return { feed, items: [], title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube, fromCache: false };
+
+          if (!success || rawItems.length === 0) {
+              if (!feedFailureBackoffRef.current[feedKey]) {
+                  feedFailureBackoffRef.current[feedKey] = { timestamp: Date.now(), lastLog: 0 };
+              }
+              return { feed, items: [], title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube, fromCache: false };
+          }
+
+          delete feedFailureBackoffRef.current[feedKey];
           const processedItems = normalizeFeedItems(feed, rawItems, detectedXmlTitle, feedLogo, isFeedYoutube, siteLink);
           const finalLogo = resolveLogoUrl({ source: detectedXmlTitle, feedUrl: feed.url, feedLogo, siteUrl: siteLink });
           feedMemoryBuffer.current[feed.id] = { timestamp: Date.now(), items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube };
-          try { localStorage.removeItem(`${FEED_CACHE_PREFIX}${feed.id}`); } catch (e) {}
+          try { localStorage.removeItem(`${FEED_CACHE_PREFIX}${feed.id}`); } catch (_error) {}
           return { feed, items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube, fromCache: false };
       };
-      const commitTextSnapshot = (items, { partial = false, force = false } = {}) => {
-          if (!isLatestRequest()) return;
-          const sorted = smartFeedSort(items);
-          if (sorted.length === 0 && !force) return;
-          setRealNews(sorted);
-          if (!partial || stableHeuristicClusters.length === 0 || force) promoteEditorialSnapshot(sorted, { forceReset: force || stableHeuristicClusters.length === 0, reason: partial ? 'first-paint' : 'final' });
-          else { const nextStories = generateSmartStories(sorted, globalClusters || stableHeuristicClusters); const merged = mergeSmartStoriesStable(storyRailRef.current, nextStories, 18, false); storyRailRef.current = merged; setStoriesForHappeningTab(merged); }
-      };
-      if (forceRefresh) {
-          const cachedNews = []; const cachedVideos = []; const cachedPodcasts = [];
-          activeFeeds.forEach(feed => { const mem = feedMemoryBuffer.current[feed.id]; if (!mem?.items?.length) return; if (feed.type === 'podcast') cachedPodcasts.push(...mem.items); else if (feed.type === 'youtube' || mem.isYoutube || String(feed?.url ?? '').includes('youtube.com')) cachedVideos.push(...mem.items); else cachedNews.push(...mem.items); });
-          if (cachedNews.length > 0 || cachedVideos.length > 0 || cachedPodcasts.length > 0) { setRealNews(smartFeedSort(cachedNews)); setRealVideos(sortByDate(cachedVideos)); setRealPodcasts(sortByDate(cachedPodcasts)); promoteEditorialSnapshot(smartFeedSort(cachedNews), { forceReset: false, reason: 'warm-cache' }); }
-      }
-      try {
-          await runConcurrentPool(textFeeds, FEED_TEXT_CONCURRENCY, async (feed) => {
-              const result = await processSingleFeed(feed); completedTextFeeds += 1;
-              if (result.feed.name === 'Nova Fonte' || result.feed.name === 'Sem Título') feedsThatNeedUpdate.push({ id: result.feed.id, name: result.title || result.feed.name, logo: result.logo });
-              allNewsItems.push(...result.items);
-              if (!firstTextPaintDone && shouldDoFirstPaint({ items: allNewsItems, completedTextFeeds, totalTextFeeds: textFeeds.length })) { firstTextPaintDone = true; commitTextSnapshot(allNewsItems, { partial: true, force: false }); setIsLoadingFeeds(false); }
-          });
-          commitTextSnapshot(allNewsItems, { partial: false, force: forceRefresh }); setIsLoadingFeeds(false);
-          await runConcurrentPool(mediaFeeds, FEED_MEDIA_CONCURRENCY, async (feed) => {
-              const result = await processSingleFeed(feed);
-              if (result.feed.name === 'Nova Fonte' || result.feed.name === 'Sem Título') feedsThatNeedUpdate.push({ id: result.feed.id, name: result.title || result.feed.name, logo: result.logo });
-              if (result.feed.type === 'podcast') allPodcastItems.push(...result.items); else if (result.feed.type === 'youtube' || result.isYoutube) allVideoItems.push(...result.items); else allNewsItems.push(...result.items);
-          });
-          if (!isLatestRequest()) return;
-          const sortedNews = smartFeedSort(allNewsItems); const sortedVideos = sortByDate(allVideoItems); const sortedPodcasts = sortByDate(allPodcastItems);
-          if (sortedNews.length > 0 || forceRefresh) setRealNews(sortedNews); if (sortedVideos.length > 0 || forceRefresh) setRealVideos(sortedVideos); if (sortedPodcasts.length > 0 || forceRefresh) setRealPodcasts(sortedPodcasts);
-          const nextClusters = generateHeuristicClusters(sortedNews); warmingSnapshotRef.current = { news: sortedNews, videos: sortedVideos, podcasts: sortedPodcasts, clusters: nextClusters, stories: generateSmartStories(sortedNews, nextClusters), timestamp: Date.now() };
-          promoteEditorialSnapshot(sortedNews, { forceReset: forceRefresh || stableHeuristicClusters.length === 0, reason: forceRefresh ? 'manual-push' : 'final' });
-          if (feedsThatNeedUpdate.length > 0) setUserFeeds(prev => prev.map(f => { const update = feedsThatNeedUpdate.find(u => u.id === f.id); return update ? { ...f, name: update.name, logo: update.logo || f.logo } : f; }));
-          setArticleHistory(newHistoryBuffer); if (forceRefresh) promoteToast('Feed atualizado');
-      } catch (error) { console.error('Erro geral ao buscar feeds:', error); }
-      finally { if (isLatestRequest()) setIsLoadingFeeds(false); }
-  };
 
+      const collectTextFeed = async (feed) => {
+          const result = await processSingleFeed(feed);
+          completedTextFeeds += 1;
+          allNewsItems.push(...(result.items || []));
+      };
+
+      const collectMediaFeed = async (feed) => {
+          const result = await processSingleFeed(feed);
+          if (result.feed.type === 'podcast') allPodcastItems.push(...(result.items || []));
+          else if (result.feed.type === 'youtube' || result.isYoutube) allVideoItems.push(...(result.items || []));
+          else allNewsItems.push(...(result.items || []));
+      };
+
+      try {
+          const textPoolPromise = runConcurrentPool(textFeeds, FEED_TEXT_CONCURRENCY, collectTextFeed);
+
+          if (!hasVisibleContent && !forceRefresh) {
+              await Promise.race([textPoolPromise, sleep(FEED_STARTUP_WINDOW_MS)]);
+              if (!isLatestRequest()) return;
+
+              let initialSnapshot = buildStableSnapshot(allNewsItems, [], []);
+              if (!isInitialSnapshotGoodEnough(initialSnapshot, completedTextFeeds >= textFeeds.length)) {
+                  await Promise.race([textPoolPromise, sleep(Math.max(1000, FEED_STARTUP_HARD_LIMIT_MS - FEED_STARTUP_WINDOW_MS))]);
+                  if (!isLatestRequest()) return;
+                  initialSnapshot = buildStableSnapshot(allNewsItems, [], []);
+              }
+
+              if (hasMeaningfulSnapshot(initialSnapshot)) {
+                  commitVisibleSnapshot(initialSnapshot, { reason: 'initial-window', updateGlobalClusters: true, forceCommit: true });
+                  initialSnapshotCommitted = true;
+                  setIsLoadingFeeds(false);
+              }
+          }
+
+          await textPoolPromise;
+          if (!isLatestRequest()) return;
+
+          await runConcurrentPool(mediaFeeds, FEED_MEDIA_CONCURRENCY, collectMediaFeed);
+          if (!isLatestRequest()) return;
+
+          const finalSnapshot = buildStableSnapshot(allNewsItems, allVideoItems, allPodcastItems);
+          setArticleHistory(newHistoryBuffer);
+
+          if (forceRefresh) {
+              const didCommitFresh = commitVisibleSnapshot(finalSnapshot, {
+                  reason: 'manual-fresh',
+                  updateGlobalClusters: true,
+                  toastMessage: stagedSnapshotWasCommitted ? 'Feed refinado' : 'Feed atualizado',
+                  forceCommit: false,
+              });
+              if (!didCommitFresh && !stagedSnapshotWasCommitted) showFeedToast('Sem novas notícias agora');
+              stagingSnapshotRef.current = null;
+              warmingSnapshotRef.current = finalSnapshot;
+          } else if (!hasMeaningfulSnapshot(visibleSnapshotRef.current)) {
+              commitVisibleSnapshot(finalSnapshot, { reason: 'late-initial', updateGlobalClusters: true, forceCommit: true });
+          } else {
+              // Background: prepara o próximo snapshot, mas não mexe no que o usuário está vendo.
+              stagingSnapshotRef.current = finalSnapshot;
+              warmingSnapshotRef.current = finalSnapshot;
+
+              const visibleHash = buildSnapshotHash(visibleSnapshotRef.current);
+              const stagingHash = buildSnapshotHash(finalSnapshot);
+              const delta = Math.max(0, (finalSnapshot.news?.length || 0) - (visibleSnapshotRef.current.news?.length || 0));
+              if (stagingHash && stagingHash !== visibleHash && !initialSnapshotCommitted && delta >= 4) {
+                  showFeedToast('Novas notícias disponíveis');
+              }
+          }
+      } catch (error) {
+          console.error('Erro geral ao buscar feeds:', error);
+      } finally {
+          if (isLatestRequest()) setIsLoadingFeeds(false);
+      }
+  };
 
 
   // --- OTIMIZAÇÃO DE MEMÓRIA: ARRAY ÚNICO MEMORIZADO ---
@@ -7832,7 +8226,46 @@ const handleStoryNavigation = (direction) => {
   }, [realNews, realVideos, realPodcasts]);
 
 
-  useEffect(() => { fetchFeeds(); }, [userFeeds]);
+  const userFeedsStableKey = useMemo(() => {
+      return (userFeeds || [])
+        .map(feed => `${feed?.id || ''}|${feed?.url || ''}|${feed?.type || ''}|${feed?.category || ''}|${feed?.display?.feed !== false ? '1' : '0'}`)
+        .join(';;');
+  }, [userFeeds]);
+
+  useEffect(() => {
+      if (!userFeedsStableKey) return;
+      if (feedAutoFetchKeyRef.current === userFeedsStableKey) return;
+      feedAutoFetchKeyRef.current = userFeedsStableKey;
+      fetchFeeds(false);
+      // fetchFeeds é intencionalmente não listado: a chave estável de feeds governa a coleta.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userFeedsStableKey]);
+
+  useEffect(() => {
+      if (!userFeedsStableKey) return;
+      if (!didMountTabRefreshRef.current) {
+          didMountTabRefreshRef.current = true;
+          return;
+      }
+
+      const staged = stagingSnapshotRef.current;
+      if (staged && hasMeaningfulSnapshot(staged)) {
+          const didCommit = commitVisibleSnapshot(staged, {
+              reason: 'tab-change',
+              updateGlobalClusters: true,
+              toastMessage: 'Feed atualizado',
+          });
+          if (didCommit) stagingSnapshotRef.current = null;
+          return;
+      }
+
+      const now = Date.now();
+      if (now - lastTabRefreshAtRef.current > 120000) {
+          lastTabRefreshAtRef.current = now;
+          fetchFeeds(false);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, userFeedsStableKey, commitVisibleSnapshot]);
 
   // FUNÇÕES GLOBAIS DE INTERFACE
   
@@ -8158,7 +8591,7 @@ return (
     // ESTRUTURA PRINCIPAL AGORA É FLEX PARA ACOMODAR O PAINEL LATERAL
     <div className={`h-[100dvh] font-sans flex overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       
-      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} durationMs={hasMeaningfulSnapshot(visibleSnapshotRef.current) ? 1300 : 5400} hasWarmSnapshot={hasMeaningfulSnapshot(visibleSnapshotRef.current)} />}
       
       {/* --- COLUNA 1: SUA ESTRUTURA ANTIGA, INTACTA --- */}
       {/* Este é o seu div antigo que continha todo o app. Agora ele é a coluna principal. */}
@@ -8183,7 +8616,6 @@ return (
                    }}
                     isDarkMode={isDarkMode} 
                     newsData={realNews}
-                    heuristicClusters={heuristicClusters}
                     // AÇÃO 1: Pull-to-Refresh
                     onRefresh={handleHappeningRefresh}
                     onOpenPodNews={handleOpenPodNews}

@@ -14,8 +14,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const REQUEST_TIMEOUT_MS = 3500;
-const OG_TIMEOUT_MS = 1000;
+const REQUEST_TIMEOUT_MS = 3000;
+const OG_TIMEOUT_MS = 900;
 const MAX_ITEMS_DEFAULT = 30;
 const MAX_ITEMS_BRIEF = 12;
 
@@ -131,13 +131,19 @@ async function fetchText(url: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<F
   };
 }
 
-async function fetchTextWithFallback(url: string): Promise<FetchResult> {
+async function fetchTextWithFallback(url: string, allowProxy = false): Promise<FetchResult> {
   try {
     return await fetchText(url);
   } catch (primaryError) {
+    // Na abertura do app o proxy externo é proibido: ele é lento, instável e causava cascata de loading.
+    // Só é permitido quando o front pedir explicitamente allowProxy=true em uma ação manual.
+    if (!allowProxy) {
+      throw primaryError instanceof Error ? primaryError : new Error("Falha ao carregar URL");
+    }
+
     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
     try {
-      const proxied = await fetchText(proxyUrl, 1800);
+      const proxied = await fetchText(proxyUrl, 1600);
       return { ...proxied, finalUrl: url };
     } catch (_proxyError) {
       throw primaryError instanceof Error ? primaryError : new Error("Falha ao carregar URL");
@@ -344,9 +350,9 @@ function discoverFeedsFromHtml(html: string, pageUrl: string): string[] {
   return discovered.slice(0, 10);
 }
 
-async function resolveFeedUrl(inputUrl: string, forceDiscover = false): Promise<{ feedUrl: string; fetched: FetchResult }> {
+async function resolveFeedUrl(inputUrl: string, forceDiscover = false, allowProxy = false): Promise<{ feedUrl: string; fetched: FetchResult }> {
   const normalized = normalizeUrl(inputUrl);
-  const first = await fetchTextWithFallback(normalized);
+  const first = await fetchTextWithFallback(normalized, allowProxy);
 
   if (!forceDiscover && looksLikeXml(first.text, first.contentType, first.finalUrl || normalized)) {
     return { feedUrl: first.finalUrl || normalized, fetched: first };
@@ -356,7 +362,7 @@ async function resolveFeedUrl(inputUrl: string, forceDiscover = false): Promise<
   let lastError: unknown = null;
   for (const candidate of candidates) {
     try {
-      const fetched = await fetchTextWithFallback(candidate);
+      const fetched = await fetchTextWithFallback(candidate, allowProxy);
       if (looksLikeXml(fetched.text, fetched.contentType, fetched.finalUrl || candidate)) {
         return { feedUrl: fetched.finalUrl || candidate, fetched };
       }
@@ -414,9 +420,10 @@ serve(async (req) => {
     const inputUrl = safeString(body.url);
     const forceDiscover = body.type === "discover" || body.discover === true;
     const brief = body.brief === true;
+    const allowProxy = body.allowProxy === true && !brief;
     if (!inputUrl) return jsonResponse({ error: "URL is required" }, 400);
 
-    const { feedUrl, fetched } = await resolveFeedUrl(inputUrl, forceDiscover);
+    const { feedUrl, fetched } = await resolveFeedUrl(inputUrl, forceDiscover, allowProxy);
     const repairedXml = repairXML(fetched.text);
     const feed = await parser.parseString(repairedXml);
 
