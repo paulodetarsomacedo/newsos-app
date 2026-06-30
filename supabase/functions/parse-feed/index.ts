@@ -14,10 +14,10 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const REQUEST_TIMEOUT_MS = 3000;
-const OG_TIMEOUT_MS = 900;
+const REQUEST_TIMEOUT_MS = 5200;
+const OG_TIMEOUT_MS = 1400;
 const MAX_ITEMS_DEFAULT = 30;
-const MAX_ITEMS_BRIEF = 12;
+const MAX_ITEMS_BRIEF = 20;
 
 const parser = new Parser({
   timeout: REQUEST_TIMEOUT_MS,
@@ -94,6 +94,20 @@ function withTimeoutSignal(ms: number): AbortSignal {
   return controller.signal;
 }
 
+function decoderFor(label: string): TextDecoder {
+  try {
+    return new TextDecoder(label);
+  } catch (_e) {
+    return new TextDecoder("iso-8859-1");
+  }
+}
+
+function textBadness(text: string): number {
+  const replacement = (text.match(/�/g) || []).length * 4;
+  const mojibake = (text.match(/Ã.|Â.|â€|â€“|â€œ|â€/g) || []).length;
+  return replacement + mojibake;
+}
+
 function decodeBuffer(buffer: ArrayBuffer, contentType = ""): string {
   const firstUtf8 = new TextDecoder("utf-8").decode(buffer);
   const xmlEncoding = firstUtf8.match(/<\?xml[^>]+encoding=["']([^"']+)["']/i)?.[1]?.toLowerCase() || "";
@@ -101,9 +115,14 @@ function decodeBuffer(buffer: ArrayBuffer, contentType = ""): string {
   const headerCharset = contentType.match(/charset=([^;]+)/i)?.[1]?.trim().toLowerCase() || "";
   const charset = headerCharset || xmlEncoding || metaCharset;
 
-  if (charset.includes("iso-8859-1") || charset.includes("latin1") || charset.includes("latin-1") || charset.includes("windows-1252")) {
-    return new TextDecoder("iso-8859-1").decode(buffer);
-  }
+  const wantsLatin = charset.includes("iso-8859-1") || charset.includes("latin1") || charset.includes("latin-1") || charset.includes("windows-1252") || charset.includes("cp1252");
+  const latinText = () => decoderFor("windows-1252").decode(buffer);
+  if (wantsLatin) return latinText();
+
+  const latinCandidate = latinText();
+  // Muitos feeds brasileiros anunciam UTF-8, mas entregam bytes Latin-1/Windows-1252.
+  // Se o UTF-8 gerou � ou mojibake, troca para Windows-1252.
+  if (textBadness(firstUtf8) > 0 && textBadness(latinCandidate) < textBadness(firstUtf8)) return latinCandidate;
   return firstUtf8;
 }
 
@@ -222,20 +241,76 @@ function extractUrlFromField(field: any): string | null {
   return null;
 }
 
+function bestFromSrcset(srcset: string | null): string | null {
+  if (!srcset) return null;
+  const candidates = srcset.split(",").map(part => part.trim().split(/\s+/)[0]).filter(Boolean);
+  return candidates[candidates.length - 1] || null;
+}
+
+function extractImageFromJsonLd(html: string): string | null {
+  const scripts = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
+  for (const script of scripts) {
+    const raw = script.replace(/^[\s\S]*?>/, "").replace(/<\/script>$/i, "").trim();
+    try {
+      const parsed = JSON.parse(raw);
+      const list = Array.isArray(parsed) ? parsed : [parsed];
+      for (const item of list) {
+        const image = item?.image || item?.thumbnailUrl || item?.logo;
+        if (typeof image === "string") return image;
+        if (Array.isArray(image) && image[0]) return typeof image[0] === "string" ? image[0] : image[0]?.url;
+        if (image?.url) return image.url;
+        if (item?.['@graph']) {
+          const nested = Array.isArray(item['@graph']) ? item['@graph'] : [item['@graph']];
+          for (const node of nested) {
+            const nestedImage = node?.image || node?.thumbnailUrl;
+            if (typeof nestedImage === "string") return nestedImage;
+            if (Array.isArray(nestedImage) && nestedImage[0]) return typeof nestedImage[0] === "string" ? nestedImage[0] : nestedImage[0]?.url;
+            if (nestedImage?.url) return nestedImage.url;
+          }
+        }
+      }
+    } catch (_e) {}
+  }
+  return null;
+}
+
 function extractImageFromHtml(html: string): string | null {
   let content = htmlDecode(html || "");
   if (!content) return null;
 
+  const metaPatterns = [
+    /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
+    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
+  ];
+  for (const pattern of metaPatterns) {
+    const found = content.match(pattern)?.[1];
+    if (found) return found;
+  }
+
+  const jsonLdImage = extractImageFromJsonLd(content);
+  if (jsonLdImage) return jsonLdImage;
+
   try {
     const doc = new DOMParser().parseFromString(content, "text/html");
     if (doc) {
+      const sources = doc.querySelectorAll("picture source, source");
+      for (const source of sources) {
+        const srcset = bestFromSrcset(source.getAttribute("srcset") || source.getAttribute("data-srcset"));
+        if (srcset && !/pixel|spacer|blank|\.gif|\.svg|\.woff/i.test(srcset)) return srcset;
+      }
       const images = doc.querySelectorAll("img");
       for (const img of images) {
         const src = img.getAttribute("data-src") ||
           img.getAttribute("data-original") ||
           img.getAttribute("data-lazy-src") ||
+          img.getAttribute("data-srcset") ||
+          bestFromSrcset(img.getAttribute("srcset")) ||
           img.getAttribute("src");
-        if (src && !/pixel|spacer|blank|\.gif|\.svg|\.woff/i.test(src)) return src;
+        const width = Number(img.getAttribute("width") || 0);
+        const height = Number(img.getAttribute("height") || 0);
+        if (src && !/pixel|spacer|blank|\.gif|\.svg|\.woff/i.test(src) && (!width || width >= 120) && (!height || height >= 80)) return src;
       }
     }
   } catch (_e) {}
@@ -257,19 +332,9 @@ async function fetchOgImage(url: string): Promise<string | null> {
   if (!isHttpUrl(url)) return null;
   try {
     const { text, finalUrl } = await fetchText(url, OG_TIMEOUT_MS);
-    const html = text.slice(0, 220000);
-    const metaPatterns = [
-      /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
-      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
-      /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
-      /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
-    ];
-    for (const pattern of metaPatterns) {
-      const found = html.match(pattern)?.[1];
-      const resolved = absolutizeUrl(found, finalUrl || url);
-      if (resolved) return resolved;
-    }
-    return null;
+    const html = text.slice(0, 260000);
+    const found = extractImageFromHtml(html);
+    return absolutizeUrl(found, finalUrl || url);
   } catch (_e) {
     return null;
   }
@@ -421,6 +486,8 @@ serve(async (req) => {
     const forceDiscover = body.type === "discover" || body.discover === true;
     const brief = body.brief === true;
     const allowProxy = body.allowProxy === true && !brief;
+    const requestedLimit = Number(body.limit || 0);
+    const enrichImages = body.enrichImages === true;
     if (!inputUrl) return jsonResponse({ error: "URL is required" }, 400);
 
     const { feedUrl, fetched } = await resolveFeedUrl(inputUrl, forceDiscover, allowProxy);
@@ -436,12 +503,12 @@ serve(async (req) => {
     }
     if (!feedLogo) feedLogo = getDomainLogo(feed.link || feedUrl, feed.title || getHostname(feedUrl));
 
-    const limit = brief ? MAX_ITEMS_BRIEF : MAX_ITEMS_DEFAULT;
+    const limit = Math.max(1, Math.min(requestedLimit || (brief ? MAX_ITEMS_BRIEF : MAX_ITEMS_DEFAULT), 60));
     const sourceItems = Array.isArray(feed.items) ? feed.items.slice(0, limit) : [];
 
     const normalizedItems = await Promise.all(sourceItems.map(async (item, index) => {
       const normalized = normalizeItem(item, index, feed, feedUrl, feedLogo, isYoutube);
-      if (!normalized.img && normalized.link && !brief) {
+      if ((!normalized.img || normalized.img === feedLogo) && normalized.link && enrichImages) {
         normalized.img = await fetchOgImage(normalized.link);
       }
       if (!normalized.img) normalized.img = feedLogo;

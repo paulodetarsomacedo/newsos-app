@@ -1316,7 +1316,13 @@ function FeedTab({
   onReadArticle, 
   onGenerateAudio,
   onSwipeLeftArticle,
-  openArticle // Esta é a função que abre o painel de IA
+  openArticle, // Esta é a função que abre o painel de IA
+  sourceCatalog = [],
+  sourceStatusMap = {},
+  sourceCacheView = {},
+  onEnsureSourceLoaded,
+  stagedUpdateInfo,
+  onApplyStagedUpdate
 }) {
   
   // Estados e lógica pertencentes APENAS ao feed
@@ -1366,8 +1372,17 @@ function FeedTab({
   }, [audioUrl]);
 
   const safeNews = useMemo(() => stableData || [], [stableData]);
+  const catalogById = useMemo(() => new Map((sourceCatalog || []).map(source => [source.id, source])), [sourceCatalog]);
+  const selectedSourceMeta = sourceFilter === 'all' ? null : catalogById.get(sourceFilter);
   const filteredByCategory = useMemo(() => category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category), [safeNews, category]);
-  const filteredBySource = useMemo(() => sourceFilter === 'all' ? filteredByCategory : filteredByCategory.filter(n => n.source === sourceFilter), [filteredByCategory, sourceFilter]);
+  const sourceSpecificBase = useMemo(() => {
+      if (sourceFilter === 'all') return filteredByCategory;
+      const cacheItems = sourceCacheView?.[sourceFilter] || [];
+      const fromCache = category === 'Tudo' ? cacheItems : cacheItems.filter(n => n.category === category);
+      if (fromCache.length > 0) return fromCache;
+      return filteredByCategory.filter(n => n.sourceId === sourceFilter || n.sourceKey === sourceFilter || n.source === sourceFilter || getEditorialGroupKey(n.source, n.link) === selectedSourceMeta?.groupKey);
+  }, [sourceFilter, filteredByCategory, sourceCacheView, category, selectedSourceMeta]);
+  const filteredBySource = sourceSpecificBase;
 const sortedFeed = useMemo(() => smartFeedSort(filteredBySource), [filteredBySource]);  
 const uniqueNews = useMemo(() => {
       const seen = new Set();
@@ -1377,6 +1392,14 @@ const uniqueNews = useMemo(() => {
           return true;
       }).slice(0, 50); 
   }, [sortedFeed]);
+
+  useEffect(() => {
+      if (sourceFilter !== 'all' && onEnsureSourceLoaded) {
+          const cachedCount = sourceCacheView?.[sourceFilter]?.length || 0;
+          const status = sourceStatusMap?.[sourceFilter]?.status;
+          if (cachedCount < 8 && status !== 'loading') onEnsureSourceLoaded(sourceFilter);
+      }
+  }, [sourceFilter, sourceCacheView, sourceStatusMap, onEnsureSourceLoaded]);
 
   const handleTouchStart = (e) => { if (feedContainerRef.current?.scrollTop <= 5 && !isRefreshing) setStartY(e.touches[0].clientY); };
   const handleTouchMove = (e) => {
@@ -1520,7 +1543,7 @@ const handleTouchEnd = async () => {
           {/* Dropdown "Todas as fontes" */}
           <div className="relative shrink-0">
             <button onClick={() => setSrcOpen(o => !o)} className="glass-pill flex items-center gap-2 h-10 pl-4 pr-3 text-[13px] font-semibold">
-              <span className="truncate max-w-[130px]">{sourceFilter === 'all' ? 'Todas as fontes' : sourceFilter}</span>
+              <span className="truncate max-w-[130px]">{sourceFilter === 'all' ? 'Todas as fontes' : (selectedSourceMeta?.name || sourceFilter)}</span>
               <ChevronDown size={15} className={`transition-transform ${srcOpen ? 'rotate-180' : ''}`} />
             </button>
             {srcOpen && (
@@ -1529,12 +1552,17 @@ const handleTouchEnd = async () => {
                 {/* SOBREPOSTO: absolute + translúcido. NÃO usar .glass-card aqui (força position:relative e empurraria o layout). */}
                 <div className="absolute left-0 top-12 z-[60] w-60 max-h-72 overflow-y-auto p-1.5 rounded-2xl scrollbar-hide bg-white/80 dark:bg-zinc-900/80 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-2xl">
                   <button onClick={() => { setSourceFilter('all'); setSrcOpen(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-[13px] font-medium transition-colors ${sourceFilter==='all' ? 'bg-[#0a1a3d] text-white' : 'text-zinc-600 hover:bg-black/5'}`}>Todas as fontes</button>
-                  {Array.from(new Map(filteredByCategory.map(n => [n.source, n])).values()).map(n => (
-                    <button key={n.source} onClick={() => { setSourceFilter(n.source); setSrcOpen(false); }} className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl text-[13px] font-medium transition-colors ${sourceFilter===n.source ? 'bg-[#0a1a3d] text-white' : 'text-zinc-600 hover:bg-black/5'}`}>
-                      {n.logo && <img src={n.logo} className="w-5 h-5 rounded object-cover shrink-0" onError={(e)=>e.target.style.display='none'} alt="" />}
-                      <span className="truncate">{n.source}</span>
+                  {(sourceCatalog?.length ? sourceCatalog : Array.from(new Map(filteredByCategory.map(n => [n.source, { id: n.source, name: n.source, logo: n.logo, groupKey: getEditorialGroupKey(n.source, n.link) }])).values())).map(n => {
+                    const status = sourceStatusMap?.[n.id]?.status;
+                    const count = sourceCacheView?.[n.id]?.length || filteredByCategory.filter(item => item.sourceId === n.id || item.source === n.name || getEditorialGroupKey(item.source, item.link) === n.groupKey).length;
+                    return (
+                    <button key={n.id} onClick={() => { setSourceFilter(n.id); setSrcOpen(false); if (onEnsureSourceLoaded) onEnsureSourceLoaded(n.id); }} className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl text-[13px] font-medium transition-colors ${sourceFilter===n.id ? 'bg-[#0a1a3d] text-white' : 'text-zinc-600 hover:bg-black/5'}`}>
+                      {n.logo && <img src={n.logo} className="w-5 h-5 rounded object-cover shrink-0 bg-white" onError={(e)=>e.target.style.display='none'} alt="" />}
+                      <span className="truncate flex-1">{n.name}</span>
+                      <span className={`text-[10px] ${sourceFilter===n.id ? 'text-white/70' : 'text-zinc-400'}`}>{status === 'loading' ? '...' : count || '—'}</span>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -1563,6 +1591,30 @@ const handleTouchEnd = async () => {
         </div>
       </div>
 
+
+      {stagedUpdateInfo && (
+        <div className="px-3 sm:px-5 max-w-5xl mx-auto w-full animate-in slide-in-from-top-2 fade-in duration-300">
+          <button
+            onClick={onApplyStagedUpdate}
+            className="vetra-update-ready w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left"
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <Sparkles size={16} className="text-blue-500 shrink-0" />
+              <span className="font-black text-sm text-zinc-900 truncate">{stagedUpdateInfo.count} novas notícias de {stagedUpdateInfo.sourceCount} fontes</span>
+            </span>
+            <span className="text-[11px] font-bold text-blue-600 whitespace-nowrap">Atualizar agora</span>
+          </button>
+        </div>
+      )}
+
+      {sourceFilter !== 'all' && uniqueNews.length < 8 && (sourceStatusMap?.[sourceFilter]?.status === 'loading' || sourceStatusMap?.[sourceFilter]?.status === 'idle') && (
+        <div className="px-3 sm:px-5 max-w-5xl mx-auto w-full">
+          <div className="rounded-2xl border border-white/70 bg-white/55 backdrop-blur-xl px-4 py-3 text-sm text-zinc-500 flex items-center gap-2">
+            <Loader2 size={15} className="animate-spin text-blue-500" />
+            Buscando mais notícias de {selectedSourceMeta?.name || 'esta fonte'}...
+          </div>
+        </div>
+      )}
 
       <div style={{ height: `${pullDistance}px`, opacity: Math.min(pullDistance / 40, 1) }} className="flex items-end justify-center overflow-hidden w-full">
          <div className={`mb-4 flex items-center gap-3 px-5 py-2 rounded-full shadow-lg border ${isDarkMode ? 'bg-zinc-800 border-purple-500/30' : 'bg-white border-purple-200'}`}>
@@ -6214,6 +6266,67 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId, feedUrl = '') => {
 };
 
 
+const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffer = {}) => {
+  const detectedXmlTitle = metadata.detectedXmlTitle || metadata.title || feed?.name || 'Fonte';
+  const siteLink = metadata.siteLink || metadata.link || feed?.url || '';
+  const displaySource = cleanSourceDisplayName(feed?.name || detectedXmlTitle, feed?.url || siteLink);
+  const sourceGroup = getEditorialGroupKey(displaySource || detectedXmlTitle, feed?.url || siteLink);
+  const sourceId = getFeedSourceId(feed);
+  const finalLogo = resolveLogoUrl({ source: displaySource, feedUrl: feed?.url, feedLogo: metadata.feedLogo || metadata.logo || feed?.logo, siteUrl: siteLink || feed?.url });
+  const isFeedYoutube = Boolean(metadata.isFeedYoutube || metadata.isYoutube || String(feed?.url ?? '').includes('youtube.com') || String(feed?.url ?? '').includes('youtu.be'));
+
+  return (rawItems || []).slice(0, 40).map((item, index) => {
+    const itemTitle = repairMojibakeText(stripFeedText(item?.title || item?.name || item?.description || item?.summary || '', 220));
+    const itemLink = item?.link || item?.url || item?.guid || '';
+    const rawDateString = item?.pubDate || item?.isoDate || item?.date || item?.published || item?.updated;
+    const parsedDate = new Date(rawDateString);
+    const now = Date.now();
+    let baseTimestamp;
+    let dateEstimated = false;
+    if (rawDateString && !isNaN(parsedDate.getTime())) baseTimestamp = Math.min(parsedDate.getTime(), now);
+    else {
+      dateEstimated = true;
+      baseTimestamp = now - (2 * 60 * 60 * 1000) - (index * 7 * 60 * 1000);
+    }
+    const stableKey = buildArticleStableKey(feed, { title: itemTitle, link: itemLink });
+    const computed = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
+    const finalTimestamp = (historyBuffer[stableKey] != null) ? historyBuffer[stableKey] : computed;
+    historyBuffer[stableKey] = finalTimestamp;
+    const finalDateObj = new Date(finalTimestamp);
+    const primaryLink = itemLink || item.link;
+    const audioReal = item.audioFile || item.audio;
+    const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube || item.isYoutube;
+    let finalType = 'link';
+    if (isYoutubeItem) finalType = 'video';
+    else if (audioReal || primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i)) finalType = 'audio';
+    const imageFromItem = item.img || item.image || item.thumbnail || item.mediaThumbnail;
+    const finalImage = absolutizeUrl(imageFromItem, primaryLink || siteLink || feed?.url) || finalLogo;
+    const cleanSummary = repairMojibakeText(stripFeedText(item?.summary || item?.description || item?.contentEncoded || '', 360));
+    const stableHash = stringToHash(`${sourceId}-${item.id || itemTitle}-${primaryLink || index}`);
+    return {
+      id: `${sourceId}-${stableHash}`,
+      source: displaySource,
+      sourceId,
+      sourceGroup,
+      sourceKey: sourceId,
+      logo: finalLogo,
+      time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      rawDate: finalDateObj,
+      historicalTimestamp: finalTimestamp,
+      title: itemTitle || 'Notícia sem título',
+      summary: cleanSummary,
+      category: feed?.type === 'podcast' ? 'Podcast' : (feed?.category || item.category || 'Geral'),
+      type: finalType,
+      img: finalImage,
+      link: primaryLink,
+      audio: audioReal || (primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i) ? primaryLink : null),
+      videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
+      date: finalDateObj.toLocaleDateString()
+    };
+  }).filter(Boolean);
+};
+
+
 // --- COMPONENTE: PLAYER DE ÁUDIO GLOBAL (VERSÃO COMPLETA E BLINDADA) ---
 const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
   const audioRef = useRef(null);
@@ -6671,38 +6784,139 @@ const askGeminiWithContext = async (question, contextResults, apiKey) => {
 const FEED_CACHE_PREFIX = 'newsos_cache_v1_';
 
 // --- VETRA FEED ENGINE HELPERS (snapshot, logos, RSS/Atom e timeout) ---
-const FEED_FETCH_TIMEOUT_MS = 2400;
-const FEED_EDGE_TIMEOUT_MS = 3400;
-const FEED_FIRST_PAINT_MIN_ITEMS = 18;
-const FEED_FIRST_PAINT_MIN_SOURCES = 3;
-const FEED_FIRST_PAINT_MAX_FEEDS = 6;
-const FEED_TEXT_CONCURRENCY = 5;
+const FEED_FETCH_TIMEOUT_MS = 4200;
+const FEED_EDGE_TIMEOUT_MS = 6500;
+const FEED_FIRST_PAINT_MIN_ITEMS = 45;
+const FEED_FIRST_PAINT_MIN_SOURCES = 7;
+const FEED_FIRST_PAINT_MAX_FEEDS = 11;
+const FEED_TEXT_CONCURRENCY = 4;
 const FEED_MEDIA_CONCURRENCY = 2;
-const FEED_MEMORY_TTL = 5 * 60 * 1000;
-const FEED_STARTUP_WINDOW_MS = 5000;
-const FEED_STARTUP_HARD_LIMIT_MS = 8000;
-const FEED_FAILURE_BACKOFF_MS = 8 * 60 * 1000;
+const FEED_MEMORY_TTL = 8 * 60 * 1000;
+const FEED_STARTUP_WINDOW_MS = 5600;
+const FEED_STARTUP_HARD_LIMIT_MS = 8200;
+const FEED_FAILURE_BACKOFF_MS = 2 * 60 * 1000;
 const VETRA_VISIBLE_SNAPSHOT_KEY = 'vetra_visible_snapshot_v3';
 
 const SOURCE_LOGO_OVERRIDES = [
-  { match: ['portal band', 'band notícias', 'band news', 'band'], domains: ['band.uol.com.br', 'www.band.uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=band.uol.com.br&sz=128' },
-  { match: ['notícias ao minuto', 'noticias ao minuto'], domains: ['noticiasaominuto.com.br', 'www.noticiasaominuto.com.br'], logo: 'https://www.google.com/s2/favicons?domain=noticiasaominuto.com.br&sz=128' },
-  { match: ['uol economia'], domains: ['rss.uol.com.br', 'economia.uol.com.br', 'uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=uol.com.br&sz=128' },
-  { match: ['uol notícias', 'uol noticias', 'uol'], domains: ['noticias.uol.com.br', 'uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=uol.com.br&sz=128' },
-  { match: ['cnn brasil'], domains: ['cnnbrasil.com.br'], logo: 'https://www.google.com/s2/favicons?domain=cnnbrasil.com.br&sz=128' },
-  { match: ['g1'], domains: ['g1.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=g1.globo.com&sz=128' },
-  { match: ['o globo'], domains: ['oglobo.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=oglobo.globo.com&sz=128' },
-  { match: ['valor econômico', 'valor economico'], domains: ['valor.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=valor.globo.com&sz=128' },
-  { match: ['infomoney'], domains: ['infomoney.com.br'], logo: 'https://www.google.com/s2/favicons?domain=infomoney.com.br&sz=128' },
-  { match: ['macmagazine'], domains: ['macmagazine.com.br'], logo: 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png' },
-  { match: ['9to5mac'], domains: ['9to5mac.com'], logo: 'https://www.google.com/s2/favicons?domain=9to5mac.com&sz=128' },
-  { match: ['bbc news', 'bbc'], domains: ['bbc.com', 'bbc.co.uk'], logo: 'https://www.google.com/s2/favicons?domain=bbc.com&sz=128' },
-  { match: ['fox news'], domains: ['foxnews.com'], logo: 'https://www.google.com/s2/favicons?domain=foxnews.com&sz=128' },
+  { key: 'jovempan', display: 'Jovem Pan', match: ['jovem pan', 'jovempan'], domains: ['jovempan.com.br'], logo: 'https://www.google.com/s2/favicons?domain=jovempan.com.br&sz=128' },
+  { key: 'oglobo', display: 'O Globo', match: ['o globo', 'oglobo'], domains: ['oglobo.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=oglobo.globo.com&sz=128' },
+  { key: 'metropoles', display: 'Metrópoles', match: ['metrópoles', 'metropoles'], domains: ['metropoles.com'], logo: 'https://www.google.com/s2/favicons?domain=metropoles.com&sz=128' },
+  { key: 'folha', display: 'Folha de S.Paulo', match: ['folha', 'folha de s paulo', 'folha de sao paulo'], domains: ['folha.uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128' },
+  { key: 'cnn', display: 'CNN Brasil', match: ['cnn brasil', 'cnn'], domains: ['cnnbrasil.com.br'], logo: 'https://www.google.com/s2/favicons?domain=cnnbrasil.com.br&sz=128' },
+  { key: 'g1', display: 'G1', match: ['g1', 'g1 nacional', 'g1 mundo', 'g1 política', 'g1 politica'], domains: ['g1.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=g1.globo.com&sz=128' },
+  { key: 'timesbrasil', display: 'Times Brasil', match: ['times brasil', 'timesbrasil'], domains: ['timesbrasil.com.br'], logo: 'https://www.google.com/s2/favicons?domain=timesbrasil.com.br&sz=128' },
+  { key: 'terra', display: 'Terra', match: ['terra'], domains: ['terra.com.br'], logo: 'https://www.google.com/s2/favicons?domain=terra.com.br&sz=128' },
+  { key: 'extra', display: 'Extra', match: ['extra'], domains: ['extra.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=extra.globo.com&sz=128' },
+  { key: 'band', display: 'Portal Band', match: ['portal band', 'band notícias', 'band noticias', 'band news', 'band'], domains: ['band.uol.com.br', 'www.band.uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=band.uol.com.br&sz=128' },
+  { key: 'uolnoticias', display: 'UOL Notícias', match: ['uol notícias', 'uol noticias', 'uol nacional'], domains: ['noticias.uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=uol.com.br&sz=128' },
+  { key: 'uoleconomia', display: 'UOL Economia', match: ['uol economia', 'economia uol'], domains: ['economia.uol.com.br', 'rss.uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=uol.com.br&sz=128' },
+  { key: 'r7', display: 'R7', match: ['r7', 'r7.com'], domains: ['r7.com'], logo: 'https://www.google.com/s2/favicons?domain=r7.com&sz=128' },
+  { key: 'sbtnews', display: 'SBT News', match: ['sbt news', 'sbtnews', 'sbt'], domains: ['sbtnews.sbt.com.br', 'sbtnews.com.br'], logo: 'https://www.google.com/s2/favicons?domain=sbtnews.sbt.com.br&sz=128' },
+  { key: 'estadao', display: 'Estadão', match: ['estadão', 'estadao'], domains: ['estadao.com.br'], logo: 'https://www.google.com/s2/favicons?domain=estadao.com.br&sz=128' },
+  { key: 'valor', display: 'Valor Econômico', match: ['valor econômico', 'valor economico'], domains: ['valor.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=valor.globo.com&sz=128' },
+  { key: 'infomoney', display: 'InfoMoney', match: ['infomoney'], domains: ['infomoney.com.br'], logo: 'https://www.google.com/s2/favicons?domain=infomoney.com.br&sz=128' },
+  { key: 'bbc', display: 'BBC News Brasil', match: ['bbc news', 'bbc brasil', 'bbc'], domains: ['bbc.com', 'bbc.co.uk'], logo: 'https://www.google.com/s2/favicons?domain=bbc.com&sz=128' },
+  { key: 'noticiasaominuto', display: 'Notícias ao Minuto', match: ['notícias ao minuto', 'noticias ao minuto'], domains: ['noticiasaominuto.com.br', 'www.noticiasaominuto.com.br'], logo: 'https://www.google.com/s2/favicons?domain=noticiasaominuto.com.br&sz=128' },
+  { key: 'macmagazine', display: 'MacMagazine', match: ['macmagazine'], domains: ['macmagazine.com.br'], logo: 'https://www.google.com/s2/favicons?domain=macmagazine.com.br&sz=128' },
+  { key: '9to5mac', display: '9to5Mac', match: ['9to5mac', '9to5 mac'], domains: ['9to5mac.com'], logo: 'https://www.google.com/s2/favicons?domain=9to5mac.com&sz=128' },
+  { key: 'foxnews', display: 'Fox News', match: ['fox news'], domains: ['foxnews.com'], logo: 'https://www.google.com/s2/favicons?domain=foxnews.com&sz=128' },
 ];
 
 const isLikelyHttpUrl = (value) => /^https?:\/\//i.test(String(value ?? '').trim());
 const normalizeSpaces = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const normalizeSourceKey = (value) => normalizeSpaces(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+const repairMojibakeText = (value) => {
+  let text = String(value ?? '');
+  if (!text) return '';
+  // Correções leves para textos que ainda cheguem com mojibake pelo fallback do navegador.
+  text = text
+    .replace(/Ã¡/g, 'á').replace(/Ã /g, 'à').replace(/Ã¢/g, 'â').replace(/Ã£/g, 'ã').replace(/Ã¤/g, 'ä')
+    .replace(/Ã©/g, 'é').replace(/Ãª/g, 'ê').replace(/Ã­/g, 'í').replace(/Ã³/g, 'ó').replace(/Ã´/g, 'ô').replace(/Ãµ/g, 'õ')
+    .replace(/Ãº/g, 'ú').replace(/Ã§/g, 'ç').replace(/Ã�/g, 'Á').replace(/Ã‰/g, 'É').replace(/Ã“/g, 'Ó')
+    .replace(/Âº/g, 'º').replace(/Âª/g, 'ª').replace(/Â°/g, '°').replace(/Â/g, '')
+    .replace(/�/g, '');
+  return normalizeSpaces(text);
+};
+
+const getSourceOverride = (source, url = '') => {
+  const sourceKey = normalizeSourceKey(repairMojibakeText(source));
+  const domain = getUrlDomain(url);
+  return SOURCE_LOGO_OVERRIDES.find(entry => {
+    const byName = (entry.match || []).some(name => sourceKey.includes(normalizeSourceKey(name)) || normalizeSourceKey(name).includes(sourceKey));
+    const byDomain = (entry.domains || []).some(item => domain.includes(item) || item.includes(domain));
+    return byName || byDomain;
+  }) || null;
+};
+
+const cleanSourceDisplayName = (source, url = '') => {
+  const repaired = repairMojibakeText(source || 'Fonte');
+  const override = getSourceOverride(repaired, url);
+  if (override?.display) return override.display;
+  const compact = normalizeSourceKey(repaired);
+  if (compact === 'ultimas noticias' || compact === 'noticias' || compact === 'mundo' || compact === 'brasil') {
+    const domain = getUrlDomain(url);
+    if (domain) return domain.replace(/\.(com|com\.br|globo\.com|uol\.com\.br)$/i, '').split('.')[0].replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+  }
+  return repaired;
+};
+
+const getEditorialGroupKey = (source, url = '') => {
+  const override = getSourceOverride(source, url);
+  if (override?.key) return override.key;
+  const sourceKey = normalizeSourceKey(source);
+  const domain = getUrlDomain(url);
+  if (domain.includes('globo.com') || sourceKey.includes('g1')) return 'g1';
+  if (domain.includes('uol.com.br') || sourceKey.includes('uol')) return sourceKey.includes('economia') ? 'uoleconomia' : 'uolnoticias';
+  if (domain.includes('r7.com') || sourceKey.includes('r7')) return 'r7';
+  if (domain.includes('sbt') || sourceKey.includes('sbt')) return 'sbtnews';
+  if (domain.includes('band.uol') || sourceKey.includes('band')) return 'band';
+  return sourceKey || domain || 'fonte';
+};
+
+const PRIORITY_SOURCE_KEYS = [
+  'jovempan', 'oglobo', 'metropoles', 'folha', 'cnn', 'g1', 'timesbrasil', 'terra', 'extra', 'band', 'uolnoticias',
+  'uoleconomia', 'r7', 'sbtnews', 'estadao', 'valor', 'infomoney'
+];
+
+const getFeedSourceId = (feed) => String(feed?.id || feed?.url || feed?.name || '').trim();
+
+const getFeedPriorityScore = (feed) => {
+  const group = getEditorialGroupKey(feed?.name, feed?.url);
+  const idx = PRIORITY_SOURCE_KEYS.indexOf(group);
+  if (idx >= 0) return idx;
+  const name = normalizeSourceKey(feed?.name || '');
+  if (name.includes('g1') || name.includes('uol') || name.includes('cnn') || name.includes('folha')) return 25;
+  return 100;
+};
+
+const sortFeedsEditorially = (feeds) => [...(feeds || [])].sort((a, b) => {
+  const pa = getFeedPriorityScore(a);
+  const pb = getFeedPriorityScore(b);
+  if (pa !== pb) return pa - pb;
+  return normalizeSourceKey(a?.name || a?.url).localeCompare(normalizeSourceKey(b?.name || b?.url));
+});
+
+const buildSourceCatalogFromFeeds = (feeds) => {
+  const seen = new Set();
+  return sortFeedsEditorially((feeds || []).filter(feed => String(feed?.url || '').trim()))
+    .filter(feed => feed?.type !== 'youtube' && feed?.type !== 'podcast' && !String(feed?.url || '').includes('youtube.com'))
+    .map(feed => {
+      const id = getFeedSourceId(feed);
+      const groupKey = getEditorialGroupKey(feed?.name, feed?.url);
+      const displayName = cleanSourceDisplayName(feed?.name || groupKey, feed?.url);
+      const logo = resolveLogoUrl({ source: displayName, feedUrl: feed?.url, feedLogo: feed?.logo, siteUrl: feed?.url });
+      return { id, groupKey, name: displayName, url: feed?.url, logo, category: feed?.category || 'Geral', priority: getFeedPriorityScore(feed), feed };
+    })
+    .filter(item => {
+      if (!item.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+};
+
+const countDistinctEditorialGroups = (items) => new Set((items || []).map(item => item?.sourceGroup || getEditorialGroupKey(item?.source, item?.link)).filter(Boolean)).size;
+
 const getUrlDomain = (value) => {
   try { if (!value) return ''; const normalized = isLikelyHttpUrl(value) ? value : `https://${value}`; return new URL(normalized).hostname.replace(/^www\./i, '').toLowerCase(); } catch { return ''; }
 };
@@ -6719,20 +6933,15 @@ const absolutizeUrl = (candidate, baseUrl) => {
   try { return new URL(clean, baseUrl || 'https://example.com').href; } catch { return null; }
 };
 const resolveLogoUrl = ({ source, feedUrl, feedLogo, siteUrl }) => {
-  const sourceKey = normalizeSourceKey(source);
   const feedDomain = getUrlDomain(feedUrl || siteUrl);
   const siteDomain = getUrlDomain(siteUrl || feedUrl);
   const trustedLogo = String(feedLogo ?? '').trim();
-  const override = SOURCE_LOGO_OVERRIDES.find(entry => {
-    const matchesName = entry.match.some(name => sourceKey.includes(normalizeSourceKey(name)));
-    const matchesDomain = entry.domains.some(domain => feedDomain.includes(domain) || siteDomain.includes(domain));
-    return matchesName || matchesDomain;
-  });
+  const override = getSourceOverride(source, siteUrl || feedUrl);
   if (override?.logo) return override.logo;
-  if (trustedLogo && !trustedLogo.includes('ui-avatars.com')) return absolutizeUrl(trustedLogo, siteUrl || feedUrl) || trustedLogo;
+  if (trustedLogo && !trustedLogo.includes('ui-avatars.com') && !trustedLogo.includes('t0.gstatic.com')) return absolutizeUrl(trustedLogo, siteUrl || feedUrl) || trustedLogo;
   const domain = siteDomain || feedDomain;
-  if (domain) return `https://unavatar.io/${domain}?fallback=${encodeURIComponent(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`)}`;
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(source || 'Fonte')}&background=random&color=fff&size=128&bold=true`;
+  if (domain) return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanSourceDisplayName(source || 'Fonte'))}&background=random&color=fff&size=128&bold=true`;
 };
 const fetchWithTimeout = async (url, options = {}) => {
   const { timeout = FEED_FETCH_TIMEOUT_MS, ...fetchOptions } = options || {};
@@ -6863,10 +7072,11 @@ const persistVisibleSnapshot = (snapshot) => {
 
 const isInitialSnapshotGoodEnough = (snapshot, completedAllTextFeeds = false) => {
   const news = snapshot?.news || [];
-  const sourceCount = countDistinctSources(news);
+  const sourceCount = countDistinctEditorialGroups(news);
   if (sourceCount >= FEED_FIRST_PAINT_MIN_SOURCES && news.length >= FEED_FIRST_PAINT_MIN_ITEMS) return true;
-  if (completedAllTextFeeds && sourceCount >= 2 && news.length >= 10) return true;
-  if (completedAllTextFeeds && news.length >= 8) return true;
+  if (sourceCount >= 6 && news.length >= 36) return true;
+  if (completedAllTextFeeds && sourceCount >= 4 && news.length >= 24) return true;
+  if (completedAllTextFeeds && news.length >= 16) return true;
   return false;
 };
 
@@ -7115,7 +7325,7 @@ const generateSmartStories = (news, allClusters) => {
       .filter(Boolean)
       .sort((a, b) => (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0));
 
-    const topFeedIds = new Set(sortedNews.slice(0, 20).map(item => item?.id).filter(Boolean));
+    const topFeedIds = new Set(sortedNews.slice(0, 24).map(item => item?.id).filter(Boolean));
     const clusterLeadIds = new Set();
     const clusterArticleIds = new Set();
 
@@ -7125,24 +7335,21 @@ const generateSmartStories = (news, allClusters) => {
         articles?.forEach(article => article?.id && clusterArticleIds.add(article.id));
     });
 
-    const bySource = new Map();
+    const byGroup = new Map();
     sortedNews.forEach((item) => {
-        const source = item?.source || 'Fonte';
-        if (!bySource.has(source)) bySource.set(source, []);
-        bySource.get(source).push(item);
+        const group = item?.sourceGroup || getEditorialGroupKey(item?.source, item?.link);
+        if (!byGroup.has(group)) byGroup.set(group, []);
+        byGroup.get(group).push(item);
     });
 
     const hasGoodVisual = (item) => {
         const img = String(item?.img || '');
-        return img.length > 12 && !img.includes('ui-avatars.com') && !img.includes('favicon') && !img.includes('s2/favicons');
+        return img.length > 12 && !img.includes('ui-avatars.com') && !img.includes('favicon') && !img.includes('s2/favicons') && !img.includes('t0.gstatic.com');
     };
 
-    const selected = Array.from(bySource.values()).map((items) => {
+    const selected = Array.from(byGroup.entries()).map(([group, items]) => {
         if (!items || items.length === 0) return null;
-
-        // Stories não devem ser a cópia da manchete mais recente da fonte.
-        // A prioridade é segunda/terceira notícia, com imagem boa, fora do topo temporal e fora do lead de cluster.
-        const editorialCandidates = items.slice(1, 6);
+        const editorialCandidates = items.slice(1, 8);
         const bestSecondary = editorialCandidates.find(item =>
             !topFeedIds.has(item.id) &&
             !clusterLeadIds.has(item.id) &&
@@ -7153,17 +7360,25 @@ const generateSmartStories = (news, allClusters) => {
         const secondaryVisual = editorialCandidates.find(item => hasGoodVisual(item));
         const secondaryAny = items[1] || items[2] || null;
         const nonCluster = items.find(item => !clusterArticleIds.has(item.id) && !clusterLeadIds.has(item.id));
-
-        return bestSecondary || secondaryNonTop || secondaryVisual || secondaryAny || nonCluster || items[0];
+        const chosen = bestSecondary || secondaryNonTop || secondaryVisual || secondaryAny || nonCluster || items[0];
+        return chosen ? { ...chosen, storyGroup: group } : null;
     }).filter(Boolean);
 
     const deduped = [];
     const usedArticleIds = new Set();
+    const usedGroups = new Set();
     selected
-      .sort((a, b) => (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0))
+      .sort((a, b) => {
+        const pa = PRIORITY_SOURCE_KEYS.indexOf(a.storyGroup);
+        const pb = PRIORITY_SOURCE_KEYS.indexOf(b.storyGroup);
+        if (pa >= 0 || pb >= 0) return (pa >= 0 ? pa : 999) - (pb >= 0 ? pb : 999);
+        return (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0);
+      })
       .forEach(item => {
-        if (!item?.id || usedArticleIds.has(item.id)) return;
+        const group = item.storyGroup || item.sourceGroup || getEditorialGroupKey(item?.source, item?.link);
+        if (!item?.id || usedArticleIds.has(item.id) || usedGroups.has(group)) return;
         usedArticleIds.add(item.id);
+        usedGroups.add(group);
         deduped.push(item);
       });
 
@@ -7173,7 +7388,8 @@ const generateSmartStories = (news, allClusters) => {
         return {
           id: `story-${item.id}`,
           sourceArticleId: item.id,
-          name: item.source,
+          name: cleanSourceDisplayName(item.source, item.link),
+          sourceGroup: item.sourceGroup || getEditorialGroupKey(item.source, item.link),
           avatar: item.logo || resolveLogoUrl({ source: item.source, feedUrl: item.link, feedLogo: null, siteUrl: item.link }),
           isBreaking: false,
           isAnchor: false,
@@ -7573,6 +7789,11 @@ const feedFailureBackoffRef = useRef({});
 const feedAutoFetchKeyRef = useRef('');
 const lastTabRefreshAtRef = useRef(0);
 const didMountTabRefreshRef = useRef(false);
+const sourceCacheRef = useRef({});
+const [sourceCatalog, setSourceCatalog] = useState([]);
+const [sourceCacheView, setSourceCacheView] = useState({});
+const [sourceStatusMap, setSourceStatusMap] = useState({});
+const [stagedUpdateInfo, setStagedUpdateInfo] = useState(null);
 const [feedUpdateToast, setFeedUpdateToast] = useState(null);
 const heuristicClusters = stableHeuristicClusters;
 
@@ -7947,11 +8168,98 @@ const handleStoryNavigation = (direction) => {
     return spaced;
   };
 
-  // --- FETCH FEEDS VETRA ENGINE: snapshot visível congelado + staging em background ---
+
+  const userFeedsStableKey = useMemo(() => {
+      return (userFeeds || [])
+        .map(feed => `${feed?.id || ''}|${feed?.name || ''}|${feed?.url || ''}|${feed?.type || ''}|${feed?.category || ''}|${feed?.display?.feed !== false ? '1' : '0'}`)
+        .join(';;');
+  }, [userFeeds]);
+
+  useEffect(() => {
+      const catalog = buildSourceCatalogFromFeeds(userFeeds || []);
+      setSourceCatalog(catalog);
+      setSourceStatusMap(prev => {
+          const next = { ...prev };
+          catalog.forEach(source => {
+              if (!next[source.id]) next[source.id] = { status: 'idle', count: sourceCacheRef.current[source.id]?.length || 0, message: '' };
+          });
+          return next;
+      });
+  }, [userFeedsStableKey]);
+
+  const applyStagedSnapshot = useCallback(() => {
+      const staged = stagingSnapshotRef.current;
+      if (!staged || !hasMeaningfulSnapshot(staged)) return false;
+      const didCommit = commitVisibleSnapshot(staged, {
+          reason: 'manual-banner',
+          updateGlobalClusters: true,
+          toastMessage: 'Feed atualizado',
+          forceCommit: false,
+      });
+      if (didCommit) {
+          stagingSnapshotRef.current = null;
+          setStagedUpdateInfo(null);
+      }
+      return didCommit;
+  }, [commitVisibleSnapshot]);
+
+  const updateSourceCache = useCallback((sourceId, items, meta = {}) => {
+      if (!sourceId) return;
+      const sorted = smartFeedSort(items || []);
+      sourceCacheRef.current[sourceId] = sorted;
+      setSourceCacheView({ ...sourceCacheRef.current });
+      setSourceStatusMap(prev => ({
+          ...prev,
+          [sourceId]: {
+              status: meta.status || 'ok',
+              count: sorted.length,
+              message: meta.message || '',
+              updatedAt: Date.now(),
+          }
+      }));
+  }, []);
+
+  const ensureSourceLoaded = useCallback(async (sourceId) => {
+      const feed = (userFeeds || []).find(item => getFeedSourceId(item) === sourceId);
+      if (!feed?.url) return;
+      const currentStatus = sourceStatusMap?.[sourceId]?.status;
+      const cachedCount = sourceCacheRef.current[sourceId]?.length || 0;
+      if (currentStatus === 'loading') return;
+      if (cachedCount >= 18 && Date.now() - (sourceStatusMap?.[sourceId]?.updatedAt || 0) < FEED_MEMORY_TTL) return;
+
+      setSourceStatusMap(prev => ({ ...prev, [sourceId]: { ...(prev[sourceId] || {}), status: 'loading', message: 'Carregando fonte...' } }));
+      try {
+          const invokeResult = await withPromiseTimeout(
+              supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: false, limit: 40, enrichImages: false, allowProxy: true } }),
+              Math.max(FEED_EDGE_TIMEOUT_MS, 7200),
+              `parse-feed dedicado ${feed.name || feed.url}`
+          );
+          const data = invokeResult?.data;
+          if (invokeResult?.error || !data?.items?.length) throw new Error(invokeResult?.error?.message || data?.error || 'Fonte sem itens recentes');
+          const historyBuffer = { ...articleHistory };
+          const processed = normalizeFeedItemsForClient(feed, data.items, {
+              detectedXmlTitle: data.title || feed.name,
+              feedLogo: data.image || data.logo || feed.logo,
+              siteLink: data.link || data.feedUrl || feed.url,
+              isFeedYoutube: data.isYoutube,
+          }, historyBuffer);
+          updateSourceCache(sourceId, processed, { status: 'ok' });
+          setArticleHistory(historyBuffer);
+      } catch (error) {
+          setSourceStatusMap(prev => ({
+              ...prev,
+              [sourceId]: { ...(prev[sourceId] || {}), status: 'error', count: sourceCacheRef.current[sourceId]?.length || 0, message: error?.message || 'Falha temporária' }
+          }));
+      }
+  }, [userFeeds, sourceStatusMap, articleHistory, updateSourceCache]);
+
+  // --- FETCH FEEDS VETRA ENGINE: snapshot visível congelado + source cache + staging profissional ---
   const fetchFeeds = async (forceRefresh = false) => {
       const requestId = ++feedRequestIdRef.current;
       const isLatestRequest = () => requestId === feedRequestIdRef.current;
-      const activeFeeds = userFeeds.filter(f => String(f?.url ?? '').trim());
+      const activeFeeds = (userFeeds || []).filter(f => String(f?.url ?? '').trim());
+      const activeCatalog = buildSourceCatalogFromFeeds(activeFeeds);
+      setSourceCatalog(activeCatalog);
 
       if (activeFeeds.length === 0) {
           const emptySnapshot = { news: [], videos: [], podcasts: [], clusters: [], stories: [], timestamp: Date.now(), version: Date.now() };
@@ -7959,6 +8267,10 @@ const handleStoryNavigation = (direction) => {
           stagingSnapshotRef.current = null;
           warmingSnapshotRef.current = emptySnapshot;
           lastCommittedSnapshotHashRef.current = '';
+          sourceCacheRef.current = {};
+          setSourceCacheView({});
+          setSourceStatusMap({});
+          setStagedUpdateInfo(null);
           setRealNews([]);
           setRealVideos([]);
           setRealPodcasts([]);
@@ -7973,8 +8285,8 @@ const handleStoryNavigation = (direction) => {
       if (!hasVisibleContent) setIsLoadingFeeds(true);
       if (forceRefresh && !stagingSnapshotRef.current) setIsLoadingFeeds(true);
 
-      const textFeeds = activeFeeds.filter(f => f.type !== 'youtube' && f.type !== 'podcast' && !String(f?.url ?? '').includes('youtube.com'));
-      const mediaFeeds = activeFeeds.filter(f => f.type === 'youtube' || f.type === 'podcast' || String(f?.url ?? '').includes('youtube.com'));
+      const textFeeds = sortFeedsEditorially(activeFeeds.filter(f => f.type !== 'youtube' && f.type !== 'podcast' && !String(f?.url ?? '').includes('youtube.com')));
+      const mediaFeeds = sortFeedsEditorially(activeFeeds.filter(f => f.type === 'youtube' || f.type === 'podcast' || String(f?.url ?? '').includes('youtube.com')));
 
       const allNewsItems = [];
       const allVideoItems = [];
@@ -7983,6 +8295,21 @@ const handleStoryNavigation = (direction) => {
       let completedTextFeeds = 0;
       let initialSnapshotCommitted = false;
       let stagedSnapshotWasCommitted = false;
+
+      const updateStatus = (feed, status, patch = {}) => {
+          const sourceId = getFeedSourceId(feed);
+          if (!sourceId) return;
+          setSourceStatusMap(prev => ({
+              ...prev,
+              [sourceId]: {
+                  ...(prev[sourceId] || {}),
+                  status,
+                  count: patch.count ?? sourceCacheRef.current[sourceId]?.length ?? 0,
+                  message: patch.message || '',
+                  updatedAt: patch.updatedAt || Date.now(),
+              }
+          }));
+      };
 
       const maybeCommitStagedSnapshot = () => {
           const staged = stagingSnapshotRef.current;
@@ -7996,6 +8323,7 @@ const handleStoryNavigation = (direction) => {
           if (didCommit) {
               stagedSnapshotWasCommitted = true;
               stagingSnapshotRef.current = null;
+              setStagedUpdateInfo(null);
               setIsLoadingFeeds(false);
           }
           return didCommit;
@@ -8003,69 +8331,23 @@ const handleStoryNavigation = (direction) => {
 
       maybeCommitStagedSnapshot();
 
-      const normalizeFeedItems = (feed, rawItems, detectedXmlTitle, feedLogo, isFeedYoutube, siteLink) => {
-          const currentFeedTitle = String(feed?.name ?? detectedXmlTitle ?? 'Fonte');
-          const resolvedSource = detectedXmlTitle || currentFeedTitle;
-          const finalLogo = resolveLogoUrl({ source: resolvedSource, feedUrl: feed.url, feedLogo: feedLogo || feed.logo, siteUrl: siteLink || feed.url });
-          return (rawItems || []).slice(0, 30).map((item, index) => {
-              const itemTitle = stripFeedText(item?.title || item?.name || item?.description || item?.summary || '', 180);
-              const itemLink = item?.link || item?.url || item?.guid || '';
-              const rawDateString = item?.pubDate || item?.isoDate || item?.date || item?.published || item?.updated;
-              const parsedDate = new Date(rawDateString);
-              const now = Date.now();
-              let baseTimestamp;
-              let dateEstimated = false;
-              if (rawDateString && !isNaN(parsedDate.getTime())) baseTimestamp = Math.min(parsedDate.getTime(), now);
-              else {
-                  dateEstimated = true;
-                  baseTimestamp = now - (2 * 60 * 60 * 1000) - (index * 7 * 60 * 1000);
-              }
-              const stableKey = buildArticleStableKey(feed, { title: itemTitle, link: itemLink });
-              const computed = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
-              const finalTimestamp = (newHistoryBuffer[stableKey] != null) ? newHistoryBuffer[stableKey] : computed;
-              newHistoryBuffer[stableKey] = finalTimestamp;
-              const finalDateObj = new Date(finalTimestamp);
-              const primaryLink = itemLink || item.link;
-              const audioReal = item.audioFile || item.audio;
-              const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube || item.isYoutube;
-              let finalType = 'link';
-              if (isYoutubeItem) finalType = 'video';
-              else if (audioReal || primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i)) finalType = 'audio';
-              const imageFromItem = item.img || item.image || item.thumbnail || item.mediaThumbnail;
-              const finalImage = absolutizeUrl(imageFromItem, primaryLink || siteLink || feed.url) || finalLogo;
-              const cleanSummary = stripFeedText(item?.summary || item?.description || item?.contentEncoded || '', 300);
-              const stableHash = stringToHash(`${feed.id}-${item.id || itemTitle}-${primaryLink || index}`);
-              return {
-                  id: `${feed.id}-${stableHash}`,
-                  source: resolvedSource,
-                  logo: finalLogo,
-                  time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  rawDate: finalDateObj,
-                  historicalTimestamp: finalTimestamp,
-                  title: itemTitle || 'Notícia sem título',
-                  summary: cleanSummary,
-                  category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'),
-                  type: finalType,
-                  img: finalImage,
-                  link: primaryLink,
-                  audio: audioReal || (primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i) ? primaryLink : null),
-                  videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
-                  date: finalDateObj.toLocaleDateString()
-              };
-          }).filter(Boolean);
-      };
+      const processSingleFeed = async (feed, mode = 'startup') => {
+          const sourceId = getFeedSourceId(feed);
+          const isPriority = getFeedPriorityScore(feed) < 20;
+          const failureState = feedFailureBackoffRef.current[sourceId];
 
-      const processSingleFeed = async (feed) => {
-          const feedKey = String(feed?.id || feed?.url || feed?.name || 'feed');
-          const failureState = feedFailureBackoffRef.current[feedKey];
-          if (!forceRefresh && failureState && (Date.now() - failureState.timestamp < FEED_FAILURE_BACKOFF_MS)) {
+          const mem = feedMemoryBuffer.current[sourceId];
+          if (!forceRefresh && mem && (Date.now() - mem.timestamp < FEED_MEMORY_TTL)) {
+              updateSourceCache(sourceId, mem.items || [], { status: 'ok' });
+              return { feed, items: mem.items || [], title: mem.title, logo: mem.logo, isYoutube: mem.isYoutube, fromCache: true };
+          }
+
+          if (!forceRefresh && failureState && (Date.now() - failureState.timestamp < FEED_FAILURE_BACKOFF_MS) && !sourceCacheRef.current[sourceId]?.length) {
+              updateStatus(feed, 'backoff', { message: 'Fonte em retentativa curta' });
               return { feed, items: [], title: feed.name, logo: feed.logo, isYoutube: String(feed?.url ?? '').includes('youtube.com'), fromBackoff: true };
           }
 
-          const mem = feedMemoryBuffer.current[feed.id];
-          if (!forceRefresh && mem && (Date.now() - mem.timestamp < FEED_MEMORY_TTL)) {
-              return { feed, items: mem.items || [], title: mem.title, logo: mem.logo, isYoutube: mem.isYoutube, fromCache: true };
-          }
+          updateStatus(feed, 'loading', { message: 'Coletando...' });
 
           let rawItems = [];
           let detectedXmlTitle = String(feed?.name ?? 'Fonte');
@@ -8075,19 +8357,19 @@ const handleStoryNavigation = (direction) => {
           let success = false;
 
           try {
-              let invokeResult = await withPromiseTimeout(
-                  supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true, allowProxy: false } }),
-                  FEED_EDGE_TIMEOUT_MS,
+              const invokeResult = await withPromiseTimeout(
+                  supabase.functions.invoke('parse-feed', {
+                      body: {
+                          url: feed.url,
+                          brief: false,
+                          limit: isPriority ? 36 : 28,
+                          enrichImages: false,
+                          allowProxy: forceRefresh || mode === 'dedicated'
+                      }
+                  }),
+                  isPriority ? Math.max(FEED_EDGE_TIMEOUT_MS, 7200) : FEED_EDGE_TIMEOUT_MS,
                   `parse-feed ${feed.name || feed.url}`
               );
-
-              if (!invokeResult?.error && !invokeResult?.data?.items?.length && forceRefresh) {
-                  invokeResult = await withPromiseTimeout(
-                      supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: false, allowProxy: false } }),
-                      FEED_EDGE_TIMEOUT_MS,
-                      `parse-feed completo ${feed.name || feed.url}`
-                  );
-              }
 
               const data = invokeResult?.data;
               if (!invokeResult?.error && data?.items?.length > 0) {
@@ -8097,48 +8379,35 @@ const handleStoryNavigation = (direction) => {
                   siteLink = data.link || data.feedUrl || data.url || siteLink;
                   isFeedYoutube = !!data.isYoutube;
                   success = true;
+              } else if (data?.error) {
+                  throw new Error(data.error);
+              } else if (invokeResult?.error) {
+                  throw new Error(invokeResult.error.message || 'Falha na Edge Function');
               }
           } catch (error) {
               const lastLog = failureState?.lastLog || 0;
-              if (Date.now() - lastLog > 60000) {
+              if (Date.now() - lastLog > 45000) {
                   console.warn('Feed degradado temporariamente:', feed.url, error?.message || error);
               }
-              feedFailureBackoffRef.current[feedKey] = { timestamp: Date.now(), lastLog: Date.now() };
-          }
-
-          // Fallback externo fica reservado para refresh manual e mesmo assim curto.
-          if (!success && forceRefresh) {
-              const proxyCandidates = [`https://api.allorigins.win/raw?url=${encodeURIComponent(feed.url)}`];
-              for (const proxyUrl of proxyCandidates) {
-                  try {
-                      const res = await fetchWithTimeout(proxyUrl, { timeout: 1800 });
-                      if (!res.ok) continue;
-                      const xmlText = await res.text();
-                      const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id, feed.url);
-                      if (parsedData.items.length > 0) {
-                          rawItems = parsedData.items;
-                          detectedXmlTitle = parsedData.realTitle || detectedXmlTitle;
-                          feedLogo = parsedData.realLogo || feedLogo;
-                          siteLink = parsedData.siteLink || siteLink;
-                          success = true;
-                          break;
-                      }
-                  } catch (_error) {}
-              }
+              feedFailureBackoffRef.current[sourceId] = { timestamp: Date.now(), lastLog: Date.now() };
+              updateStatus(feed, 'timeout', { message: error?.message || 'Timeout temporário' });
           }
 
           if (!success || rawItems.length === 0) {
-              if (!feedFailureBackoffRef.current[feedKey]) {
-                  feedFailureBackoffRef.current[feedKey] = { timestamp: Date.now(), lastLog: 0 };
-              }
               return { feed, items: [], title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube, fromCache: false };
           }
 
-          delete feedFailureBackoffRef.current[feedKey];
-          const processedItems = normalizeFeedItems(feed, rawItems, detectedXmlTitle, feedLogo, isFeedYoutube, siteLink);
-          const finalLogo = resolveLogoUrl({ source: detectedXmlTitle, feedUrl: feed.url, feedLogo, siteUrl: siteLink });
-          feedMemoryBuffer.current[feed.id] = { timestamp: Date.now(), items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube };
-          try { localStorage.removeItem(`${FEED_CACHE_PREFIX}${feed.id}`); } catch (_error) {}
+          delete feedFailureBackoffRef.current[sourceId];
+          const processedItems = normalizeFeedItemsForClient(feed, rawItems, {
+              detectedXmlTitle,
+              feedLogo,
+              siteLink,
+              isFeedYoutube,
+          }, newHistoryBuffer);
+          const finalLogo = resolveLogoUrl({ source: cleanSourceDisplayName(feed?.name || detectedXmlTitle, feed.url), feedUrl: feed.url, feedLogo, siteUrl: siteLink });
+          feedMemoryBuffer.current[sourceId] = { timestamp: Date.now(), items: processedItems, title: cleanSourceDisplayName(feed?.name || detectedXmlTitle, feed.url), logo: finalLogo, isYoutube: isFeedYoutube };
+          updateSourceCache(sourceId, processedItems, { status: 'ok' });
+          try { localStorage.removeItem(`${FEED_CACHE_PREFIX}${sourceId}`); } catch (_error) {}
           return { feed, items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube, fromCache: false };
       };
 
@@ -8164,7 +8433,7 @@ const handleStoryNavigation = (direction) => {
 
               let initialSnapshot = buildStableSnapshot(allNewsItems, [], []);
               if (!isInitialSnapshotGoodEnough(initialSnapshot, completedTextFeeds >= textFeeds.length)) {
-                  await Promise.race([textPoolPromise, sleep(Math.max(1000, FEED_STARTUP_HARD_LIMIT_MS - FEED_STARTUP_WINDOW_MS))]);
+                  await Promise.race([textPoolPromise, sleep(Math.max(1200, FEED_STARTUP_HARD_LIMIT_MS - FEED_STARTUP_WINDOW_MS))]);
                   if (!isLatestRequest()) return;
                   initialSnapshot = buildStableSnapshot(allNewsItems, [], []);
               }
@@ -8195,18 +8464,20 @@ const handleStoryNavigation = (direction) => {
               if (!didCommitFresh && !stagedSnapshotWasCommitted) showFeedToast('Sem novas notícias agora');
               stagingSnapshotRef.current = null;
               warmingSnapshotRef.current = finalSnapshot;
+              setStagedUpdateInfo(null);
           } else if (!hasMeaningfulSnapshot(visibleSnapshotRef.current)) {
               commitVisibleSnapshot(finalSnapshot, { reason: 'late-initial', updateGlobalClusters: true, forceCommit: true });
           } else {
-              // Background: prepara o próximo snapshot, mas não mexe no que o usuário está vendo.
               stagingSnapshotRef.current = finalSnapshot;
               warmingSnapshotRef.current = finalSnapshot;
 
               const visibleHash = buildSnapshotHash(visibleSnapshotRef.current);
               const stagingHash = buildSnapshotHash(finalSnapshot);
-              const delta = Math.max(0, (finalSnapshot.news?.length || 0) - (visibleSnapshotRef.current.news?.length || 0));
-              if (stagingHash && stagingHash !== visibleHash && !initialSnapshotCommitted && delta >= 4) {
-                  showFeedToast('Novas notícias disponíveis');
+              const visibleIds = new Set((visibleSnapshotRef.current.news || []).map(item => item.id || item.link));
+              const newItems = (finalSnapshot.news || []).filter(item => !visibleIds.has(item.id || item.link));
+              const sourceCount = countDistinctEditorialGroups(newItems.length ? newItems : finalSnapshot.news);
+              if (stagingHash && stagingHash !== visibleHash && (newItems.length >= 3 || (!initialSnapshotCommitted && finalSnapshot.news.length > visibleSnapshotRef.current.news.length))) {
+                  setStagedUpdateInfo({ count: Math.max(newItems.length, Math.max(0, finalSnapshot.news.length - visibleSnapshotRef.current.news.length)), sourceCount, timestamp: Date.now() });
               }
           }
       } catch (error) {
@@ -8226,11 +8497,7 @@ const handleStoryNavigation = (direction) => {
   }, [realNews, realVideos, realPodcasts]);
 
 
-  const userFeedsStableKey = useMemo(() => {
-      return (userFeeds || [])
-        .map(feed => `${feed?.id || ''}|${feed?.url || ''}|${feed?.type || ''}|${feed?.category || ''}|${feed?.display?.feed !== false ? '1' : '0'}`)
-        .join(';;');
-  }, [userFeeds]);
+
 
   useEffect(() => {
       if (!userFeedsStableKey) return;
@@ -8255,7 +8522,7 @@ const handleStoryNavigation = (direction) => {
               updateGlobalClusters: true,
               toastMessage: 'Feed atualizado',
           });
-          if (didCommit) stagingSnapshotRef.current = null;
+          if (didCommit) { stagingSnapshotRef.current = null; setStagedUpdateInfo(null); }
           return;
       }
 
@@ -8675,6 +8942,12 @@ return (
                     isLoading={isLoadingFeeds}
                     sourceFilter={sourceFilter}
                     setSourceFilter={setSourceFilter}
+                    sourceCatalog={sourceCatalog}
+                    sourceStatusMap={sourceStatusMap}
+                    sourceCacheView={sourceCacheView}
+                    onEnsureSourceLoaded={ensureSourceLoaded}
+                    stagedUpdateInfo={stagedUpdateInfo}
+                    onApplyStagedUpdate={applyStagedSnapshot}
                     likedItems={likedItems}
                     onToggleLike={handleToggleLike}
                     onRefresh={() => { fetchFeeds(true); }}
