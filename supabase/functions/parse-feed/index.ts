@@ -14,10 +14,10 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const REQUEST_TIMEOUT_MS = 8500;
-const OG_TIMEOUT_MS = 3200;
+const REQUEST_TIMEOUT_MS = 3500;
+const OG_TIMEOUT_MS = 1000;
 const MAX_ITEMS_DEFAULT = 30;
-const MAX_ITEMS_BRIEF = 18;
+const MAX_ITEMS_BRIEF = 12;
 
 const parser = new Parser({
   timeout: REQUEST_TIMEOUT_MS,
@@ -137,7 +137,7 @@ async function fetchTextWithFallback(url: string): Promise<FetchResult> {
   } catch (primaryError) {
     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
     try {
-      const proxied = await fetchText(proxyUrl, REQUEST_TIMEOUT_MS + 2500);
+      const proxied = await fetchText(proxyUrl, 1800);
       return { ...proxied, finalUrl: url };
     } catch (_proxyError) {
       throw primaryError instanceof Error ? primaryError : new Error("Falha ao carregar URL");
@@ -454,6 +454,6 @@ serve(async (req) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido no parser";
     console.error("parse-feed error:", message);
-    return jsonResponse({ error: message }, 400);
+    return jsonResponse({ error: message, items: [], title: null, image: null, isYoutube: false }, 200);
   }
 });

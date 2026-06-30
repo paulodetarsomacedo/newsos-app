@@ -6652,10 +6652,12 @@ const askGeminiWithContext = async (question, contextResults, apiKey) => {
 const FEED_CACHE_PREFIX = 'newsos_cache_v1_';
 
 // --- VETRA FEED ENGINE HELPERS (snapshot, logos, RSS/Atom e timeout) ---
-const FEED_FETCH_TIMEOUT_MS = 7000;
-const FEED_FIRST_PAINT_MIN_ITEMS = 8;
-const FEED_FIRST_PAINT_MAX_FEEDS = 3;
-const FEED_TEXT_CONCURRENCY = 5;
+const FEED_FETCH_TIMEOUT_MS = 2200;
+const FEED_EDGE_TIMEOUT_MS = 2800;
+const FEED_FIRST_PAINT_MIN_ITEMS = 12;
+const FEED_FIRST_PAINT_MIN_SOURCES = 3;
+const FEED_FIRST_PAINT_MAX_FEEDS = 4;
+const FEED_TEXT_CONCURRENCY = 6;
 const FEED_MEDIA_CONCURRENCY = 3;
 const FEED_MEMORY_TTL = 4 * 60 * 1000;
 
@@ -6715,21 +6717,55 @@ const fetchWithTimeout = async (url, options = {}) => {
   const controller = new AbortController(); const id = setTimeout(() => controller.abort(), timeout);
   try { return await fetch(url, { ...fetchOptions, signal: controller.signal }); } finally { clearTimeout(id); }
 };
+const withPromiseTimeout = (promise, timeout = FEED_EDGE_TIMEOUT_MS, label = 'operação') => {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${label} excedeu ${timeout}ms`)), timeout);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+};
+const countDistinctSources = (items) => new Set((items || []).map(item => String(item?.source || '').trim()).filter(Boolean)).size;
+const shouldDoFirstPaint = ({ items, completedTextFeeds, totalTextFeeds }) => {
+  const distinctSources = countDistinctSources(items);
+  if (!items?.length) return false;
+  if (distinctSources >= FEED_FIRST_PAINT_MIN_SOURCES && items.length >= FEED_FIRST_PAINT_MIN_ITEMS) return true;
+  if (completedTextFeeds >= Math.min(FEED_FIRST_PAINT_MAX_FEEDS, totalTextFeeds) && distinctSources >= 2) return true;
+  if (completedTextFeeds >= totalTextFeeds) return true;
+  return false;
+};
+const findXmlChildByName = (node, wantedName) => {
+  const full = String(wantedName ?? '').toLowerCase();
+  const localName = full.split(':').pop();
+  const children = Array.from(node?.children || []);
+  const byChild = children.find(child => {
+    const tag = String(child?.tagName || child?.nodeName || '').toLowerCase();
+    const local = String(child?.localName || '').toLowerCase();
+    return tag === full || local === full || local === localName;
+  });
+  if (byChild) return byChild;
+  try {
+    const namespaced = node?.getElementsByTagName?.(wantedName)?.[0];
+    if (namespaced) return namespaced;
+  } catch {}
+  if (!full.includes(':') && /^[a-zA-Z][\w-]*$/.test(full)) {
+    try { return node?.querySelector?.(wantedName) || null; } catch {}
+  }
+  return null;
+};
 const getNodeLocalText = (node, names) => {
   const targets = Array.isArray(names) ? names : [names];
   for (const name of targets) {
-    const direct = node.querySelector?.(name); if (direct?.textContent) return normalizeSpaces(direct.textContent);
-    const local = Array.from(node.children || []).find(child => child.localName?.toLowerCase() === String(name).split(':').pop().toLowerCase()); if (local?.textContent) return normalizeSpaces(local.textContent);
-    const namespaced = node.getElementsByTagName?.(name)?.[0]; if (namespaced?.textContent) return normalizeSpaces(namespaced.textContent);
+    const found = findXmlChildByName(node, name);
+    if (found?.textContent) return normalizeSpaces(found.textContent);
   }
   return '';
 };
 const getNodeLocalAttr = (node, names, attr) => {
   const targets = Array.isArray(names) ? names : [names];
   for (const name of targets) {
-    const direct = node.querySelector?.(name); const directValue = direct?.getAttribute?.(attr); if (directValue) return directValue;
-    const local = Array.from(node.children || []).find(child => child.localName?.toLowerCase() === String(name).split(':').pop().toLowerCase()); const localValue = local?.getAttribute?.(attr); if (localValue) return localValue;
-    const namespaced = node.getElementsByTagName?.(name)?.[0]; const namespacedValue = namespaced?.getAttribute?.(attr); if (namespacedValue) return namespacedValue;
+    const found = findXmlChildByName(node, name);
+    const value = found?.getAttribute?.(attr);
+    if (value) return value;
   }
   return '';
 };
@@ -7512,7 +7548,7 @@ const handleStoryNavigation = (direction) => {
 
 // 3. Função para Salvar (Debounced effect)
   useEffect(() => {
-      if (!user || isSyncing) return;
+      if (!user || isSyncing || isInitialLoadRef.current) return;
 
       const saveData = async () => {
           const updates = {
@@ -7719,13 +7755,24 @@ const handleStoryNavigation = (direction) => {
           if (!forceRefresh && mem && (Date.now() - mem.timestamp < FEED_MEMORY_TTL)) return { feed, items: mem.items || [], title: mem.title, logo: mem.logo, isYoutube: mem.isYoutube, fromCache: true };
           let rawItems = []; let detectedXmlTitle = String(feed?.name ?? 'Fonte'); let feedLogo = feed.logo || null; let siteLink = feed.url; let isFeedYoutube = String(feed?.url ?? '').includes('youtube.com') || String(feed?.url ?? '').includes('youtu.be'); let success = false;
           try {
-              let invokeResult = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
-              if (invokeResult?.error || !invokeResult?.data?.items?.length) invokeResult = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
+              let invokeResult = await withPromiseTimeout(
+                  supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } }),
+                  FEED_EDGE_TIMEOUT_MS,
+                  `parse-feed ${feed.name || feed.url}`
+              );
+              if (!invokeResult?.error && !invokeResult?.data?.items?.length && forceRefresh) {
+                  invokeResult = await withPromiseTimeout(
+                      supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: false } }),
+                      FEED_EDGE_TIMEOUT_MS,
+                      `parse-feed completo ${feed.name || feed.url}`
+                  );
+              }
               const data = invokeResult?.data;
               if (!invokeResult?.error && data?.items?.length > 0) { rawItems = data.items; detectedXmlTitle = data.title || detectedXmlTitle; feedLogo = data.image || data.logo || feedLogo; siteLink = data.link || data.feedUrl || data.url || siteLink; isFeedYoutube = !!data.isYoutube; success = true; }
-          } catch (e) { console.warn('Falha na Edge Function parse-feed:', feed.url, e); }
-          if (!success) {
-              const proxyCandidates = [`/api/proxy?url=${encodeURIComponent(feed.url)}`, `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`, `https://api.allorigins.win/raw?url=${encodeURIComponent(feed.url)}`];
+          } catch (e) { console.warn('Falha/timeout na Edge Function parse-feed:', feed.url, e?.message || e); }
+          // Fallback externo é lento e não deve travar a abertura do app. Só roda no pull-to-refresh.
+          if (!success && forceRefresh) {
+              const proxyCandidates = [`https://api.allorigins.win/raw?url=${encodeURIComponent(feed.url)}`];
               for (const proxyUrl of proxyCandidates) {
                   try { const res = await fetchWithTimeout(proxyUrl, { timeout: FEED_FETCH_TIMEOUT_MS }); if (!res.ok) continue; const xmlText = await res.text(); const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id, feed.url); if (parsedData.items.length > 0) { rawItems = parsedData.items; detectedXmlTitle = parsedData.realTitle || detectedXmlTitle; feedLogo = parsedData.realLogo || feedLogo; siteLink = parsedData.siteLink || siteLink; success = true; break; } } catch (e) {}
               }
@@ -7755,7 +7802,7 @@ const handleStoryNavigation = (direction) => {
               const result = await processSingleFeed(feed); completedTextFeeds += 1;
               if (result.feed.name === 'Nova Fonte' || result.feed.name === 'Sem Título') feedsThatNeedUpdate.push({ id: result.feed.id, name: result.title || result.feed.name, logo: result.logo });
               allNewsItems.push(...result.items);
-              if (!firstTextPaintDone && (allNewsItems.length >= FEED_FIRST_PAINT_MIN_ITEMS || completedTextFeeds >= FEED_FIRST_PAINT_MAX_FEEDS)) { firstTextPaintDone = true; commitTextSnapshot(allNewsItems, { partial: true, force: false }); setIsLoadingFeeds(false); }
+              if (!firstTextPaintDone && shouldDoFirstPaint({ items: allNewsItems, completedTextFeeds, totalTextFeeds: textFeeds.length })) { firstTextPaintDone = true; commitTextSnapshot(allNewsItems, { partial: true, force: false }); setIsLoadingFeeds(false); }
           });
           commitTextSnapshot(allNewsItems, { partial: false, force: forceRefresh }); setIsLoadingFeeds(false);
           await runConcurrentPool(mediaFeeds, FEED_MEDIA_CONCURRENCY, async (feed) => {
