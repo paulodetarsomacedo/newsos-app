@@ -15,12 +15,12 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const REQUEST_TIMEOUT_MS = 5200;
-const ARTICLE_TIMEOUT_MS = 2200;
+const REQUEST_TIMEOUT_MS = 6800;
+const ARTICLE_TIMEOUT_MS = 2800;
 const DEFAULT_LIMIT = 42;
 const MAX_LIMIT = 70;
 const DEFAULT_CONCURRENCY = 6;
-const MAX_OG_PER_SOURCE = 8;
+const MAX_OG_PER_SOURCE = 14;
 
 const parser = new Parser({
   timeout: REQUEST_TIMEOUT_MS,
@@ -205,11 +205,38 @@ async function fetchOgImage(url: string): Promise<string | null> {
   try { const { text, finalUrl } = await fetchText(url, ARTICLE_TIMEOUT_MS); return absolutizeUrl(extractImageFromHtml(text.slice(0, 360000)), finalUrl || url); } catch { return null; }
 }
 
+
+const NOTICIAS_AO_MINUTO_LOGO = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="28" fill="#ec1c24"/>
+  <circle cx="64" cy="64" r="39" fill="white"/>
+  <path d="M64 39a25 25 0 1 0 0 50 25 25 0 0 0 0-50Zm0 9a16 16 0 1 1 0 32 16 16 0 0 1 0-32Z" fill="#ec1c24"/>
+  <path d="M62 51h8v20H51v-8h11V51Z" fill="#111827"/>
+</svg>
+`)}`;
+const SBT_NEWS_LOGO = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs><linearGradient id="s" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#05a8ff"/><stop offset=".38" stop-color="#5b4dff"/><stop offset=".7" stop-color="#ff2d55"/><stop offset="1" stop-color="#ffcc00"/></linearGradient></defs>
+  <rect width="128" height="128" rx="28" fill="#061231"/>
+  <circle cx="64" cy="64" r="43" fill="url(#s)"/>
+  <circle cx="64" cy="64" r="31" fill="#fff"/>
+  <text x="64" y="73" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="28" fill="#071126">SBT</text>
+</svg>
+`)}`;
+const UOL_BRASIL_LOGO = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="28" fill="#0066cc"/>
+  <circle cx="42" cy="48" r="22" fill="#ffb000"/>
+  <circle cx="50" cy="43" r="20" fill="#ff5a00" opacity=".86"/>
+  <text x="64" y="86" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="36" fill="#fff">uol</text>
+</svg>
+`)}`;
+
 const LOGO_OVERRIDES: Array<{ key: string; domains: string[]; logo: string }> = [
   { key: "jovem pan", domains: ["jovempan.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://jovempan.com.br&sz=128" },
   { key: "g1", domains: ["g1.globo.com"], logo: "https://www.google.com/s2/favicons?domain_url=https://g1.globo.com&sz=128" },
-  { key: "uol", domains: ["uol.com.br", "rss.uol.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://www.uol.com.br&sz=128" },
-  { key: "sbt", domains: ["sbtnews.sbt.com.br", "sbt.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://sbtnews.sbt.com.br&sz=128" },
+  { key: "uol", domains: ["uol.com.br", "rss.uol.com.br"], logo: UOL_BRASIL_LOGO },
+  { key: "sbt", domains: ["sbtnews.sbt.com.br", "sbt.com.br"], logo: SBT_NEWS_LOGO },
   { key: "r7", domains: ["r7.com"], logo: "https://www.google.com/s2/favicons?domain_url=https://www.r7.com&sz=128" },
   { key: "istoe dinheiro", domains: ["istoedinheiro.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://istoedinheiro.com.br&sz=128" },
   { key: "istoe", domains: ["istoe.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://istoe.com.br&sz=128" },
@@ -219,7 +246,7 @@ const LOGO_OVERRIDES: Array<{ key: string; domains: string[]; logo: string }> = 
   { key: "valor investe", domains: ["valorinveste.globo.com"], logo: "https://www.google.com/s2/favicons?domain_url=https://valorinveste.globo.com&sz=128" },
   { key: "exame", domains: ["exame.com"], logo: "https://www.google.com/s2/favicons?domain_url=https://exame.com&sz=128" },
   { key: "gp1", domains: ["gp1.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://gp1.com.br&sz=128" },
-  { key: "noticias ao minuto", domains: ["noticiasaominuto.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://noticiasaominuto.com.br&sz=128" },
+  { key: "noticias ao minuto", domains: ["noticiasaominuto.com.br"], logo: NOTICIAS_AO_MINUTO_LOGO },
   { key: "terra", domains: ["terra.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://terra.com.br&sz=128" },
   { key: "exame invest", domains: ["exame.com"], logo: "https://www.google.com/s2/favicons?domain_url=https://exame.com&sz=128" },
 ];
@@ -250,6 +277,7 @@ function candidateUrlsForFeed(feed: FeedInput): string[] {
     add("https://economia.uol.com.br/ultimas-noticias/rss.xml");
   }
   if (host.includes("sbt") || name.includes("sbt")) {
+    add("https://sbtnews.sbt.com.br/noticias");
     add("https://sbtnews.sbt.com.br/feed"); add("https://sbtnews.sbt.com.br/rss"); add("https://www.sbtnews.com.br/feed");
     add("https://sbtnews.sbt.com.br/noticias/feed"); add("https://sbtnews.sbt.com.br/ultimas-noticias/feed"); add("https://sbtnews.sbt.com.br/");
   }
@@ -262,6 +290,7 @@ function candidateUrlsForFeed(feed: FeedInput): string[] {
   }
   if (host.includes("jovempan") || name.includes("jovem pan")) { add("https://jovempan.com.br/feed"); add("https://jovempan.com.br/noticias/feed"); add("https://jovempan.com.br/"); }
   if (host.includes("g1.globo.com") || name.includes("g1")) { add("https://g1.globo.com/rss/g1/"); add("https://g1.globo.com/rss/g1/brasil/"); add("https://g1.globo.com/"); }
+  if (host.includes("fiis.com.br") || name.includes("fiis")) { add("https://fiis.com.br/noticias/feed/"); add("https://fiis.com.br/feed/"); add("https://fiis.com.br/noticias/"); }
   if (host.includes("band.uol") || name.includes("band")) { add("https://www.band.uol.com.br/rss.xml"); add("https://www.band.uol.com.br/"); }
   if (host) { add(`https://${host}/feed`); add(`https://${host}/feed/`); add(`https://${host}/rss`); add(`https://${host}/rss.xml`); }
   return list.slice(0, 14);
@@ -340,10 +369,29 @@ async function resolveAndFetchFeed(feedInput: FeedInput): Promise<{ feedUrl: str
   throw lastError instanceof Error ? lastError : new Error("Nenhum feed RSS/Atom encontrado");
 }
 
+
+function cleanArticleTitleForSource(title: string, source = '', url = ''): string {
+  let clean = stripTags(title || '', 260);
+  const key = normalizeKey(`${source} ${url}`);
+  if (key.includes('sbt')) {
+    const areas = ['brasil','politica','política','economia','mundo','saude','saúde','esportes','justica','justiça','policia','polícia','tecnologia','cultura','eleicoes','eleições','comprova','colunistas','ultimas noticias','últimas notícias','noticias','notícias','sbt news'];
+    let changed = true;
+    while (changed) {
+      const before = clean;
+      for (const area of areas) {
+        const re = new RegExp(`^${area.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*(?:[-–—:|•›»]+|\\s{2,})\\s*`, 'i');
+        clean = clean.replace(re, '').trim();
+      }
+      changed = before !== clean;
+    }
+  }
+  return clean.replace(/\s+([,.;:!?])/g, '$1').replace(/\s+/g, ' ').trim();
+}
+
 function normalizeItem(item: any, index: number, parsed: any, feedUrl: string, feedLogo: string | null, isYoutube: boolean) {
   const link = safeString(item.link || item.guid || item.id || "");
   const videoId = safeString(item.videoId) || (link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/)?.[2] || null);
-  const title = stripTags(item.title || item.name || item.description || `Item ${index + 1}`, 240);
+  const title = cleanArticleTitleForSource(item.title || item.name || item.description || `Item ${index + 1}`, parsed?.title || feedUrl, feedUrl);
   const rawDescription = item.contentEncoded || item.content || item.description || item.summary || item.mediaDescription || "";
   let img: string | null = videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : extractImageFromItem(item);
   img = absolutizeUrl(img, link || parsed.link || feedUrl) || feedLogo;
@@ -362,7 +410,7 @@ function scrapeArticlesFromHtml(html: string, pageUrl: string, feedInput: FeedIn
     const href = absolutizeUrl(a.getAttribute("href") || "", pageUrl); if (!href) continue;
     const h = getHostname(href); if (h && host && h !== host && !h.endsWith(`.${host}`) && !host.endsWith(`.${h}`)) continue;
     if (bad.test(href)) continue;
-    const title = stripTags(a.textContent || "", 240);
+    const title = cleanArticleTitleForSource(a.textContent || "", feedInput.name || host, href || pageUrl);
     if (title.length < 32 || title.length > 230) continue;
     const key = normalizeKey(title).slice(0, 110); if (!key || seen.has(key)) continue; seen.add(key);
     items.push({ id: href, title, link: href, pubDate: null, img: null, description: title, contentEncoded: null, category: feedInput.category || null, scraped: true });
