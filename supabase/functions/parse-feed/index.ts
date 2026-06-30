@@ -1,5 +1,6 @@
-// ARQUIVO: supabase/functions/parse-feed/index.ts
-// Vetra — parser RSS/Atom robusto com descoberta de feeds, encoding BR, logos e timeout por etapa.
+// ARQUIVO: supabase/functions/collect-feeds/index.ts
+// Vetra Recovery Engine — worker agregador forte para RSS/Atom + descoberta + scrape HTML leve.
+// Objetivo: cada fonte cadastrada retorna status e, quando possível, itens úteis sem travar o app inteiro.
 
 // @ts-ignore
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -14,10 +15,12 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const REQUEST_TIMEOUT_MS = 5200;
-const OG_TIMEOUT_MS = 1400;
-const MAX_ITEMS_DEFAULT = 30;
-const MAX_ITEMS_BRIEF = 20;
+const REQUEST_TIMEOUT_MS = 7600;
+const ARTICLE_TIMEOUT_MS = 2600;
+const DEFAULT_LIMIT = 42;
+const MAX_LIMIT = 70;
+const DEFAULT_CONCURRENCY = 6;
+const MAX_OG_PER_SOURCE = 12;
 
 const parser = new Parser({
   timeout: REQUEST_TIMEOUT_MS,
@@ -49,11 +52,8 @@ const parser = new Parser({
   },
 });
 
-type FetchResult = {
-  finalUrl: string;
-  contentType: string;
-  text: string;
-};
+type FetchResult = { finalUrl: string; contentType: string; text: string };
+type FeedInput = { id?: string; name?: string; url: string; logo?: string; category?: string; type?: string };
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -62,68 +62,31 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   });
 }
 
-function safeString(value: unknown): string {
-  return String(value ?? "").trim();
-}
-
-function normalizeUrl(input: string): string {
-  const value = safeString(input);
-  if (!value) throw new Error("URL is required");
-  if (/^https?:\/\//i.test(value)) return value;
-  return `https://${value}`;
-}
-
-function isHttpUrl(value: string | null | undefined): boolean {
-  return /^https?:\/\//i.test(String(value ?? ""));
-}
-
-function getHostname(value: string): string {
-  try {
-    return new URL(value).hostname.replace(/^www\./i, "");
-  } catch {
-    return value.replace(/^https?:\/\//i, "").split("/")[0].replace(/^www\./i, "");
-  }
-}
+function safeString(value: unknown): string { return String(value ?? "").trim(); }
+function normalizeUrl(input: string): string { const v = safeString(input); if (!v) throw new Error("URL is required"); return /^https?:\/\//i.test(v) ? v : `https://${v}`; }
+function isHttpUrl(value: string | null | undefined): boolean { return /^https?:\/\//i.test(String(value ?? "")); }
+function normalizeKey(value: unknown): string { return safeString(value).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim(); }
+function getHostname(value: string): string { try { return new URL(normalizeUrl(value)).hostname.replace(/^www\./i, "").toLowerCase(); } catch { return safeString(value).replace(/^https?:\/\//i, "").split("/")[0].replace(/^www\./i, "").toLowerCase(); } }
 
 function withTimeoutSignal(ms: number): AbortSignal {
-  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
-    return AbortSignal.timeout(ms);
-  }
+  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) return AbortSignal.timeout(ms);
   const controller = new AbortController();
   setTimeout(() => controller.abort(), ms);
   return controller.signal;
 }
 
-function decoderFor(label: string): TextDecoder {
-  try {
-    return new TextDecoder(label);
-  } catch (_e) {
-    return new TextDecoder("iso-8859-1");
-  }
-}
-
-function textBadness(text: string): number {
-  const replacement = (text.match(/�/g) || []).length * 4;
-  const mojibake = (text.match(/Ã.|Â.|â€|â€“|â€œ|â€/g) || []).length;
-  return replacement + mojibake;
-}
-
+function decoderFor(label: string): TextDecoder { try { return new TextDecoder(label); } catch { return new TextDecoder("iso-8859-1"); } }
+function textBadness(text: string): number { return ((text.match(/\uFFFD/g) || []).length * 5) + ((text.match(/Ã.|Â.|â€|â€“|â€œ|â€/g) || []).length); }
 function decodeBuffer(buffer: ArrayBuffer, contentType = ""): string {
-  const firstUtf8 = new TextDecoder("utf-8").decode(buffer);
-  const xmlEncoding = firstUtf8.match(/<\?xml[^>]+encoding=["']([^"']+)["']/i)?.[1]?.toLowerCase() || "";
-  const metaCharset = firstUtf8.match(/charset=["']?([a-zA-Z0-9_\-]+)["']?/i)?.[1]?.toLowerCase() || "";
+  const utf8 = new TextDecoder("utf-8").decode(buffer);
+  const xmlEncoding = utf8.match(/<\?xml[^>]+encoding=["']([^"']+)["']/i)?.[1]?.toLowerCase() || "";
+  const metaCharset = utf8.match(/charset=["']?([a-zA-Z0-9_\-]+)["']?/i)?.[1]?.toLowerCase() || "";
   const headerCharset = contentType.match(/charset=([^;]+)/i)?.[1]?.trim().toLowerCase() || "";
   const charset = headerCharset || xmlEncoding || metaCharset;
-
-  const wantsLatin = charset.includes("iso-8859-1") || charset.includes("latin1") || charset.includes("latin-1") || charset.includes("windows-1252") || charset.includes("cp1252");
-  const latinText = () => decoderFor("windows-1252").decode(buffer);
-  if (wantsLatin) return latinText();
-
-  const latinCandidate = latinText();
-  // Muitos feeds brasileiros anunciam UTF-8, mas entregam bytes Latin-1/Windows-1252.
-  // Se o UTF-8 gerou � ou mojibake, troca para Windows-1252.
-  if (textBadness(firstUtf8) > 0 && textBadness(latinCandidate) < textBadness(firstUtf8)) return latinCandidate;
-  return firstUtf8;
+  const latin = decoderFor("windows-1252").decode(buffer);
+  if (/iso-8859-1|latin1|latin-1|windows-1252|cp1252/.test(charset)) return latin;
+  if (textBadness(utf8) > 0 && textBadness(latin) < textBadness(utf8)) return latin;
+  return utf8;
 }
 
 async function fetchText(url: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<FetchResult> {
@@ -134,140 +97,71 @@ async function fetchText(url: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<F
       "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
       "Cache-Control": "no-cache",
       "Pragma": "no-cache",
+      "Sec-Fetch-Site": "none",
+      "Upgrade-Insecure-Requests": "1",
     },
     cache: "no-store",
     redirect: "follow",
     signal: withTimeoutSignal(timeoutMs),
   });
-
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const contentType = response.headers.get("content-type") || "";
   const buffer = await response.arrayBuffer();
-  return {
-    finalUrl: response.url || url,
-    contentType,
-    text: decodeBuffer(buffer, contentType),
-  };
-}
-
-async function fetchTextWithFallback(url: string, allowProxy = false): Promise<FetchResult> {
-  try {
-    return await fetchText(url);
-  } catch (primaryError) {
-    // Na abertura do app o proxy externo é proibido: ele é lento, instável e causava cascata de loading.
-    // Só é permitido quando o front pedir explicitamente allowProxy=true em uma ação manual.
-    if (!allowProxy) {
-      throw primaryError instanceof Error ? primaryError : new Error("Falha ao carregar URL");
-    }
-
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    try {
-      const proxied = await fetchText(proxyUrl, 1600);
-      return { ...proxied, finalUrl: url };
-    } catch (_proxyError) {
-      throw primaryError instanceof Error ? primaryError : new Error("Falha ao carregar URL");
-    }
-  }
-}
-
-function looksLikeXml(text: string, contentType = "", url = ""): boolean {
-  const head = text.slice(0, 600).trim().toLowerCase();
-  const ct = contentType.toLowerCase();
-  if (ct.includes("rss") || ct.includes("atom") || ct.includes("xml")) return true;
-  if (/\.(rss|xml|atom)(\?|#|$)/i.test(url)) return true;
-  return head.startsWith("<?xml") || head.includes("<rss") || head.includes("<feed") || head.includes("<rdf:rdf");
-}
-
-function repairXML(xml: string): string {
-  return String(xml || "")
-    .replace(/^\uFEFF/, "")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
-    .replace(/&(?!(?:[a-zA-Z0-9]+|#[0-9]{1,7}|#x[0-9a-fA-F]{1,6});)/g, "&amp;");
-}
-
-function absolutizeUrl(candidate: string | null | undefined, baseUrl: string): string | null {
-  let clean = safeString(candidate)
-    .replace(/^['"]+|['"]+$/g, "")
-    .replace(/\s/g, "");
-  if (!clean) return null;
-
-  const lastHttps = clean.lastIndexOf("https://");
-  const lastHttp = clean.lastIndexOf("http://");
-  const lastAbsolute = Math.max(lastHttps, lastHttp);
-  if (lastAbsolute > 0) clean = clean.slice(lastAbsolute);
-
-  if (clean.startsWith("//")) return `https:${clean}`;
-  if (clean.startsWith("http://")) return clean.replace(/^http:\/\//i, "https://");
-  if (clean.startsWith("https://")) return clean;
-
-  try {
-    return new URL(clean, baseUrl).href;
-  } catch {
-    return null;
-  }
+  return { finalUrl: response.url || url, contentType, text: decodeBuffer(buffer, contentType) };
 }
 
 function htmlDecode(input: string): string {
   return String(input || "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, "&");
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 }
-
-function stripTags(input: string): string {
+function stripTags(input: string, max = 500): string {
   return htmlDecode(String(input || ""))
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 }
-
-function getFromMaybeArray(value: any): any {
-  if (Array.isArray(value)) return value[0];
-  return value;
+function repairXML(xml: string): string {
+  return String(xml || "").replace(/^\uFEFF/, "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").replace(/&(?!(?:[a-zA-Z0-9]+|#[0-9]{1,7}|#x[0-9a-fA-F]{1,6});)/g, "&amp;");
 }
-
+function looksLikeXml(text: string, contentType = "", url = ""): boolean {
+  const head = text.slice(0, 800).trim().toLowerCase(); const ct = contentType.toLowerCase();
+  if (ct.includes("rss") || ct.includes("atom") || ct.includes("xml")) return true;
+  if (/\.(rss|xml|atom)(\?|#|$)/i.test(url)) return true;
+  return head.startsWith("<?xml") || head.includes("<rss") || head.includes("<feed") || head.includes("<rdf:rdf");
+}
+function absolutizeUrl(candidate: string | null | undefined, baseUrl: string): string | null {
+  let clean = safeString(candidate).replace(/^["']+|["']+$/g, "").replace(/\s/g, "");
+  if (!clean) return null;
+  const lastHttps = clean.lastIndexOf("https://"); const lastHttp = clean.lastIndexOf("http://"); const lastAbs = Math.max(lastHttps, lastHttp);
+  if (lastAbs > 0) clean = clean.slice(lastAbs);
+  if (clean.startsWith("//")) return `https:${clean}`;
+  if (clean.startsWith("http://")) return clean.replace(/^http:\/\//i, "https://");
+  if (clean.startsWith("https://")) return clean;
+  try { return new URL(clean, baseUrl).href; } catch { return null; }
+}
+function getFromMaybeArray(value: any): any { return Array.isArray(value) ? value[0] : value; }
 function extractUrlFromField(field: any): string | null {
-  const value = getFromMaybeArray(field);
-  if (!value) return null;
+  const value = getFromMaybeArray(field); if (!value) return null;
   if (typeof value === "string") return value;
-  if (typeof value === "object") {
-    return value.url || value.href || value.$?.url || value.$?.href || null;
-  }
+  if (typeof value === "object") return value.url || value.href || value.$?.url || value.$?.href || null;
   return null;
 }
-
-function bestFromSrcset(srcset: string | null): string | null {
-  if (!srcset) return null;
-  const candidates = srcset.split(",").map(part => part.trim().split(/\s+/)[0]).filter(Boolean);
-  return candidates[candidates.length - 1] || null;
-}
+function bestFromSrcset(srcset: string | null): string | null { if (!srcset) return null; const c = srcset.split(",").map(p => p.trim().split(/\s+/)[0]).filter(Boolean); return c[c.length - 1] || null; }
 
 function extractImageFromJsonLd(html: string): string | null {
   const scripts = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
   for (const script of scripts) {
     const raw = script.replace(/^[\s\S]*?>/, "").replace(/<\/script>$/i, "").trim();
     try {
-      const parsed = JSON.parse(raw);
-      const list = Array.isArray(parsed) ? parsed : [parsed];
-      for (const item of list) {
-        const image = item?.image || item?.thumbnailUrl || item?.logo;
+      const parsed = JSON.parse(raw); const list = Array.isArray(parsed) ? parsed : [parsed];
+      const stack = [...list];
+      while (stack.length) {
+        const item = stack.shift(); if (!item || typeof item !== "object") continue;
+        const image = item.image || item.thumbnailUrl || item.logo;
         if (typeof image === "string") return image;
         if (Array.isArray(image) && image[0]) return typeof image[0] === "string" ? image[0] : image[0]?.url;
         if (image?.url) return image.url;
-        if (item?.['@graph']) {
-          const nested = Array.isArray(item['@graph']) ? item['@graph'] : [item['@graph']];
-          for (const node of nested) {
-            const nestedImage = node?.image || node?.thumbnailUrl;
-            if (typeof nestedImage === "string") return nestedImage;
-            if (Array.isArray(nestedImage) && nestedImage[0]) return typeof nestedImage[0] === "string" ? nestedImage[0] : nestedImage[0]?.url;
-            if (nestedImage?.url) return nestedImage.url;
-          }
-        }
+        const graph = item["@graph"]; if (graph) stack.push(...(Array.isArray(graph) ? graph : [graph]));
       }
     } catch (_e) {}
   }
@@ -275,259 +169,290 @@ function extractImageFromJsonLd(html: string): string | null {
 }
 
 function extractImageFromHtml(html: string): string | null {
-  let content = htmlDecode(html || "");
-  if (!content) return null;
-
+  const content = htmlDecode(html || ""); if (!content) return null;
   const metaPatterns = [
     /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
     /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
     /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
     /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
   ];
-  for (const pattern of metaPatterns) {
-    const found = content.match(pattern)?.[1];
-    if (found) return found;
-  }
-
-  const jsonLdImage = extractImageFromJsonLd(content);
-  if (jsonLdImage) return jsonLdImage;
-
+  for (const pattern of metaPatterns) { const found = content.match(pattern)?.[1]; if (found) return found; }
+  const jsonLd = extractImageFromJsonLd(content); if (jsonLd) return jsonLd;
   try {
     const doc = new DOMParser().parseFromString(content, "text/html");
     if (doc) {
-      const sources = doc.querySelectorAll("picture source, source");
-      for (const source of sources) {
-        const srcset = bestFromSrcset(source.getAttribute("srcset") || source.getAttribute("data-srcset"));
-        if (srcset && !/pixel|spacer|blank|\.gif|\.svg|\.woff/i.test(srcset)) return srcset;
+      for (const source of doc.querySelectorAll("picture source, source")) {
+        const src = bestFromSrcset(source.getAttribute("srcset") || source.getAttribute("data-srcset"));
+        if (src && !/pixel|spacer|blank|\.gif|\.svg|\.woff/i.test(src)) return src;
       }
-      const images = doc.querySelectorAll("img");
-      for (const img of images) {
-        const src = img.getAttribute("data-src") ||
-          img.getAttribute("data-original") ||
-          img.getAttribute("data-lazy-src") ||
-          img.getAttribute("data-srcset") ||
-          bestFromSrcset(img.getAttribute("srcset")) ||
-          img.getAttribute("src");
-        const width = Number(img.getAttribute("width") || 0);
-        const height = Number(img.getAttribute("height") || 0);
-        if (src && !/pixel|spacer|blank|\.gif|\.svg|\.woff/i.test(src) && (!width || width >= 120) && (!height || height >= 80)) return src;
+      for (const img of doc.querySelectorAll("img")) {
+        const src = img.getAttribute("data-src") || img.getAttribute("data-original") || img.getAttribute("data-lazy-src") || img.getAttribute("data-srcset") || bestFromSrcset(img.getAttribute("srcset")) || img.getAttribute("src");
+        const width = Number(img.getAttribute("width") || 0); const height = Number(img.getAttribute("height") || 0);
+        if (src && !/pixel|spacer|blank|\.gif|\.svg|\.woff/i.test(src) && (!width || width >= 96) && (!height || height >= 64)) return src;
       }
     }
   } catch (_e) {}
-
-  const match = content.match(/https?:\/\/[^"'\s<>]+\.(?:jpg|jpeg|png|webp)(?:\?[^"'\s<>]*)?/i);
-  return match?.[0] || null;
+  return content.match(/https?:\/\/[^"'\s<>]+\.(?:jpg|jpeg|png|webp)(?:\?[^"'\s<>]*)?/i)?.[0] || null;
 }
-
 function extractImageFromItem(item: any): string | null {
-  return extractUrlFromField(item.mediaContent) ||
-    extractUrlFromField(item.mediaThumbnail) ||
-    extractUrlFromField(item.itunesImage) ||
-    (item.enclosure?.type?.startsWith?.("image") ? item.enclosure.url : null) ||
-    extractUrlFromField(item.image) ||
+  const enclosure = getFromMaybeArray(item.enclosure);
+  return extractUrlFromField(item.mediaContent) || extractUrlFromField(item.mediaThumbnail) || extractUrlFromField(item.itunesImage) ||
+    (enclosure?.url && /image/i.test(enclosure?.type || enclosure?.url) ? enclosure.url : null) || extractUrlFromField(item.image) ||
     extractImageFromHtml(item.contentEncoded || item.content || item.description || item.summary || "");
 }
-
 async function fetchOgImage(url: string): Promise<string | null> {
   if (!isHttpUrl(url)) return null;
-  try {
-    const { text, finalUrl } = await fetchText(url, OG_TIMEOUT_MS);
-    const html = text.slice(0, 260000);
-    const found = extractImageFromHtml(html);
-    return absolutizeUrl(found, finalUrl || url);
-  } catch (_e) {
-    return null;
-  }
+  try { const { text, finalUrl } = await fetchText(url, ARTICLE_TIMEOUT_MS); return absolutizeUrl(extractImageFromHtml(text.slice(0, 360000)), finalUrl || url); } catch { return null; }
 }
 
-function extractYoutubeId(url: string): string | null {
-  if (!url) return null;
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
-  const match = url.match(regExp);
-  return match && match[2]?.length === 11 ? match[2] : null;
-}
-
-function detectYoutubeChannelId(url: string): string | null {
-  return url.match(/channel_id=([^&]+)/)?.[1] ||
-    url.match(/\/channel\/([^/?#]+)/)?.[1] ||
-    url.match(/user=([^&]+)/)?.[1] ||
-    null;
-}
-
-async function fetchYoutubeChannelAvatar(channelId: string): Promise<string | null> {
-  if (!channelId) return null;
-  try {
-    const url = /^UC/.test(channelId) ? `https://www.youtube.com/channel/${channelId}` : `https://www.youtube.com/user/${channelId}`;
-    const { text } = await fetchText(url, OG_TIMEOUT_MS);
-    return text.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1]?.trim() || null;
-  } catch (_e) {
-    return null;
-  }
-}
-
+const LOGO_OVERRIDES: Array<{ key: string; domains: string[]; logo: string }> = [
+  { key: "jovem pan", domains: ["jovempan.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://jovempan.com.br&sz=128" },
+  { key: "g1", domains: ["g1.globo.com"], logo: "https://www.google.com/s2/favicons?domain_url=https://g1.globo.com&sz=128" },
+  { key: "uol", domains: ["uol.com.br", "rss.uol.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://www.uol.com.br&sz=128" },
+  { key: "sbt", domains: ["sbtnews.sbt.com.br", "sbt.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://sbtnews.sbt.com.br&sz=128" },
+  { key: "r7", domains: ["r7.com"], logo: "https://www.google.com/s2/favicons?domain_url=https://www.r7.com&sz=128" },
+  { key: "istoe dinheiro", domains: ["istoedinheiro.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://istoedinheiro.com.br&sz=128" },
+  { key: "istoe", domains: ["istoe.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://istoe.com.br&sz=128" },
+  { key: "band", domains: ["band.uol.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://www.band.uol.com.br&sz=128" },
+];
 function getDomainLogo(url: string, title = "Fonte"): string {
   const domain = getHostname(url);
-  if (domain) return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(title)}&background=random&color=fff&bold=true`;
+  const key = normalizeKey(`${title} ${domain}`);
+  const override = LOGO_OVERRIDES.find(o => o.domains.some(d => domain.includes(d)) || key.includes(o.key));
+  if (override) return override.logo;
+  return domain ? `https://www.google.com/s2/favicons?domain_url=https://${encodeURIComponent(domain)}&sz=128` : `https://ui-avatars.com/api/?name=${encodeURIComponent(title)}&background=random&color=fff&bold=true`;
+}
+function extractFeedLogo(feed: any, baseUrl: string): string | null {
+  const candidates = [extractUrlFromField(feed.image), extractUrlFromField(feed.itunesImage), extractUrlFromField(feed.mediaThumbnail), extractUrlFromField(feed.logo), extractUrlFromField(feed.icon)];
+  for (const c of candidates) { const r = absolutizeUrl(c, feed.link || baseUrl); if (r && !r.includes("t0.gstatic.com")) return r; }
+  return null;
 }
 
-function extractFeedLogo(feed: any, baseUrl: string): string | null {
-  const candidates = [
-    extractUrlFromField(feed.image),
-    extractUrlFromField(feed.itunesImage),
-    extractUrlFromField(feed.mediaThumbnail),
-    extractUrlFromField(feed.logo),
-    extractUrlFromField(feed.icon),
-  ];
-
-  for (const candidate of candidates) {
-    const resolved = absolutizeUrl(candidate, feed.link || baseUrl);
-    if (resolved) return resolved;
+function candidateUrlsForFeed(feed: FeedInput): string[] {
+  const url = normalizeUrl(feed.url);
+  const host = getHostname(url);
+  const name = normalizeKey(feed.name || "");
+  const list: string[] = [url];
+  const add = (v: string) => { if (v && !list.includes(v)) list.push(v); };
+  if (host.includes("uol.com.br") || name.includes("uol")) {
+    if (name.includes("economia") || url.includes("economia")) add("https://rss.uol.com.br/feed/economia.xml");
+    add("https://rss.uol.com.br/feed/noticias.xml");
+    add("https://noticias.uol.com.br/ultimas-noticias/rss.xml");
+    add("https://economia.uol.com.br/ultimas-noticias/rss.xml");
   }
-  return null;
+  if (host.includes("sbt") || name.includes("sbt")) {
+    add("https://sbtnews.sbt.com.br/feed"); add("https://sbtnews.sbt.com.br/rss"); add("https://www.sbtnews.com.br/feed"); add("https://sbtnews.sbt.com.br/");
+  }
+  if (host.includes("r7.com") || name.includes("r7")) {
+    add("https://noticias.r7.com/feed.xml"); add("https://noticias.r7.com/feed"); add("https://www.r7.com/rss.xml"); add("https://www.r7.com/");
+  }
+  if (host.includes("istoe") || name.includes("istoe")) {
+    if (host.includes("istoedinheiro") || name.includes("dinheiro")) add("https://istoedinheiro.com.br/feed/");
+    add("https://istoe.com.br/feed/"); add("https://istoedinheiro.com.br/"); add("https://istoe.com.br/");
+  }
+  if (host.includes("jovempan") || name.includes("jovem pan")) { add("https://jovempan.com.br/feed"); add("https://jovempan.com.br/noticias/feed"); add("https://jovempan.com.br/"); }
+  if (host.includes("g1.globo.com") || name.includes("g1")) { add("https://g1.globo.com/rss/g1/"); add("https://g1.globo.com/rss/g1/brasil/"); add("https://g1.globo.com/"); }
+  if (host.includes("band.uol") || name.includes("band")) { add("https://www.band.uol.com.br/rss.xml"); add("https://www.band.uol.com.br/"); }
+  if (host) { add(`https://${host}/feed`); add(`https://${host}/feed/`); add(`https://${host}/rss`); add(`https://${host}/rss.xml`); }
+  return list.slice(0, 14);
 }
 
 function discoverFeedsFromHtml(html: string, pageUrl: string): string[] {
   const discovered: string[] = [];
   const doc = new DOMParser().parseFromString(html, "text/html");
   if (doc) {
-    const links = doc.querySelectorAll("link");
-    for (const link of links) {
-      const rel = (link.getAttribute("rel") || "").toLowerCase();
-      const type = (link.getAttribute("type") || "").toLowerCase();
-      const href = link.getAttribute("href") || "";
-      const isFeed = rel.includes("alternate") && (
-        type.includes("rss") || type.includes("atom") || type.includes("xml") || /rss|atom|feed/i.test(href)
-      );
-      if (isFeed) {
-        const resolved = absolutizeUrl(href, pageUrl);
-        if (resolved && !discovered.includes(resolved)) discovered.push(resolved);
+    for (const link of doc.querySelectorAll("link")) {
+      const rel = (link.getAttribute("rel") || "").toLowerCase(); const type = (link.getAttribute("type") || "").toLowerCase(); const href = link.getAttribute("href") || "";
+      if (rel.includes("alternate") && (type.includes("rss") || type.includes("atom") || type.includes("xml") || /rss|atom|feed/i.test(href))) {
+        const resolved = absolutizeUrl(href, pageUrl); if (resolved && !discovered.includes(resolved)) discovered.push(resolved);
       }
     }
   }
-
-  const base = new URL(pageUrl);
-  const heuristicPaths = ["/feed", "/feed/", "/rss", "/rss.xml", "/atom.xml", "/index.xml"];
-  for (const path of heuristicPaths) {
-    const candidate = `${base.origin}${path}`;
-    if (!discovered.includes(candidate)) discovered.push(candidate);
-  }
-  return discovered.slice(0, 10);
+  return discovered.slice(0, 12);
 }
 
-async function resolveFeedUrl(inputUrl: string, forceDiscover = false, allowProxy = false): Promise<{ feedUrl: string; fetched: FetchResult }> {
-  const normalized = normalizeUrl(inputUrl);
-  const first = await fetchTextWithFallback(normalized, allowProxy);
-
-  if (!forceDiscover && looksLikeXml(first.text, first.contentType, first.finalUrl || normalized)) {
-    return { feedUrl: first.finalUrl || normalized, fetched: first };
+function localText(node: any, names: string[]): string {
+  const wanted = names.map(n => n.toLowerCase());
+  const children = Array.from(node?.children || []);
+  for (const child of children) {
+    const tag = String((child as any).tagName || (child as any).nodeName || "").toLowerCase();
+    const local = String((child as any).localName || "").toLowerCase();
+    if (wanted.includes(tag) || wanted.includes(local) || wanted.includes(tag.split(":").pop() || "")) return safeString((child as any).textContent);
   }
+  return "";
+}
+function localAttr(node: any, names: string[], attr: string): string {
+  const wanted = names.map(n => n.toLowerCase());
+  const children = Array.from(node?.children || []);
+  for (const child of children) {
+    const tag = String((child as any).tagName || (child as any).nodeName || "").toLowerCase();
+    const local = String((child as any).localName || "").toLowerCase();
+    if (wanted.includes(tag) || wanted.includes(local) || wanted.includes(tag.split(":").pop() || "")) return safeString((child as any).getAttribute?.(attr));
+  }
+  return "";
+}
+function manualParseXml(xml: string, feedUrl: string, feedInput: FeedInput, limit: number) {
+  const doc = new DOMParser().parseFromString(repairXML(xml), "text/xml"); if (!doc) return null;
+  const parserError = doc.querySelector("parsererror"); if (parserError) return null;
+  const channel = doc.querySelector("channel") || doc.querySelector("feed") || doc;
+  const title = localText(channel, ["title"]) || feedInput.name || getHostname(feedUrl);
+  const link = localText(channel, ["link"]) || localAttr(channel, ["link"], "href") || feedUrl;
+  const logoRaw = localText(channel, ["url", "logo", "icon"]) || localAttr(channel, ["itunes:image", "image"], "href");
+  const image = absolutizeUrl(logoRaw, link || feedUrl) || getDomainLogo(link || feedUrl, title);
+  const nodes = Array.from(doc.querySelectorAll("item, entry")).slice(0, limit);
+  const items = nodes.map((node: any, index) => {
+    const itemTitle = stripTags(localText(node, ["title"]), 220);
+    const linkNode = Array.from(node.children || []).find((child: any) => String(child.tagName || child.nodeName || "").toLowerCase() === "link");
+    const itemLink = safeString((linkNode as any)?.getAttribute?.("href")) || localText(node, ["link", "guid", "id"]);
+    const rawDesc = localText(node, ["description", "summary", "content:encoded", "content"]);
+    const imageRaw = localAttr(node, ["media:thumbnail", "thumbnail", "media:content"], "url") || localAttr(node, ["itunes:image"], "href") || localText(node, ["image"]) || extractImageFromHtml(rawDesc);
+    const itemImage = absolutizeUrl(imageRaw, itemLink || link || feedUrl) || image;
+    return { id: itemLink || `${feedUrl}#${index}`, title: itemTitle, link: itemLink, pubDate: localText(node, ["pubDate", "published", "updated", "date"]), img: itemImage, description: stripTags(rawDesc, 500), contentEncoded: rawDesc, category: localText(node, ["category"]) };
+  }).filter(item => item.title || item.link);
+  return { title, link, feedUrl, image, isYoutube: /youtube\.com|youtu\.be/i.test(feedUrl), items };
+}
 
-  const candidates = discoverFeedsFromHtml(first.text, first.finalUrl || normalized);
-  let lastError: unknown = null;
-  for (const candidate of candidates) {
+async function resolveAndFetchFeed(feedInput: FeedInput): Promise<{ feedUrl: string; fetched: FetchResult }> {
+  const tried = new Set<string>(); let lastHtml: FetchResult | null = null; let lastError: unknown = null;
+  for (const candidate of candidateUrlsForFeed(feedInput)) {
+    if (tried.has(candidate)) continue; tried.add(candidate);
     try {
-      const fetched = await fetchTextWithFallback(candidate, allowProxy);
-      if (looksLikeXml(fetched.text, fetched.contentType, fetched.finalUrl || candidate)) {
-        return { feedUrl: fetched.finalUrl || candidate, fetched };
+      const fetched = await fetchText(candidate);
+      if (looksLikeXml(fetched.text, fetched.contentType, fetched.finalUrl || candidate)) return { feedUrl: fetched.finalUrl || candidate, fetched };
+      if (!lastHtml || fetched.text.length > lastHtml.text.length) lastHtml = fetched;
+      for (const discovered of discoverFeedsFromHtml(fetched.text, fetched.finalUrl || candidate)) {
+        if (tried.has(discovered)) continue; tried.add(discovered);
+        try { const f2 = await fetchText(discovered); if (looksLikeXml(f2.text, f2.contentType, f2.finalUrl || discovered)) return { feedUrl: f2.finalUrl || discovered, fetched: f2 }; } catch (e) { lastError = e; }
+      }
+    } catch (e) { lastError = e; }
+  }
+  if (lastHtml) throw Object.assign(new Error("HTML_FALLBACK"), { htmlFallback: lastHtml });
+  throw lastError instanceof Error ? lastError : new Error("Nenhum feed RSS/Atom encontrado");
+}
+
+function normalizeItem(item: any, index: number, parsed: any, feedUrl: string, feedLogo: string | null, isYoutube: boolean) {
+  const link = safeString(item.link || item.guid || item.id || "");
+  const videoId = safeString(item.videoId) || (link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/)?.[2] || null);
+  const title = stripTags(item.title || item.name || item.description || `Item ${index + 1}`, 240);
+  const rawDescription = item.contentEncoded || item.content || item.description || item.summary || item.mediaDescription || "";
+  let img: string | null = videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : extractImageFromItem(item);
+  img = absolutizeUrl(img, link || parsed.link || feedUrl) || feedLogo;
+  const enclosure = getFromMaybeArray(item.enclosure);
+  let audioFile: string | null = null; if (enclosure?.url && /audio|mpeg|mp3|m4a|ogg/i.test(enclosure?.type || enclosure?.url)) audioFile = enclosure.url;
+  const pubDate = item.pubDate || item.isoDate || item.published || item.updated || item.date || null;
+  return { id: videoId || item.guid || item.id || link || `${feedUrl}#${index}`, title, link, pubDate, isoDate: item.isoDate || null, img, videoId, description: stripTags(rawDescription, 500), contentEncoded: item.contentEncoded || item.content || null, audioFile, category: Array.isArray(item.categories) ? item.categories[0] : (Array.isArray(item.category) ? item.category[0] : item.category || null), creator: item.creator || item.author || null, isYoutube: Boolean(videoId || isYoutube) };
+}
+
+function scrapeArticlesFromHtml(html: string, pageUrl: string, feedInput: FeedInput, limit: number) {
+  const doc = new DOMParser().parseFromString(html, "text/html"); if (!doc) return [];
+  const host = getHostname(pageUrl); const seen = new Set<string>(); const items: any[] = [];
+  const bad = /assine|login|newsletter|publicidade|termos|politica-de-privacidade|cookies|facebook|twitter|instagram|youtube|whatsapp|podcast|ao-vivo|videos?$/i;
+  for (const a of doc.querySelectorAll("a")) {
+    if (items.length >= limit) break;
+    const href = absolutizeUrl(a.getAttribute("href") || "", pageUrl); if (!href) continue;
+    const h = getHostname(href); if (h && host && h !== host && !h.endsWith(`.${host}`) && !host.endsWith(`.${h}`)) continue;
+    if (bad.test(href)) continue;
+    const title = stripTags(a.textContent || "", 240);
+    if (title.length < 32 || title.length > 230) continue;
+    const key = normalizeKey(title).slice(0, 110); if (!key || seen.has(key)) continue; seen.add(key);
+    items.push({ id: href, title, link: href, pubDate: null, img: null, description: title, contentEncoded: null, category: feedInput.category || null, scraped: true });
+  }
+  return items;
+}
+
+async function parseOneFeed(feedInput: FeedInput, options: { limit: number; enrichImages: boolean; mode: string }) {
+  const feedId = safeString(feedInput.id || feedInput.url || feedInput.name);
+  const startedAt = Date.now();
+  let lastError = "Falha temporária";
+  let parsedPayload: any = null;
+  let htmlFallback: FetchResult | null = null;
+  try {
+    try {
+      const { feedUrl, fetched } = await resolveAndFetchFeed(feedInput);
+      const repaired = repairXML(fetched.text);
+      let parsed: any = null;
+      try { parsed = await parser.parseString(repaired); } catch (_rssError) { parsed = null; }
+      if (parsed?.items?.length) {
+        const isYoutube = /youtube\.com|youtu\.be/i.test(feedUrl) || /youtube\.com|youtu\.be/i.test(parsed.link || "");
+        const feedLogo = extractFeedLogo(parsed, parsed.link || feedUrl) || getDomainLogo(parsed.link || feedUrl, parsed.title || feedInput.name || getHostname(feedUrl));
+        const sourceItems = parsed.items.slice(0, options.limit);
+        parsedPayload = { title: parsed.title || feedInput.name || getHostname(feedUrl), link: parsed.link || feedUrl, feedUrl, image: feedLogo, isYoutube, items: sourceItems.map((item: any, index: number) => normalizeItem(item, index, parsed, feedUrl, feedLogo, isYoutube)) };
+      } else {
+        const manual = manualParseXml(repaired, feedUrl, feedInput, options.limit);
+        if (manual?.items?.length) parsedPayload = manual;
       }
     } catch (error) {
-      lastError = error;
+      lastError = error instanceof Error ? error.message : "Falha no RSS";
+      htmlFallback = (error as any)?.htmlFallback || null;
     }
-  }
 
-  if (!forceDiscover && looksLikeXml(first.text, first.contentType, normalized)) return { feedUrl: normalized, fetched: first };
-  throw lastError instanceof Error ? lastError : new Error("Nenhum feed RSS/Atom encontrado nessa URL.");
+    if (!parsedPayload?.items?.length) {
+      const page = htmlFallback || await fetchText(candidateUrlsForFeed(feedInput).find(url => !/rss|feed|xml/i.test(url)) || normalizeUrl(feedInput.url), REQUEST_TIMEOUT_MS);
+      const title = feedInput.name || getHostname(page.finalUrl);
+      const image = extractImageFromHtml(page.text.slice(0, 360000)) || getDomainLogo(page.finalUrl, title);
+      const scraped = scrapeArticlesFromHtml(page.text, page.finalUrl, feedInput, options.limit);
+      parsedPayload = { title, link: page.finalUrl, feedUrl: page.finalUrl, image: absolutizeUrl(image, page.finalUrl) || getDomainLogo(page.finalUrl, title), isYoutube: false, items: scraped };
+    }
+
+    const feedLogo = parsedPayload.image || getDomainLogo(parsedPayload.link || parsedPayload.feedUrl || feedInput.url, parsedPayload.title || feedInput.name);
+    let ogCount = 0;
+    const finalItems = await Promise.all((parsedPayload.items || []).slice(0, options.limit).map(async (item: any) => {
+      if (options.enrichImages && (!item.img || item.img === feedLogo || /favicon|s2\/favicons|ui-avatars/i.test(String(item.img))) && item.link && ogCount < MAX_OG_PER_SOURCE) {
+        ogCount += 1;
+        const og = await fetchOgImage(item.link);
+        if (og) item.img = og;
+      }
+      if (!item.img) item.img = feedLogo;
+      return item;
+    }));
+
+    return { feedId, inputUrl: feedInput.url, ok: finalItems.length > 0, status: finalItems.length > 0 ? "ok" : "empty", title: parsedPayload.title || feedInput.name || getHostname(feedInput.url), link: parsedPayload.link || parsedPayload.feedUrl || feedInput.url, feedUrl: parsedPayload.feedUrl || feedInput.url, image: feedLogo, isYoutube: !!parsedPayload.isYoutube, items: finalItems.filter((item: any) => item.title || item.link), error: finalItems.length ? undefined : lastError, elapsedMs: Date.now() - startedAt };
+  } catch (error) {
+    return { feedId, inputUrl: feedInput.url, ok: false, status: "error", title: feedInput.name || getHostname(feedInput.url), link: feedInput.url, feedUrl: feedInput.url, image: feedInput.logo || getDomainLogo(feedInput.url, feedInput.name || "Fonte"), isYoutube: false, items: [], error: error instanceof Error ? error.message : lastError, elapsedMs: Date.now() - startedAt };
+  }
 }
 
-function normalizeItem(item: any, index: number, feed: any, feedUrl: string, feedLogo: string | null, isYoutubeFeed: boolean) {
-  const link = safeString(item.link || item.guid || item.id || "");
-  const videoId = safeString(item.videoId) || extractYoutubeId(link) || null;
-  const title = stripTags(item.title || item.name || item.description || `Item ${index + 1}`);
-  const rawDescription = item.contentEncoded || item.content || item.description || item.summary || item.mediaDescription || "";
-  const description = stripTags(rawDescription).slice(0, 500);
-
-  let img: string | null = null;
-  if (videoId) img = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-  if (!img) img = extractImageFromItem(item);
-  img = absolutizeUrl(img, link || feed.link || feedUrl) || feedLogo;
-
-  let audioFile: string | null = null;
-  const enclosure = item.enclosure || null;
-  if (enclosure?.url && /audio|mpeg|mp3|m4a|ogg/i.test(enclosure?.type || enclosure?.url)) audioFile = enclosure.url;
-  if (!audioFile && /\.(mp3|m4a|ogg|aac)(\?|#|$)/i.test(link)) audioFile = link;
-
-  const pubDate = item.pubDate || item.isoDate || item.published || item.updated || item.date || null;
-
-  return {
-    id: videoId || item.guid || item.id || link || `${feedUrl}#${index}`,
-    title,
-    link,
-    pubDate,
-    isoDate: item.isoDate || null,
-    img,
-    videoId,
-    description,
-    contentEncoded: item.contentEncoded || item.content || null,
-    audioFile,
-    category: Array.isArray(item.categories) ? item.categories[0] : (Array.isArray(item.category) ? item.category[0] : item.category || null),
-    creator: item.creator || item.author || null,
-    isYoutube: Boolean(videoId || isYoutubeFeed),
-  };
+async function runPool<T>(items: T[], limit: number, worker: (item: T, index: number) => Promise<void>) {
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, limit), items.length) }, async () => {
+    while (cursor < items.length) { const i = cursor++; await worker(items[i], i); }
+  });
+  await Promise.allSettled(workers);
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
-
   try {
     const body = await req.json().catch(() => ({}));
     const inputUrl = safeString(body.url);
-    const forceDiscover = body.type === "discover" || body.discover === true;
-    const brief = body.brief === true;
-    const allowProxy = body.allowProxy === true && !brief;
-    const requestedLimit = Number(body.limit || 0);
-    const enrichImages = body.enrichImages === true;
-    if (!inputUrl) return jsonResponse({ error: "URL is required" }, 400);
-
-    const { feedUrl, fetched } = await resolveFeedUrl(inputUrl, forceDiscover, allowProxy);
-    const repairedXml = repairXML(fetched.text);
-    const feed = await parser.parseString(repairedXml);
-
-    const isYoutube = /youtube\.com|youtu\.be/i.test(feedUrl) || /youtube\.com|youtu\.be/i.test(feed.link || "");
-    let feedLogo = extractFeedLogo(feed, feed.link || feedUrl);
-
-    if (isYoutube && !feedLogo) {
-      const channelId = detectYoutubeChannelId(feedUrl) || detectYoutubeChannelId(feed.link || "");
-      if (channelId) feedLogo = await fetchYoutubeChannelAvatar(channelId);
-    }
-    if (!feedLogo) feedLogo = getDomainLogo(feed.link || feedUrl, feed.title || getHostname(feedUrl));
-
-    const limit = Math.max(1, Math.min(requestedLimit || (brief ? MAX_ITEMS_BRIEF : MAX_ITEMS_DEFAULT), 60));
-    const sourceItems = Array.isArray(feed.items) ? feed.items.slice(0, limit) : [];
-
-    const normalizedItems = await Promise.all(sourceItems.map(async (item, index) => {
-      const normalized = normalizeItem(item, index, feed, feedUrl, feedLogo, isYoutube);
-      if ((!normalized.img || normalized.img === feedLogo) && normalized.link && enrichImages) {
-        normalized.img = await fetchOgImage(normalized.link);
-      }
-      if (!normalized.img) normalized.img = feedLogo;
-      return normalized;
-    }));
-
+    if (!inputUrl) return jsonResponse({ error: "URL is required", items: [] }, 400);
+    const limit = Math.max(1, Math.min(Number(body.limit || (body.brief ? 24 : DEFAULT_LIMIT)), MAX_LIMIT));
+    const enrichImages = body.enrichImages !== false;
+    const feedInput: FeedInput = {
+      id: safeString(body.id || body.sourceId || inputUrl),
+      name: safeString(body.sourceName || body.name || body.title || "Fonte"),
+      url: inputUrl,
+      logo: safeString(body.logo || ""),
+      category: safeString(body.category || "Geral"),
+      type: safeString(body.type || "rss"),
+    };
+    const source = await parseOneFeed(feedInput, { limit, enrichImages, mode: safeString(body.mode || "single") });
     return jsonResponse({
-      title: feed.title || getHostname(feed.link || feedUrl),
-      description: feed.description || feed.subtitle || null,
-      link: feed.link || feedUrl,
-      feedUrl,
-      image: feedLogo,
-      items: normalizedItems.filter(item => item.title || item.link),
-      isYoutube,
-      discovered: forceDiscover ? feedUrl : undefined,
+      title: source.title,
+      description: null,
+      link: source.link,
+      feedUrl: source.feedUrl,
+      image: source.image,
+      logo: source.image,
+      items: source.items || [],
+      isYoutube: source.isYoutube,
+      ok: source.ok,
+      status: source.status,
+      error: source.error,
+      elapsedMs: source.elapsedMs,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro desconhecido no parser";
-    console.error("parse-feed error:", message);
-    return jsonResponse({ error: message, items: [], title: null, image: null, isYoutube: false }, 200);
+    return jsonResponse({ error: error instanceof Error ? error.message : "Erro desconhecido no parser", items: [], title: null, image: null, isYoutube: false }, 200);
   }
 });

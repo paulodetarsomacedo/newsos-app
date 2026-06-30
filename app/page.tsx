@@ -6315,7 +6315,7 @@ const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffe
       historicalTimestamp: finalTimestamp,
       title: itemTitle || 'Notícia sem título',
       summary: cleanSummary,
-      category: feed?.type === 'podcast' ? 'Podcast' : (feed?.category || item.category || 'Geral'),
+      category: feed?.type === 'podcast' ? 'Podcast' : inferArticleCategory({ title: itemTitle, summary: cleanSummary, source: displaySource, feedCategory: item.category || feed?.category || 'Geral' }),
       type: finalType,
       img: finalImage,
       link: primaryLink,
@@ -6559,115 +6559,100 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 
 
 
-// --- COMPONENTE: SPLASH SCREEN (premium, com duração adaptativa) ---
-const SplashScreen = ({ onFinish, durationMs = 5200, hasWarmSnapshot = false }) => {
+// --- COMPONENTE: SPLASH SCREEN (premium estável, sem flicker e sem home vazando por baixo) ---
+const SplashScreen = ({ onFinish, durationMs = 6800, hasWarmSnapshot = false }) => {
   const [step, setStep] = useState(0);
   const [statusIndex, setStatusIndex] = useState(0);
 
   useEffect(() => {
-    const safeDuration = Math.max(1200, durationMs);
-    const t1 = setTimeout(() => setStep(1), 120);
-    const t2 = setTimeout(() => setStep(2), hasWarmSnapshot ? 450 : 1250);
-    const t3 = setTimeout(() => setStep(3), Math.max(700, safeDuration - 650));
+    const safeDuration = Math.max(hasWarmSnapshot ? 1200 : 5600, durationMs);
+    const t1 = setTimeout(() => setStep(1), 180);
+    const t2 = setTimeout(() => setStep(2), hasWarmSnapshot ? 520 : 1500);
+    const t3 = setTimeout(() => setStep(3), Math.max(900, safeDuration - 900));
     const t4 = setTimeout(onFinish, safeDuration);
-    const statusTimer = setInterval(() => setStatusIndex(i => (i + 1) % 4), 1050);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearInterval(statusTimer); };
+    const statusTimer = setInterval(() => setStatusIndex(i => (i + 1) % 5), hasWarmSnapshot ? 1200 : 1550);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+      clearInterval(statusTimer);
+    };
   }, [onFinish, durationMs, hasWarmSnapshot]);
 
   const loadingMessages = hasWarmSnapshot
-    ? ['Restaurando último snapshot...', 'Sincronizando em segundo plano...', 'Preparando interface...','Pronto.']
-    : ['Coletando fontes prioritárias...', 'Montando feed inicial...', 'Organizando stories...', 'Preparando clusters...'];
+    ? ['Restaurando seu último feed', 'Conferindo novas fontes', 'Preparando a interface', 'Sincronizando em segundo plano', 'Pronto']
+    : ['Coletando fontes prioritárias', 'Baixando manchetes e imagens', 'Montando stories sem repetição', 'Preparando clusters iniciais', 'Organizando o feed temporal'];
 
-  // Ajustei a posição dos ícones para ficarem um pouco mais afastados já que o logo vai crescer
-  const icons = [
-    { Icon: Rss, color: 'text-blue-500', pos: '-translate-x-16 -translate-y-16' },
-    { Icon: Youtube, color: 'text-red-500', pos: 'translate-x-16 -translate-y-16' },
-    { Icon: Mic, color: 'text-orange-500', pos: '-translate-x-16 translate-y-16' },
-    { Icon: Mail, color: 'text-purple-500', pos: 'translate-x-16 translate-y-16' },
+  const progress = hasWarmSnapshot
+    ? Math.min(100, 42 + step * 22 + statusIndex * 4)
+    : Math.min(96, 12 + step * 20 + statusIndex * 12);
+
+  const satellites = [
+    { label: 'RSS', Icon: Rss, cls: '-left-24 top-4', delay: '0ms' },
+    { label: 'Feed', Icon: Layers, cls: 'left-6 -top-20', delay: '90ms' },
+    { label: 'Stories', Icon: Sparkles, cls: 'right-6 -top-20', delay: '180ms' },
+    { label: 'Clusters', Icon: BrainCircuit, cls: '-right-24 top-4', delay: '270ms' },
   ];
 
   return (
-    <div className={`
-      fixed inset-0 z-[99999] flex items-center justify-center bg-black
-      transition-opacity duration-700 ease-out
-      ${step === 3 ? 'opacity-0 pointer-events-none' : 'opacity-100'}
-    `}>
-      {/* BACKGROUND AURA */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-600/20 rounded-full blur-[100px] animate-pulse" />
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-600/20 rounded-full blur-[80px] animate-pulse delay-75" />
-      </div>
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center overflow-hidden bg-[#061027] text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(62,114,255,.34),transparent_34%),radial-gradient(circle_at_20%_20%,rgba(255,255,255,.08),transparent_28%),linear-gradient(180deg,#0b1733_0%,#050914_100%)]" />
+      <div className="absolute inset-0 opacity-[0.16] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+      <div className="absolute -top-40 left-1/2 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-blue-500/20 blur-[120px]" />
 
-      {/* CONTAINER CENTRAL */}
-      <div className="flex flex-col items-center justify-center z-20">
-        
-        {/* 1. ÁREA DO LOGO */}
-        {/* Removi o w-120 h-120 que era muito grande e criava espaço vazio */}
-        <div className="relative flex items-center justify-center mb-0"> 
-            
-            {/* Ícones Orbitando */}
-            {icons.map((item, i) => (
+      <div className="relative z-10 flex w-full max-w-[560px] flex-col items-center px-8 text-center">
+        <div className="relative mb-8 flex h-64 w-64 items-center justify-center">
+          {satellites.map(({ label, Icon, cls, delay }) => (
             <div
-                key={i}
-                className={`
-                absolute transition-all duration-1000 ease-[cubic-bezier(0.2,0.8,0.2,1)]
-                ${step >= 2 ? 'translate-x-0 translate-y-0 opacity-0 scale-0' : ''} 
-                ${step === 0 ? 'opacity-0 scale-50' : 'opacity-100 scale-100'}
-                ${step === 1 ? item.pos : ''}
-                `}
+              key={label}
+              className={`absolute ${cls} transition-all duration-700 ${step >= 1 ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-90 blur-sm'} ${step >= 3 ? 'opacity-0 scale-95' : ''}`}
+              style={{ transitionDelay: delay }}
             >
-                <div className={`p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-xl ${item.color}`}>
-                <item.Icon size={48} />
-                </div>
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/12 bg-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,.18),0_18px_55px_-28px_rgba(0,0,0,.75)] backdrop-blur-2xl">
+                <Icon size={28} className="text-blue-200" />
+              </div>
             </div>
-            ))}
+          ))}
 
-            {/* O LOGO "N" - AUMENTADO AQUI */}
-            <div 
-            className={`
-                relative z-20 flex items-center justify-center
-                transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)]
-                ${step >= 2 ? 'scale-100 opacity-100 rotate-0' : 'scale-0 opacity-0 -rotate-180'}
-            `}
-            >
-            <div className={`absolute inset-0 bg-white/30 blur-2xl rounded-full ${step >= 2 ? 'animate-ping' : ''}`} />
-            
-            {/* MUDANÇA: w-24->w-40, h-24->h-40 (Aumentou o quadrado) */}
-            <div className="w-40 h-40 bg-gradient-to-br from-white via-zinc-100 to-zinc-300 rounded-[2rem] flex items-center justify-center shadow-[0_0_60px_rgba(255,255,255,0.4)] border border-white/20">
-                {/* MARCA VETRA grande */}
-                <VetraMark className="w-24 h-24" />
-            </div>
-            </div>
+          <div className="absolute inset-0 rounded-full border border-white/8" />
+          <div className="absolute h-44 w-44 rounded-full bg-white/12 blur-3xl" />
+          <div className={`relative flex h-36 w-36 items-center justify-center rounded-[2.2rem] border border-white/60 bg-gradient-to-br from-white via-zinc-100 to-zinc-300 shadow-[0_0_80px_rgba(255,255,255,.36),inset_0_1px_1px_rgba(255,255,255,.95)] transition-all duration-700 ${step >= 2 ? 'scale-100 opacity-100' : 'scale-95 opacity-90'}`}>
+            <VetraMark className="h-24 w-24" />
+          </div>
         </div>
 
-        {/* 2. O NOME "NewsOS" - PUXADO PARA CIMA */}
-        <div className={`
-            transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] delay-100
-            ${step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-8 blur-sm'}
-            mt-8 /* Ajuste aqui: Margem positiva pequena ou negativa se quiser colar mais */
-        `}>
-            <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 drop-shadow-[0_0_25px_rgba(255,255,255,0.6)]" style={{ fontFamily: 'Inter, sans-serif' }}>
-                Vetra
-            </h1>
-        </div>
+        <h1 className="text-6xl font-black tracking-[-0.065em] text-white drop-shadow-[0_0_28px_rgba(255,255,255,.22)] md:text-7xl">
+          Vetra
+        </h1>
+        <p className="mt-3 text-[15px] font-semibold text-white/56">
+          Central de inteligência editorial
+        </p>
 
-        <div className={`mt-7 transition-all duration-700 delay-200 ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            <div className="px-5 py-3 rounded-2xl bg-white/8 border border-white/10 backdrop-blur-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,.14),0_18px_60px_-30px_rgba(0,0,0,.75)]">
-                <div className="flex items-center gap-3 text-white/80 text-xs font-bold uppercase tracking-[0.18em]">
-                    <span className="relative flex h-2.5 w-2.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-40" />
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-300" />
-                    </span>
-                    {loadingMessages[statusIndex]}
-                </div>
+        <div className="mt-9 w-full rounded-[1.45rem] border border-white/12 bg-white/8 p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,.16),0_24px_80px_-42px_rgba(0,0,0,.88)] backdrop-blur-2xl">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3 text-left">
+              <span className="relative flex h-3 w-3 shrink-0">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-30" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-300 shadow-[0_0_18px_rgba(147,197,253,.9)]" />
+              </span>
+              <span className="truncate text-[15px] font-bold text-white/90">
+                {loadingMessages[statusIndex]}
+              </span>
             </div>
+            <span className="shrink-0 text-[12px] font-black tabular-nums text-white/46">{progress}%</span>
+          </div>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/30 shadow-[inset_0_1px_2px_rgba(0,0,0,.55)]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-blue-300 via-indigo-300 to-violet-300 shadow-[0_0_22px_rgba(147,197,253,.6)] transition-[width] duration-700 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
-
       </div>
     </div>
   );
 };
-
 
 
 // --- HELPER: ABRIR VÍDEO DE FORMA NATIVA (SEM TRAVAR O APP) ---
@@ -6785,16 +6770,16 @@ const FEED_CACHE_PREFIX = 'newsos_cache_v1_';
 
 // --- VETRA FEED ENGINE HELPERS (snapshot, logos, RSS/Atom e timeout) ---
 const FEED_FETCH_TIMEOUT_MS = 4200;
-const FEED_EDGE_TIMEOUT_MS = 6500;
-const FEED_FIRST_PAINT_MIN_ITEMS = 45;
-const FEED_FIRST_PAINT_MIN_SOURCES = 7;
+const FEED_EDGE_TIMEOUT_MS = 9000;
+const FEED_FIRST_PAINT_MIN_ITEMS = 60;
+const FEED_FIRST_PAINT_MIN_SOURCES = 8;
 const FEED_FIRST_PAINT_MAX_FEEDS = 11;
-const FEED_TEXT_CONCURRENCY = 4;
+const FEED_TEXT_CONCURRENCY = 6;
 const FEED_MEDIA_CONCURRENCY = 2;
 const FEED_MEMORY_TTL = 8 * 60 * 1000;
-const FEED_STARTUP_WINDOW_MS = 5600;
-const FEED_STARTUP_HARD_LIMIT_MS = 8200;
-const FEED_FAILURE_BACKOFF_MS = 2 * 60 * 1000;
+const FEED_STARTUP_WINDOW_MS = 6200;
+const FEED_STARTUP_HARD_LIMIT_MS = 9200;
+const FEED_FAILURE_BACKOFF_MS = 35 * 1000;
 const VETRA_VISIBLE_SNAPSHOT_KEY = 'vetra_visible_snapshot_v3';
 
 const SOURCE_LOGO_OVERRIDES = [
@@ -6878,6 +6863,30 @@ const PRIORITY_SOURCE_KEYS = [
   'jovempan', 'oglobo', 'metropoles', 'folha', 'cnn', 'g1', 'timesbrasil', 'terra', 'extra', 'band', 'uolnoticias',
   'uoleconomia', 'r7', 'sbtnews', 'estadao', 'valor', 'infomoney'
 ];
+
+
+const inferArticleCategory = ({ title = '', summary = '', source = '', feedCategory = '' } = {}) => {
+  const explicit = normalizeSpaces(feedCategory || '');
+  const explicitKey = normalizeSourceKey(explicit);
+  if (['economia','tecnologia','local','carros','mundo','politica','política','saude','saúde','esportes','ciencia','ciência'].includes(explicitKey)) {
+    if (explicitKey === 'politica') return 'Política';
+    if (explicitKey === 'saude') return 'Saúde';
+    if (explicitKey === 'ciencia') return 'Ciência';
+    return explicit.charAt(0).toUpperCase() + explicit.slice(1);
+  }
+  const haystack = normalizeSourceKey(`${title} ${summary} ${source} ${feedCategory}`);
+  const hasAny = (words) => words.some(word => haystack.includes(normalizeSourceKey(word)));
+  if (hasAny(['dolar','economia','mercado','bolsa','ibovespa','juros','selic','inflacao','pib','banco central','preco','preços','petrobras','vale','bitcoin','cripto','imposto','fazenda','fiscal'])) return 'Economia';
+  if (hasAny(['iphone','apple','google','microsoft','openai','inteligencia artificial','ia','tecnologia','app','software','chip','macbook','samsung','android','startup'])) return 'Tecnologia';
+  if (hasAny(['carro','carros','automovel','automóvel','veiculo','veículo','moto','f1','formula 1','fórmula 1','volkswagen','toyota','byd','tesla'])) return 'Carros';
+  if (hasAny(['eua','estados unidos','trump','china','europa','russia','rússia','ucrania','ucrânia','israel','gaza','argentina','venezuela','paraguai','alemanha','franca','frança','mundo','internacional'])) return 'Mundo';
+  if (hasAny(['lula','bolsonaro','congresso','senado','camara','câmara','stf','governo','ministro','eleicao','eleição','politica','política','prefeito','governador','deputado'])) return 'Política';
+  if (hasAny(['saude','saúde','anvisa','hospital','doenca','doença','vacina','virus','vírus','medico','médico','sus','cancer','câncer'])) return 'Saúde';
+  if (hasAny(['copa','futebol','jogo','gol','vitoria','vitória','seleção','selecao','flamengo','palmeiras','corinthians','vasco','botafogo','atletico','atlético','esporte'])) return 'Esportes';
+  if (hasAny(['ciencia','ciência','pesquisa','nasa','espaco','espaço','estudo','cientista','astronomia'])) return 'Ciência';
+  if (hasAny(['teresina','piaui','piauí','maranhao','maranhão','ceara','ceará','df','rio de janeiro','sao paulo','são paulo','municipio','município','cidade','bairro'])) return 'Local';
+  return 'Geral';
+};
 
 const getFeedSourceId = (feed) => String(feed?.id || feed?.url || feed?.name || '').trim();
 
@@ -7318,7 +7327,7 @@ const StoryOverlay = ({ story, onClose, onRead, onMarkAsSeen, allStories, onNavi
 
 
 
-const generateSmartStories = (news, allClusters) => {
+const generateSmartStories = (news, allClusters, sourceCatalog = []) => {
     if (!news || news.length === 0) return [];
 
     const sortedNews = [...news]
@@ -7382,7 +7391,7 @@ const generateSmartStories = (news, allClusters) => {
         deduped.push(item);
       });
 
-    return deduped.map((item) => {
+    const storyItems = deduped.map((item) => {
         const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent((item.title || item.source || 'News').slice(0, 40))}&background=random&color=fff&size=800&font-size=0.33&length=3`;
         const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
         return {
@@ -7395,7 +7404,42 @@ const generateSmartStories = (news, allClusters) => {
           isAnchor: false,
           items: [{ ...item, img: finalImg, origin: 'story' }]
         };
-    }).slice(0, 18);
+    });
+
+    if (storyItems.length < 10 && Array.isArray(sourceCatalog) && sourceCatalog.length) {
+      const usedGroupsInStories = new Set(storyItems.map(story => story.sourceGroup).filter(Boolean));
+      sourceCatalog
+        .filter(source => source?.groupKey && !usedGroupsInStories.has(source.groupKey))
+        .slice(0, 10 - storyItems.length)
+        .forEach(source => {
+          usedGroupsInStories.add(source.groupKey);
+          storyItems.push({
+            id: `story-placeholder-${source.id}`,
+            sourceArticleId: null,
+            name: source.name,
+            sourceGroup: source.groupKey,
+            avatar: source.logo,
+            isBreaking: false,
+            isAnchor: false,
+            isPlaceholder: true,
+            items: [{
+              id: `placeholder-${source.id}`,
+              title: `Coletando ${source.name}`,
+              summary: 'Fonte cadastrada. As notícias entram automaticamente quando a coleta terminar.',
+              source: source.name,
+              sourceId: source.id,
+              sourceGroup: source.groupKey,
+              logo: source.logo,
+              img: source.logo,
+              link: source.url,
+              rawDate: new Date(),
+              origin: 'story-placeholder'
+            }]
+          });
+        });
+    }
+
+    return storyItems.slice(0, 18);
 };
 
 
@@ -7818,7 +7862,7 @@ const buildStableSnapshot = useCallback((newsItems = [], videoItems = [], podcas
         });
         clusters = clusters.slice(0, 5);
     }
-    const stories = generateSmartStories(sortedNews, clusters);
+    const stories = generateSmartStories(sortedNews, clusters, sourceCatalog);
     return normalizeSnapshotForStorage({
         news: sortedNews,
         videos: sortedVideos,
@@ -7828,7 +7872,7 @@ const buildStableSnapshot = useCallback((newsItems = [], videoItems = [], podcas
         timestamp: Date.now(),
         version: Date.now(),
     });
-}, []);
+}, [sourceCatalog]);
 
 const commitVisibleSnapshot = useCallback((snapshot, options = {}) => {
     let normalized = normalizeSnapshotForStorage(snapshot);
@@ -8225,26 +8269,56 @@ const handleStoryNavigation = (direction) => {
       const currentStatus = sourceStatusMap?.[sourceId]?.status;
       const cachedCount = sourceCacheRef.current[sourceId]?.length || 0;
       if (currentStatus === 'loading') return;
-      if (cachedCount >= 18 && Date.now() - (sourceStatusMap?.[sourceId]?.updatedAt || 0) < FEED_MEMORY_TTL) return;
+      if (cachedCount >= 24 && Date.now() - (sourceStatusMap?.[sourceId]?.updatedAt || 0) < FEED_MEMORY_TTL) return;
 
       setSourceStatusMap(prev => ({ ...prev, [sourceId]: { ...(prev[sourceId] || {}), status: 'loading', message: 'Carregando fonte...' } }));
-      try {
-          const invokeResult = await withPromiseTimeout(
-              supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: false, limit: 40, enrichImages: false, allowProxy: true } }),
-              Math.max(FEED_EDGE_TIMEOUT_MS, 7200),
-              `parse-feed dedicado ${feed.name || feed.url}`
-          );
-          const data = invokeResult?.data;
-          if (invokeResult?.error || !data?.items?.length) throw new Error(invokeResult?.error?.message || data?.error || 'Fonte sem itens recentes');
-          const historyBuffer = { ...articleHistory };
-          const processed = normalizeFeedItemsForClient(feed, data.items, {
-              detectedXmlTitle: data.title || feed.name,
-              feedLogo: data.image || data.logo || feed.logo,
-              siteLink: data.link || data.feedUrl || feed.url,
-              isFeedYoutube: data.isYoutube,
+      const historyBuffer = { ...articleHistory };
+      const applyItems = (data, sourceMeta = {}) => {
+          const processed = normalizeFeedItemsForClient(feed, data.items || [], {
+              detectedXmlTitle: sourceMeta.title || data.title || feed.name,
+              feedLogo: sourceMeta.image || data.image || data.logo || feed.logo,
+              siteLink: sourceMeta.link || data.link || data.feedUrl || feed.url,
+              isFeedYoutube: sourceMeta.isYoutube ?? data.isYoutube,
           }, historyBuffer);
-          updateSourceCache(sourceId, processed, { status: 'ok' });
+          updateSourceCache(sourceId, processed, { status: processed.length ? 'ok' : 'empty' });
           setArticleHistory(historyBuffer);
+          return processed;
+      };
+
+      try {
+          let data = null;
+          try {
+              const batchResult = await withPromiseTimeout(
+                  supabase.functions.invoke('collect-feeds', {
+                      body: {
+                          feeds: [{ ...feed, id: sourceId }],
+                          limit: 50,
+                          concurrency: 1,
+                          enrichImages: true,
+                          mode: 'dedicated'
+                      }
+                  }),
+                  16000,
+                  `collect-feeds dedicado ${feed.name || feed.url}`
+              );
+              const source = batchResult?.data?.sources?.[0];
+              if (!batchResult?.error && source?.items?.length) {
+                  data = { items: source.items, title: source.title, image: source.image, link: source.link || source.feedUrl, isYoutube: source.isYoutube };
+              }
+          } catch (_batchError) {}
+
+          if (!data?.items?.length) {
+              const invokeResult = await withPromiseTimeout(
+                  supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: false, limit: 50, enrichImages: true, allowProxy: true, sourceName: feed.name } }),
+                  15000,
+                  `parse-feed dedicado ${feed.name || feed.url}`
+              );
+              data = invokeResult?.data;
+              if (invokeResult?.error || !data?.items?.length) throw new Error(invokeResult?.error?.message || data?.error || 'Fonte sem itens recentes');
+          }
+
+          const processed = applyItems(data);
+          if (!processed.length) throw new Error('Fonte sem itens recentes');
       } catch (error) {
           setSourceStatusMap(prev => ({
               ...prev,
@@ -8287,28 +8361,30 @@ const handleStoryNavigation = (direction) => {
 
       const textFeeds = sortFeedsEditorially(activeFeeds.filter(f => f.type !== 'youtube' && f.type !== 'podcast' && !String(f?.url ?? '').includes('youtube.com')));
       const mediaFeeds = sortFeedsEditorially(activeFeeds.filter(f => f.type === 'youtube' || f.type === 'podcast' || String(f?.url ?? '').includes('youtube.com')));
+      const priorityTextFeeds = textFeeds.filter(feed => getFeedPriorityScore(feed) < 30).slice(0, 18);
+      const priorityIds = new Set(priorityTextFeeds.map(getFeedSourceId));
+      const secondaryTextFeeds = textFeeds.filter(feed => !priorityIds.has(getFeedSourceId(feed)));
 
-      const allNewsItems = [];
-      const allVideoItems = [];
-      const allPodcastItems = [];
       const newHistoryBuffer = { ...articleHistory };
-      let completedTextFeeds = 0;
       let initialSnapshotCommitted = false;
       let stagedSnapshotWasCommitted = false;
 
-      const updateStatus = (feed, status, patch = {}) => {
-          const sourceId = getFeedSourceId(feed);
-          if (!sourceId) return;
-          setSourceStatusMap(prev => ({
-              ...prev,
-              [sourceId]: {
-                  ...(prev[sourceId] || {}),
-                  status,
-                  count: patch.count ?? sourceCacheRef.current[sourceId]?.length ?? 0,
-                  message: patch.message || '',
-                  updatedAt: patch.updatedAt || Date.now(),
-              }
-          }));
+      const setBatchStatus = (feeds, status, message = '') => {
+          setSourceStatusMap(prev => {
+              const next = { ...prev };
+              feeds.forEach(feed => {
+                  const sourceId = getFeedSourceId(feed);
+                  if (!sourceId) return;
+                  next[sourceId] = {
+                      ...(next[sourceId] || {}),
+                      status,
+                      count: sourceCacheRef.current[sourceId]?.length || 0,
+                      message,
+                      updatedAt: Date.now(),
+                  };
+              });
+              return next;
+          });
       };
 
       const maybeCommitStagedSnapshot = () => {
@@ -8331,127 +8407,152 @@ const handleStoryNavigation = (direction) => {
 
       maybeCommitStagedSnapshot();
 
-      const processSingleFeed = async (feed, mode = 'startup') => {
-          const sourceId = getFeedSourceId(feed);
-          const isPriority = getFeedPriorityScore(feed) < 20;
-          const failureState = feedFailureBackoffRef.current[sourceId];
+      const applyWorkerSources = (feeds, sources = []) => {
+          const feedById = new Map(feeds.map(feed => [getFeedSourceId(feed), feed]));
+          sources.forEach(sourceResult => {
+              const feed = feedById.get(sourceResult.feedId) || feeds.find(item => item.url === sourceResult.inputUrl || item.url === sourceResult.feedUrl) || null;
+              if (!feed) return;
+              const sourceId = getFeedSourceId(feed);
+              const rawItems = Array.isArray(sourceResult.items) ? sourceResult.items : [];
 
-          const mem = feedMemoryBuffer.current[sourceId];
-          if (!forceRefresh && mem && (Date.now() - mem.timestamp < FEED_MEMORY_TTL)) {
-              updateSourceCache(sourceId, mem.items || [], { status: 'ok' });
-              return { feed, items: mem.items || [], title: mem.title, logo: mem.logo, isYoutube: mem.isYoutube, fromCache: true };
-          }
-
-          if (!forceRefresh && failureState && (Date.now() - failureState.timestamp < FEED_FAILURE_BACKOFF_MS) && !sourceCacheRef.current[sourceId]?.length) {
-              updateStatus(feed, 'backoff', { message: 'Fonte em retentativa curta' });
-              return { feed, items: [], title: feed.name, logo: feed.logo, isYoutube: String(feed?.url ?? '').includes('youtube.com'), fromBackoff: true };
-          }
-
-          updateStatus(feed, 'loading', { message: 'Coletando...' });
-
-          let rawItems = [];
-          let detectedXmlTitle = String(feed?.name ?? 'Fonte');
-          let feedLogo = feed.logo || null;
-          let siteLink = feed.url;
-          let isFeedYoutube = String(feed?.url ?? '').includes('youtube.com') || String(feed?.url ?? '').includes('youtu.be');
-          let success = false;
-
-          try {
-              const invokeResult = await withPromiseTimeout(
-                  supabase.functions.invoke('parse-feed', {
-                      body: {
-                          url: feed.url,
-                          brief: false,
-                          limit: isPriority ? 36 : 28,
-                          enrichImages: false,
-                          allowProxy: forceRefresh || mode === 'dedicated'
+              if (!sourceResult.ok && rawItems.length === 0) {
+                  setSourceStatusMap(prev => ({
+                      ...prev,
+                      [sourceId]: {
+                          ...(prev[sourceId] || {}),
+                          status: 'error',
+                          count: sourceCacheRef.current[sourceId]?.length || 0,
+                          message: sourceResult.error || 'Falha temporária',
+                          updatedAt: Date.now(),
                       }
-                  }),
-                  isPriority ? Math.max(FEED_EDGE_TIMEOUT_MS, 7200) : FEED_EDGE_TIMEOUT_MS,
-                  `parse-feed ${feed.name || feed.url}`
-              );
-
-              const data = invokeResult?.data;
-              if (!invokeResult?.error && data?.items?.length > 0) {
-                  rawItems = data.items;
-                  detectedXmlTitle = data.title || detectedXmlTitle;
-                  feedLogo = data.image || data.logo || feedLogo;
-                  siteLink = data.link || data.feedUrl || data.url || siteLink;
-                  isFeedYoutube = !!data.isYoutube;
-                  success = true;
-              } else if (data?.error) {
-                  throw new Error(data.error);
-              } else if (invokeResult?.error) {
-                  throw new Error(invokeResult.error.message || 'Falha na Edge Function');
+                  }));
+                  return;
               }
-          } catch (error) {
-              const lastLog = failureState?.lastLog || 0;
-              if (Date.now() - lastLog > 45000) {
-                  console.warn('Feed degradado temporariamente:', feed.url, error?.message || error);
-              }
-              feedFailureBackoffRef.current[sourceId] = { timestamp: Date.now(), lastLog: Date.now() };
-              updateStatus(feed, 'timeout', { message: error?.message || 'Timeout temporário' });
-          }
 
-          if (!success || rawItems.length === 0) {
-              return { feed, items: [], title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube, fromCache: false };
-          }
+              const processed = normalizeFeedItemsForClient(feed, rawItems, {
+                  detectedXmlTitle: sourceResult.title || feed.name,
+                  feedLogo: sourceResult.image || feed.logo,
+                  siteLink: sourceResult.link || sourceResult.feedUrl || feed.url,
+                  isFeedYoutube: sourceResult.isYoutube,
+              }, newHistoryBuffer);
 
-          delete feedFailureBackoffRef.current[sourceId];
-          const processedItems = normalizeFeedItemsForClient(feed, rawItems, {
-              detectedXmlTitle,
-              feedLogo,
-              siteLink,
-              isFeedYoutube,
-          }, newHistoryBuffer);
-          const finalLogo = resolveLogoUrl({ source: cleanSourceDisplayName(feed?.name || detectedXmlTitle, feed.url), feedUrl: feed.url, feedLogo, siteUrl: siteLink });
-          feedMemoryBuffer.current[sourceId] = { timestamp: Date.now(), items: processedItems, title: cleanSourceDisplayName(feed?.name || detectedXmlTitle, feed.url), logo: finalLogo, isYoutube: isFeedYoutube };
-          updateSourceCache(sourceId, processedItems, { status: 'ok' });
-          try { localStorage.removeItem(`${FEED_CACHE_PREFIX}${sourceId}`); } catch (_error) {}
-          return { feed, items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube, fromCache: false };
+              const finalLogo = resolveLogoUrl({ source: cleanSourceDisplayName(feed?.name || sourceResult.title, feed.url), feedUrl: feed.url, feedLogo: sourceResult.image || feed.logo, siteUrl: sourceResult.link || sourceResult.feedUrl || feed.url });
+              feedMemoryBuffer.current[sourceId] = { timestamp: Date.now(), items: processed, title: cleanSourceDisplayName(feed?.name || sourceResult.title, feed.url), logo: finalLogo, isYoutube: !!sourceResult.isYoutube };
+              updateSourceCache(sourceId, processed, { status: processed.length ? 'ok' : 'empty', message: processed.length ? '' : 'Sem itens recentes' });
+              delete feedFailureBackoffRef.current[sourceId];
+          });
       };
 
-      const collectTextFeed = async (feed) => {
-          const result = await processSingleFeed(feed);
-          completedTextFeeds += 1;
-          allNewsItems.push(...(result.items || []));
+      const collectWithWorker = async (feeds, options = {}) => {
+          const cleanFeeds = (feeds || []).filter(feed => feed?.url);
+          if (!cleanFeeds.length) return { sources: [], articles: [] };
+          setBatchStatus(cleanFeeds, 'loading', 'Coletando...');
+          const invokeResult = await withPromiseTimeout(
+              supabase.functions.invoke('collect-feeds', {
+                  body: {
+                      feeds: cleanFeeds.map(feed => ({ ...feed, id: getFeedSourceId(feed) })),
+                      limit: options.limit || 42,
+                      concurrency: options.concurrency || FEED_TEXT_CONCURRENCY,
+                      enrichImages: options.enrichImages !== false,
+                      mode: options.mode || 'background',
+                  }
+              }),
+              options.timeout || 24000,
+              `collect-feeds ${options.mode || 'background'}`
+          );
+          if (invokeResult?.error) throw new Error(invokeResult.error.message || 'Falha no worker collect-feeds');
+          const data = invokeResult?.data || {};
+          if (!Array.isArray(data.sources)) throw new Error(data.error || 'Resposta inválida do worker collect-feeds');
+          applyWorkerSources(cleanFeeds, data.sources);
+          return data;
       };
 
-      const collectMediaFeed = async (feed) => {
-          const result = await processSingleFeed(feed);
-          if (result.feed.type === 'podcast') allPodcastItems.push(...(result.items || []));
-          else if (result.feed.type === 'youtube' || result.isYoutube) allVideoItems.push(...(result.items || []));
-          else allNewsItems.push(...(result.items || []));
+      const collectWithParseFallback = async (feeds, options = {}) => {
+          await runConcurrentPool(feeds, options.concurrency || FEED_TEXT_CONCURRENCY, async (feed) => {
+              const sourceId = getFeedSourceId(feed);
+              try {
+                  setBatchStatus([feed], 'loading', 'Coletando...');
+                  const invokeResult = await withPromiseTimeout(
+                      supabase.functions.invoke('parse-feed', {
+                          body: {
+                              url: feed.url,
+                              sourceName: feed.name,
+                              brief: false,
+                              limit: options.limit || 38,
+                              enrichImages: options.enrichImages !== false,
+                              allowProxy: forceRefresh || options.allowProxy === true,
+                          }
+                      }),
+                      options.timeout || 14000,
+                      `parse-feed ${feed.name || feed.url}`
+                  );
+                  const data = invokeResult?.data;
+                  if (invokeResult?.error || !data?.items?.length) throw new Error(invokeResult?.error?.message || data?.error || 'Fonte sem itens recentes');
+                  applyWorkerSources([feed], [{ feedId: sourceId, ok: true, title: data.title || feed.name, link: data.link || data.feedUrl || feed.url, feedUrl: data.feedUrl || feed.url, image: data.image || data.logo || feed.logo, isYoutube: data.isYoutube, items: data.items }]);
+              } catch (error) {
+                  feedFailureBackoffRef.current[sourceId] = { timestamp: Date.now(), lastLog: Date.now() };
+                  setSourceStatusMap(prev => ({
+                      ...prev,
+                      [sourceId]: { ...(prev[sourceId] || {}), status: 'error', count: sourceCacheRef.current[sourceId]?.length || 0, message: error?.message || 'Falha temporária', updatedAt: Date.now() }
+                  }));
+              }
+          });
+      };
+
+      const collectTextBatch = async (feeds, options = {}) => {
+          if (!feeds.length) return;
+          try {
+              await collectWithWorker(feeds, options);
+          } catch (workerError) {
+              console.warn('collect-feeds indisponível; usando parse-feed por fonte:', workerError?.message || workerError);
+              await collectWithParseFallback(feeds, options);
+          }
+      };
+
+      const buildSnapshotFromSourceCache = () => {
+          const textIds = new Set(textFeeds.map(getFeedSourceId));
+          const mediaIds = new Set(mediaFeeds.map(getFeedSourceId));
+          const news = [];
+          const videos = [];
+          const podcasts = [];
+          Object.entries(sourceCacheRef.current || {}).forEach(([sourceId, items]) => {
+              const feed = activeFeeds.find(item => getFeedSourceId(item) === sourceId);
+              if (!feed) return;
+              if (feed.type === 'podcast') podcasts.push(...(items || []));
+              else if (feed.type === 'youtube' || String(feed?.url ?? '').includes('youtube.com') || mediaIds.has(sourceId)) videos.push(...(items || []));
+              else if (textIds.has(sourceId)) news.push(...(items || []));
+          });
+          return buildStableSnapshot(news, videos, podcasts);
       };
 
       try {
-          const textPoolPromise = runConcurrentPool(textFeeds, FEED_TEXT_CONCURRENCY, collectTextFeed);
+          const priorityPromise = collectTextBatch(priorityTextFeeds, { limit: 44, concurrency: 7, enrichImages: true, timeout: 15000, mode: 'priority' });
 
           if (!hasVisibleContent && !forceRefresh) {
-              await Promise.race([textPoolPromise, sleep(FEED_STARTUP_WINDOW_MS)]);
+              await Promise.race([priorityPromise, sleep(FEED_STARTUP_WINDOW_MS)]);
               if (!isLatestRequest()) return;
-
-              let initialSnapshot = buildStableSnapshot(allNewsItems, [], []);
-              if (!isInitialSnapshotGoodEnough(initialSnapshot, completedTextFeeds >= textFeeds.length)) {
-                  await Promise.race([textPoolPromise, sleep(Math.max(1200, FEED_STARTUP_HARD_LIMIT_MS - FEED_STARTUP_WINDOW_MS))]);
+              let initialSnapshot = buildSnapshotFromSourceCache();
+              if (!isInitialSnapshotGoodEnough(initialSnapshot, false)) {
+                  await Promise.race([priorityPromise, sleep(Math.max(1200, FEED_STARTUP_HARD_LIMIT_MS - FEED_STARTUP_WINDOW_MS))]);
                   if (!isLatestRequest()) return;
-                  initialSnapshot = buildStableSnapshot(allNewsItems, [], []);
+                  initialSnapshot = buildSnapshotFromSourceCache();
               }
-
               if (hasMeaningfulSnapshot(initialSnapshot)) {
-                  commitVisibleSnapshot(initialSnapshot, { reason: 'initial-window', updateGlobalClusters: true, forceCommit: true });
+                  commitVisibleSnapshot(initialSnapshot, { reason: 'initial-priority', updateGlobalClusters: true, forceCommit: true });
                   initialSnapshotCommitted = true;
                   setIsLoadingFeeds(false);
               }
           }
 
-          await textPoolPromise;
+          await priorityPromise.catch(() => null);
           if (!isLatestRequest()) return;
 
-          await runConcurrentPool(mediaFeeds, FEED_MEDIA_CONCURRENCY, collectMediaFeed);
+          const secondaryPromise = collectTextBatch(secondaryTextFeeds, { limit: 40, concurrency: 6, enrichImages: true, timeout: 28000, mode: 'complete' });
+          const mediaPromise = collectTextBatch(mediaFeeds, { limit: 34, concurrency: FEED_MEDIA_CONCURRENCY, enrichImages: false, timeout: 18000, mode: 'media' });
+          await Promise.allSettled([secondaryPromise, mediaPromise]);
           if (!isLatestRequest()) return;
 
-          const finalSnapshot = buildStableSnapshot(allNewsItems, allVideoItems, allPodcastItems);
+          const finalSnapshot = buildSnapshotFromSourceCache();
           setArticleHistory(newHistoryBuffer);
 
           if (forceRefresh) {
@@ -8470,13 +8571,12 @@ const handleStoryNavigation = (direction) => {
           } else {
               stagingSnapshotRef.current = finalSnapshot;
               warmingSnapshotRef.current = finalSnapshot;
-
               const visibleHash = buildSnapshotHash(visibleSnapshotRef.current);
               const stagingHash = buildSnapshotHash(finalSnapshot);
               const visibleIds = new Set((visibleSnapshotRef.current.news || []).map(item => item.id || item.link));
               const newItems = (finalSnapshot.news || []).filter(item => !visibleIds.has(item.id || item.link));
               const sourceCount = countDistinctEditorialGroups(newItems.length ? newItems : finalSnapshot.news);
-              if (stagingHash && stagingHash !== visibleHash && (newItems.length >= 3 || (!initialSnapshotCommitted && finalSnapshot.news.length > visibleSnapshotRef.current.news.length))) {
+              if (stagingHash && stagingHash !== visibleHash && (newItems.length >= 2 || finalSnapshot.news.length > visibleSnapshotRef.current.news.length)) {
                   setStagedUpdateInfo({ count: Math.max(newItems.length, Math.max(0, finalSnapshot.news.length - visibleSnapshotRef.current.news.length)), sourceCount, timestamp: Date.now() });
               }
           }
@@ -8858,7 +8958,7 @@ return (
     // ESTRUTURA PRINCIPAL AGORA É FLEX PARA ACOMODAR O PAINEL LATERAL
     <div className={`h-[100dvh] font-sans flex overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       
-      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} durationMs={hasMeaningfulSnapshot(visibleSnapshotRef.current) ? 1300 : 5400} hasWarmSnapshot={hasMeaningfulSnapshot(visibleSnapshotRef.current)} />}
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} durationMs={hasMeaningfulSnapshot(visibleSnapshotRef.current) ? 1500 : 6800} hasWarmSnapshot={hasMeaningfulSnapshot(visibleSnapshotRef.current)} />}
       
       {/* --- COLUNA 1: SUA ESTRUTURA ANTIGA, INTACTA --- */}
       {/* Este é o seu div antigo que continha todo o app. Agora ele é a coluna principal. */}
