@@ -5718,7 +5718,7 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
         .filter(feed => feed.display?.banca)
         .map((feed, index) => {
             const latestHeadlines = realNews.filter(news => news.source === feed.name).slice(0, 2);
-            let finalLogo = resolveLogoUrl({ source: feed.name, feedUrl: feed.url, feedLogo: feed.logo, siteUrl: feed.url });
+            let finalLogo = feed.logo;
             const lowerName = safeLower(feed?.name);
             
             for (const key in LOGO_DICTIONARY) {
@@ -6166,50 +6166,106 @@ const extractImageFromContent = (content) => {
 
 // --- FUNÇÃO PARSE XML (V5 - FINAL, CORRIGIDA E BLINDADA CONTRA FEEDS GIGANTES) ---
 
-const parseXMLToNewsItems = (xmlText, feedSource, feedId, feedUrl = '') => {
+const parseXMLToNewsItems = (xmlText, feedSource, feedId) => {
   try {
       const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(String(xmlText || '').replace(/^\uFEFF/, ''), "text/xml");
+      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+      
       const parserError = xmlDoc.querySelector("parsererror");
       if (parserError) {
-          console.warn("Erro de parser no XML de:", feedSource, parserError.textContent);
-          return { items: [], realTitle: feedSource, realLogo: null, siteLink: feedUrl };
+          console.warn("Erro de parser no XML de:", feedSource);
+          return { items: [], realTitle: feedSource, realLogo: null };
       }
-      const channel = xmlDoc.querySelector('channel') || xmlDoc.querySelector('feed') || xmlDoc;
-      const detectedTitle = getNodeLocalText(channel, ['title']) || feedSource || 'Fonte';
-      const siteLink = getNodeLocalText(channel, ['link']) || getNodeLocalAttr(channel, ['link'], 'href') || feedUrl;
-      const channelLogoRaw = getNodeLocalText(channel, ['image url', 'url']) || getNodeLocalAttr(channel, ['itunes:image', 'image', 'logo', 'icon'], 'href') || getNodeLocalText(channel, ['logo', 'icon']);
-      const realLogo = resolveLogoUrl({ source: detectedTitle, feedUrl, feedLogo: absolutizeUrl(channelLogoRaw, siteLink || feedUrl), siteUrl: siteLink });
-      const allItems = Array.from(xmlDoc.querySelectorAll('item, entry'));
-      const items = allItems.slice(0, 60);
-      const parsedItems = items.map((node, index) => {
-        const title = getNodeLocalText(node, ['title']) || 'Notícia sem título';
-        const linkNode = node.querySelector('link');
-        const link = linkNode?.getAttribute('href') || getNodeLocalText(node, ['link']) || getNodeLocalText(node, ['guid', 'id']) || '';
-        const pubDate = getNodeLocalText(node, ['pubDate', 'published', 'updated', 'date']);
-        const descriptionRaw = getNodeLocalText(node, ['description', 'summary']) || getNodeLocalText(node, ['content:encoded', 'content']);
-        const contentRaw = getNodeLocalText(node, ['content:encoded', 'content']) || descriptionRaw;
-        const enclosure = Array.from(node.getElementsByTagName('enclosure'))[0];
-        const enclosureType = enclosure?.getAttribute('type') || '';
-        const enclosureUrl = enclosure?.getAttribute('url') || '';
-        let audioUrl = enclosureType.includes('audio') ? enclosureUrl : '';
-        if (!audioUrl && /\.(mp3|m4a|aac|ogg)(\?|#|$)/i.test(link)) audioUrl = link;
-        let img = '';
-        if (enclosureType.includes('image')) img = enclosureUrl;
-        if (!img) img = getNodeLocalAttr(node, ['media:thumbnail', 'thumbnail'], 'url');
-        if (!img) img = getNodeLocalAttr(node, ['media:content'], 'url');
-        if (!img) img = getNodeLocalAttr(node, ['itunes:image'], 'href');
-        if (!img) img = getNodeLocalText(node, ['image']);
-        if (!img) img = extractImageFromHtmlString(contentRaw || descriptionRaw);
-        img = absolutizeUrl(img, link || siteLink || feedUrl) || realLogo;
-        const videoId = getNodeLocalText(node, ['yt:videoId', 'videoId']) || getVideoId(link);
-        const stableId = stringToHash(`${feedId}-${title}-${link || index}`);
-        return { id: `${feedId}-${stableId}`, source: detectedTitle, logo: realLogo, rawDate: pubDate ? new Date(pubDate) : null, pubDate, title, summary: stripFeedText(descriptionRaw, 300), category: 'Geral', img, link, audioFile: audioUrl, videoId, isYoutube: Boolean(videoId || /youtube\.com|youtu\.be/i.test(link)) };
-      }).filter(item => item.title || item.link);
-      return { items: parsedItems, realTitle: detectedTitle, realLogo, siteLink };
+
+      // ... (código de extrair título e logo, sem alterações)
+      let detectedTitle = feedSource;
+      const channelTitle = xmlDoc.querySelector("channel > title") || xmlDoc.querySelector("title");
+      if (channelTitle && channelTitle.textContent) {
+          detectedTitle = channelTitle.textContent.trim();
+      }
+      let siteLink = "";
+      const channelLink = xmlDoc.querySelector("channel > link") || xmlDoc.querySelector("link");
+      if (channelLink) { siteLink = channelLink.textContent || channelLink.getAttribute("href") || ""; }
+      let autoLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(detectedTitle)}&background=random`;
+      if (siteLink) { try { const domain = new URL(siteLink).hostname; autoLogo = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`; } catch (e) {} }
+      // ...
+
+      const allItems = Array.from(xmlDoc.querySelectorAll("item, entry"));
+      
+      // ==========================================================
+      // BLINDAGEM DE PERFORMANCE: Limita o número de itens a serem processados.
+      // Nenhum usuário vai ouvir 738 episódios de uma vez. Pegamos os 50 mais recentes.
+      const items = allItems.slice(0, 50);
+      // ==========================================================
+      
+      console.log(`[Parser Debug] Fonte: ${feedSource} - Encontrados ${allItems.length} itens, processando os 50 mais recentes.`);
+
+      const parsedItems = items.map((node, index) => { // <--- GARANTA QUE '(node, index)' ESTÁ AQUI
+        
+        // Função auxiliar para pegar texto de tags, incluindo namespaces
+        const getTxt = (tag) => {
+            if (tag.includes(':')) {
+                const els = node.getElementsByTagName(tag);
+                return els.length > 0 ? els[0].textContent : "";
+            }
+            return node.querySelector(tag)?.textContent || "";
+        };
+        
+        const title = getTxt("title");
+        const linkNode = node.querySelector("link");
+        let link = linkNode?.getAttribute("href") || linkNode?.textContent || "";
+        const pubDate = getTxt("pubDate") || getTxt("published") || getTxt("updated");
+        const description = getTxt("description") || getTxt("summary");
+        
+        let img = null;
+        let audioUrl = null;
+
+        // Motor de busca de Áudio e Imagem (sem alterações, já estava robusto)
+        const enclosureNodes = node.getElementsByTagName("enclosure");
+        if (enclosureNodes.length > 0) {
+            const enclosure = enclosureNodes[0];
+            const type = enclosure.getAttribute("type") || "";
+            if (type.includes("audio")) {
+                audioUrl = enclosure.getAttribute("url");
+            } else if (type.includes("image")) {
+                img = enclosure.getAttribute("url");
+            }
+        }
+        if (!audioUrl && link.endsWith('.mp3')) { audioUrl = link; }
+        if (!audioUrl) {
+            const guid = getTxt("guid");
+            if (guid && (guid.endsWith('.mp3') || guid.endsWith('.m4a'))) { audioUrl = guid; }
+        }
+        if (!img) {
+            const mediaThumb = node.getElementsByTagName("media:thumbnail")[0];
+            if (mediaThumb) img = mediaThumb.getAttribute("url");
+        }
+        if (!img) img = extractImageFromContent(getTxt("content:encoded") || description);
+
+        const stableId = stringToHash(title + link);
+
+        // Objeto de retorno final para este item
+        return {
+          id: `${feedId}-${stableId}`,
+          source: detectedTitle,
+          logo: autoLogo,
+          rawDate: pubDate ? new Date(pubDate) : null,
+          title: title,
+          summary: description.replace(/<[^>]*>?/gm, '').slice(0, 250) + '...',
+          category: 'Geral',
+          img: img,
+          link: link,
+          audioFile: audioUrl, // A propriedade crucial que leva o .mp3
+          videoId: getTxt("yt:videoId") || getTxt("videoId")
+        };
+      });
+
+      return { items: parsedItems, realTitle: detectedTitle, realLogo: autoLogo };
+
   } catch (err) {
+      // O log de erro agora será muito mais específico
       console.error(`Erro fatal no parser de XML para a fonte "${feedSource}":`, err);
-      return { items: [], realTitle: feedSource, realLogo: null, siteLink: feedUrl };
+      return { items: [], realTitle: feedSource, realLogo: null };
   }
 };
 
@@ -6651,108 +6707,6 @@ const askGeminiWithContext = async (question, contextResults, apiKey) => {
 
 const FEED_CACHE_PREFIX = 'newsos_cache_v1_';
 
-// --- VETRA FEED ENGINE HELPERS (snapshot, logos, RSS/Atom e timeout) ---
-const FEED_FETCH_TIMEOUT_MS = 7000;
-const FEED_FIRST_PAINT_MIN_ITEMS = 8;
-const FEED_FIRST_PAINT_MAX_FEEDS = 3;
-const FEED_TEXT_CONCURRENCY = 5;
-const FEED_MEDIA_CONCURRENCY = 3;
-const FEED_MEMORY_TTL = 4 * 60 * 1000;
-
-const SOURCE_LOGO_OVERRIDES = [
-  { match: ['portal band', 'band notícias', 'band news', 'band'], domains: ['band.uol.com.br', 'www.band.uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=band.uol.com.br&sz=128' },
-  { match: ['notícias ao minuto', 'noticias ao minuto'], domains: ['noticiasaominuto.com.br', 'www.noticiasaominuto.com.br'], logo: 'https://www.google.com/s2/favicons?domain=noticiasaominuto.com.br&sz=128' },
-  { match: ['uol economia'], domains: ['rss.uol.com.br', 'economia.uol.com.br', 'uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=uol.com.br&sz=128' },
-  { match: ['uol notícias', 'uol noticias', 'uol'], domains: ['noticias.uol.com.br', 'uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=uol.com.br&sz=128' },
-  { match: ['cnn brasil'], domains: ['cnnbrasil.com.br'], logo: 'https://www.google.com/s2/favicons?domain=cnnbrasil.com.br&sz=128' },
-  { match: ['g1'], domains: ['g1.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=g1.globo.com&sz=128' },
-  { match: ['o globo'], domains: ['oglobo.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=oglobo.globo.com&sz=128' },
-  { match: ['valor econômico', 'valor economico'], domains: ['valor.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=valor.globo.com&sz=128' },
-  { match: ['infomoney'], domains: ['infomoney.com.br'], logo: 'https://www.google.com/s2/favicons?domain=infomoney.com.br&sz=128' },
-  { match: ['macmagazine'], domains: ['macmagazine.com.br'], logo: 'https://macmagazine.com.br/wp-content/uploads/2024/01/logomm_light@2x.png' },
-  { match: ['9to5mac'], domains: ['9to5mac.com'], logo: 'https://www.google.com/s2/favicons?domain=9to5mac.com&sz=128' },
-  { match: ['bbc news', 'bbc'], domains: ['bbc.com', 'bbc.co.uk'], logo: 'https://www.google.com/s2/favicons?domain=bbc.com&sz=128' },
-  { match: ['fox news'], domains: ['foxnews.com'], logo: 'https://www.google.com/s2/favicons?domain=foxnews.com&sz=128' },
-];
-
-const isLikelyHttpUrl = (value) => /^https?:\/\//i.test(String(value ?? '').trim());
-const normalizeSpaces = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
-const normalizeSourceKey = (value) => normalizeSpaces(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
-const getUrlDomain = (value) => {
-  try { if (!value) return ''; const normalized = isLikelyHttpUrl(value) ? value : `https://${value}`; return new URL(normalized).hostname.replace(/^www\./i, '').toLowerCase(); } catch { return ''; }
-};
-const absolutizeUrl = (candidate, baseUrl) => {
-  let clean = String(candidate ?? '').trim().replace(/^['"]+|['"]+$/g, '').replace(/\s/g, '');
-  if (!clean) return null;
-  const lastHttps = clean.lastIndexOf('https://');
-  const lastHttp = clean.lastIndexOf('http://');
-  const lastAbsolute = Math.max(lastHttps, lastHttp);
-  if (lastAbsolute > 0) clean = clean.slice(lastAbsolute);
-  if (clean.startsWith('//')) return `https:${clean}`;
-  if (clean.startsWith('http://')) return clean.replace(/^http:\/\//i, 'https://');
-  if (clean.startsWith('https://')) return clean;
-  try { return new URL(clean, baseUrl || 'https://example.com').href; } catch { return null; }
-};
-const resolveLogoUrl = ({ source, feedUrl, feedLogo, siteUrl }) => {
-  const sourceKey = normalizeSourceKey(source);
-  const feedDomain = getUrlDomain(feedUrl || siteUrl);
-  const siteDomain = getUrlDomain(siteUrl || feedUrl);
-  const trustedLogo = String(feedLogo ?? '').trim();
-  const override = SOURCE_LOGO_OVERRIDES.find(entry => {
-    const matchesName = entry.match.some(name => sourceKey.includes(normalizeSourceKey(name)));
-    const matchesDomain = entry.domains.some(domain => feedDomain.includes(domain) || siteDomain.includes(domain));
-    return matchesName || matchesDomain;
-  });
-  if (override?.logo) return override.logo;
-  if (trustedLogo && !trustedLogo.includes('ui-avatars.com')) return absolutizeUrl(trustedLogo, siteUrl || feedUrl) || trustedLogo;
-  const domain = siteDomain || feedDomain;
-  if (domain) return `https://unavatar.io/${domain}?fallback=${encodeURIComponent(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`)}`;
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(source || 'Fonte')}&background=random&color=fff&size=128&bold=true`;
-};
-const fetchWithTimeout = async (url, options = {}) => {
-  const { timeout = FEED_FETCH_TIMEOUT_MS, ...fetchOptions } = options || {};
-  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') return fetch(url, { ...fetchOptions, signal: AbortSignal.timeout(timeout) });
-  const controller = new AbortController(); const id = setTimeout(() => controller.abort(), timeout);
-  try { return await fetch(url, { ...fetchOptions, signal: controller.signal }); } finally { clearTimeout(id); }
-};
-const getNodeLocalText = (node, names) => {
-  const targets = Array.isArray(names) ? names : [names];
-  for (const name of targets) {
-    const direct = node.querySelector?.(name); if (direct?.textContent) return normalizeSpaces(direct.textContent);
-    const local = Array.from(node.children || []).find(child => child.localName?.toLowerCase() === String(name).split(':').pop().toLowerCase()); if (local?.textContent) return normalizeSpaces(local.textContent);
-    const namespaced = node.getElementsByTagName?.(name)?.[0]; if (namespaced?.textContent) return normalizeSpaces(namespaced.textContent);
-  }
-  return '';
-};
-const getNodeLocalAttr = (node, names, attr) => {
-  const targets = Array.isArray(names) ? names : [names];
-  for (const name of targets) {
-    const direct = node.querySelector?.(name); const directValue = direct?.getAttribute?.(attr); if (directValue) return directValue;
-    const local = Array.from(node.children || []).find(child => child.localName?.toLowerCase() === String(name).split(':').pop().toLowerCase()); const localValue = local?.getAttribute?.(attr); if (localValue) return localValue;
-    const namespaced = node.getElementsByTagName?.(name)?.[0]; const namespacedValue = namespaced?.getAttribute?.(attr); if (namespacedValue) return namespacedValue;
-  }
-  return '';
-};
-const extractImageFromHtmlString = (html) => {
-  const content = String(html ?? '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
-  if (!content) return null;
-  try { const doc = new DOMParser().parseFromString(content, 'text/html'); const images = Array.from(doc.querySelectorAll('img')); for (const img of images) { const src = img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('data-lazy-src') || img.getAttribute('src'); if (src && !/pixel|spacer|blank|\.gif|\.svg|\.woff/i.test(src)) return src; } } catch {}
-  const match = content.match(/https?:\/\/[^"'\s<>]+\.(?:jpg|jpeg|png|webp)(?:\?[^"'\s<>]*)?/i); return match?.[0] || null;
-};
-const stripFeedText = (value, max = 500) => normalizeSpaces(String(value ?? '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ')).slice(0, max);
-const runConcurrentPool = async (items, limit, worker) => { let index = 0; const workerCount = Math.min(Math.max(1, limit), items.length); const workers = Array.from({ length: workerCount }, async () => { while (index < items.length) { const currentIndex = index++; await worker(items[currentIndex], currentIndex); } }); await Promise.allSettled(workers); };
-const buildArticleStableKey = (feed, item) => { const titleKey = normalizeSourceKey(item?.title || item?.name || item?.description || item?.link || item?.url || 'item').slice(0, 100); return `${feed?.id ?? feed?.url ?? 'feed'}::${titleKey}`; };
-const mergeSmartStoriesStable = (previousStories, nextStories, maxStories = 18, forceReset = false) => {
-  const cleanNext = (nextStories || []).filter(Boolean);
-  if (forceReset || !previousStories?.length) return cleanNext.slice(0, maxStories);
-  const nextBySource = new Map(cleanNext.map(story => [story.name || story.source || story.id, story]));
-  const used = new Set(); const merged = [];
-  for (const previous of previousStories) { const key = previous.name || previous.source || previous.id; const replacement = nextBySource.get(key); if (replacement) { merged.push(replacement); used.add(key); } else merged.push(previous); }
-  for (const story of cleanNext) { const key = story.name || story.source || story.id; if (!used.has(key) && !merged.some(item => item.id === story.id)) { merged.push(story); used.add(key); } }
-  return merged.slice(0, maxStories);
-};
-
-
 
 
 
@@ -6928,29 +6882,44 @@ const StoryOverlay = ({ story, onClose, onRead, onMarkAsSeen, allStories, onNavi
 
 const generateSmartStories = (news, allClusters) => {
     if (!news || news.length === 0) return [];
-    const clusterLeadIds = new Set();
-    const clusterArticleIds = new Set();
-    (allClusters || []).forEach(cluster => {
-        const articles = typeof normalizeClusterArticles === 'function' ? normalizeClusterArticles(cluster) : (cluster?.related_articles || []);
-        if (articles?.[0]?.id) clusterLeadIds.add(articles[0].id);
-        articles?.forEach(article => article?.id && clusterArticleIds.add(article.id));
-    });
+
+    // Regra Vetra: cada story deve representar a SEGUNDA notícia mais recente de cada fonte.
+    // Isso evita conflito visual com o Feed, que já prioriza a manchete mais recente.
+    // Depois de escolhido o segundo item de cada fonte, a ordenação volta a ser pela hora exata da notícia.
     const bySource = new Map();
-    [...news].filter(Boolean).sort((a, b) => (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0)).forEach((item) => {
+    [...news]
+      .filter(Boolean)
+      .sort((a, b) => {
+        const tb = b?.rawDate ? new Date(b.rawDate).getTime() : 0;
+        const ta = a?.rawDate ? new Date(a.rawDate).getTime() : 0;
+        return tb - ta;
+      })
+      .forEach((item) => {
         const source = item?.source || 'Fonte';
         if (!bySource.has(source)) bySource.set(source, []);
         bySource.get(source).push(item);
-    });
-    const selected = Array.from(bySource.values()).map((items) => {
-        const nonLead = items.find(item => !clusterLeadIds.has(item.id));
-        const secondFresh = items[1] || items[0];
-        const nonCluster = items.find(item => !clusterArticleIds.has(item.id));
-        return nonLead || secondFresh || nonCluster || items[0];
-    }).filter(Boolean).sort((a, b) => (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0));
+      });
+
+    const selected = Array.from(bySource.values())
+      .map((items) => items[1] || items[0])
+      .filter(Boolean)
+      .sort((a, b) => {
+        const tb = b?.rawDate ? new Date(b.rawDate).getTime() : 0;
+        const ta = a?.rawDate ? new Date(a.rawDate).getTime() : 0;
+        return tb - ta;
+      });
+
     return selected.map((item) => {
-        const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent((item.title || item.source || 'News').slice(0, 40))}&background=random&color=fff&size=800&font-size=0.33&length=3`;
+        const fallbackImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.title || 'News')}&background=random&color=fff&size=800&font-size=0.33&length=3`;
         const finalImg = (item.img && item.img.length > 10) ? item.img : fallbackImage;
-        return { id: `story-${item.id}`, sourceArticleId: item.id, name: item.source, avatar: item.logo || resolveLogoUrl({ source: item.source, feedUrl: item.link, feedLogo: null, siteUrl: item.link }), isBreaking: false, isAnchor: false, items: [{ ...item, img: finalImg, origin: 'story' }] };
+        return {
+            id: item.id,
+            name: item.source,
+            avatar: item.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.source || 'News')}&background=random&color=fff`,
+            isBreaking: false,
+            isAnchor: false,
+            items: [{ ...item, img: finalImg, origin: 'story' }]
+        };
     });
 };
 
@@ -7333,36 +7302,17 @@ const [userFeeds, setUserFeeds] = useState([]);
   const [viewedInStoryId, setViewedInStoryId] = useState(null);
 
 
-const [stableHeuristicClusters, setStableHeuristicClusters] = useState([]);
-const [storiesForHappeningTab, setStoriesForHappeningTab] = useState([]);
-const storyRailRef = useRef([]);
-const feedRequestIdRef = useRef(0);
-const warmingSnapshotRef = useRef({ news: [], videos: [], podcasts: [], clusters: [], stories: [], timestamp: 0 });
-const [feedUpdateToast, setFeedUpdateToast] = useState(null);
-const heuristicClusters = stableHeuristicClusters;
+const heuristicClusters = useMemo(() => {
+    console.log("LOG: Recalculando clusters heurísticos..."); // Adicione este log para depurar
+    return generateHeuristicClusters(realNews);
+}, [realNews]); // A dependência crucial: recalcula sempre que 'realNews' mudar
 
-const promoteEditorialSnapshot = useCallback((newsItems, { forceReset = false, reason = 'background' } = {}) => {
-    const safeNews = Array.isArray(newsItems) ? newsItems : [];
-    if (safeNews.length === 0) return;
-    const shouldUpdateClusters = forceReset || stableHeuristicClusters.length === 0;
-    let clustersForStories = globalClusters || stableHeuristicClusters;
-    if (shouldUpdateClusters && safeNews.length >= 5) {
-        const nextClusters = generateHeuristicClusters(safeNews);
-        clustersForStories = nextClusters;
-        setStableHeuristicClusters(nextClusters);
-        if (forceReset) setGlobalClusters(nextClusters);
-    }
-    const nextStories = generateSmartStories(safeNews, clustersForStories);
-    const mergedStories = mergeSmartStoriesStable(storyRailRef.current, nextStories, 18, forceReset);
-    storyRailRef.current = mergedStories;
-    setStoriesForHappeningTab(mergedStories);
-}, [globalClusters, stableHeuristicClusters]);
 
-useEffect(() => {
-    if (realNews.length > 0 && (stableHeuristicClusters.length === 0 || storiesForHappeningTab.length === 0)) {
-        promoteEditorialSnapshot(realNews, { forceReset: stableHeuristicClusters.length === 0, reason: 'bootstrap' });
-    }
-}, [realNews, stableHeuristicClusters.length, storiesForHappeningTab.length, promoteEditorialSnapshot]);
+const storiesForHappeningTab = useMemo(() => {
+    console.log("LOG: Recalculando stories inteligentes..."); // Adicione este log para depurar
+    const allClusters = globalClusters || heuristicClusters;
+    return generateSmartStories(realNews, allClusters);
+}, [realNews, globalClusters, heuristicClusters]); // Adicione heuristicClusters aqui
 
 
  const handleAskAI = async (query) => {
@@ -7398,7 +7348,10 @@ useEffect(() => {
 
 
 const handleHappeningRefresh = async () => {
-    await fetchFeeds(true);
+    // Opção A: NÃO aguardamos o fetch inteiro. Disparamos o refetch e voltamos na hora →
+    // o indicador de "atualizando" some imediatamente e os cards se repovoam em segundo
+    // plano (lote a lote), conforme as fontes respondem.
+    fetchFeeds(true);
 };
 
 const handleStoryNavigation = (direction) => {
@@ -7660,119 +7613,243 @@ const handleStoryNavigation = (direction) => {
     return spaced;
   };
 
-  // --- FETCH FEEDS VETRA ENGINE: snapshot rápido + refresh soberano + cache quente ---
+  // --- FETCH FEEDS V8: RENDERIZAÇÃO PROGRESSIVA + PRIORIDADE ---
   const fetchFeeds = async (forceRefresh = false) => {
-      const requestId = ++feedRequestIdRef.current;
-      const isLatestRequest = () => requestId === feedRequestIdRef.current;
-      const activeFeeds = userFeeds.filter(f => String(f?.url ?? '').trim());
-      if (activeFeeds.length === 0) {
-          setRealNews([]); setRealVideos([]); setRealPodcasts([]);
-          setStableHeuristicClusters([]); setStoriesForHappeningTab([]); storyRailRef.current = [];
-          warmingSnapshotRef.current = { news: [], videos: [], podcasts: [], clusters: [], stories: [], timestamp: Date.now() };
-          return;
+      if (userFeeds.length === 0) {
+          setRealNews([]); setRealVideos([]); setRealPodcasts([]); return;
       }
-      const hasVisibleContent = realNews.length > 0 || realVideos.length > 0 || realPodcasts.length > 0;
-      if (!hasVisibleContent) setIsLoadingFeeds(true);
+  
+      setIsLoadingFeeds(true);
+      
+      let allNewsItems = [];
+      let allVideoItems = [];
+      let allPodcastItems = [];
+      let feedsThatNeedUpdate = [];
+      let newHistoryBuffer = { ...articleHistory };
+      const CACHE_TTL = 5 * 60 * 1000; // cache LEVE (troca de aba), não persistente 
+  
+      const activeFeeds = userFeeds.filter(f => String(f?.url ?? '').trim());
+      
+      // ESTRATÉGIA DE CARREGAMENTO DEFERIDO (A sua ideia)
+      // Separa as fontes pesadas (YouTube e Podcasts) das fontes leves (Notícias)
       const textFeeds = activeFeeds.filter(f => f.type !== 'youtube' && f.type !== 'podcast' && !String(f?.url ?? '').includes('youtube.com'));
       const mediaFeeds = activeFeeds.filter(f => f.type === 'youtube' || f.type === 'podcast' || String(f?.url ?? '').includes('youtube.com'));
-      const allNewsItems = [];
-      const allVideoItems = [];
-      const allPodcastItems = [];
-      const feedsThatNeedUpdate = [];
-      const newHistoryBuffer = { ...articleHistory };
-      let completedTextFeeds = 0;
-      let firstTextPaintDone = false;
-      const sortByDate = (items) => [...items].sort((a, b) => (b?.rawDate ? new Date(b.rawDate).getTime() : 0) - (a?.rawDate ? new Date(a.rawDate).getTime() : 0));
-      const promoteToast = (message) => { setFeedUpdateToast({ id: Date.now(), message }); setTimeout(() => setFeedUpdateToast(current => current?.message === message ? null : current), 2600); };
-      const normalizeFeedItems = (feed, rawItems, detectedXmlTitle, feedLogo, isFeedYoutube, siteLink) => {
-          const currentFeedTitle = String(feed?.name ?? detectedXmlTitle ?? 'Fonte');
-          const resolvedSource = detectedXmlTitle || currentFeedTitle;
-          const finalLogo = resolveLogoUrl({ source: resolvedSource, feedUrl: feed.url, feedLogo, siteUrl: siteLink || feed.url });
-          let LIMIT = 18; if (feed.type === 'podcast') LIMIT = 4; else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 5;
-          return (rawItems || []).slice(0, LIMIT).map((item, index) => {
-              const itemTitle = normalizeSpaces(String(item?.title ?? item?.name ?? item?.description ?? '').replace(/<[^>]*>?/gm, ' '));
-              const itemLink = String(item?.link ?? item?.url ?? item?.guid ?? '').trim();
-              if (!itemTitle && !itemLink) return null;
-              const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
-              const now = Date.now(); const parsedDate = new Date(rawDateString);
-              let baseTimestamp; let dateEstimated = false;
-              if (rawDateString && !isNaN(parsedDate.getTime())) baseTimestamp = Math.min(parsedDate.getTime(), now);
-              else { dateEstimated = true; baseTimestamp = now - (2 * 60 * 60 * 1000) - (index * 7 * 60 * 1000); }
-              const stableKey = buildArticleStableKey(feed, { title: itemTitle, link: itemLink });
-              const computed = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
-              const finalTimestamp = (newHistoryBuffer[stableKey] != null) ? newHistoryBuffer[stableKey] : computed;
-              newHistoryBuffer[stableKey] = finalTimestamp;
-              const finalDateObj = new Date(finalTimestamp);
-              const primaryLink = itemLink || item.link;
-              const audioReal = item.audioFile || item.audio;
-              const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube || item.isYoutube;
-              let finalType = 'link'; if (isYoutubeItem) finalType = 'video'; else if (audioReal || primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i)) finalType = 'audio';
-              const imageFromItem = item.img || item.image || item.thumbnail || item.mediaThumbnail;
-              const finalImage = absolutizeUrl(imageFromItem, primaryLink || siteLink || feed.url) || finalLogo;
-              const cleanSummary = stripFeedText(item?.summary || item?.description || item?.contentEncoded || '', 300);
-              const stableHash = stringToHash(`${feed.id}-${item.id || itemTitle}-${primaryLink || index}`);
-              return { id: `${feed.id}-${stableHash}`, source: resolvedSource, logo: finalLogo, time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), rawDate: finalDateObj, historicalTimestamp: finalTimestamp, title: itemTitle || 'Notícia sem título', summary: cleanSummary, category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'), type: finalType, img: finalImage, link: primaryLink, audio: audioReal || (primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i) ? primaryLink : null), videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null), date: finalDateObj.toLocaleDateString() };
-          }).filter(Boolean);
-      };
-      const processSingleFeed = async (feed) => {
-          const mem = feedMemoryBuffer.current[feed.id];
-          if (!forceRefresh && mem && (Date.now() - mem.timestamp < FEED_MEMORY_TTL)) return { feed, items: mem.items || [], title: mem.title, logo: mem.logo, isYoutube: mem.isYoutube, fromCache: true };
-          let rawItems = []; let detectedXmlTitle = String(feed?.name ?? 'Fonte'); let feedLogo = feed.logo || null; let siteLink = feed.url; let isFeedYoutube = String(feed?.url ?? '').includes('youtube.com') || String(feed?.url ?? '').includes('youtu.be'); let success = false;
-          try {
-              let invokeResult = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
-              if (invokeResult?.error || !invokeResult?.data?.items?.length) invokeResult = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
-              const data = invokeResult?.data;
-              if (!invokeResult?.error && data?.items?.length > 0) { rawItems = data.items; detectedXmlTitle = data.title || detectedXmlTitle; feedLogo = data.image || data.logo || feedLogo; siteLink = data.link || data.feedUrl || data.url || siteLink; isFeedYoutube = !!data.isYoutube; success = true; }
-          } catch (e) { console.warn('Falha na Edge Function parse-feed:', feed.url, e); }
-          if (!success) {
-              const proxyCandidates = [`/api/proxy?url=${encodeURIComponent(feed.url)}`, `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`, `https://api.allorigins.win/raw?url=${encodeURIComponent(feed.url)}`];
-              for (const proxyUrl of proxyCandidates) {
-                  try { const res = await fetchWithTimeout(proxyUrl, { timeout: FEED_FETCH_TIMEOUT_MS }); if (!res.ok) continue; const xmlText = await res.text(); const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id, feed.url); if (parsedData.items.length > 0) { rawItems = parsedData.items; detectedXmlTitle = parsedData.realTitle || detectedXmlTitle; feedLogo = parsedData.realLogo || feedLogo; siteLink = parsedData.siteLink || siteLink; success = true; break; } } catch (e) {}
+      
+      const BATCH_SIZE = 8; 
+
+      // Função de processamento isolada para reutilizarmos nos dois lotes
+      const processFeedBatch = async (batch) => {
+          await Promise.allSettled(batch.map(async (feed) => {
+              let processedItems = [];
+              let currentFeedTitle = String(feed?.name ?? 'Fonte'); 
+              let detectedXmlTitle = "";
+              let feedLogo = null;
+              let isFeedYoutube = String(feed?.url ?? '').includes('youtube.com') || String(feed?.url ?? '').includes('youtu.be');
+              let usedCache = false;
+              const cacheKey = `${FEED_CACHE_PREFIX}${feed.id}`; 
+      
+       // CACHE LEVE: só em memória (sobrevive à troca de aba, NÃO ao reload).
+              // Sem leitura de cache persistente em disco → push/refresh sempre traz dados frescos.
+              if (!forceRefresh) {
+                  if (feedMemoryBuffer.current[feed.id] && (Date.now() - feedMemoryBuffer.current[feed.id].timestamp < CACHE_TTL)) {
+                      const mem = feedMemoryBuffer.current[feed.id];
+                      processedItems = mem.items; detectedXmlTitle = mem.title; feedLogo = mem.logo; isFeedYoutube = mem.isYoutube; usedCache = true;
+                  }
               }
+      
+              // CAMADA 2: BUSCA REAL
+              if (!usedCache) {
+                  let rawItems = [];
+                  let success = false;
+                  
+                  try {
+                      // O Edge Function pode rejeitar campos extras em algumas versões.
+                      // Tentamos primeiro o modo breve e, se vier 400, caímos para o contrato mínimo { url }.
+                      let invokeResult = await supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: true } });
+                      if (invokeResult?.error || !invokeResult?.data?.items?.length) {
+                          invokeResult = await supabase.functions.invoke('parse-feed', { body: { url: feed.url } });
+                      }
+                      const data = invokeResult?.data;
+                      const error = invokeResult?.error;
+                      if (!error && data?.items?.length > 0) {
+                          rawItems = data.items; detectedXmlTitle = data.title; feedLogo = data.image; isFeedYoutube = !!data.isYoutube; success = true;
+                      }
+                  } catch (e) { }
+      
+                  if (!success) {
+                      const proxyCandidates = [
+                          `/api/proxy?url=${encodeURIComponent(feed.url)}`,
+                          `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(feed.url)}`,
+                          `https://api.allorigins.win/raw?url=${encodeURIComponent(feed.url)}`
+                      ];
+                      for (const proxyUrl of proxyCandidates) {
+                          try {
+                              const res = await fetchWithTimeout(proxyUrl, { timeout: 5000 });
+                              if (res.ok) {
+                                  const xmlText = await res.text();
+                                  const parsedData = parseXMLToNewsItems(xmlText, feed.name, feed.id);
+                                  if (parsedData.items.length > 0) {
+                                      rawItems = parsedData.items; detectedXmlTitle = parsedData.realTitle; feedLogo = parsedData.realLogo; success = true;
+                                      break;
+                                  }
+                              }
+                          } catch (e) {}
+                      }
+                  }
+                  
+               if (success && rawItems.length > 0) {
+                      let finalLogo = feedLogo;
+                      
+                      // RESTAURAÇÃO: Motor de logos reais para canais do YouTube
+                      if (isFeedYoutube) {
+                          const letterAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}&background=random&color=fff&size=128&bold=true`;
+                          const channelIdMatch = feed.url.match(/channel_id=([^&]+)/);
+                          const userMatch = feed.url.match(/user=([^&]+)/);
+                          if (channelIdMatch) {
+                              finalLogo = `https://unavatar.io/youtube/${channelIdMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
+                          } else if (userMatch) {
+                              finalLogo = `https://unavatar.io/youtube/${userMatch[1]}?fallback=${encodeURIComponent(letterAvatar)}`;
+                          } else {
+                              finalLogo = letterAvatar;
+                          }
+                      } else if (!finalLogo) {
+                         try { finalLogo = `https://www.google.com/s2/favicons?domain=${new URL(feed.url).hostname}&sz=128`; } 
+                         catch (e) { finalLogo = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentFeedTitle)}`; }
+                      }
+                      
+                      let LIMIT = 15; 
+                      if (feed.type === 'podcast') LIMIT = 2; 
+                      else if (feed.type === 'youtube' || isFeedYoutube) LIMIT = 3;
+
+                      processedItems = rawItems.slice(0, LIMIT).map((item, index) => {
+                          const itemTitle = String(item?.title ?? item?.name ?? item?.description ?? '').replace(/<[^>]*>?/gm, ' ').trim();
+                          const itemLink = String(item?.link ?? item?.url ?? item?.guid ?? '').trim();
+                          if (!itemTitle && !itemLink) return null;
+                          const uniqueId = `${feed.id}-${item.id || stringToHash(item.title + item.link)}`;
+                          const rawDateString = item.pubDate || item.date || item.isoDate || item.published || item.updated;
+                          
+                 // --- DATA V16: carimbo ESTÁVEL por "primeira vez que vimos" ---
+                          // Bug 2: feeds ruins re-emitem a mesma notícia com data = agora a cada push,
+                          // jogando-a (até já lida) de volta pro topo. Solução: a data de uma notícia é
+                          // fixada na 1ª vez que a vemos e NUNCA muda depois — nem no forceRefresh.
+                          // A chave é por título+fonte (independe do link, que muda com tracking/utm).
+                          const _now = Date.now();
+                          const stableKey = `${feed.id}::${safeLower(item.title).replace(/[^\p{L}\p{N}]+/gu, ' ').trim().slice(0, 80)}`;
+                          const parsedDate = new Date(rawDateString);
+                          let baseTimestamp;
+                          let dateEstimated = false;
+                          if (rawDateString && !isNaN(parsedDate.getTime())) {
+                              baseTimestamp = Math.min(parsedDate.getTime(), _now); // nunca no futuro
+                          } else {
+                              dateEstimated = true;
+                              baseTimestamp = _now - (3 * 60 * 60 * 1000) - (index * 10 * 60 * 1000);
+                          }
+                          const computed = dateEstimated ? baseTimestamp : (baseTimestamp - index * 1000);
+                          // Se já conhecemos a notícia, mantemos o carimbo ORIGINAL (estável p/ ordem e "lida").
+                          const finalTimestamp = (newHistoryBuffer[stableKey] != null) ? newHistoryBuffer[stableKey] : computed;
+                          newHistoryBuffer[stableKey] = finalTimestamp;
+                          const finalDateObj = new Date(finalTimestamp);
+                          
+                          const primaryLink = itemLink || item.link;
+                          const audioReal = item.audioFile;
+                          const isYoutubeItem = (primaryLink && (primaryLink.includes('youtube.com') || primaryLink.includes('youtu.be'))) || isFeedYoutube;
+                          
+                          let finalType = 'link'; 
+                          if (isYoutubeItem) finalType = 'video';
+                          else if (audioReal || primaryLink?.endsWith('.mp3')) finalType = 'audio'; 
+                          
+                          const cleanSummary = String(item?.summary || item?.description || '').replace(/<[^>]*>?/gm, ' ').slice(0, 300);
+
+                          return {
+                              id: uniqueId,
+                              source: detectedXmlTitle || currentFeedTitle, 
+                              logo: finalLogo, 
+                              time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                              rawDate: finalDateObj,
+                              historicalTimestamp: finalTimestamp,
+                              title: itemTitle || 'Notícia sem título',
+                              summary: cleanSummary,
+                              category: feed.type === 'podcast' ? 'Podcast' : (feed.category || item.category || 'Geral'),
+                              type: finalType, 
+                              img: item.img || item.image || finalLogo,
+                              link: primaryLink, 
+                              audio: audioReal || (primaryLink?.endsWith('.mp3') ? primaryLink : null),
+                              videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
+                              date: finalDateObj.toLocaleDateString(),
+                          };
+                      }).filter(Boolean);
+
+                      const cachePayload = { timestamp: Date.now(), items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube };
+                      feedMemoryBuffer.current[feed.id] = cachePayload;
+                      try { localStorage.removeItem(cacheKey); } catch (e) {} // remove cache persistente antigo (não gravamos mais em disco)
+                  }
+              }
+      
+              if (feed.name === 'Nova Fonte' || feed.name === 'Sem Título') {
+                  feedsThatNeedUpdate.push({ id: feed.id, name: detectedXmlTitle || feed.name });
+              }
+      
+              if (feed.type === 'podcast') allPodcastItems.push(...processedItems);
+              else if (feed.type === 'youtube' || isFeedYoutube) allVideoItems.push(...processedItems);
+              else allNewsItems.push(...processedItems);
+          }));
+      };
+
+      // --- PISTA EXPRESSA: FONTES DE TEXTO ---
+      // Abre RÁPIDO (como combinado): pinta logo após o 1º lote — o feed já aparece —
+      // e estabiliza com UMA pintura final. No máximo 1 reordenação, não o "feed dançante"
+      // de N reordenações por lote. Combinado com o Bug 2 (datas estáveis), o salto final
+      // é mínimo.
+      let firstTextPaint = false;
+      for (let i = 0; i < textFeeds.length; i += BATCH_SIZE) {
+          const batch = textFeeds.slice(i, i + BATCH_SIZE);
+          await processFeedBatch(batch);
+          if (!firstTextPaint && allNewsItems.length > 0) {
+              setRealNews([...smartFeedSort(allNewsItems)]); // 1ª pintura: tela não fica vazia
+              firstTextPaint = true;
+              setIsLoadingFeeds(false); // já tem conteúdo: tira o spinner cedo
           }
-          if (!success || rawItems.length === 0) return { feed, items: [], title: detectedXmlTitle, logo: feedLogo, isYoutube: isFeedYoutube, fromCache: false };
-          const processedItems = normalizeFeedItems(feed, rawItems, detectedXmlTitle, feedLogo, isFeedYoutube, siteLink);
-          const finalLogo = resolveLogoUrl({ source: detectedXmlTitle, feedUrl: feed.url, feedLogo, siteUrl: siteLink });
-          feedMemoryBuffer.current[feed.id] = { timestamp: Date.now(), items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube };
-          try { localStorage.removeItem(`${FEED_CACHE_PREFIX}${feed.id}`); } catch (e) {}
-          return { feed, items: processedItems, title: detectedXmlTitle, logo: finalLogo, isYoutube: isFeedYoutube, fromCache: false };
-      };
-      const commitTextSnapshot = (items, { partial = false, force = false } = {}) => {
-          if (!isLatestRequest()) return;
-          const sorted = smartFeedSort(items);
-          if (sorted.length === 0 && !force) return;
-          setRealNews(sorted);
-          if (!partial || stableHeuristicClusters.length === 0 || force) promoteEditorialSnapshot(sorted, { forceReset: force || stableHeuristicClusters.length === 0, reason: partial ? 'first-paint' : 'final' });
-          else { const nextStories = generateSmartStories(sorted, globalClusters || stableHeuristicClusters); const merged = mergeSmartStoriesStable(storyRailRef.current, nextStories, 18, false); storyRailRef.current = merged; setStoriesForHappeningTab(merged); }
-      };
-      if (forceRefresh) {
-          const cachedNews = []; const cachedVideos = []; const cachedPodcasts = [];
-          activeFeeds.forEach(feed => { const mem = feedMemoryBuffer.current[feed.id]; if (!mem?.items?.length) return; if (feed.type === 'podcast') cachedPodcasts.push(...mem.items); else if (feed.type === 'youtube' || mem.isYoutube || String(feed?.url ?? '').includes('youtube.com')) cachedVideos.push(...mem.items); else cachedNews.push(...mem.items); });
-          if (cachedNews.length > 0 || cachedVideos.length > 0 || cachedPodcasts.length > 0) { setRealNews(smartFeedSort(cachedNews)); setRealVideos(sortByDate(cachedVideos)); setRealPodcasts(sortByDate(cachedPodcasts)); promoteEditorialSnapshot(smartFeedSort(cachedNews), { forceReset: false, reason: 'warm-cache' }); }
+          await new Promise(resolve => setTimeout(resolve, 25)); 
       }
-      try {
-          await runConcurrentPool(textFeeds, FEED_TEXT_CONCURRENCY, async (feed) => {
-              const result = await processSingleFeed(feed); completedTextFeeds += 1;
-              if (result.feed.name === 'Nova Fonte' || result.feed.name === 'Sem Título') feedsThatNeedUpdate.push({ id: result.feed.id, name: result.title || result.feed.name, logo: result.logo });
-              allNewsItems.push(...result.items);
-              if (!firstTextPaintDone && (allNewsItems.length >= FEED_FIRST_PAINT_MIN_ITEMS || completedTextFeeds >= FEED_FIRST_PAINT_MAX_FEEDS)) { firstTextPaintDone = true; commitTextSnapshot(allNewsItems, { partial: true, force: false }); setIsLoadingFeeds(false); }
-          });
-          commitTextSnapshot(allNewsItems, { partial: false, force: forceRefresh }); setIsLoadingFeeds(false);
-          await runConcurrentPool(mediaFeeds, FEED_MEDIA_CONCURRENCY, async (feed) => {
-              const result = await processSingleFeed(feed);
-              if (result.feed.name === 'Nova Fonte' || result.feed.name === 'Sem Título') feedsThatNeedUpdate.push({ id: result.feed.id, name: result.title || result.feed.name, logo: result.logo });
-              if (result.feed.type === 'podcast') allPodcastItems.push(...result.items); else if (result.feed.type === 'youtube' || result.isYoutube) allVideoItems.push(...result.items); else allNewsItems.push(...result.items);
-          });
-          if (!isLatestRequest()) return;
-          const sortedNews = smartFeedSort(allNewsItems); const sortedVideos = sortByDate(allVideoItems); const sortedPodcasts = sortByDate(allPodcastItems);
-          if (sortedNews.length > 0 || forceRefresh) setRealNews(sortedNews); if (sortedVideos.length > 0 || forceRefresh) setRealVideos(sortedVideos); if (sortedPodcasts.length > 0 || forceRefresh) setRealPodcasts(sortedPodcasts);
-          const nextClusters = generateHeuristicClusters(sortedNews); warmingSnapshotRef.current = { news: sortedNews, videos: sortedVideos, podcasts: sortedPodcasts, clusters: nextClusters, stories: generateSmartStories(sortedNews, nextClusters), timestamp: Date.now() };
-          promoteEditorialSnapshot(sortedNews, { forceReset: forceRefresh || stableHeuristicClusters.length === 0, reason: forceRefresh ? 'manual-push' : 'final' });
-          if (feedsThatNeedUpdate.length > 0) setUserFeeds(prev => prev.map(f => { const update = feedsThatNeedUpdate.find(u => u.id === f.id); return update ? { ...f, name: update.name, logo: update.logo || f.logo } : f; }));
-          setArticleHistory(newHistoryBuffer); if (forceRefresh) promoteToast('Feed atualizado');
-      } catch (error) { console.error('Erro geral ao buscar feeds:', error); }
-      finally { if (isLatestRequest()) setIsLoadingFeeds(false); }
+      const sortedTextNews = smartFeedSort(allNewsItems);
+      if (sortedTextNews.length > 0 || forceRefresh) setRealNews([...sortedTextNews]); // pintura final única
+
+      // Desliga o spinner depois do texto: a Home fica pronta sem solavancos.
+      setIsLoadingFeeds(false);
+
+      const safeSort = (a, b) => {
+          const timeA = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
+          const timeB = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
+          return timeB - timeA;
+      };
+
+      // --- PISTA LENTA: MÍDIAS PESADAS (YOUTUBE E PODCASTS) ---
+      // Stories ficam num rail separado (não é o feed que rola), então pintar a cada lote
+      // NÃO causa "feed dançante" — os stories/vídeos vão pipocando conforme os canais chegam.
+      for (let i = 0; i < mediaFeeds.length; i += BATCH_SIZE) {
+          const batch = mediaFeeds.slice(i, i + BATCH_SIZE);
+          await processFeedBatch(batch);
+          if (allVideoItems.length > 0) setRealVideos([...allVideoItems].sort(safeSort));
+          if (allPodcastItems.length > 0) setRealPodcasts([...allPodcastItems].sort(safeSort));
+          await new Promise(resolve => setTimeout(resolve, 50)); 
+      }
+      const sortedVideos = [...allVideoItems].sort(safeSort);
+      const sortedPodcasts = [...allPodcastItems].sort(safeSort);
+      if (sortedVideos.length > 0 || forceRefresh) setRealVideos(sortedVideos);
+      if (sortedPodcasts.length > 0 || forceRefresh) setRealPodcasts(sortedPodcasts);
+  
+      if (feedsThatNeedUpdate.length > 0) {
+          setUserFeeds(prev => prev.map(f => {
+              const update = feedsThatNeedUpdate.find(u => u.id === f.id);
+              return update ? { ...f, name: update.name } : f;
+          }));
+      }
+  
+      setArticleHistory(newHistoryBuffer);
   };
+
+
+
 
 
 
@@ -8350,21 +8427,6 @@ return (
       {askQuestion && (<AskAIModal question={askQuestion} answer={askAnswer} sources={askSources} isLoading={isAskLoading} onClose={() => setAskQuestion(null)} isDarkMode={isDarkMode} />)}
       {isSettingsOpen && (<SettingsModal onClose={() => setIsSettingsOpen(false)} isDarkMode={isDarkMode} feeds={userFeeds} setFeeds={setUserFeeds} apiKeys={apiKeys} setApiKeys={setApiKeys} user={user} />)}
       {selectedOutlet && <OutletDetail outlet={selectedOutlet} onClose={closeOutlet} openArticle={handleReadNative} isDarkMode={isDarkMode} realNews={realNews} />}
-      <AnimatePresence>
-        {feedUpdateToast && (
-          <motion.div
-            key={feedUpdateToast.id}
-            initial={{ opacity: 0, y: 18, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 14, scale: 0.98 }}
-            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="vetra-feed-toast fixed left-1/2 -translate-x-1/2 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[12000] flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold"
-          >
-            <CheckCircle size={17} /> {feedUpdateToast.message}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {selectedStory && (<StoryOverlay key={selectedStory.id} story={selectedStory} onClose={closeStory} onRead={handleReadNative} onMarkAsSeen={markStoryAsSeen} allStories={storiesForHappeningTab} onNavigate={handleStoryNavigation} />)}
 {playingAudio && (<GlobalAudioPlayer track={playingAudio} onClose={() => setPlayingAudio(null)} isDarkMode={isDarkMode} />)}      {isPodcastOpen && <PodNewsModal onClose={() => setIsPodcastOpen(false)} isDarkMode={isDarkMode} />}
     </div>
@@ -9639,14 +9701,12 @@ const [isWidgetPoolOpen, setIsWidgetPoolOpen] = useState(true); // Começa abert
       let urlToCheck = newUrl.trim();
       if (!urlToCheck.startsWith('http')) urlToCheck = 'https://' + urlToCheck;
       try {
-          const directFeedLike = /\.(xml|rss|atom)(\?|#|$)/i.test(urlToCheck) || /feed|rss|atom/i.test(urlToCheck);
-          const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: urlToCheck, type: directFeedLike ? undefined : 'discover', brief: true } });
-          if (error || !data || !(data.feedUrl || data.url || data.discovered)) throw new Error("Feed não encontrado");
-          const discoveredUrl = data.feedUrl || data.url || data.discovered || urlToCheck;
-          setNewUrl(discoveredUrl);
-          if (data.isYoutube || discoveredUrl.includes('youtube') || discoveredUrl.includes('youtu.be')) { setFeedType('youtube'); } else if (discoveredUrl.includes('pod') || discoveredUrl.includes('cast')) { setFeedType('podcast'); }
-          alert(`Sucesso! Feed encontrado: ${discoveredUrl}`);
-      } catch (err) { alert("Não foi possível validar/encontrar esse feed. Teste colar a URL direta do RSS/XML."); } finally { setIsDiscovering(false); }
+          const { data, error } = await supabase.functions.invoke('parse-feed', { body: { url: urlToCheck, type: 'discover' } });
+          if (error || !data || !data.url) throw new Error("Feed não encontrado");
+          setNewUrl(data.url);
+          if (data.url.includes('youtube') || data.url.includes('youtu.be')) { setFeedType('youtube'); } else if (data.url.includes('pod') || data.url.includes('cast')) { setFeedType('podcast'); }
+          alert(`Sucesso! Feed encontrado: ${data.url}`);
+      } catch (err) { alert("Não foi possível encontrar um feed RSS automático."); } finally { setIsDiscovering(false); }
   };
 
   const handleImportClick = () => fileInputRef.current?.click();
@@ -9684,8 +9744,7 @@ const [isWidgetPoolOpen, setIsWidgetPoolOpen] = useState(true); // Começa abert
     if (!targetFeed && !targetBanca) { alert("Selecione onde exibir."); return; }
     let formattedUrl = newUrl.trim();
     if (!formattedUrl.startsWith('http')) formattedUrl = 'https://' + formattedUrl;
-    const sourceDomain = getUrlDomain(formattedUrl);
-    const newFeed = { id: Date.now(), name: 'Nova Fonte', url: formattedUrl, type: feedType, category: feedType === 'podcast' ? 'Podcast' : 'Geral', logo: resolveLogoUrl({ source: sourceDomain || 'Nova Fonte', feedUrl: formattedUrl, feedLogo: null, siteUrl: formattedUrl }), display: { feed: targetFeed, banca: targetBanca } };
+    const newFeed = { id: Date.now(), name: 'Nova Fonte', url: formattedUrl, type: feedType, category: feedType === 'podcast' ? 'Podcast' : 'Geral', display: { feed: true, banca: false } };
     setFeeds(prev => [...prev, newFeed]);
     setNewUrl(''); setTargetFeed(true); setTargetBanca(false); setFeedType('news');
   };

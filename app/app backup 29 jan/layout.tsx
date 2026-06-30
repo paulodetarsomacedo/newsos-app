@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
+export const metadata = {
   title: 'Vetra',
   description: 'Sua central de inteligência.',
   manifest: '/manifest.json',
@@ -28,7 +28,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#0b1733',
+  themeColor: '#09090b', // zinc-950 (mantido). Para fundir com o header navy, troque por '#0b1733'.
   // 1. A SOLUÇÃO MÁGICA ESTÁ AQUI:
   viewportFit: 'cover', 
 };
