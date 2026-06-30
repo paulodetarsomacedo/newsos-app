@@ -4390,97 +4390,11 @@ function DivergenceRow({ row }) {
   );
 }
 
-
-const VetraStableClusterImage = React.memo(function VetraStableClusterImage({ src, alt = '' }) {
-  const initialSrc = String(src || '').trim();
-  const [imageSrc, setImageSrc] = useState(initialSrc);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [hasError, setHasError] = useState(!initialSrc);
-
-  useEffect(() => {
-    const nextSrc = String(src || '').trim();
-    if (!nextSrc) {
-      setImageSrc('');
-      setHasLoaded(false);
-      setHasError(true);
-      return;
-    }
-    if (nextSrc !== imageSrc) {
-      setImageSrc(nextSrc);
-      setHasLoaded(false);
-      setHasError(false);
-    }
-  }, [src, imageSrc]);
-
-  return (
-    <div className="vetra-stable-cluster-image" aria-hidden="true">
-      <div className="vetra-stable-cluster-fallback" data-visible={hasError || !imageSrc ? 'true' : 'false'} />
-      {imageSrc && !hasError && (
-        <img
-          src={imageSrc}
-          alt={alt}
-          draggable={false}
-          decoding="async"
-          loading="eager"
-          onLoad={() => setHasLoaded(true)}
-          onError={() => {
-            setHasError(true);
-            setHasLoaded(false);
-          }}
-          data-loaded={hasLoaded ? 'true' : 'false'}
-        />
-      )}
-    </div>
-  );
-});
-
-const VetraPremiumClusterCard = React.memo(function VetraPremiumClusterCard({ cluster, index, onOpenCluster }) {
-  const meta = useMemo(() => getClusterMeta(cluster), [cluster]);
-  const isFeatured = index === 0;
-  return (
-    <button
-      data-cluster-index={index}
-      onClick={() => onOpenCluster(cluster)}
-      className={`vetra-premium-cluster-card ${isFeatured ? 'is-featured' : ''} group`}
-      aria-label={`Abrir caso: ${meta.title}`}
-    >
-      <VetraStableClusterImage src={meta.image} alt="" />
-      <div className="premium-cluster-vignette" />
-      <div className="premium-cluster-sheen" />
-
-      <div className="premium-cluster-topbar">
-        <ClusterMetricBadge tone="consensus" icon={<CheckCircle size={15}/>} label={`${meta.consensus}% consenso`} />
-        {isFeatured && <ClusterMetricBadge tone="hot" icon={<Activity size={15}/>} label="Assunto quente" />}
-      </div>
-
-      <div className="premium-cluster-body">
-        <span className="case-chip">{meta.category || 'Caso em foco'}</span>
-        <h2>{meta.title}</h2>
-        <p>{meta.summary}</p>
-
-        <div className="premium-cluster-meta-row">
-          <div className="main-cluster-sources">
-            {meta.sources.slice(0,4).map((source, i) => <ClusterSourceAvatar key={source.name} source={source} index={i} />)}
-            {meta.sources.length > 4 && <span className="vetra-plus-orb dark">+{meta.sources.length - 4}</span>}
-          </div>
-          <span className="open-case-button">Abrir caso <ArrowUpRight size={18}/></span>
-        </div>
-
-        <div className="premium-cluster-insight">
-          <Sparkles size={18}/>
-          <span>{meta.sources.length} fontes · últimas {formatClusterRecency(meta.latestTime)} · {meta.summary}</span>
-        </div>
-      </div>
-    </button>
-  );
-});
-
 function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters }) {
   const [loading, setLoading] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const [selectedCluster, setSelectedCluster] = useState(null);
   const carouselRef = useRef(null);
-  const scrollRafRef = useRef(null);
 
   const displayClusters = useMemo(() => {
     const base = clusters && clusters.length > 0 ? clusters : heuristicClusters;
@@ -4511,41 +4425,67 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
     }
   };
 
-  const onCarouselScroll = useCallback(() => {
+  const onCarouselScroll = () => {
     const el = carouselRef.current;
-    if (!el || scrollRafRef.current) return;
-    scrollRafRef.current = requestAnimationFrame(() => {
-      scrollRafRef.current = null;
-      const currentEl = carouselRef.current;
-      if (!currentEl) return;
-      const cards = Array.from(currentEl.querySelectorAll('[data-cluster-index]'));
-      if (!cards.length) return;
-      const center = currentEl.scrollLeft + currentEl.clientWidth / 2;
-      let closest = 0;
-      let closestDistance = Infinity;
-      cards.forEach((card: any, idx) => {
-        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-        const distance = Math.abs(cardCenter - center);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closest = idx;
-        }
-      });
-      setActiveSlide(prev => prev === closest ? prev : closest);
+    if (!el) return;
+    const cards = Array.from(el.querySelectorAll('[data-cluster-index]'));
+    if (!cards.length) return;
+    const center = el.scrollLeft + el.clientWidth / 2;
+    let closest = 0;
+    let closestDistance = Infinity;
+    cards.forEach((card: any, idx) => {
+      const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+      const distance = Math.abs(cardCenter - center);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closest = idx;
+      }
     });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
-    };
-  }, []);
-
-  const onOpenCluster = useCallback((cluster) => {
-    setSelectedCluster(cluster);
-  }, []);
+    if (closest !== activeSlide) setActiveSlide(closest);
+  };
 
   if (!displayClusters.length) return <WhileYouWereAwaySkeleton isDarkMode={isDarkMode} />;
+
+  const PremiumClusterCard = ({ cluster, index }) => {
+    const meta = getClusterMeta(cluster);
+    const isFeatured = index === 0;
+    return (
+      <button
+        data-cluster-index={index}
+        onClick={() => setSelectedCluster(cluster)}
+        className={`vetra-premium-cluster-card ${isFeatured ? 'is-featured' : ''} group`}
+        aria-label={`Abrir caso: ${meta.title}`}
+      >
+        <img src={meta.image} onError={(e) => { e.currentTarget.style.display = 'none'; }} alt="" />
+        <div className="premium-cluster-vignette" />
+        <div className="premium-cluster-sheen" />
+
+        <div className="premium-cluster-topbar">
+          <ClusterMetricBadge tone="consensus" icon={<CheckCircle size={15}/>} label={`${meta.consensus}% consenso`} />
+          {isFeatured && <ClusterMetricBadge tone="hot" icon={<Activity size={15}/>} label="Assunto quente" />}
+        </div>
+
+        <div className="premium-cluster-body">
+          <span className="case-chip">{meta.category || 'Caso em foco'}</span>
+          <h2>{meta.title}</h2>
+          <p>{meta.summary}</p>
+
+          <div className="premium-cluster-meta-row">
+            <div className="main-cluster-sources">
+              {meta.sources.slice(0,4).map((source, i) => <ClusterSourceAvatar key={source.name} source={source} index={i} />)}
+              {meta.sources.length > 4 && <span className="vetra-plus-orb dark">+{meta.sources.length - 4}</span>}
+            </div>
+            <span className="open-case-button">Abrir caso <ArrowUpRight size={18}/></span>
+          </div>
+
+          <div className="premium-cluster-insight">
+            <Sparkles size={18}/>
+            <span>{meta.sources.length} fontes · últimas {formatClusterRecency(meta.latestTime)} · {meta.summary}</span>
+          </div>
+        </div>
+      </button>
+    );
+  };
 
   return (
     <section className="vetra-clusters-section vetra-premium-cluster-section">
@@ -4561,7 +4501,7 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
 
       <div ref={carouselRef} onScroll={onCarouselScroll} className="vetra-premium-cluster-rail scrollbar-hide">
         {displayClusters.map((cluster, index) => (
-          <VetraPremiumClusterCard key={cluster.clusterId || `${normalizeSourceKey(cluster.ai_title || 'cluster')}-${index}`} cluster={cluster} index={index} onOpenCluster={onOpenCluster} />
+          <PremiumClusterCard key={cluster.clusterId || `${normalizeSourceKey(cluster.ai_title || 'cluster')}-${index}`} cluster={cluster} index={index} />
         ))}
       </div>
 
@@ -5520,14 +5460,6 @@ const searchTerms = safeLower(word).split(' ').filter(term => term.length > 1);
 
 
 
-
-const getVetraMainScrollTop = () => {
-  if (typeof document === 'undefined') return 0;
-  const mainScroller = document.querySelector('main');
-  const docTop = document.documentElement?.scrollTop || document.body?.scrollTop || 0;
-  return Number(mainScroller?.scrollTop || window.scrollY || docTop || 0);
-};
-
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters, onOpenPodNews }) { 
@@ -5543,7 +5475,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
   const handleTouchStart = (e) => {
     // Só grava a posição se estiver no topo. Como é Ref, não renderiza nada visualmente.
-    if (getVetraMainScrollTop() <= 5 && !isRefreshing) {
+    if (window.scrollY <= 5 && !isRefreshing) {
         startY.current = e.touches[0].clientY;
     }
   };
@@ -5556,7 +5488,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     const diff = currentY - startY.current;
     
     // Só atualiza o estado (e causa render) SE o usuário estiver puxando para baixo
-    if (diff > 0 && getVetraMainScrollTop() <= 5) {
+    if (diff > 0 && window.scrollY <= 5) {
      
       // Adiciona uma resistência para não descer demais
       const newPull = Math.min(diff * 0.5, 220);
@@ -6855,15 +6787,6 @@ const FEED_STARTUP_HARD_LIMIT_MS = 9200;
 const FEED_FAILURE_BACKOFF_MS = 35 * 1000;
 const VETRA_VISIBLE_SNAPSHOT_KEY = 'vetra_visible_snapshot_v3';
 
-const INVESTING_BRASIL_LOGO = `data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="28" fill="#0f172a"/>
-  <circle cx="35" cy="35" r="13" fill="#f5a623"/>
-  <path d="M25 82h16V52H25v30Zm31 0h16V46H56v36Zm31 0h16V34H87v48Z" fill="#ffffff" opacity=".96"/>
-  <path d="M22 96h84" stroke="#f5a623" stroke-width="8" stroke-linecap="round"/>
-</svg>
-`)}`;
-
 const SOURCE_LOGO_OVERRIDES = [
   { key: 'jovempan', display: 'Jovem Pan', match: ['jovem pan', 'jovempan'], domains: ['jovempan.com.br'], logo: 'https://www.google.com/s2/favicons?domain=jovempan.com.br&sz=128' },
   { key: 'oglobo', display: 'O Globo', match: ['o globo', 'oglobo'], domains: ['oglobo.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=oglobo.globo.com&sz=128' },
@@ -6882,7 +6805,6 @@ const SOURCE_LOGO_OVERRIDES = [
   { key: 'estadao', display: 'Estadão', match: ['estadão', 'estadao'], domains: ['estadao.com.br'], logo: 'https://www.google.com/s2/favicons?domain=estadao.com.br&sz=128' },
   { key: 'valor', display: 'Valor Econômico', match: ['valor econômico', 'valor economico'], domains: ['valor.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=valor.globo.com&sz=128' },
   { key: 'infomoney', display: 'InfoMoney', match: ['infomoney'], domains: ['infomoney.com.br'], logo: 'https://www.google.com/s2/favicons?domain=infomoney.com.br&sz=128' },
-  { key: 'investingbrasil', display: 'Investing Brasil', match: ['investing brasil', 'investing.com brasil', 'investing'], domains: ['br.investing.com', 'investing.com'], logo: INVESTING_BRASIL_LOGO },
   { key: 'bbc', display: 'BBC News Brasil', match: ['bbc news', 'bbc brasil', 'bbc'], domains: ['bbc.com', 'bbc.co.uk'], logo: 'https://www.google.com/s2/favicons?domain=bbc.com&sz=128' },
   { key: 'noticiasaominuto', display: 'Notícias ao Minuto', match: ['notícias ao minuto', 'noticias ao minuto', 'noticias minuto'], domains: ['noticiasaominuto.com.br', 'www.noticiasaominuto.com.br'], logo: 'https://www.google.com/s2/favicons?domain=noticiasaominuto.com.br&sz=128' },
   { key: '180graus', display: '180graus', match: ['180graus', '180 graus'], domains: ['180graus.com', '180graus.com.br'], logo: 'https://www.google.com/s2/favicons?domain=180graus.com&sz=128' },
@@ -8487,7 +8409,7 @@ const handleStoryNavigation = (direction) => {
           reason: 'manual-banner',
           updateGlobalClusters: true,
           toastMessage: 'Feed atualizado',
-          forceCommit: true,
+          forceCommit: false,
       });
       if (didCommit) {
           stagingSnapshotRef.current = null;
@@ -8619,7 +8541,7 @@ const handleStoryNavigation = (direction) => {
               reason: 'manual-staged',
               updateGlobalClusters: true,
               toastMessage: 'Feed atualizado',
-              forceCommit: true,
+              forceCommit: false,
           });
           if (didCommit) {
               stagedSnapshotWasCommitted = true;
@@ -8783,7 +8705,7 @@ const handleStoryNavigation = (direction) => {
                   reason: 'manual-fresh',
                   updateGlobalClusters: true,
                   toastMessage: stagedSnapshotWasCommitted ? 'Feed refinado' : 'Feed atualizado',
-                  forceCommit: true,
+                  forceCommit: false,
               });
               if (!didCommitFresh && !stagedSnapshotWasCommitted) showFeedToast('Sem novas notícias agora');
               stagingSnapshotRef.current = null;
