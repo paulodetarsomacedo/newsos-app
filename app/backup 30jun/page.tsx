@@ -1374,16 +1374,11 @@ function FeedTab({
   const safeNews = useMemo(() => stableData || [], [stableData]);
   const catalogById = useMemo(() => new Map((sourceCatalog || []).map(source => [source.id, source])), [sourceCatalog]);
   const selectedSourceMeta = sourceFilter === 'all' ? null : catalogById.get(sourceFilter);
-  const sourceCatalogForCategory = useMemo(() => {
-      const catalog = sourceCatalog || [];
-      if (category === 'Tudo') return catalog;
-      return catalog.filter(source => sourceMatchesCategory(source, category, sourceCacheView?.[source.id] || []));
-  }, [sourceCatalog, category, sourceCacheView]);
-  const filteredByCategory = useMemo(() => category === 'Tudo' ? safeNews : safeNews.filter(n => articleMatchesCategory(n, category)), [safeNews, category]);
+  const filteredByCategory = useMemo(() => category === 'Tudo' ? safeNews : safeNews.filter(n => n.category === category), [safeNews, category]);
   const sourceSpecificBase = useMemo(() => {
       if (sourceFilter === 'all') return filteredByCategory;
       const cacheItems = sourceCacheView?.[sourceFilter] || [];
-      const fromCache = category === 'Tudo' ? cacheItems : cacheItems.filter(n => articleMatchesCategory(n, category));
+      const fromCache = category === 'Tudo' ? cacheItems : cacheItems.filter(n => n.category === category);
       if (fromCache.length > 0) return fromCache;
       return filteredByCategory.filter(n => n.sourceId === sourceFilter || n.sourceKey === sourceFilter || n.source === sourceFilter || getEditorialGroupKey(n.source, n.link) === selectedSourceMeta?.groupKey);
   }, [sourceFilter, filteredByCategory, sourceCacheView, category, selectedSourceMeta]);
@@ -1557,7 +1552,7 @@ const handleTouchEnd = async () => {
                 {/* SOBREPOSTO: absolute + translúcido. NÃO usar .glass-card aqui (força position:relative e empurraria o layout). */}
                 <div className="absolute left-0 top-12 z-[60] w-60 max-h-72 overflow-y-auto p-1.5 rounded-2xl scrollbar-hide bg-white/80 dark:bg-zinc-900/80 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-2xl">
                   <button onClick={() => { setSourceFilter('all'); setSrcOpen(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-[13px] font-medium transition-colors ${sourceFilter==='all' ? 'bg-[#0a1a3d] text-white' : 'text-zinc-600 hover:bg-black/5'}`}>Todas as fontes</button>
-                  {(sourceCatalogForCategory?.length ? sourceCatalogForCategory : Array.from(new Map(filteredByCategory.map(n => [n.source, { id: n.source, name: n.source, logo: n.logo, groupKey: getEditorialGroupKey(n.source, n.link) }])).values())).map(n => {
+                  {(sourceCatalog?.length ? sourceCatalog : Array.from(new Map(filteredByCategory.map(n => [n.source, { id: n.source, name: n.source, logo: n.logo, groupKey: getEditorialGroupKey(n.source, n.link) }])).values())).map(n => {
                     const status = sourceStatusMap?.[n.id]?.status;
                     const count = sourceCacheView?.[n.id]?.length || filteredByCategory.filter(item => item.sourceId === n.id || item.source === n.name || getEditorialGroupKey(item.source, item.link) === n.groupKey).length;
                     return (
@@ -3851,7 +3846,6 @@ const generateHeuristicClusters = (news) => {
         const sortedArticles = cluster.related_articles.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
 
         return {
-            clusterId: getClusterFingerprint(sortedArticles, bestArticleForTitle.title),
             ai_title: bestArticleForTitle.title,
             ai_summary: summaryText,
             representative_image: representativeArticleForImage.img,
@@ -4488,7 +4482,7 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
   };
 
   return (
-    <section className="vetra-clusters-section vetra-premium-cluster-section">
+    <section className="vetra-clusters-section vetra-premium-cluster-section animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="vetra-clusters-header">
         <div>
           <div className="vetra-clusters-title-row"><h2>Clusters em destaque</h2><span>i</span></div>
@@ -4501,7 +4495,7 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
 
       <div ref={carouselRef} onScroll={onCarouselScroll} className="vetra-premium-cluster-rail scrollbar-hide">
         {displayClusters.map((cluster, index) => (
-          <PremiumClusterCard key={cluster.clusterId || `${normalizeSourceKey(cluster.ai_title || 'cluster')}-${index}`} cluster={cluster} index={index} />
+          <PremiumClusterCard key={`${cluster.ai_title}-${index}`} cluster={cluster} index={index} />
         ))}
       </div>
 
@@ -5523,8 +5517,6 @@ const handleTouchEnd = async () => {
   };
 
   const displayClusters = savedClusters && savedClusters.length > 0 ? savedClusters : heuristicClusters;
-  const breakingHighlights = useMemo(() => computeBreakingHighlights(newsData || []), [newsData]);
-  const trendingTopics = useMemo(() => computeTrendingTopics(newsData || []), [newsData]);
 
   return (
     <div className="animate-in fade-in duration-700 pb-16 min-h-screen touch-pan-y space-y-10"
@@ -5587,7 +5579,7 @@ const handleTouchEnd = async () => {
               <section className="vetra-breaking-panel">
                 <div className="vetra-breaking-title"><Zap size={18} fill="currentColor" /> <span>NOTÍCIAS EM DESTAQUE</span></div>
                 <div className="vetra-breaking-list">
-                  {(breakingHighlights || []).slice(0, 3).map((n, i) => {
+                  {(newsData || []).slice(0, 3).map((n, i) => {
                     const mins = Math.max(1, Math.round((Date.now() - new Date(n.rawDate || Date.now()).getTime()) / 60000));
                     const rel = mins < 60 ? `há ${mins} min` : `há ${Math.round(mins / 60)}h`;
                     return (
@@ -5611,11 +5603,14 @@ const handleTouchEnd = async () => {
               <section className="vetra-trending-panel-home">
                 <div className="vetra-trending-title"><Activity size={18} fill="currentColor" /> <span>TRENDING AGORA</span></div>
                 <div className="vetra-trending-list-home">
-                  {(trendingTopics.length ? trendingTopics : [
-                    { t: 'Coletando tendências', n: 'aguarde as fontes', v: 35 },
-                    { t: 'Noticiário geral', n: 'em análise', v: 28 },
-                  ]).map((it, i) => (
-                    <button key={it.t} onClick={() => it.articles?.[0] && openArticle(it.articles[0])} className="vetra-trending-row-home">
+                  {[
+                    { t: 'Alta do dólar', n: '42 mil menções', v: 100 },
+                    { t: 'Inteligência artificial', n: '31 mil menções', v: 76 },
+                    { t: 'Greve dos servidores', n: '18 mil menções', v: 58 },
+                    { t: 'Exploração espacial', n: '14 mil menções', v: 48 },
+                    { t: 'Copa do Mundo 2026', n: '9 mil menções', v: 32 },
+                  ].map((it, i) => (
+                    <button key={it.t} className="vetra-trending-row-home">
                       <strong>{i + 1}</strong>
                       <span>{it.t}</span>
                       <small>{it.n}</small>
@@ -6806,14 +6801,7 @@ const SOURCE_LOGO_OVERRIDES = [
   { key: 'valor', display: 'Valor Econômico', match: ['valor econômico', 'valor economico'], domains: ['valor.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=valor.globo.com&sz=128' },
   { key: 'infomoney', display: 'InfoMoney', match: ['infomoney'], domains: ['infomoney.com.br'], logo: 'https://www.google.com/s2/favicons?domain=infomoney.com.br&sz=128' },
   { key: 'bbc', display: 'BBC News Brasil', match: ['bbc news', 'bbc brasil', 'bbc'], domains: ['bbc.com', 'bbc.co.uk'], logo: 'https://www.google.com/s2/favicons?domain=bbc.com&sz=128' },
-  { key: 'noticiasaominuto', display: 'Notícias ao Minuto', match: ['notícias ao minuto', 'noticias ao minuto', 'noticias minuto'], domains: ['noticiasaominuto.com.br', 'www.noticiasaominuto.com.br'], logo: 'https://www.google.com/s2/favicons?domain=noticiasaominuto.com.br&sz=128' },
-  { key: '180graus', display: '180graus', match: ['180graus', '180 graus'], domains: ['180graus.com', '180graus.com.br'], logo: 'https://www.google.com/s2/favicons?domain=180graus.com&sz=128' },
-  { key: 'piauihoje', display: 'Piauí Hoje', match: ['piauí hoje', 'piaui hoje', 'piauihoje'], domains: ['piauihoje.com.br'], logo: 'https://www.google.com/s2/favicons?domain=piauihoje.com.br&sz=128' },
-  { key: 'valorinveste', display: 'Valor Investe', match: ['valor investe', 'valorinveste'], domains: ['valorinveste.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=valorinveste.globo.com&sz=128' },
-  { key: 'exame', display: 'Exame', match: ['exame'], domains: ['exame.com'], logo: 'https://www.google.com/s2/favicons?domain=exame.com&sz=128' },
-  { key: 'gp1', display: 'GP1', match: ['gp1', 'portal gp1'], domains: ['gp1.com.br'], logo: 'https://www.google.com/s2/favicons?domain=gp1.com.br&sz=128' },
-  { key: 'istoe', display: 'ISTOÉ', match: ['istoé', 'istoe'], domains: ['istoe.com.br'], logo: 'https://www.google.com/s2/favicons?domain=istoe.com.br&sz=128' },
-  { key: 'istoedinheiro', display: 'ISTOÉ Dinheiro', match: ['istoé dinheiro', 'istoe dinheiro', 'istoedinheiro'], domains: ['istoedinheiro.com.br'], logo: 'https://www.google.com/s2/favicons?domain=istoedinheiro.com.br&sz=128' },
+  { key: 'noticiasaominuto', display: 'Notícias ao Minuto', match: ['notícias ao minuto', 'noticias ao minuto'], domains: ['noticiasaominuto.com.br', 'www.noticiasaominuto.com.br'], logo: 'https://www.google.com/s2/favicons?domain=noticiasaominuto.com.br&sz=128' },
   { key: 'macmagazine', display: 'MacMagazine', match: ['macmagazine'], domains: ['macmagazine.com.br'], logo: 'https://www.google.com/s2/favicons?domain=macmagazine.com.br&sz=128' },
   { key: '9to5mac', display: '9to5Mac', match: ['9to5mac', '9to5 mac'], domains: ['9to5mac.com'], logo: 'https://www.google.com/s2/favicons?domain=9to5mac.com&sz=128' },
   { key: 'foxnews', display: 'Fox News', match: ['fox news'], domains: ['foxnews.com'], logo: 'https://www.google.com/s2/favicons?domain=foxnews.com&sz=128' },
@@ -7043,163 +7031,6 @@ const mergeSmartStoriesStable = (previousStories, nextStories, maxStories = 18, 
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const normalizeFeedCategoryLabel = (value) => {
-  const key = normalizeSourceKey(value);
-  if (!key || key === 'tudo') return 'Tudo';
-  if (key === 'politica') return 'Política';
-  if (key === 'saude') return 'Saúde';
-  if (key === 'ciencia') return 'Ciência';
-  if (key === 'tecnologia') return 'Tecnologia';
-  if (key === 'economia') return 'Economia';
-  if (key === 'local') return 'Local';
-  if (key === 'carros') return 'Carros';
-  if (key === 'mundo' || key === 'internacional') return 'Mundo';
-  if (key === 'esportes' || key === 'esporte') return 'Esportes';
-  if (key === 'geral' || key === 'noticias' || key === 'noticias gerais') return 'Geral';
-  return value || 'Geral';
-};
-
-const articleMatchesCategory = (article, selectedCategory) => {
-  if (!selectedCategory || selectedCategory === 'Tudo') return true;
-  const expected = normalizeFeedCategoryLabel(selectedCategory);
-  const direct = normalizeFeedCategoryLabel(article?.category || article?.feedCategory || '');
-  if (direct === expected) return true;
-  const inferred = inferArticleCategory({
-    title: article?.title,
-    summary: article?.summary || article?.description,
-    source: article?.source,
-    feedCategory: article?.feedCategory || article?.category,
-  });
-  if (normalizeFeedCategoryLabel(inferred) === expected) return true;
-  const haystack = normalizeSourceKey(`${article?.title || ''} ${article?.summary || ''} ${article?.source || ''} ${article?.link || ''}`);
-  if (expected === 'Local') {
-    return /piaui|piauí|teresina|maranhao|maranhão|ceara|ceará|parnaiba|parnaíba|municipio|município|bairro|cidade|prefeitura|governo do estado|df|brasilia|brasília/.test(haystack);
-  }
-  if (expected === 'Mundo') {
-    return /mundo|internacional|eua|estados unidos|china|russia|rússia|ucrania|ucrânia|israel|gaza|argentina|venezuela|paraguai|alemanha|franca|frança|europa/.test(haystack);
-  }
-  return false;
-};
-
-const sourceMatchesCategory = (source, selectedCategory, cachedItems = []) => {
-  if (!selectedCategory || selectedCategory === 'Tudo') return true;
-  const expected = normalizeFeedCategoryLabel(selectedCategory);
-  const direct = normalizeFeedCategoryLabel(source?.category || source?.feed?.category || '');
-  if (direct === expected) return true;
-  if ((cachedItems || []).some(item => articleMatchesCategory(item, selectedCategory))) return true;
-  const haystack = normalizeSourceKey(`${source?.name || ''} ${source?.url || ''}`);
-  if (expected === 'Economia') return /economia|dinheiro|valor|investe|exame|mercado|infomoney|money|investing/.test(haystack);
-  if (expected === 'Tecnologia') return /tech|tecnologia|mac|apple|google|verge/.test(haystack);
-  if (expected === 'Local') return /piaui|piauí|teresina|gp1|180graus|portal az|meio norte|cidadeverde/.test(haystack);
-  if (expected === 'Mundo') return /mundo|internacional|world|bbc|dw|cnn|g1 mundo/.test(haystack);
-  if (expected === 'Política') return /politica|política|poder|congresso|senado|camara|câmara/.test(haystack);
-  if (expected === 'Saúde') return /saude|saúde|bem estar|anvisa/.test(haystack);
-  if (expected === 'Esportes') return /esporte|sports|ge|futebol/.test(haystack);
-  if (expected === 'Carros') return /carro|auto|motor|automovel|automóvel/.test(haystack);
-  return expected === 'Geral';
-};
-
-const getClusterFingerprint = (articles = [], title = '') => {
-  const sourcePart = (articles || [])
-    .slice(0, 8)
-    .map(article => `${article?.sourceGroup || getEditorialGroupKey(article?.source, article?.link)}:${normalizeSourceKey(article?.title || '').slice(0, 44)}`)
-    .sort()
-    .join('|');
-  return `${normalizeSourceKey(title).slice(0, 80)}::${sourcePart}` || String(Date.now());
-};
-
-const getArticleTopicSignature = (article) => {
-  const stop = new Set(['para','com','uma','um','que','dos','das','por','apos','após','sobre','contra','como','mais','menos','diz','afirma','segundo','nesta','neste','hoje','agora','novo','nova','anos','dia','depois']);
-  return normalizeSourceKey(article?.title || '')
-    .split(/\s+/)
-    .filter(word => word.length >= 4 && !stop.has(word))
-    .slice(0, 5)
-    .join(' ');
-};
-
-const computeBreakingHighlights = (news = []) => {
-  const sorted = sortByDateSafe(news).filter(item => item?.title);
-  if (!sorted.length) return [];
-  const firstFeedSignatures = new Set(sorted.slice(0, 4).map(getArticleTopicSignature));
-  const urgentWords = ['urgente','alerta','morre','morte','ataque','explosao','explosão','acidente','prisao','prisão','queda','aumento','alta','baixa','greve','decide','anuncia','aprova','decreta','rompe','fecha','bloqueia','recorde'];
-  const usedGroups = new Set();
-  const usedTopics = new Set();
-  const scored = sorted.slice(0, 140).map((item, idx) => {
-    const ageMs = Math.max(0, Date.now() - new Date(item.rawDate || Date.now()).getTime());
-    const ageMinutes = ageMs / 60000;
-    const recencyScore = Math.max(0, 80 - Math.min(80, ageMinutes / 3));
-    const titleKey = normalizeSourceKey(item.title || '');
-    const urgencyScore = urgentWords.some(word => titleKey.includes(normalizeSourceKey(word))) ? 38 : 0;
-    const sourcePriority = Math.max(0, 28 - Math.min(28, getFeedPriorityScore({ name: item.source, url: item.link }) || 100));
-    const imageScore = item.img && !String(item.img).includes('favicon') && !String(item.img).includes('ui-avatars') ? 8 : 0;
-    const antiTopPenalty = firstFeedSignatures.has(getArticleTopicSignature(item)) && idx < 4 ? -22 : 0;
-    return { item, score: recencyScore + urgencyScore + sourcePriority + imageScore + antiTopPenalty };
-  }).sort((a, b) => b.score - a.score);
-
-  const highlights = [];
-  for (const { item } of scored) {
-    const group = item.sourceGroup || getEditorialGroupKey(item.source, item.link);
-    const topic = getArticleTopicSignature(item);
-    if (!topic || usedTopics.has(topic)) continue;
-    if (usedGroups.has(group) && highlights.length < 3) continue;
-    usedGroups.add(group);
-    usedTopics.add(topic);
-    highlights.push(item);
-    if (highlights.length >= 3) break;
-  }
-  return highlights.length >= 3 ? highlights : sorted.slice(0, 3);
-};
-
-const computeTrendingTopics = (news = []) => {
-  const items = sortByDateSafe(news).slice(0, 420).filter(item => item?.title);
-  const stop = new Set(['para','como','mais','sobre','apos','após','entre','contra','esta','este','nesta','neste','pela','pelo','com','dos','das','uma','que','por','nas','nos','ser','vai','tem','sao','são','foi','diz','ano','anos','dia','hoje','noticia','notícia','ultimas','últimas']);
-  const map = new Map();
-  const register = (term, article) => {
-    const key = normalizeSourceKey(term);
-    if (!key || key.length < 4 || stop.has(key)) return;
-    const ageMs = Math.max(0, Date.now() - new Date(article.rawDate || Date.now()).getTime());
-    const recency = Math.max(0.25, 1 - Math.min(ageMs, 18 * 60 * 60 * 1000) / (18 * 60 * 60 * 1000));
-    const sourceGroup = article.sourceGroup || getEditorialGroupKey(article.source, article.link);
-    const current = map.get(key) || { label: term, score: 0, sources: new Set(), articles: [] };
-    current.score += 1 + recency;
-    current.sources.add(sourceGroup);
-    if (current.articles.length < 8) current.articles.push(article);
-    map.set(key, current);
-  };
-
-  items.forEach(article => {
-    const words = normalizeSourceKey(article.title).split(/\s+/).filter(word => word.length >= 4 && !stop.has(word));
-    const entities = (article.title.match(/\b[A-ZÁÉÍÓÚÃÕÂÊÔÇ][\wÀ-ú]{2,}(?:\s+[A-ZÁÉÍÓÚÃÕÂÊÔÇ][\wÀ-ú]{2,}){0,2}/g) || [])
-      .map(entity => normalizeSpaces(entity))
-      .filter(entity => normalizeSourceKey(entity).length >= 4);
-    entities.slice(0, 4).forEach(entity => register(entity, article));
-    for (let i = 0; i < words.length; i++) {
-      register(words[i], article);
-      if (i < words.length - 1) register(`${words[i]} ${words[i + 1]}`, article);
-    }
-  });
-
-  return Array.from(map.values())
-    .map(item => ({
-      ...item,
-      sourceCount: item.sources.size,
-      finalScore: item.score * (1 + Math.min(5, item.sources.size) * 0.28),
-    }))
-    .filter(item => item.sourceCount >= 2 || item.score >= 4)
-    .sort((a, b) => b.finalScore - a.finalScore)
-    .slice(0, 5)
-    .map((item, index, array) => {
-      const max = array[0]?.finalScore || 1;
-      return {
-        t: item.label.charAt(0).toUpperCase() + item.label.slice(1),
-        n: `${item.sourceCount} fontes · ${item.articles.length} manchetes`,
-        v: Math.max(22, Math.round((item.finalScore / max) * 100)),
-        articles: item.articles,
-      };
-    });
-};
-
-
 const sortByDateSafe = (items) => [...(items || [])].sort((a, b) => {
   const timeA = a?.rawDate ? new Date(a.rawDate).getTime() : 0;
   const timeB = b?.rawDate ? new Date(b.rawDate).getTime() : 0;
@@ -7289,7 +7120,6 @@ const createFallbackEditorialClusters = (news) => {
       const uniqueSources = new Set(related.map(article => article.source).filter(Boolean)).size;
       const representative = related.find(article => article.img && !String(article.img).includes('ui-avatars.com')) || related[0];
       clusters.push({
-        clusterId: getClusterFingerprint(related, related[0]?.title || group.label),
         ai_title: related[0]?.title || group.label,
         ai_summary: `Agrupamento editorial inicial com ${related.length} notícias e ${uniqueSources || 1} fonte${uniqueSources === 1 ? '' : 's'}. O caso pode ser refinado quando mais fontes terminarem de carregar.`,
         representative_image: representative?.img,
@@ -7309,7 +7139,6 @@ const createFallbackEditorialClusters = (news) => {
       if (related.length < 2) continue;
       const representative = related.find(article => article.img && !String(article.img).includes('ui-avatars.com')) || related[0];
       clusters.push({
-        clusterId: getClusterFingerprint(related, related[0]?.title || 'Destaques recentes do momento'),
         ai_title: related[0]?.title || 'Destaques recentes do momento',
         ai_summary: `Seleção temporal inicial com ${related.length} notícias recentes. O agrupamento fica estável até o próximo refresh.`,
         representative_image: representative?.img,
@@ -8457,13 +8286,37 @@ const handleStoryNavigation = (direction) => {
       };
 
       try {
-          const invokeResult = await withPromiseTimeout(
-              supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: false, limit: 60, enrichImages: true, allowProxy: true, sourceName: feed.name } }),
-              13000,
-              `parse-feed dedicado ${feed.name || feed.url}`
-          );
-          const data = invokeResult?.data;
-          if (invokeResult?.error || !data?.items?.length) throw new Error(invokeResult?.error?.message || data?.error || 'Fonte sem itens recentes');
+          let data = null;
+          try {
+              const batchResult = await withPromiseTimeout(
+                  supabase.functions.invoke('collect-feeds', {
+                      body: {
+                          feeds: [{ ...feed, id: sourceId }],
+                          limit: 50,
+                          concurrency: 1,
+                          enrichImages: true,
+                          mode: 'dedicated'
+                      }
+                  }),
+                  16000,
+                  `collect-feeds dedicado ${feed.name || feed.url}`
+              );
+              const source = batchResult?.data?.sources?.[0];
+              if (!batchResult?.error && source?.items?.length) {
+                  data = { items: source.items, title: source.title, image: source.image, link: source.link || source.feedUrl, isYoutube: source.isYoutube };
+              }
+          } catch (_batchError) {}
+
+          if (!data?.items?.length) {
+              const invokeResult = await withPromiseTimeout(
+                  supabase.functions.invoke('parse-feed', { body: { url: feed.url, brief: false, limit: 50, enrichImages: true, allowProxy: true, sourceName: feed.name } }),
+                  15000,
+                  `parse-feed dedicado ${feed.name || feed.url}`
+              );
+              data = invokeResult?.data;
+              if (invokeResult?.error || !data?.items?.length) throw new Error(invokeResult?.error?.message || data?.error || 'Fonte sem itens recentes');
+          }
+
           const processed = applyItems(data);
           if (!processed.length) throw new Error('Fonte sem itens recentes');
       } catch (error) {
@@ -8648,10 +8501,12 @@ const handleStoryNavigation = (direction) => {
 
       const collectTextBatch = async (feeds, options = {}) => {
           if (!feeds.length) return;
-          // Estabilização operacional: o worker agregador em lote é útil no backend,
-          // mas no app ele não pode bloquear pull-to-refresh nem staging por 28s.
-          // Por isso a UI usa parse-feed por fonte, em paralelo, com timeout individual.
-          await collectWithParseFallback(feeds, { ...options, timeout: Math.min(options.timeout || 14000, 12000) });
+          try {
+              await collectWithWorker(feeds, options);
+          } catch (workerError) {
+              console.warn('collect-feeds indisponível; usando parse-feed por fonte:', workerError?.message || workerError);
+              await collectWithParseFallback(feeds, options);
+          }
       };
 
       const buildSnapshotFromSourceCache = () => {

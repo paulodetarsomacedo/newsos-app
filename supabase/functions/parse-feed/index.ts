@@ -15,12 +15,12 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const REQUEST_TIMEOUT_MS = 7600;
-const ARTICLE_TIMEOUT_MS = 2600;
+const REQUEST_TIMEOUT_MS = 5200;
+const ARTICLE_TIMEOUT_MS = 2200;
 const DEFAULT_LIMIT = 42;
 const MAX_LIMIT = 70;
 const DEFAULT_CONCURRENCY = 6;
-const MAX_OG_PER_SOURCE = 12;
+const MAX_OG_PER_SOURCE = 8;
 
 const parser = new Parser({
   timeout: REQUEST_TIMEOUT_MS,
@@ -214,6 +214,14 @@ const LOGO_OVERRIDES: Array<{ key: string; domains: string[]; logo: string }> = 
   { key: "istoe dinheiro", domains: ["istoedinheiro.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://istoedinheiro.com.br&sz=128" },
   { key: "istoe", domains: ["istoe.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://istoe.com.br&sz=128" },
   { key: "band", domains: ["band.uol.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://www.band.uol.com.br&sz=128" },
+  { key: "180graus", domains: ["180graus.com", "180graus.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://180graus.com&sz=128" },
+  { key: "piaui hoje", domains: ["piauihoje.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://piauihoje.com.br&sz=128" },
+  { key: "valor investe", domains: ["valorinveste.globo.com"], logo: "https://www.google.com/s2/favicons?domain_url=https://valorinveste.globo.com&sz=128" },
+  { key: "exame", domains: ["exame.com"], logo: "https://www.google.com/s2/favicons?domain_url=https://exame.com&sz=128" },
+  { key: "gp1", domains: ["gp1.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://gp1.com.br&sz=128" },
+  { key: "noticias ao minuto", domains: ["noticiasaominuto.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://noticiasaominuto.com.br&sz=128" },
+  { key: "terra", domains: ["terra.com.br"], logo: "https://www.google.com/s2/favicons?domain_url=https://terra.com.br&sz=128" },
+  { key: "exame invest", domains: ["exame.com"], logo: "https://www.google.com/s2/favicons?domain_url=https://exame.com&sz=128" },
 ];
 function getDomainLogo(url: string, title = "Fonte"): string {
   const domain = getHostname(url);
@@ -237,11 +245,13 @@ function candidateUrlsForFeed(feed: FeedInput): string[] {
   if (host.includes("uol.com.br") || name.includes("uol")) {
     if (name.includes("economia") || url.includes("economia")) add("https://rss.uol.com.br/feed/economia.xml");
     add("https://rss.uol.com.br/feed/noticias.xml");
+    add("https://rss.uol.com.br/feed/ultimas.xml");
     add("https://noticias.uol.com.br/ultimas-noticias/rss.xml");
     add("https://economia.uol.com.br/ultimas-noticias/rss.xml");
   }
   if (host.includes("sbt") || name.includes("sbt")) {
-    add("https://sbtnews.sbt.com.br/feed"); add("https://sbtnews.sbt.com.br/rss"); add("https://www.sbtnews.com.br/feed"); add("https://sbtnews.sbt.com.br/");
+    add("https://sbtnews.sbt.com.br/feed"); add("https://sbtnews.sbt.com.br/rss"); add("https://www.sbtnews.com.br/feed");
+    add("https://sbtnews.sbt.com.br/noticias/feed"); add("https://sbtnews.sbt.com.br/ultimas-noticias/feed"); add("https://sbtnews.sbt.com.br/");
   }
   if (host.includes("r7.com") || name.includes("r7")) {
     add("https://noticias.r7.com/feed.xml"); add("https://noticias.r7.com/feed"); add("https://www.r7.com/rss.xml"); add("https://www.r7.com/");
