@@ -7373,63 +7373,96 @@ const computeBreakingHighlights = (news = []) => {
 };
 
 const computeTrendingTopics = (news = []) => {
-  const items = sortByDateSafe(news).slice(0, 560).filter(item => item?.title);
+  const items = sortByDateSafe(news).slice(0, 720).filter(item => item?.title);
   const stop = new Set([
-    'para','como','mais','sobre','apos','após','entre','contra','esta','este','nesta','neste','pela','pelo','com','dos','das','uma','que','por','nas','nos','ser','vai','tem','sao','são','foi','diz','ano','anos','dia','hoje','noticia','notícia','noticias','notícias','ultimas','últimas','agora','ainda','deve','pode','podem','veja','confira','saiba','entenda','video','vídeo','foto','fotos','minuto','minutos',
-    'uol','g1','globo','sbt','cnn','band','terra','r7','folha','metropoles','jovem','pan','istoé','istoe','exame','valor','investing'
+    'para','como','mais','sobre','apos','após','entre','contra','esta','este','nesta','neste','pela','pelo','com','dos','das','uma','que','por','nas','nos','ser','vai','tem','sao','são','foi','diz','ano','anos','dia','hoje','ontem','amanha','amanhã','agora','ainda','deve','devem','pode','podem','sera','será','ter','tem','têm','durante','porque','quando','onde','qual','quais','quem','cada','todo','toda','todos','todas',
+    'noticia','notícia','noticias','notícias','ultimas','últimas','minuto','minutos','veja','confira','saiba','entenda','video','vídeo','foto','fotos','abre','abrir','fechar','fecha','novo','nova','novos','novas','melhor','maior','menor','disse','afirma','segundo','revela','mostra','explica','acompanhe','vivo','tudo','destaque','destaques',
+    'uol','g1','globo','sbt','cnn','band','terra','r7','folha','metropoles','jovem','pan','istoé','istoe','exame','valor','investing','noticias','minuto'
   ]);
-  const weakSingleWords = new Set(['brasil','mundo','governo','presidente','mercado','politica','política','economia','pessoas','cidade','estado','fonte','fontes']);
-  const strongSingleWords = new Set(['copa','trump','lula','bolsonaro','bitcoin','ibovespa','selic','paraguai','alemanha','brasil']);
+  const badSingleWords = new Set(['brasil','mundo','governo','presidente','mercado','politica','política','economia','pessoas','cidade','estado','fonte','fontes','veja','pode','deve','hoje','agora','ultimas','noticias']);
+  const strongSingleWords = new Set(['copa','trump','lula','bolsonaro','bitcoin','ibovespa','selic','paraguai','alemanha','ucrania','ucrânia','israel','gaza','iran','irã']);
   const sourceNameKeys = new Set(SOURCE_LOGO_OVERRIDES.flatMap(entry => [entry.key, entry.display, ...(entry.match || [])].map(normalizeSourceKey)).filter(Boolean));
   const map = new Map();
 
-  const normalizeTermLabel = (term) => normalizeSpaces(repairMojibakeText(term)).replace(/^[,.;:!?\-–—|•]+|[,.;:!?\-–—|•]+$/g, '').trim();
+  const normalizeTermLabel = (term) => normalizeSpaces(repairMojibakeText(term))
+    .replace(/^[,.;:!?\-–—|•]+|[,.;:!?\-–—|•]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const titleCaseTopic = (term) => {
+    const keepUpper = new Set(['UOL','G1','CNN','SBT','EUA','STF','PIB','IR','IA','ONU','UE','CPI','PIX']);
+    return normalizeTermLabel(term).split(/\s+/).map((word, index) => {
+      const upper = word.toUpperCase();
+      if (keepUpper.has(upper)) return upper;
+      if (['de','da','do','dos','das','e','em','no','na','nos','nas'].includes(word.toLowerCase()) && index > 0) return word.toLowerCase();
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+  };
+
+  const tokenIsGood = (word) => {
+    const key = normalizeSourceKey(word);
+    if (!key || key.length < 4) return false;
+    if (stop.has(key) || sourceNameKeys.has(key)) return false;
+    if (/^\d+$/.test(key)) return false;
+    return true;
+  };
+
   const isBadTerm = (term) => {
     const key = normalizeSourceKey(term);
     if (!key || key.length < 4) return true;
     if (stop.has(key) || sourceNameKeys.has(key)) return true;
-    if (key.split(/\s+/).some(part => stop.has(part))) return key.split(/\s+/).length === 1;
     if (/^\d+$/.test(key)) return true;
-    if (/^(noticias?|ultimas?|veja|pode|podem|hoje|agora)$/i.test(key)) return true;
+    const parts = key.split(/\s+/).filter(Boolean);
+    if (parts.some(part => stop.has(part) || sourceNameKeys.has(part))) return true;
+    if (parts.length === 1 && badSingleWords.has(parts[0]) && !strongSingleWords.has(parts[0])) return true;
+    if (parts.length > 4) return true;
     return false;
   };
 
   const register = (term, article, weight = 1) => {
-    const label = normalizeTermLabel(term);
+    const label = titleCaseTopic(term);
     const key = normalizeSourceKey(label);
     if (isBadTerm(label)) return;
     const parts = key.split(/\s+/).filter(Boolean);
-    if (parts.length === 1 && weakSingleWords.has(key) && !strongSingleWords.has(key)) return;
+    if (parts.length === 1 && !strongSingleWords.has(parts[0])) return;
     const ageMs = Math.max(0, Date.now() - new Date(article.rawDate || Date.now()).getTime());
-    const recency = Math.max(0.28, 1 - Math.min(ageMs, 24 * 60 * 60 * 1000) / (24 * 60 * 60 * 1000));
+    const recency = Math.max(0.25, 1 - Math.min(ageMs, 30 * 60 * 60 * 1000) / (30 * 60 * 60 * 1000));
     const sourceGroup = article.sourceGroup || getEditorialGroupKey(article.source, article.link);
     const current = map.get(key) || { label, score: 0, sources: new Set(), articleKeys: new Set(), articles: [] };
     const articleKey = getArticleTopicSignature(article) || article.id || article.link || article.title;
-    current.score += weight * (1 + recency);
+    const phraseBonus = parts.length >= 3 ? 1.35 : parts.length === 2 ? 1.18 : 1;
+    current.score += weight * phraseBonus * (1 + recency);
     current.sources.add(sourceGroup);
     if (!current.articleKeys.has(articleKey)) {
       current.articleKeys.add(articleKey);
-      if (current.articles.length < 16) current.articles.push(article);
+      if (current.articles.length < 20) current.articles.push(article);
     }
     map.set(key, current);
   };
 
   items.forEach(article => {
     const title = repairMojibakeText(article.title || '');
-    const normalizedWords = normalizeSourceKey(title).split(/\s+/).filter(word => word.length >= 4 && !stop.has(word) && !sourceNameKeys.has(word));
-    const namedEntities = (title.match(/\b[A-ZÁÉÍÓÚÃÕÂÊÔÇ][\wÀ-ú]{2,}(?:\s+(?:de|da|do|dos|das|e|[A-ZÁÉÍÓÚÃÕÂÊÔÇ][\wÀ-ú]{2,})){0,3}/g) || [])
+    const sourceKey = normalizeSourceKey(article.source || '');
+    const rawEntities = (title.match(/\b[A-ZÁÉÍÓÚÃÕÂÊÔÇ][\wÀ-ú]{2,}(?:\s+(?:de|da|do|dos|das|e|[A-ZÁÉÍÓÚÃÕÂÊÔÇ][\wÀ-ú]{2,})){0,3}/g) || [])
       .map(normalizeTermLabel)
-      .filter(entity => !isBadTerm(entity) && normalizeSourceKey(entity).split(/\s+/).length <= 5);
+      .filter(entity => !isBadTerm(entity));
 
-    namedEntities.slice(0, 5).forEach(entity => register(entity, article, 2.2));
+    rawEntities.slice(0, 6).forEach(entity => {
+      const parts = normalizeSourceKey(entity).split(/\s+/).filter(Boolean);
+      register(entity, article, parts.length >= 2 ? 2.7 : 1.25);
+    });
+
+    const normalizedWords = normalizeSourceKey(title)
+      .split(/\s+/)
+      .filter(word => tokenIsGood(word) && !sourceKey.includes(word));
 
     for (let i = 0; i < normalizedWords.length; i++) {
       const one = normalizedWords[i];
       const two = normalizedWords[i + 1] ? `${one} ${normalizedWords[i + 1]}` : '';
       const three = normalizedWords[i + 2] ? `${one} ${normalizedWords[i + 1]} ${normalizedWords[i + 2]}` : '';
-      if (strongSingleWords.has(one)) register(one, article, 1.2);
-      if (two && !isBadTerm(two)) register(two, article, 1.55);
-      if (three && !isBadTerm(three)) register(three, article, 1.9);
+      if (three && !isBadTerm(three)) register(three, article, 2.25);
+      if (two && !isBadTerm(two)) register(two, article, 1.85);
+      if (strongSingleWords.has(one)) register(one, article, 1.1);
     }
   });
 
@@ -7438,7 +7471,7 @@ const computeTrendingTopics = (news = []) => {
       ...item,
       sourceCount: item.sources.size,
       articleCount: item.articleKeys.size,
-      finalScore: item.score * (1 + Math.min(7, item.sources.size) * 0.34) * (1 + Math.min(10, item.articleKeys.size) * 0.045),
+      finalScore: item.score * (1 + Math.min(8, item.sources.size) * 0.38) * (1 + Math.min(12, item.articleKeys.size) * 0.055),
     }))
     .filter(item => item.sourceCount >= 2 && item.articleCount >= 2)
     .sort((a, b) => b.finalScore - a.finalScore);
@@ -7451,7 +7484,8 @@ const computeTrendingTopics = (news = []) => {
     const overlaps = selected.some(other => {
       const otherParts = normalizeSourceKey(other.label).split(/\s+/).filter(Boolean);
       const common = parts.filter(p => otherParts.includes(p)).length;
-      return common >= Math.min(parts.length, otherParts.length) && Math.min(parts.length, otherParts.length) <= 2;
+      const smaller = Math.min(parts.length, otherParts.length);
+      return common >= Math.max(1, smaller - 1) && smaller <= 3;
     });
     if (overlaps || selectedKeys.has(key)) continue;
     selected.push(item);
@@ -7461,7 +7495,7 @@ const computeTrendingTopics = (news = []) => {
 
   const max = selected[0]?.finalScore || 1;
   return selected.map(item => ({
-    t: item.label.charAt(0).toUpperCase() + item.label.slice(1),
+    t: item.label,
     n: `${item.sourceCount} fontes · ${item.articleCount} manchetes`,
     v: Math.max(24, Math.round((item.finalScore / max) * 100)),
     articles: sortByDateSafe(item.articles),

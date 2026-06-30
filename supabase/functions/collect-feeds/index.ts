@@ -270,11 +270,15 @@ function candidateUrlsForFeed(feed: FeedInput): string[] {
   const list: string[] = [url];
   const add = (v: string) => { if (v && !list.includes(v)) list.push(v); };
   if (host.includes("uol.com.br") || name.includes("uol")) {
+    // UOL mudou/oscila bastante os endpoints RSS. As páginas HTML abaixo são fallback oficial
+    // para garantir conteúdo quando o XML vier vazio, bloqueado ou com charset quebrado.
     if (name.includes("economia") || url.includes("economia")) add("https://rss.uol.com.br/feed/economia.xml");
     add("https://rss.uol.com.br/feed/noticias.xml");
     add("https://rss.uol.com.br/feed/ultimas.xml");
     add("https://noticias.uol.com.br/ultimas-noticias/rss.xml");
     add("https://economia.uol.com.br/ultimas-noticias/rss.xml");
+    add("https://noticias.uol.com.br/ultimas/");
+    add("https://economia.uol.com.br/ultimas-noticias/");
   }
   if (host.includes("sbt") || name.includes("sbt")) {
     add("https://sbtnews.sbt.com.br/noticias");
@@ -289,7 +293,11 @@ function candidateUrlsForFeed(feed: FeedInput): string[] {
     add("https://istoe.com.br/feed/"); add("https://istoedinheiro.com.br/"); add("https://istoe.com.br/");
   }
   if (host.includes("jovempan") || name.includes("jovem pan")) { add("https://jovempan.com.br/feed"); add("https://jovempan.com.br/noticias/feed"); add("https://jovempan.com.br/"); }
-  if (host.includes("g1.globo.com") || name.includes("g1")) { add("https://g1.globo.com/rss/g1/"); add("https://g1.globo.com/rss/g1/brasil/"); add("https://g1.globo.com/"); }
+  if (host.includes("g1.globo.com") || name.includes("g1")) {
+    add("https://g1.globo.com/rss/g1/");
+    add("https://g1.globo.com/rss/g1/brasil/");
+    add("https://g1.globo.com/");
+  }
   if (host.includes("fiis.com.br") || name.includes("fiis")) { add("https://fiis.com.br/noticias/feed/"); add("https://fiis.com.br/feed/"); add("https://fiis.com.br/noticias/"); }
   if (host.includes("band.uol") || name.includes("band")) { add("https://www.band.uol.com.br/rss.xml"); add("https://www.band.uol.com.br/"); }
   if (host) { add(`https://${host}/feed`); add(`https://${host}/feed/`); add(`https://${host}/rss`); add(`https://${host}/rss.xml`); }
@@ -401,21 +409,167 @@ function normalizeItem(item: any, index: number, parsed: any, feedUrl: string, f
   return { id: videoId || item.guid || item.id || link || `${feedUrl}#${index}`, title, link, pubDate, isoDate: item.isoDate || null, img, videoId, description: stripTags(rawDescription, 500), contentEncoded: item.contentEncoded || item.content || null, audioFile, category: Array.isArray(item.categories) ? item.categories[0] : (Array.isArray(item.category) ? item.category[0] : item.category || null), creator: item.creator || item.author || null, isYoutube: Boolean(videoId || isYoutube) };
 }
 
+function getNodeText(node: any): string { return safeString(node?.textContent || '').replace(/\s+/g, ' ').trim(); }
+function getNodeAttr(node: any, names: string[]): string {
+  for (const name of names) {
+    const value = safeString(node?.getAttribute?.(name));
+    if (value) return value;
+  }
+  return '';
+}
+function findWithinContext(anchor: any, selectors: string[]): any {
+  let current: any = anchor;
+  for (let depth = 0; depth < 5 && current; depth++) {
+    for (const selector of selectors) {
+      try {
+        const found = current.querySelector?.(selector);
+        if (found) return found;
+      } catch (_e) {}
+    }
+    current = current.parentElement;
+  }
+  return null;
+}
+function findImageNearAnchor(anchor: any, baseUrl: string): string | null {
+  let current: any = anchor;
+  for (let depth = 0; depth < 5 && current; depth++) {
+    try {
+      const img = current.querySelector?.('img');
+      if (img) {
+        const src = img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('data-lazy-src') || bestFromSrcset(img.getAttribute('data-srcset')) || bestFromSrcset(img.getAttribute('srcset')) || img.getAttribute('src');
+        const fixed = absolutizeUrl(src, baseUrl);
+        if (fixed && !/pixel|spacer|blank|\.gif|\.svg|\.woff/i.test(fixed)) return fixed;
+      }
+      const source = current.querySelector?.('picture source, source');
+      if (source) {
+        const src = bestFromSrcset(source.getAttribute('srcset') || source.getAttribute('data-srcset'));
+        const fixed = absolutizeUrl(src, baseUrl);
+        if (fixed) return fixed;
+      }
+    } catch (_e) {}
+    current = current.parentElement;
+  }
+  return null;
+}
+function cleanScrapedTitle(rawTitle: string, feedInput: FeedInput, href: string, pageUrl: string): string {
+  let title = cleanArticleTitleForSource(rawTitle || '', feedInput.name || getHostname(pageUrl), href || pageUrl);
+  title = title
+    .replace(/^image:\s*/i, '')
+    .replace(/^imagem:\s*/i, '')
+    .replace(/^(agências?|agencia|cotidiano|economia|política|politica|mundo|brasil|justiça|justica|saúde|saude|tn online|folha)\s+/i, (m) => {
+      return title.replace(m, '').trim().length > 28 ? '' : m;
+    })
+    .replace(/\b\d{2}\/\d{2}\/\d{4}\s+\d{1,2}h\d{2}\b.*$/i, '')
+    .replace(/\bhá\s+\d+\s+(minutos?|horas?|dias?)\b.*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return title;
+}
 function scrapeArticlesFromHtml(html: string, pageUrl: string, feedInput: FeedInput, limit: number) {
   const doc = new DOMParser().parseFromString(html, "text/html"); if (!doc) return [];
-  const host = getHostname(pageUrl); const seen = new Set<string>(); const items: any[] = [];
-  const bad = /assine|login|newsletter|publicidade|termos|politica-de-privacidade|cookies|facebook|twitter|instagram|youtube|whatsapp|podcast|ao-vivo|videos?$/i;
+  const host = getHostname(pageUrl); const sourceKey = normalizeKey(`${feedInput.name || ''} ${pageUrl}`);
+  const seen = new Set<string>(); const items: any[] = [];
+  const bad = /assine|login|newsletter|publicidade|termos|politica-de-privacidade|cookies|facebook|twitter|instagram|youtube|whatsapp|podcast|ao-vivo|videos?$|webstories|newsletter/i;
+  const allowedCrossHostForUol = (hrefHost: string) => {
+    if (!sourceKey.includes('uol') && !host.includes('uol.com.br')) return false;
+    return hrefHost.includes('uol.com.br') || hrefHost.includes('folha.uol.com.br') || hrefHost.includes('tnonline.uol.com.br');
+  };
+  const isSbt = sourceKey.includes('sbt') || host.includes('sbt');
+  const isUol = sourceKey.includes('uol') || host.includes('uol.com.br');
+
   for (const a of doc.querySelectorAll("a")) {
     if (items.length >= limit) break;
     const href = absolutizeUrl(a.getAttribute("href") || "", pageUrl); if (!href) continue;
-    const h = getHostname(href); if (h && host && h !== host && !h.endsWith(`.${host}`) && !host.endsWith(`.${h}`)) continue;
+    const h = getHostname(href);
+    if (h && host && h !== host && !h.endsWith(`.${host}`) && !host.endsWith(`.${h}`) && !allowedCrossHostForUol(h)) continue;
     if (bad.test(href)) continue;
-    const title = cleanArticleTitleForSource(a.textContent || "", feedInput.name || host, href || pageUrl);
-    if (title.length < 32 || title.length > 230) continue;
-    const key = normalizeKey(title).slice(0, 110); if (!key || seen.has(key)) continue; seen.add(key);
-    items.push({ id: href, title, link: href, pubDate: null, img: null, description: title, contentEncoded: null, category: feedInput.category || null, scraped: true });
+
+    const titleNode = findWithinContext(a, ['h1','h2','h3','h4','[class*=title]','[class*=headline]','[data-testid*=title]']);
+    const imgNode = findWithinContext(a, ['img']);
+    const attrTitle = getNodeAttr(a, ['aria-label','title']) || getNodeAttr(imgNode, ['alt','title']);
+    const nodeTitle = getNodeText(titleNode);
+    const ownText = getNodeText(a);
+    let title = cleanScrapedTitle(nodeTitle || attrTitle || ownText, feedInput, href, pageUrl);
+
+    if (isSbt && (!title || title.length < 28)) {
+      const contextTitle = getNodeText(findWithinContext(a, ['h3','h2','h4'])) || attrTitle || ownText;
+      title = cleanScrapedTitle(contextTitle, feedInput, href, pageUrl);
+    }
+
+    if (title.length < 32 || title.length > 240) continue;
+    const key = normalizeKey(title).slice(0, 120); if (!key || seen.has(key)) continue;
+    if (/^(editorias?|últimas notícias|ultimas noticias|notícias|noticias|ver tudo|ver mais)$/i.test(title)) continue;
+    seen.add(key);
+
+    const img = findImageNearAnchor(a, pageUrl);
+    const summaryNode = findWithinContext(a, ['p','[class*=summary]','[class*=description]','[class*=excerpt]']);
+    const summaryRaw = getNodeText(summaryNode);
+    const description = summaryRaw && normalizeKey(summaryRaw) !== normalizeKey(title) ? stripTags(summaryRaw, 420) : title;
+
+    items.push({
+      id: href,
+      title,
+      link: href,
+      pubDate: null,
+      img,
+      description,
+      contentEncoded: null,
+      category: feedInput.category || null,
+      scraped: true,
+      scrapeSource: isUol ? 'uol-html' : isSbt ? 'sbt-html' : 'html',
+    });
   }
   return items;
+}
+
+function preferredScrapeUrlsForFeed(feedInput: FeedInput): string[] {
+  const url = normalizeUrl(feedInput.url);
+  const host = getHostname(url);
+  const name = normalizeKey(feedInput.name || '');
+  const list: string[] = [];
+  const add = (v: string) => { if (v && !list.includes(v)) list.push(v); };
+  if (host.includes('sbt') || name.includes('sbt')) add('https://sbtnews.sbt.com.br/noticias');
+  if (host.includes('uol.com.br') || name.includes('uol')) {
+    if (name.includes('economia') || url.includes('economia')) add('https://economia.uol.com.br/ultimas-noticias/');
+    add('https://noticias.uol.com.br/ultimas/');
+  }
+  if (host.includes('g1.globo.com') || name.includes('g1')) add('https://g1.globo.com/');
+  if (host.includes('fiis.com.br') || name.includes('fiis')) add('https://fiis.com.br/noticias/');
+  const originalLooksPage = !/rss|feed|xml|atom/i.test(url);
+  if (originalLooksPage) add(url);
+  for (const candidate of candidateUrlsForFeed(feedInput)) if (!/rss|feed|xml|atom/i.test(candidate)) add(candidate);
+  return list.slice(0, 8);
+}
+
+async function buildHtmlFallbackPayload(feedInput: FeedInput, htmlFallback: FetchResult | null, limit: number) {
+  const tried = new Set<string>();
+  const htmlCandidates: FetchResult[] = [];
+  const preferred = preferredScrapeUrlsForFeed(feedInput);
+  if (htmlFallback?.text) htmlCandidates.push(htmlFallback);
+  for (const url of preferred) {
+    if (tried.has(url)) continue;
+    tried.add(url);
+    try {
+      if (htmlFallback?.finalUrl) {
+        const htmlPath = new URL(htmlFallback.finalUrl).pathname.replace(/\/$/, '');
+        const candidatePath = new URL(url).pathname.replace(/\/$/, '');
+        if (getHostname(htmlFallback.finalUrl) === getHostname(url) && htmlPath === candidatePath) continue;
+      }
+    } catch (_e) {}
+    try { htmlCandidates.push(await fetchText(url, REQUEST_TIMEOUT_MS)); } catch (_e) {}
+  }
+
+  for (const page of htmlCandidates) {
+    const title = feedInput.name || getHostname(page.finalUrl);
+    const image = extractImageFromHtml(page.text.slice(0, 420000)) || getDomainLogo(page.finalUrl, title);
+    const scraped = scrapeArticlesFromHtml(page.text, page.finalUrl, feedInput, limit);
+    if (scraped.length) {
+      return { title, link: page.finalUrl, feedUrl: page.finalUrl, image: absolutizeUrl(image, page.finalUrl) || getDomainLogo(page.finalUrl, title), isYoutube: false, items: scraped };
+    }
+  }
+
+  const fallbackUrl = preferred[0] || normalizeUrl(feedInput.url);
+  return { title: feedInput.name || getHostname(fallbackUrl), link: fallbackUrl, feedUrl: fallbackUrl, image: getDomainLogo(fallbackUrl, feedInput.name || 'Fonte'), isYoutube: false, items: [] };
 }
 
 async function parseOneFeed(feedInput: FeedInput, options: { limit: number; enrichImages: boolean; mode: string }) {
@@ -445,17 +599,18 @@ async function parseOneFeed(feedInput: FeedInput, options: { limit: number; enri
     }
 
     if (!parsedPayload?.items?.length) {
-      const page = htmlFallback || await fetchText(candidateUrlsForFeed(feedInput).find(url => !/rss|feed|xml/i.test(url)) || normalizeUrl(feedInput.url), REQUEST_TIMEOUT_MS);
-      const title = feedInput.name || getHostname(page.finalUrl);
-      const image = extractImageFromHtml(page.text.slice(0, 360000)) || getDomainLogo(page.finalUrl, title);
-      const scraped = scrapeArticlesFromHtml(page.text, page.finalUrl, feedInput, options.limit);
-      parsedPayload = { title, link: page.finalUrl, feedUrl: page.finalUrl, image: absolutizeUrl(image, page.finalUrl) || getDomainLogo(page.finalUrl, title), isYoutube: false, items: scraped };
+      parsedPayload = await buildHtmlFallbackPayload(feedInput, htmlFallback, options.limit);
     }
 
     const feedLogo = parsedPayload.image || getDomainLogo(parsedPayload.link || parsedPayload.feedUrl || feedInput.url, parsedPayload.title || feedInput.name);
+    const sourceIdentity = normalizeKey(`${parsedPayload.title || ''} ${parsedPayload.link || ''} ${parsedPayload.feedUrl || ''} ${feedInput.name || ''} ${feedInput.url || ''}`);
+    const imageEnrichLimit = sourceIdentity.includes('g1') || sourceIdentity.includes('globo') || sourceIdentity.includes('sbt') || sourceIdentity.includes('uol')
+      ? Math.min(options.limit, 34)
+      : MAX_OG_PER_SOURCE;
     let ogCount = 0;
     const finalItems = await Promise.all((parsedPayload.items || []).slice(0, options.limit).map(async (item: any) => {
-      if (options.enrichImages && (!item.img || item.img === feedLogo || /favicon|s2\/favicons|ui-avatars/i.test(String(item.img))) && item.link && ogCount < MAX_OG_PER_SOURCE) {
+      const imageLooksLikeLogo = !item.img || item.img === feedLogo || /favicon|s2\/favicons|ui-avatars|logo|sprite|placeholder/i.test(String(item.img));
+      if (options.enrichImages && imageLooksLikeLogo && item.link && ogCount < imageEnrichLimit) {
         ogCount += 1;
         const og = await fetchOgImage(item.link);
         if (og) item.img = og;

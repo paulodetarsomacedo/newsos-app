@@ -5530,6 +5530,87 @@ const getVetraMainScrollTop = () => {
 
 // Substitua o seu componente HappeningTab inteiro por esta versão aprimorada
 
+
+function TrendingTopicModal({ topic, allTopics = [], onClose, openArticle }) {
+  if (!topic) return null;
+  const topicsToShow = topic.showAll ? (allTopics || []).filter(Boolean) : [topic];
+  const mainTopic = topicsToShow[0] || topic;
+  const groupedSources = useMemo(() => {
+    const map = new Map();
+    const articles = topicsToShow.flatMap(t => Array.isArray(t?.articles) ? t.articles : []);
+    sortByDateSafe(articles).forEach(article => {
+      const group = article?.sourceGroup || getEditorialGroupKey(article?.source, article?.link);
+      const key = group || article?.source || article?.link || article?.title;
+      if (!key) return;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          source: article?.source || 'Fonte',
+          logo: article?.logo,
+          count: 0,
+          articles: [],
+          latest: article,
+        });
+      }
+      const entry = map.get(key);
+      entry.count += 1;
+      if (entry.articles.length < 5) entry.articles.push(article);
+      if (new Date(article?.rawDate || 0).getTime() > new Date(entry.latest?.rawDate || 0).getTime()) entry.latest = article;
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count || new Date(b.latest?.rawDate || 0).getTime() - new Date(a.latest?.rawDate || 0).getTime()).slice(0, 18);
+  }, [topic, allTopics]);
+
+  const totalHeadlines = topicsToShow.reduce((sum, item) => sum + (item?.articles?.length || 0), 0);
+  const sourceCount = groupedSources.length;
+
+  return (
+    <div className="vetra-trending-modal-overlay" onClick={onClose}>
+      <div className="vetra-trending-modal-shell" onClick={(e) => e.stopPropagation()}>
+        <div className="vetra-trending-modal-glow" />
+        <button className="vetra-trending-modal-close" onClick={onClose}><X size={18}/></button>
+        <div className="vetra-trending-modal-header">
+          <span className="vetra-trending-modal-kicker"><Activity size={15}/> Trending agora</span>
+          <h2>{topic.showAll ? 'Assuntos em alta' : mainTopic.t}</h2>
+          <p>{sourceCount} fontes · {totalHeadlines} manchetes relacionadas. Toque em uma fonte ou notícia para abrir no leitor.</p>
+        </div>
+
+        {topic.showAll && (
+          <div className="vetra-trending-topic-strip">
+            {topicsToShow.map((item, index) => (
+              <button key={item.t || index} onClick={() => item.articles?.[0] && openArticle(item.articles[0])}>
+                <b>{index + 1}</b><span>{item.t}</span><small>{item.n}</small>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="vetra-trending-source-grid">
+          {groupedSources.map((entry, index) => (
+            <div key={entry.key} className="vetra-trending-source-card">
+              <button className="vetra-trending-source-head" onClick={() => entry.latest && openArticle(entry.latest)}>
+                <ClusterSourceAvatar source={{ name: entry.source, logo: entry.logo }} index={index} compact />
+                <span><b>{entry.source}</b><small>{entry.count} manchete{entry.count === 1 ? '' : 's'}</small></span>
+                <ArrowUpRight size={16}/>
+              </button>
+              <div className="vetra-trending-source-news">
+                {entry.articles.slice(0, 3).map((article, i) => (
+                  <button key={article.id || article.link || i} onClick={() => openArticle(article)}>
+                    <b>{article.title}</b>
+                    <small>{article.rawDate ? formatClusterRecency(article.rawDate) : 'agora'} · {article.category || 'Geral'}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          {!groupedSources.length && (
+            <div className="vetra-trending-empty">Ainda não há fontes suficientes para este tema.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters, onOpenPodNews }) { 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showDigest, setShowDigest] = useState(false); // AI Digest expansível
@@ -5593,6 +5674,7 @@ const handleTouchEnd = async () => {
   const displayClusters = savedClusters && savedClusters.length > 0 ? savedClusters : heuristicClusters;
   const breakingHighlights = useMemo(() => computeBreakingHighlights(newsData || []), [newsData]);
   const trendingTopics = useMemo(() => computeTrendingTopics(newsData || []), [newsData]);
+  const [selectedTrendingTopic, setSelectedTrendingTopic] = useState(null);
 
   return (
     <div className="animate-in fade-in duration-700 pb-16 min-h-screen touch-pan-y space-y-10"
@@ -5683,7 +5765,7 @@ const handleTouchEnd = async () => {
                     { t: 'Coletando tendências', n: 'aguarde as fontes', v: 35 },
                     { t: 'Noticiário geral', n: 'em análise', v: 28 },
                   ]).map((it, i) => (
-                    <button key={it.t} onClick={() => it.articles?.[0] && openArticle(it.articles[0])} className="vetra-trending-row-home">
+                    <button key={it.t} onClick={() => setSelectedTrendingTopic(it)} className="vetra-trending-row-home">
                       <strong>{i + 1}</strong>
                       <span>{it.t}</span>
                       <small>{it.n}</small>
@@ -5691,8 +5773,17 @@ const handleTouchEnd = async () => {
                     </button>
                   ))}
                 </div>
-                <button className="vetra-trending-more-home">Ver todos os assuntos em alta <ChevronRight size={18}/></button>
+                <button className="vetra-trending-more-home" onClick={() => trendingTopics[0] && setSelectedTrendingTopic({ ...trendingTopics[0], showAll: true })}>Ver todos os assuntos em alta <ChevronRight size={18}/></button>
               </section>
+
+              {selectedTrendingTopic && (
+                <TrendingTopicModal
+                  topic={selectedTrendingTopic}
+                  allTopics={trendingTopics}
+                  onClose={() => setSelectedTrendingTopic(null)}
+                  openArticle={openArticle}
+                />
+              )}
             </div>
         </div>
       </div>
@@ -6339,6 +6430,27 @@ const parseXMLToNewsItems = (xmlText, feedSource, feedId, feedUrl = '') => {
 };
 
 
+
+const cleanArticleTitleForSource = (title, source = '', url = '') => {
+  let clean = repairMojibakeText(stripFeedText(title || '', 260));
+  const group = getEditorialGroupKey(source, url);
+  if (group === 'sbtnews') {
+    const areaWords = [
+      'brasil', 'política', 'politica', 'economia', 'mundo', 'saúde', 'saude', 'esportes', 'justiça', 'justica',
+      'polícia', 'policia', 'tecnologia', 'cultura', 'eleições', 'eleicoes', 'comprova', 'colunistas',
+      'últimas notícias', 'ultimas noticias', 'sbt news', 'notícias', 'noticias'
+    ];
+    const areaRegex = new RegExp(`^(?:${areaWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\s*(?:[-–—:|•›»]+|\\s{2,})\\s*`, 'i');
+    let prev = '';
+    while (prev !== clean) {
+      prev = clean;
+      clean = clean.replace(areaRegex, '').trim();
+    }
+  }
+  clean = clean.replace(/\s+([,.;:!?])/g, '$1').replace(/\s+/g, ' ').trim();
+  return clean;
+};
+
 const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffer = {}) => {
   const detectedXmlTitle = metadata.detectedXmlTitle || metadata.title || feed?.name || 'Fonte';
   const siteLink = metadata.siteLink || metadata.link || feed?.url || '';
@@ -6349,7 +6461,7 @@ const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffe
   const isFeedYoutube = Boolean(metadata.isFeedYoutube || metadata.isYoutube || String(feed?.url ?? '').includes('youtube.com') || String(feed?.url ?? '').includes('youtu.be'));
 
   return (rawItems || []).slice(0, 40).map((item, index) => {
-    const itemTitle = repairMojibakeText(stripFeedText(item?.title || item?.name || item?.description || item?.summary || '', 220));
+    const itemTitle = cleanArticleTitleForSource(item?.title || item?.name || item?.description || item?.summary || '', displaySource, item?.link || feed?.url || siteLink);
     const itemLink = item?.link || item?.url || item?.guid || '';
     const rawDateString = item?.pubDate || item?.isoDate || item?.date || item?.published || item?.updated;
     const parsedDate = new Date(rawDateString);
@@ -6864,6 +6976,38 @@ const INVESTING_BRASIL_LOGO = `data:image/svg+xml;utf8,${encodeURIComponent(`
 </svg>
 `)}`;
 
+
+const NOTICIAS_AO_MINUTO_LOGO = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#ec1c24"/><stop offset="1" stop-color="#a50f15"/></linearGradient></defs>
+  <rect width="128" height="128" rx="28" fill="url(#g)"/>
+  <circle cx="64" cy="64" r="39" fill="white" opacity=".96"/>
+  <path d="M64 31a33 33 0 1 0 0 66 33 33 0 0 0 0-66Zm0 9a24 24 0 1 1 0 48 24 24 0 0 1 0-48Z" fill="#ec1c24"/>
+  <path d="M63 47h8v21H51V60h12V47Z" fill="#111827"/>
+  <path d="M43 102h42" stroke="white" stroke-width="8" stroke-linecap="round" opacity=".92"/>
+</svg>
+`)}`;
+
+const SBT_NEWS_LOGO = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs><linearGradient id="s" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#05a8ff"/><stop offset=".38" stop-color="#5b4dff"/><stop offset=".7" stop-color="#ff2d55"/><stop offset="1" stop-color="#ffcc00"/></linearGradient></defs>
+  <rect width="128" height="128" rx="28" fill="#061231"/>
+  <circle cx="64" cy="64" r="43" fill="url(#s)"/>
+  <circle cx="64" cy="64" r="31" fill="#ffffff" opacity=".96"/>
+  <text x="64" y="73" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="28" fill="#071126">SBT</text>
+  <rect x="30" y="91" width="68" height="12" rx="6" fill="#ffffff" opacity=".9"/>
+</svg>
+`)}`;
+
+const UOL_BRASIL_LOGO = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="28" fill="#0066cc"/>
+  <circle cx="41" cy="48" r="22" fill="#ffb000"/>
+  <circle cx="49" cy="43" r="20" fill="#ff5a00" opacity=".86"/>
+  <text x="64" y="86" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="36" fill="#fff">uol</text>
+</svg>
+`)}`;
+
 const SOURCE_LOGO_OVERRIDES = [
   { key: 'jovempan', display: 'Jovem Pan', match: ['jovem pan', 'jovempan'], domains: ['jovempan.com.br'], logo: 'https://www.google.com/s2/favicons?domain=jovempan.com.br&sz=128' },
   { key: 'oglobo', display: 'O Globo', match: ['o globo', 'oglobo'], domains: ['oglobo.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=oglobo.globo.com&sz=128' },
@@ -6875,16 +7019,16 @@ const SOURCE_LOGO_OVERRIDES = [
   { key: 'terra', display: 'Terra', match: ['terra'], domains: ['terra.com.br'], logo: 'https://www.google.com/s2/favicons?domain=terra.com.br&sz=128' },
   { key: 'extra', display: 'Extra', match: ['extra'], domains: ['extra.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=extra.globo.com&sz=128' },
   { key: 'band', display: 'Portal Band', match: ['portal band', 'band notícias', 'band noticias', 'band news', 'band'], domains: ['band.uol.com.br', 'www.band.uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=band.uol.com.br&sz=128' },
-  { key: 'uolnoticias', display: 'UOL Notícias', match: ['uol notícias', 'uol noticias', 'uol nacional'], domains: ['noticias.uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=uol.com.br&sz=128' },
-  { key: 'uoleconomia', display: 'UOL Economia', match: ['uol economia', 'economia uol'], domains: ['economia.uol.com.br', 'rss.uol.com.br'], logo: 'https://www.google.com/s2/favicons?domain=uol.com.br&sz=128' },
+  { key: 'uolnoticias', display: 'UOL Notícias', match: ['uol notícias', 'uol noticias', 'uol nacional'], domains: ['noticias.uol.com.br', 'rss.uol.com.br', 'uol.com.br'], logo: UOL_BRASIL_LOGO },
+  { key: 'uoleconomia', display: 'UOL Economia', match: ['uol economia', 'economia uol'], domains: ['economia.uol.com.br', 'rss.uol.com.br'], logo: UOL_BRASIL_LOGO },
   { key: 'r7', display: 'R7', match: ['r7', 'r7.com'], domains: ['r7.com'], logo: 'https://www.google.com/s2/favicons?domain=r7.com&sz=128' },
-  { key: 'sbtnews', display: 'SBT News', match: ['sbt news', 'sbtnews', 'sbt'], domains: ['sbtnews.sbt.com.br', 'sbtnews.com.br'], logo: 'https://www.google.com/s2/favicons?domain=sbtnews.sbt.com.br&sz=128' },
+  { key: 'sbtnews', display: 'SBT News', match: ['sbt news', 'sbtnews', 'sbt'], domains: ['sbtnews.sbt.com.br', 'sbtnews.com.br'], logo: SBT_NEWS_LOGO },
   { key: 'estadao', display: 'Estadão', match: ['estadão', 'estadao'], domains: ['estadao.com.br'], logo: 'https://www.google.com/s2/favicons?domain=estadao.com.br&sz=128' },
   { key: 'valor', display: 'Valor Econômico', match: ['valor econômico', 'valor economico'], domains: ['valor.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=valor.globo.com&sz=128' },
   { key: 'infomoney', display: 'InfoMoney', match: ['infomoney'], domains: ['infomoney.com.br'], logo: 'https://www.google.com/s2/favicons?domain=infomoney.com.br&sz=128' },
   { key: 'investingbrasil', display: 'Investing Brasil', match: ['investing brasil', 'investing.com brasil', 'investing'], domains: ['br.investing.com', 'investing.com'], logo: INVESTING_BRASIL_LOGO },
   { key: 'bbc', display: 'BBC News Brasil', match: ['bbc news', 'bbc brasil', 'bbc'], domains: ['bbc.com', 'bbc.co.uk'], logo: 'https://www.google.com/s2/favicons?domain=bbc.com&sz=128' },
-  { key: 'noticiasaominuto', display: 'Notícias ao Minuto', match: ['notícias ao minuto', 'noticias ao minuto', 'noticias minuto'], domains: ['noticiasaominuto.com.br', 'www.noticiasaominuto.com.br'], logo: 'https://www.google.com/s2/favicons?domain=noticiasaominuto.com.br&sz=128' },
+  { key: 'noticiasaominuto', display: 'Notícias ao Minuto', match: ['notícias ao minuto', 'noticias ao minuto', 'noticias minuto'], domains: ['noticiasaominuto.com.br', 'www.noticiasaominuto.com.br'], logo: NOTICIAS_AO_MINUTO_LOGO },
   { key: '180graus', display: '180graus', match: ['180graus', '180 graus'], domains: ['180graus.com', '180graus.com.br'], logo: 'https://www.google.com/s2/favicons?domain=180graus.com&sz=128' },
   { key: 'piauihoje', display: 'Piauí Hoje', match: ['piauí hoje', 'piaui hoje', 'piauihoje'], domains: ['piauihoje.com.br'], logo: 'https://www.google.com/s2/favicons?domain=piauihoje.com.br&sz=128' },
   { key: 'valorinveste', display: 'Valor Investe', match: ['valor investe', 'valorinveste'], domains: ['valorinveste.globo.com'], logo: 'https://www.google.com/s2/favicons?domain=valorinveste.globo.com&sz=128' },
@@ -7229,52 +7373,101 @@ const computeBreakingHighlights = (news = []) => {
 };
 
 const computeTrendingTopics = (news = []) => {
-  const items = sortByDateSafe(news).slice(0, 420).filter(item => item?.title);
-  const stop = new Set(['para','como','mais','sobre','apos','após','entre','contra','esta','este','nesta','neste','pela','pelo','com','dos','das','uma','que','por','nas','nos','ser','vai','tem','sao','são','foi','diz','ano','anos','dia','hoje','noticia','notícia','ultimas','últimas']);
+  const items = sortByDateSafe(news).slice(0, 560).filter(item => item?.title);
+  const stop = new Set([
+    'para','como','mais','sobre','apos','após','entre','contra','esta','este','nesta','neste','pela','pelo','com','dos','das','uma','que','por','nas','nos','ser','vai','tem','sao','são','foi','diz','ano','anos','dia','hoje','noticia','notícia','noticias','notícias','ultimas','últimas','agora','ainda','deve','pode','podem','veja','confira','saiba','entenda','video','vídeo','foto','fotos','minuto','minutos',
+    'uol','g1','globo','sbt','cnn','band','terra','r7','folha','metropoles','jovem','pan','istoé','istoe','exame','valor','investing'
+  ]);
+  const weakSingleWords = new Set(['brasil','mundo','governo','presidente','mercado','politica','política','economia','pessoas','cidade','estado','fonte','fontes']);
+  const strongSingleWords = new Set(['copa','trump','lula','bolsonaro','bitcoin','ibovespa','selic','paraguai','alemanha','brasil']);
+  const sourceNameKeys = new Set(SOURCE_LOGO_OVERRIDES.flatMap(entry => [entry.key, entry.display, ...(entry.match || [])].map(normalizeSourceKey)).filter(Boolean));
   const map = new Map();
-  const register = (term, article) => {
+
+  const normalizeTermLabel = (term) => normalizeSpaces(repairMojibakeText(term)).replace(/^[,.;:!?\-–—|•]+|[,.;:!?\-–—|•]+$/g, '').trim();
+  const isBadTerm = (term) => {
     const key = normalizeSourceKey(term);
-    if (!key || key.length < 4 || stop.has(key)) return;
+    if (!key || key.length < 4) return true;
+    if (stop.has(key) || sourceNameKeys.has(key)) return true;
+    if (key.split(/\s+/).some(part => stop.has(part))) return key.split(/\s+/).length === 1;
+    if (/^\d+$/.test(key)) return true;
+    if (/^(noticias?|ultimas?|veja|pode|podem|hoje|agora)$/i.test(key)) return true;
+    return false;
+  };
+
+  const register = (term, article, weight = 1) => {
+    const label = normalizeTermLabel(term);
+    const key = normalizeSourceKey(label);
+    if (isBadTerm(label)) return;
+    const parts = key.split(/\s+/).filter(Boolean);
+    if (parts.length === 1 && weakSingleWords.has(key) && !strongSingleWords.has(key)) return;
     const ageMs = Math.max(0, Date.now() - new Date(article.rawDate || Date.now()).getTime());
-    const recency = Math.max(0.25, 1 - Math.min(ageMs, 18 * 60 * 60 * 1000) / (18 * 60 * 60 * 1000));
+    const recency = Math.max(0.28, 1 - Math.min(ageMs, 24 * 60 * 60 * 1000) / (24 * 60 * 60 * 1000));
     const sourceGroup = article.sourceGroup || getEditorialGroupKey(article.source, article.link);
-    const current = map.get(key) || { label: term, score: 0, sources: new Set(), articles: [] };
-    current.score += 1 + recency;
+    const current = map.get(key) || { label, score: 0, sources: new Set(), articleKeys: new Set(), articles: [] };
+    const articleKey = getArticleTopicSignature(article) || article.id || article.link || article.title;
+    current.score += weight * (1 + recency);
     current.sources.add(sourceGroup);
-    if (current.articles.length < 8) current.articles.push(article);
+    if (!current.articleKeys.has(articleKey)) {
+      current.articleKeys.add(articleKey);
+      if (current.articles.length < 16) current.articles.push(article);
+    }
     map.set(key, current);
   };
 
   items.forEach(article => {
-    const words = normalizeSourceKey(article.title).split(/\s+/).filter(word => word.length >= 4 && !stop.has(word));
-    const entities = (article.title.match(/\b[A-ZÁÉÍÓÚÃÕÂÊÔÇ][\wÀ-ú]{2,}(?:\s+[A-ZÁÉÍÓÚÃÕÂÊÔÇ][\wÀ-ú]{2,}){0,2}/g) || [])
-      .map(entity => normalizeSpaces(entity))
-      .filter(entity => normalizeSourceKey(entity).length >= 4);
-    entities.slice(0, 4).forEach(entity => register(entity, article));
-    for (let i = 0; i < words.length; i++) {
-      register(words[i], article);
-      if (i < words.length - 1) register(`${words[i]} ${words[i + 1]}`, article);
+    const title = repairMojibakeText(article.title || '');
+    const normalizedWords = normalizeSourceKey(title).split(/\s+/).filter(word => word.length >= 4 && !stop.has(word) && !sourceNameKeys.has(word));
+    const namedEntities = (title.match(/\b[A-ZÁÉÍÓÚÃÕÂÊÔÇ][\wÀ-ú]{2,}(?:\s+(?:de|da|do|dos|das|e|[A-ZÁÉÍÓÚÃÕÂÊÔÇ][\wÀ-ú]{2,})){0,3}/g) || [])
+      .map(normalizeTermLabel)
+      .filter(entity => !isBadTerm(entity) && normalizeSourceKey(entity).split(/\s+/).length <= 5);
+
+    namedEntities.slice(0, 5).forEach(entity => register(entity, article, 2.2));
+
+    for (let i = 0; i < normalizedWords.length; i++) {
+      const one = normalizedWords[i];
+      const two = normalizedWords[i + 1] ? `${one} ${normalizedWords[i + 1]}` : '';
+      const three = normalizedWords[i + 2] ? `${one} ${normalizedWords[i + 1]} ${normalizedWords[i + 2]}` : '';
+      if (strongSingleWords.has(one)) register(one, article, 1.2);
+      if (two && !isBadTerm(two)) register(two, article, 1.55);
+      if (three && !isBadTerm(three)) register(three, article, 1.9);
     }
   });
 
-  return Array.from(map.values())
+  const candidates = Array.from(map.values())
     .map(item => ({
       ...item,
       sourceCount: item.sources.size,
-      finalScore: item.score * (1 + Math.min(5, item.sources.size) * 0.28),
+      articleCount: item.articleKeys.size,
+      finalScore: item.score * (1 + Math.min(7, item.sources.size) * 0.34) * (1 + Math.min(10, item.articleKeys.size) * 0.045),
     }))
-    .filter(item => item.sourceCount >= 2 || item.score >= 4)
-    .sort((a, b) => b.finalScore - a.finalScore)
-    .slice(0, 5)
-    .map((item, index, array) => {
-      const max = array[0]?.finalScore || 1;
-      return {
-        t: item.label.charAt(0).toUpperCase() + item.label.slice(1),
-        n: `${item.sourceCount} fontes · ${item.articles.length} manchetes`,
-        v: Math.max(22, Math.round((item.finalScore / max) * 100)),
-        articles: item.articles,
-      };
+    .filter(item => item.sourceCount >= 2 && item.articleCount >= 2)
+    .sort((a, b) => b.finalScore - a.finalScore);
+
+  const selected = [];
+  const selectedKeys = new Set();
+  for (const item of candidates) {
+    const key = normalizeSourceKey(item.label);
+    const parts = key.split(/\s+/).filter(Boolean);
+    const overlaps = selected.some(other => {
+      const otherParts = normalizeSourceKey(other.label).split(/\s+/).filter(Boolean);
+      const common = parts.filter(p => otherParts.includes(p)).length;
+      return common >= Math.min(parts.length, otherParts.length) && Math.min(parts.length, otherParts.length) <= 2;
     });
+    if (overlaps || selectedKeys.has(key)) continue;
+    selected.push(item);
+    selectedKeys.add(key);
+    if (selected.length >= 5) break;
+  }
+
+  const max = selected[0]?.finalScore || 1;
+  return selected.map(item => ({
+    t: item.label.charAt(0).toUpperCase() + item.label.slice(1),
+    n: `${item.sourceCount} fontes · ${item.articleCount} manchetes`,
+    v: Math.max(24, Math.round((item.finalScore / max) * 100)),
+    articles: sortByDateSafe(item.articles),
+    sourceCount: item.sourceCount,
+    articleCount: item.articleCount,
+  }));
 };
 
 
