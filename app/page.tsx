@@ -81,6 +81,48 @@ const smartFeedSort = (items) => {
   return spaced;
 };
 
+const orderByRecency = (items) => {
+  const valid = (items || []).filter(it => (String(it?.title || '').trim() || String(it?.link || it?.url || '').trim()));
+  return [...valid].sort((a, b) => {
+    const ta = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
+    const tb = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
+    return tb - ta;
+  });
+};
+const dedupNearTitles = (items) => {
+  const seen = new Set(); const out = [];
+  for (const it of items) {
+    const nt = String(it?.title || '').toLowerCase().replace(/[^\w\s]/gi, '').trim();
+    if (!nt) continue;
+    const snippet = nt.split(/\s+/).slice(0, 4).join(' ');
+    const key = `${it?.sourceId || it?.source || ''}::${snippet}`;
+    if (seen.has(key)) continue;
+    seen.add(key); out.push(it);
+  }
+  return out;
+};
+const diversifyBySource = (recencyOrdered, maxPerSource = 6) => {
+  const bySource = new Map();
+  for (const it of recencyOrdered) {
+    const key = it?.sourceId || it?.source || 'x';
+    if (!bySource.has(key)) bySource.set(key, []);
+    bySource.get(key).push(it);
+  }
+  const queues = Array.from(bySource.values());
+  const counts = new Map(); const out = [];
+  let progressed = true;
+  while (progressed) {
+    progressed = false;
+    for (const q of queues) {
+      if (!q.length) continue;
+      const key = q[0]?.sourceId || q[0]?.source || 'x';
+      const c = counts.get(key) || 0;
+      if (c >= maxPerSource) { q.length = 0; continue; }
+      out.push(q.shift()); counts.set(key, c + 1); progressed = true;
+    }
+  }
+  return out;
+};
 const safeLower = (v: any) => String(v ?? '').toLowerCase();
 
 
@@ -1380,22 +1422,48 @@ function FeedTab({
       return catalog.filter(source => sourceMatchesCategory(source, category, sourceCacheView?.[source.id] || []));
   }, [sourceCatalog, category, sourceCacheView]);
   const filteredByCategory = useMemo(() => category === 'Tudo' ? safeNews : safeNews.filter(n => articleMatchesCategory(n, category)), [safeNews, category]);
-  const sourceSpecificBase = useMemo(() => {
-      if (sourceFilter === 'all') return filteredByCategory;
+ const sourceSpecificBase = useMemo(() => {
+      if (sourceFilter === 'all') {
+          if (category === 'Tudo') return filteredByCategory;
+          // Categoria + Todas as Fontes: une os caches de TODAS as fontes da categoria
+          // (não depende do realNews capado em 180). Fica igual à visão por fonte.
+          const union = [];
+          const seen = new Set();
+          for (const src of (sourceCatalog || [])) {
+              if (!sourceMatchesCategory(src, category)) continue;
+              for (const it of (sourceCacheView?.[src.id] || [])) {
+                  const key = it.id || it.link;
+                  if (seen.has(key)) continue;
+                  seen.add(key); union.push(it);
+              }
+          }
+          return union.length > 0 ? union : filteredByCategory;
+      }
       const cacheItems = sourceCacheView?.[sourceFilter] || [];
       const fromCache = category === 'Tudo' ? cacheItems : cacheItems.filter(n => articleMatchesCategory(n, category));
       if (fromCache.length > 0) return fromCache;
       return filteredByCategory.filter(n => n.sourceId === sourceFilter || n.sourceKey === sourceFilter || n.source === sourceFilter || getEditorialGroupKey(n.source, n.link) === selectedSourceMeta?.groupKey);
-  }, [sourceFilter, filteredByCategory, sourceCacheView, category, selectedSourceMeta]);
+  }, [sourceFilter, filteredByCategory, sourceCacheView, sourceCatalog, category, selectedSourceMeta]);
   const filteredBySource = sourceSpecificBase;
-const sortedFeed = useMemo(() => smartFeedSort(filteredBySource), [filteredBySource]);  
+const sortedFeed = useMemo(() => {
+    const recency = dedupNearTitles(orderByRecency(filteredBySource));
+    // Categoria específica OU fonte específica: recência pura (Bug 5).
+    // "Para você" (Tudo + Todas as Fontes): diversidade por fonte com teto (Bug 2).
+    const base = (category !== 'Tudo' || sourceFilter !== 'all') ? recency : diversifyBySource(recency, 6);
+    // Rebaixa lidas para o fim, preservando a ordem (Bug 1 anterior).
+    if (!readHistory || readHistory.length === 0) return base;
+    const readSet = new Set(readHistory);
+    const unread = [], read = [];
+    for (const item of base) { readSet.has(item.id) ? read.push(item) : unread.push(item); }
+    return [...unread, ...read];
+}, [filteredBySource, category, sourceFilter, readHistory]);
 const uniqueNews = useMemo(() => {
       const seen = new Set();
       return sortedFeed.filter(item => {
           if (seen.has(item.id)) return false;
           seen.add(item.id);
           return true;
-      }).slice(0, 50); 
+      }).slice(0, 100); 
   }, [sortedFeed]);
 
   useEffect(() => {
@@ -2521,87 +2589,149 @@ const MarketTicker = ({ isDarkMode }) => {
 };
 
 
-// === MERCADOS HOJE (Etapa 4.3) — cards largos com sparkline (print) ===
+// === MERCADOS HOJE — grid premium 2 colunas, sparkline, status B3 e destaque do dia ===
 const MARKET_CARDS = [
-  { id: '^BVSP',    label: 'IBOVESPA' },
-  { id: 'USDBRL=X', label: 'DÓLAR (PTAX)' },
-  { id: 'EURBRL=X', label: 'EURO (PTAX)' },
-  { id: 'BTC-USD',  label: 'BITCOIN' },
-  { id: 'PETR4.SA', label: 'PETR4' },
-  { id: 'VALE3.SA', label: 'VALE3' },
-  { id: '^IFIX',    label: 'IFIX' },
+  { id: '^BVSP',    label: 'IBOVESPA',  kind: 'index' },
+  { id: 'USDBRL=X', label: 'DÓLAR',     kind: 'brl' },
+  { id: 'EURBRL=X', label: 'EURO',      kind: 'brl' },
+  { id: '^GSPC',    label: 'S&P 500',   kind: 'index' },
+  { id: '^IXIC',    label: 'NASDAQ',    kind: 'index' },
+  { id: 'BTC-USD',  label: 'BITCOIN',   kind: 'usd' },
+  { id: 'ETH-USD',  label: 'ETHEREUM',  kind: 'usd' },
+  { id: 'GC=F',     label: 'OURO',      kind: 'usd' },
+  { id: 'CL=F',     label: 'PETRÓLEO',  kind: 'usd' },
+  { id: 'PETR4.SA', label: 'PETR4',     kind: 'brl' },
+  { id: 'VALE3.SA', label: 'VALE3',     kind: 'brl' },
+  { id: 'ITUB4.SA', label: 'ITUB4',     kind: 'brl' },
 ];
 
-const Sparkline = ({ points, up }) => {
-  if (!points || points.length < 2) return <div className="h-[34px]" />;
-  const w = 96, h = 34;
+const Sparkline = ({ points, up, uid }) => {
+  if (!points || points.length < 2) return <div className="h-[38px]" />;
+  const w = 100, h = 38, pad = 2;
   const min = Math.min(...points), max = Math.max(...points);
   const range = (max - min) || 1;
   const step = w / (points.length - 1);
-  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${(i * step).toFixed(1)} ${(h - ((p - min) / range) * h).toFixed(1)}`).join(' ');
+  const y = (p) => (pad + (h - pad * 2) - ((p - min) / range) * (h - pad * 2));
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${(i * step).toFixed(1)} ${y(p).toFixed(1)}`).join(' ');
   const color = up ? '#10b981' : '#ef4444';
+  const key = String(uid || '').replace(/[^a-z0-9]/gi, '') + (up ? 'u' : 'd');
+  const fillId = 'spf' + key, strokeId = 'sps' + key;
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-      <path d={`${d} L ${w} ${h} L 0 ${h} Z`} fill={color} opacity="0.10" />
-      <path d={d} fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="overflow-visible">
+      <defs>
+        <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.14" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={strokeId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="1" />
+        </linearGradient>
+      </defs>
+      <path d={`${d} L ${w} ${h} L 0 ${h} Z`} fill={`url(#${fillId})`} />
+      <path d={d} fill="none" stroke={`url(#${strokeId})`} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 };
 
+const isB3Open = () => {
+  try {
+    const sp = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const day = sp.getDay();
+    const mins = sp.getHours() * 60 + sp.getMinutes();
+    return day >= 1 && day <= 5 && mins >= 600 && mins < 1020;
+  } catch { return false; }
+};
+
 const MarketCards = ({ isDarkMode }) => {
   const [data, setData] = useState({});
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [marketOpen, setMarketOpen] = useState(isB3Open());
+
   useEffect(() => {
     let alive = true;
     const fetchAll = async () => {
       const nd = {};
       await Promise.all(MARKET_CARDS.map(async ({ id }) => {
         try {
-          const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${id}?interval=15m&range=1d`;
-          const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-          const res = await fetch(proxyUrl);
-          if (!res.ok) throw new Error('net');
-          const json = JSON.parse(await res.text());
+          const { data: json, error } = await supabase.functions.invoke('market-proxy', {
+            body: { symbol: id, interval: '15m', range: '1d' }
+          });
+          if (error || !json) throw new Error('net');
           const r = json.chart?.result?.[0];
           const meta = r?.meta;
           const closes = (r?.indicators?.quote?.[0]?.close || []).filter(v => typeof v === 'number');
           if (meta && meta.regularMarketPrice != null) {
             const price = meta.regularMarketPrice;
-            const prev = meta.chartPreviousClose || price;
+            const prev = meta.chartPreviousClose || meta.previousClose || price;
             const pct = prev ? ((price - prev) / prev) * 100 : 0;
             const up = (price - prev) >= 0;
-            let val;
-            if (id === '^BVSP' || id === '^IFIX') val = price.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
-            else if (id === 'BTC-USD') val = '$ ' + price.toLocaleString('en-US', { maximumFractionDigits: 0 });
-            else val = 'R$ ' + price.toFixed(2).replace('.', ',');
-            nd[id] = { val, pct, up, spark: closes.slice(-26) };
+            nd[id] = { price, pct, up, spark: closes.slice(-30) };
           } else { nd[id] = null; }
-        } catch (e) { nd[id] = null; }
+        } catch { nd[id] = null; }
       }));
-      if (alive) setData(prev => ({ ...prev, ...nd }));
+      if (alive) { setData(prev => ({ ...prev, ...nd })); setUpdatedAt(new Date()); setMarketOpen(isB3Open()); }
     };
     fetchAll();
     const t = setInterval(fetchAll, 5 * 60 * 1000);
     return () => { alive = false; clearInterval(t); };
   }, []);
 
+  const fmtVal = (id, price) => {
+    const c = MARKET_CARDS.find(m => m.id === id);
+    if (!c) return String(price);
+    if (c.kind === 'index') return price.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    if (c.kind === 'usd') return '$ ' + price.toLocaleString('en-US', { maximumFractionDigits: price >= 100 ? 0 : 2 });
+    return 'R$ ' + price.toFixed(2).replace('.', ',');
+  };
+
+  const topMover = useMemo(() => {
+    let best = null;
+    for (const { id } of MARKET_CARDS) {
+      const d = data[id];
+      if (!d) continue;
+      if (!best || Math.abs(d.pct) > Math.abs(best.pct)) best = { id, ...d };
+    }
+    return best;
+  }, [data]);
+
+  const fmtTime = (dt) => dt ? dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+
   return (
-    <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1 px-4">
-      {MARKET_CARDS.map(({ id, label }) => {
-        const d = data[id];
-        const up = d?.up ?? true;
-        return (
-          <div key={id} className="shrink-0 w-[155px] rounded-2xl p-3.5 bg-white/80 dark:bg-white/[0.05] border border-white/80 dark:border-white/10 shadow-[0_6px_16px_-10px_rgba(15,23,42,0.25)]">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate">{label}</div>
-            <div className="mt-1 text-[17px] font-black text-zinc-900 dark:text-white tabular-nums">{d?.val || '—'}</div>
-            <div className="mt-2 flex items-end justify-between gap-2">
-              <span className={`text-[12px] font-bold tabular-nums ${up ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {d ? `${up ? '+' : ''}${d.pct.toFixed(2)}%` : '...'}
-              </span>
-              <Sparkline points={d?.spark} up={up} />
+    <div className="px-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${marketOpen ? 'text-emerald-600 border-emerald-500/30 bg-emerald-500/10' : 'text-zinc-400 border-zinc-400/25 bg-zinc-400/10'}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${marketOpen ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'}`} />
+          B3 {marketOpen ? 'aberta' : 'fechada'}
+        </span>
+        <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 tabular-nums">Atualizado {fmtTime(updatedAt)}</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {MARKET_CARDS.map(({ id, label }) => {
+          const d = data[id];
+          const up = d?.up ?? true;
+          const isTop = topMover && topMover.id === id && Math.abs(topMover.pct) > 0.01;
+          return (
+            <div key={id} className={`rounded-2xl p-4 border shadow-[0_8px_24px_-16px_rgba(15,23,42,0.35)] transition-all ${isDarkMode ? 'bg-white/[0.04] border-white/10' : 'bg-white/85 border-white/80'} ${isTop ? (up ? 'ring-1 ring-emerald-500/40' : 'ring-1 ring-rose-500/40') : ''}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate">{label}</span>
+                {isTop && <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${up ? 'text-emerald-600 bg-emerald-500/12' : 'text-rose-600 bg-rose-500/12'}`}>Destaque</span>}
+              </div>
+              <div className="mt-1.5 flex items-baseline justify-between gap-2">
+                <span className="text-[19px] font-black text-zinc-900 dark:text-white tabular-nums leading-none">
+                  {d ? fmtVal(id, d.price) : '—'}
+                </span>
+                <span className={`text-[12px] font-bold tabular-nums shrink-0 ${up ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {d ? `${up ? '▲' : '▼'} ${up ? '+' : ''}${d.pct.toFixed(2)}%` : '...'}
+                </span>
+              </div>
+              {/* Sparkline largo: ocupa quase toda a largura do card */}
+              <div className="mt-3 w-full"><Sparkline points={d?.spark} up={up} uid={id} /></div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -4549,11 +4679,7 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
 
   return (
     <section className="vetra-clusters-section vetra-premium-cluster-section">
-      <div className="vetra-clusters-header">
-        <div>
-          <div className="vetra-clusters-title-row"><h2>Clusters em destaque</h2><span>i</span></div>
-          <p>Os temas que dominam a cobertura agora</p>
-        </div>
+    <div className="vetra-clusters-header" style={{ justifyContent: 'flex-end' }}>
         <button onClick={runAI} className="vetra-see-all-button">
           {loading ? <Loader2 size={17} className="animate-spin"/> : <span>Ver todos os clusters</span>} <ArrowRight size={18}/>
         </button>
@@ -5792,13 +5918,7 @@ const handleTouchEnd = async () => {
       
           {/* Manchete e o NOVO Widget */}
       <div className="space-y-4">
-    {/* 4.1: cabeçalho editorial limpo (sem gradiente neon) */}
-        <div className="flex items-center gap-2.5 px-4">
-            <Sparkles size={22} className="text-indigo-500 shrink-0" />
-            <h3 className="text-[22px] font-bold tracking-tight leading-tight text-zinc-900 dark:text-white">
-                As principais notícias de agora, em <span className="text-indigo-600 dark:text-indigo-400">múltiplos ângulos</span>.
-            </h3>
-        </div>
+
         
         {/* --- SUBSTITUA O WIDGET ANTIGO POR ESTE --- */}
    <WhileYouWereAwayWidget 
@@ -5933,7 +6053,13 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     return userFeeds
         .filter(feed => feed.display?.banca)
         .map((feed, index) => {
-            const latestHeadlines = realNews.filter(news => news.source === feed.name).slice(0, 2);
+            const feedSourceId = getFeedSourceId(feed);
+            const feedGroupKey = getEditorialGroupKey(feed.name, feed.url);
+            const latestHeadlines = realNews.filter(news =>
+                news.sourceId === feedSourceId ||
+                news.sourceGroup === feedGroupKey ||
+                news.source === feed.name
+            ).slice(0, 2);
             let finalLogo = resolveLogoUrl({ source: feed.name, feedUrl: feed.url, feedLogo: feed.logo, siteUrl: feed.url });
             const lowerName = safeLower(feed?.name);
             
@@ -6451,6 +6577,14 @@ const cleanArticleTitleForSource = (title, source = '', url = '') => {
   return clean;
 };
 
+const getYoutubeChannelLogo = (url) => {
+  const s = String(url || '');
+  const chan = s.match(/channel_id=(UC[A-Za-z0-9_-]{22})/i)?.[1];
+  if (chan) return `https://unavatar.io/youtube/${chan}?fallback=false`;
+  const user = s.match(/[?&]user=([A-Za-z0-9_.-]+)/i)?.[1];
+  if (user) return `https://unavatar.io/youtube/${user}?fallback=false`;
+  return null;
+};
 const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffer = {}) => {
   const detectedXmlTitle = metadata.detectedXmlTitle || metadata.title || feed?.name || 'Fonte';
   const siteLink = metadata.siteLink || metadata.link || feed?.url || '';
@@ -6459,6 +6593,7 @@ const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffe
   const sourceId = getFeedSourceId(feed);
   const finalLogo = resolveLogoUrl({ source: displaySource, feedUrl: feed?.url, feedLogo: metadata.feedLogo || metadata.logo || feed?.logo, siteUrl: siteLink || feed?.url });
   const isFeedYoutube = Boolean(metadata.isFeedYoutube || metadata.isYoutube || String(feed?.url ?? '').includes('youtube.com') || String(feed?.url ?? '').includes('youtu.be'));
+  const youtubeChannelLogo = isFeedYoutube ? getYoutubeChannelLogo(feed?.url) : null;
 
   return (rawItems || []).slice(0, 40).map((item, index) => {
     const itemTitle = cleanArticleTitleForSource(item?.title || item?.name || item?.description || item?.summary || '', displaySource, item?.link || feed?.url || siteLink);
@@ -6493,14 +6628,15 @@ const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffe
       source: displaySource,
       sourceId,
       sourceGroup,
-      sourceKey: sourceId,
-      logo: finalLogo,
+    sourceKey: sourceId,
+      logo: youtubeChannelLogo || finalLogo,
       time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       rawDate: finalDateObj,
       historicalTimestamp: finalTimestamp,
       title: itemTitle || 'Notícia sem título',
       summary: cleanSummary,
       category: feed?.type === 'podcast' ? 'Podcast' : inferArticleCategory({ title: itemTitle, summary: cleanSummary, source: displaySource, feedCategory: item.category || feed?.category || 'Geral' }),
+      feedCategory: normalizeFeedCategoryLabel(feed?.category || 'Geral'),
       type: finalType,
       img: finalImage,
       link: primaryLink,
@@ -6744,92 +6880,134 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 
 
 
-// --- COMPONENTE: SPLASH SCREEN (premium estável, sem flicker e sem home vazando por baixo) ---
-const SplashScreen = ({ onFinish, durationMs = 6800, hasWarmSnapshot = false }) => {
+
+const SplashScreen = ({ onFinish, durationMs = 6800, hasWarmSnapshot = false, ready = false }) => {
   const [step, setStep] = useState(0);
   const [statusIndex, setStatusIndex] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+
+  // Duração máxima de segurança (se "ready" nunca chegar). Quando o feed fica
+  // pronto (ready), dispensamos logo após um tempo mínimo — Splash REAL, não fixo.
+  const maxDuration = Math.max(hasWarmSnapshot ? 1200 : 5200, durationMs);
+  const minDuration = hasWarmSnapshot ? 1100 : 1600;
 
   useEffect(() => {
-    const safeDuration = Math.max(hasWarmSnapshot ? 1200 : 5600, durationMs);
-    const t1 = setTimeout(() => setStep(1), 180);
-    const t2 = setTimeout(() => setStep(2), hasWarmSnapshot ? 520 : 1500);
-    const t3 = setTimeout(() => setStep(3), Math.max(900, safeDuration - 900));
-    const t4 = setTimeout(onFinish, safeDuration);
-    const statusTimer = setInterval(() => setStatusIndex(i => (i + 1) % 5), hasWarmSnapshot ? 1200 : 1550);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-      clearInterval(statusTimer);
-    };
-  }, [onFinish, durationMs, hasWarmSnapshot]);
+    const start = Date.now();
+    const t1 = setTimeout(() => setStep(1), 160);
+    const t2 = setTimeout(() => setStep(2), hasWarmSnapshot ? 480 : 1200);
+    const tick = setInterval(() => setElapsed(Date.now() - start), 120);
+    const statusTimer = setInterval(() => setStatusIndex(i => (i + 1) % 5), hasWarmSnapshot ? 1100 : 1450);
+    const hardStop = setTimeout(onFinish, maxDuration);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(hardStop); clearInterval(tick); clearInterval(statusTimer); };
+  }, [onFinish, maxDuration, hasWarmSnapshot]);
+
+  // Dispensa REAL: quando o feed está pronto e já passou o tempo mínimo.
+  useEffect(() => {
+    if (!ready) return;
+    setStep(3);
+    const remaining = Math.max(0, minDuration - elapsed);
+    const t = setTimeout(onFinish, remaining + 380);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
   const loadingMessages = hasWarmSnapshot
-    ? ['Restaurando seu último feed', 'Conferindo novas fontes', 'Preparando a interface', 'Sincronizando em segundo plano', 'Pronto']
-    : ['Coletando fontes prioritárias', 'Baixando manchetes e imagens', 'Montando stories sem repetição', 'Preparando clusters iniciais', 'Organizando o feed temporal'];
+    ? ['Recuperando seu último panorama', 'Verificando o que mudou desde agora', 'Afinando os detalhes', 'Sincronizando em segundo plano', 'Tudo pronto para você']
+    : ['Reunindo as fontes mais confiáveis', 'Lendo as manchetes em tempo real', 'Cruzando ângulos e versões', 'Formando os clusters do momento', 'Compondo seu feed editorial'];
 
-  const progress = hasWarmSnapshot
-    ? Math.min(100, 42 + step * 22 + statusIndex * 4)
-    : Math.min(96, 12 + step * 20 + statusIndex * 12);
+  // Progresso: quando pronto → 100; senão, avança suave com o tempo (base real de fases).
+  const timedPct = Math.min(94, 10 + (elapsed / maxDuration) * 88);
+  const progress = ready ? 100 : Math.round(Math.max(timedPct, 8 + step * 8 + statusIndex * 5));
 
   const satellites = [
-    { label: 'RSS', Icon: Rss, cls: '-left-24 top-4', delay: '0ms' },
-    { label: 'Feed', Icon: Layers, cls: 'left-6 -top-20', delay: '90ms' },
-    { label: 'Stories', Icon: Sparkles, cls: 'right-6 -top-20', delay: '180ms' },
-    { label: 'Clusters', Icon: BrainCircuit, cls: '-right-24 top-4', delay: '270ms' },
+    { label: 'RSS', Icon: Rss, cls: '-left-20 top-2', delay: '0ms' },
+    { label: 'Feed', Icon: Layers, cls: 'left-4 -top-16', delay: '90ms' },
+    { label: 'Stories', Icon: Sparkles, cls: 'right-4 -top-16', delay: '180ms' },
+    { label: 'Clusters', Icon: BrainCircuit, cls: '-right-20 top-2', delay: '270ms' },
   ];
+
+  const squares = Array.from({ length: 12 }, (_, i) => i);
+  const innerSquares = Array.from({ length: 8 }, (_, i) => i);
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center overflow-hidden bg-[#061027] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(62,114,255,.34),transparent_34%),radial-gradient(circle_at_20%_20%,rgba(255,255,255,.08),transparent_28%),linear-gradient(180deg,#0b1733_0%,#050914_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(62,114,255,.36),transparent_36%),radial-gradient(circle_at_18%_18%,rgba(255,255,255,.08),transparent_28%),linear-gradient(180deg,#0b1733_0%,#050914_100%)]" />
       <div className="absolute inset-0 opacity-[0.16] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
       <div className="absolute -top-40 left-1/2 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-blue-500/20 blur-[120px]" />
 
-      <div className="relative z-10 flex w-full max-w-[560px] flex-col items-center px-8 text-center">
-        <div className="relative mb-8 flex h-64 w-64 items-center justify-center">
+      <div className="relative z-10 flex w-full max-w-[560px] flex-col items-center px-6 text-center">
+        {/* LOGO 2x + anéis de quadradinhos animados */}
+        <div className="relative mb-9 flex h-72 w-72 items-center justify-center">
+          {/* anel externo de quadradinhos girando */}
+          <div className="absolute inset-0 animate-[spin_18s_linear_infinite]">
+            {squares.map(i => {
+              const a = (i / squares.length) * Math.PI * 2;
+              const x = 50 + Math.cos(a) * 46;
+              const y = 50 + Math.sin(a) * 46;
+              return (
+                <span key={i}
+                  className="absolute h-2.5 w-2.5 rounded-[3px] bg-gradient-to-br from-blue-200 to-indigo-300/70 shadow-[0_0_12px_rgba(147,197,253,.75)] animate-pulse"
+                  style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%,-50%)', animationDelay: `${i * 110}ms` }}
+                />
+              );
+            })}
+          </div>
+          {/* anel interno em rotação contrária, mais discreto */}
+          <div className="absolute inset-6 animate-[spin_26s_linear_infinite_reverse]">
+            {innerSquares.map(i => {
+              const a = (i / innerSquares.length) * Math.PI * 2 + 0.4;
+              const x = 50 + Math.cos(a) * 44;
+              const y = 50 + Math.sin(a) * 44;
+              return (
+                <span key={i}
+                  className="absolute h-1.5 w-1.5 rounded-[2px] bg-white/40 animate-pulse"
+                  style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%,-50%)', animationDelay: `${i * 160}ms` }}
+                />
+              );
+            })}
+          </div>
+
           {satellites.map(({ label, Icon, cls, delay }) => (
-            <div
-              key={label}
+            <div key={label}
               className={`absolute ${cls} transition-all duration-700 ${step >= 1 ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-90 blur-sm'} ${step >= 3 ? 'opacity-0 scale-95' : ''}`}
-              style={{ transitionDelay: delay }}
-            >
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/12 bg-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,.18),0_18px_55px_-28px_rgba(0,0,0,.75)] backdrop-blur-2xl">
-                <Icon size={28} className="text-blue-200" />
+              style={{ transitionDelay: delay }}>
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/12 bg-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,.18),0_18px_55px_-28px_rgba(0,0,0,.75)] backdrop-blur-2xl">
+                <Icon size={26} className="text-blue-200" />
               </div>
             </div>
           ))}
 
-          <div className="absolute inset-0 rounded-full border border-white/8" />
-          <div className="absolute h-44 w-44 rounded-full bg-white/12 blur-3xl" />
-          <div className={`relative flex h-36 w-36 items-center justify-center rounded-[2.2rem] border border-white/60 bg-gradient-to-br from-white via-zinc-100 to-zinc-300 shadow-[0_0_80px_rgba(255,255,255,.36),inset_0_1px_1px_rgba(255,255,255,.95)] transition-all duration-700 ${step >= 2 ? 'scale-100 opacity-100' : 'scale-95 opacity-90'}`}>
-            <VetraMark className="h-24 w-24" />
+          <div className="absolute h-52 w-52 rounded-full bg-white/12 blur-3xl" />
+          <div className={`relative flex h-56 w-56 items-center justify-center rounded-[2.6rem] border border-white/60 bg-gradient-to-br from-white via-zinc-100 to-zinc-300 shadow-[0_0_90px_rgba(255,255,255,.4),inset_0_1px_1px_rgba(255,255,255,.95)] transition-all duration-700 ${step >= 2 ? 'scale-100 opacity-100' : 'scale-95 opacity-90'}`}>
+            <VetraMark className="h-48 w-48" />
           </div>
         </div>
 
-        <h1 className="text-6xl font-black tracking-[-0.065em] text-white drop-shadow-[0_0_28px_rgba(255,255,255,.22)] md:text-7xl">
+        {/* Nome maior */}
+        <h1 className="text-7xl font-black tracking-[-0.07em] text-white drop-shadow-[0_0_32px_rgba(255,255,255,.24)] md:text-8xl">
           Vetra
         </h1>
-        <p className="mt-3 text-[15px] font-semibold text-white/56">
+        <p className="mt-3 text-[16px] font-semibold text-white/60">
           Central de inteligência editorial
         </p>
 
-        <div className="mt-9 w-full rounded-[1.45rem] border border-white/12 bg-white/8 p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,.16),0_24px_80px_-42px_rgba(0,0,0,.88)] backdrop-blur-2xl">
+        {/* Barra maior + estado real */}
+        <div className="mt-10 w-full rounded-[1.6rem] border border-white/12 bg-white/8 p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,.16),0_24px_80px_-42px_rgba(0,0,0,.88)] backdrop-blur-2xl">
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3 text-left">
               <span className="relative flex h-3 w-3 shrink-0">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-30" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-300 opacity-40" />
                 <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-300 shadow-[0_0_18px_rgba(147,197,253,.9)]" />
               </span>
-              <span className="truncate text-[15px] font-bold text-white/90">
-                {loadingMessages[statusIndex]}
+              <span className="truncate text-[16px] font-bold text-white/92">
+                {ready ? 'Tudo pronto para você' : loadingMessages[statusIndex]}
               </span>
             </div>
-            <span className="shrink-0 text-[12px] font-black tabular-nums text-white/46">{progress}%</span>
+            <span className="shrink-0 text-[13px] font-black tabular-nums text-white/55">{progress}%</span>
           </div>
-          <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/30 shadow-[inset_0_1px_2px_rgba(0,0,0,.55)]">
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-black/30 shadow-[inset_0_1px_2px_rgba(0,0,0,.55)]">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-300 via-indigo-300 to-violet-300 shadow-[0_0_22px_rgba(147,197,253,.6)] transition-[width] duration-700 ease-out"
+              className="h-full rounded-full bg-gradient-to-r from-blue-300 via-indigo-300 to-violet-300 shadow-[0_0_22px_rgba(147,197,253,.6)] transition-[width] duration-500 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -6838,6 +7016,7 @@ const SplashScreen = ({ onFinish, durationMs = 6800, hasWarmSnapshot = false }) 
     </div>
   );
 };
+
 
 
 // --- HELPER: ABRIR VÍDEO DE FORMA NATIVA (SEM TRAVAR O APP) ---
@@ -7284,41 +7463,17 @@ const normalizeFeedCategoryLabel = (value) => {
 const articleMatchesCategory = (article, selectedCategory) => {
   if (!selectedCategory || selectedCategory === 'Tudo') return true;
   const expected = normalizeFeedCategoryLabel(selectedCategory);
-  const direct = normalizeFeedCategoryLabel(article?.category || article?.feedCategory || '');
-  if (direct === expected) return true;
-  const inferred = inferArticleCategory({
-    title: article?.title,
-    summary: article?.summary || article?.description,
-    source: article?.source,
-    feedCategory: article?.feedCategory || article?.category,
-  });
-  if (normalizeFeedCategoryLabel(inferred) === expected) return true;
-  const haystack = normalizeSourceKey(`${article?.title || ''} ${article?.summary || ''} ${article?.source || ''} ${article?.link || ''}`);
-  if (expected === 'Local') {
-    return /piaui|piauí|teresina|maranhao|maranhão|ceara|ceará|parnaiba|parnaíba|municipio|município|bairro|cidade|prefeitura|governo do estado|df|brasilia|brasília/.test(haystack);
-  }
-  if (expected === 'Mundo') {
-    return /mundo|internacional|eua|estados unidos|china|russia|rússia|ucrania|ucrânia|israel|gaza|argentina|venezuela|paraguai|alemanha|franca|frança|europa/.test(haystack);
-  }
-  return false;
+  // Puro-por-fonte: a notícia pertence à categoria da FONTE definida nas Configurações.
+  const sourceCategory = normalizeFeedCategoryLabel(article?.feedCategory || 'Geral');
+  return sourceCategory === expected;
 };
 
-const sourceMatchesCategory = (source, selectedCategory, cachedItems = []) => {
+const sourceMatchesCategory = (source, selectedCategory) => {
   if (!selectedCategory || selectedCategory === 'Tudo') return true;
   const expected = normalizeFeedCategoryLabel(selectedCategory);
-  const direct = normalizeFeedCategoryLabel(source?.category || source?.feed?.category || '');
-  if (direct === expected) return true;
-  if ((cachedItems || []).some(item => articleMatchesCategory(item, selectedCategory))) return true;
-  const haystack = normalizeSourceKey(`${source?.name || ''} ${source?.url || ''}`);
-  if (expected === 'Economia') return /economia|dinheiro|valor|investe|exame|mercado|infomoney|money|investing/.test(haystack);
-  if (expected === 'Tecnologia') return /tech|tecnologia|mac|apple|google|verge/.test(haystack);
-  if (expected === 'Local') return /piaui|piauí|teresina|gp1|180graus|portal az|meio norte|cidadeverde/.test(haystack);
-  if (expected === 'Mundo') return /mundo|internacional|world|bbc|dw|cnn|g1 mundo/.test(haystack);
-  if (expected === 'Política') return /politica|política|poder|congresso|senado|camara|câmara/.test(haystack);
-  if (expected === 'Saúde') return /saude|saúde|bem estar|anvisa/.test(haystack);
-  if (expected === 'Esportes') return /esporte|sports|ge|futebol/.test(haystack);
-  if (expected === 'Carros') return /carro|auto|motor|automovel|automóvel/.test(haystack);
-  return expected === 'Geral';
+  // Puro-por-fonte: a fonte pertence à categoria definida nas Configurações.
+  const sourceCategory = normalizeFeedCategoryLabel(source?.category || source?.feed?.category || 'Geral');
+  return sourceCategory === expected;
 };
 
 const getClusterFingerprint = (articles = [], title = '') => {
@@ -8997,6 +9152,22 @@ const handleStoryNavigation = (direction) => {
           await priorityPromise.catch(() => null);
           if (!isLatestRequest()) return;
 
+          // PATCH A: commit incremental no pull-to-refresh.
+      // Sem isto, o refresh manual só trocava feed/clusters/stories
+      // depois de TODO o ciclo secundário/mídia liquidar (até ~28s).
+      if (forceRefresh) {
+          const earlySnapshot = buildSnapshotFromSourceCache();
+          if (hasMeaningfulSnapshot(earlySnapshot)) {
+              commitVisibleSnapshot(earlySnapshot, {
+                  reason: 'manual-priority',
+                  updateGlobalClusters: true,
+                  forceCommit: true,
+              });
+              setIsLoadingFeeds(false);
+          }
+      }
+
+
           const secondaryPromise = collectTextBatch(secondaryTextFeeds, { limit: 40, concurrency: 6, enrichImages: true, timeout: 28000, mode: 'complete' });
           const mediaPromise = collectTextBatch(mediaFeeds, { limit: 34, concurrency: FEED_MEDIA_CONCURRENCY, enrichImages: false, timeout: 18000, mode: 'media' });
           await Promise.allSettled([secondaryPromise, mediaPromise]);
@@ -9408,7 +9579,7 @@ return (
     // ESTRUTURA PRINCIPAL AGORA É FLEX PARA ACOMODAR O PAINEL LATERAL
     <div className={`h-[100dvh] font-sans flex overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       
-      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} durationMs={hasMeaningfulSnapshot(visibleSnapshotRef.current) ? 1500 : 6800} hasWarmSnapshot={hasMeaningfulSnapshot(visibleSnapshotRef.current)} />}
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} durationMs={hasMeaningfulSnapshot(visibleSnapshotRef.current) ? 1500 : 6800} hasWarmSnapshot={hasMeaningfulSnapshot(visibleSnapshotRef.current)} ready={realNews.length > 0} />}
       
       {/* --- COLUNA 1: SUA ESTRUTURA ANTIGA, INTACTA --- */}
       {/* Este é o seu div antigo que continha todo o app. Agora ele é a coluna principal. */}
@@ -9500,7 +9671,7 @@ return (
                     onApplyStagedUpdate={applyStagedSnapshot}
                     likedItems={likedItems}
                     onToggleLike={handleToggleLike}
-                    onRefresh={() => { fetchFeeds(true); }}
+                    onRefresh={() => fetchFeeds(true)}
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
                     apiKey={analysisApiKey} 
@@ -9689,7 +9860,13 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
 
   const outletNews = useMemo(() => {
     if (!realNews || !outlet) return [];
-    return realNews.filter(news => news.source === outlet.name).slice(0, 10);
+    const outletSourceId = getFeedSourceId(outlet);
+    const outletGroupKey = getEditorialGroupKey(outlet.name, outlet.url);
+    return realNews.filter(news =>
+      news.sourceId === outletSourceId ||
+      news.sourceGroup === outletGroupKey ||
+      news.source === outlet.name
+    ).slice(0, 10);
   }, [realNews, outlet]);
 
   const mainArticle = outletNews[0];
