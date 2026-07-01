@@ -81,6 +81,48 @@ const smartFeedSort = (items) => {
   return spaced;
 };
 
+const orderByRecency = (items) => {
+  const valid = (items || []).filter(it => (String(it?.title || '').trim() || String(it?.link || it?.url || '').trim()));
+  return [...valid].sort((a, b) => {
+    const ta = (a?.rawDate && !isNaN(new Date(a.rawDate).getTime())) ? new Date(a.rawDate).getTime() : 0;
+    const tb = (b?.rawDate && !isNaN(new Date(b.rawDate).getTime())) ? new Date(b.rawDate).getTime() : 0;
+    return tb - ta;
+  });
+};
+const dedupNearTitles = (items) => {
+  const seen = new Set(); const out = [];
+  for (const it of items) {
+    const nt = String(it?.title || '').toLowerCase().replace(/[^\w\s]/gi, '').trim();
+    if (!nt) continue;
+    const snippet = nt.split(/\s+/).slice(0, 4).join(' ');
+    const key = `${it?.sourceId || it?.source || ''}::${snippet}`;
+    if (seen.has(key)) continue;
+    seen.add(key); out.push(it);
+  }
+  return out;
+};
+const diversifyBySource = (recencyOrdered, maxPerSource = 6) => {
+  const bySource = new Map();
+  for (const it of recencyOrdered) {
+    const key = it?.sourceId || it?.source || 'x';
+    if (!bySource.has(key)) bySource.set(key, []);
+    bySource.get(key).push(it);
+  }
+  const queues = Array.from(bySource.values());
+  const counts = new Map(); const out = [];
+  let progressed = true;
+  while (progressed) {
+    progressed = false;
+    for (const q of queues) {
+      if (!q.length) continue;
+      const key = q[0]?.sourceId || q[0]?.source || 'x';
+      const c = counts.get(key) || 0;
+      if (c >= maxPerSource) { q.length = 0; continue; }
+      out.push(q.shift()); counts.set(key, c + 1); progressed = true;
+    }
+  }
+  return out;
+};
 const safeLower = (v: any) => String(v ?? '').toLowerCase();
 
 
@@ -1389,17 +1431,17 @@ function FeedTab({
   }, [sourceFilter, filteredByCategory, sourceCacheView, category, selectedSourceMeta]);
   const filteredBySource = sourceSpecificBase;
 const sortedFeed = useMemo(() => {
-    const ordered = smartFeedSort(filteredBySource);
-    if (!readHistory || readHistory.length === 0) return ordered;
+    const recency = dedupNearTitles(orderByRecency(filteredBySource));
+    // Categoria específica OU fonte específica: recência pura (Bug 5).
+    // "Para você" (Tudo + Todas as Fontes): diversidade por fonte com teto (Bug 2).
+    const base = (category !== 'Tudo' || sourceFilter !== 'all') ? recency : diversifyBySource(recency, 6);
+    // Rebaixa lidas para o fim, preservando a ordem (Bug 1 anterior).
+    if (!readHistory || readHistory.length === 0) return base;
     const readSet = new Set(readHistory);
-    const unread = [];
-    const read = [];
-    for (const item of ordered) {
-        if (readSet.has(item.id)) read.push(item);
-        else unread.push(item);
-    }
+    const unread = [], read = [];
+    for (const item of base) { readSet.has(item.id) ? read.push(item) : unread.push(item); }
     return [...unread, ...read];
-}, [filteredBySource, readHistory]); 
+}, [filteredBySource, category, sourceFilter, readHistory]);
 const uniqueNews = useMemo(() => {
       const seen = new Set();
       return sortedFeed.filter(item => {
