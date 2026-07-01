@@ -6518,6 +6518,7 @@ const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffe
       title: itemTitle || 'Notícia sem título',
       summary: cleanSummary,
       category: feed?.type === 'podcast' ? 'Podcast' : inferArticleCategory({ title: itemTitle, summary: cleanSummary, source: displaySource, feedCategory: item.category || feed?.category || 'Geral' }),
+      feedCategory: normalizeFeedCategoryLabel(feed?.category || 'Geral'),
       type: finalType,
       img: finalImage,
       link: primaryLink,
@@ -7301,41 +7302,17 @@ const normalizeFeedCategoryLabel = (value) => {
 const articleMatchesCategory = (article, selectedCategory) => {
   if (!selectedCategory || selectedCategory === 'Tudo') return true;
   const expected = normalizeFeedCategoryLabel(selectedCategory);
-  const direct = normalizeFeedCategoryLabel(article?.category || article?.feedCategory || '');
-  if (direct === expected) return true;
-  const inferred = inferArticleCategory({
-    title: article?.title,
-    summary: article?.summary || article?.description,
-    source: article?.source,
-    feedCategory: article?.feedCategory || article?.category,
-  });
-  if (normalizeFeedCategoryLabel(inferred) === expected) return true;
-  const haystack = normalizeSourceKey(`${article?.title || ''} ${article?.summary || ''} ${article?.source || ''} ${article?.link || ''}`);
-  if (expected === 'Local') {
-    return /piaui|piauí|teresina|maranhao|maranhão|ceara|ceará|parnaiba|parnaíba|municipio|município|bairro|cidade|prefeitura|governo do estado|df|brasilia|brasília/.test(haystack);
-  }
-  if (expected === 'Mundo') {
-    return /mundo|internacional|eua|estados unidos|china|russia|rússia|ucrania|ucrânia|israel|gaza|argentina|venezuela|paraguai|alemanha|franca|frança|europa/.test(haystack);
-  }
-  return false;
+  // Puro-por-fonte: a notícia pertence à categoria da FONTE definida nas Configurações.
+  const sourceCategory = normalizeFeedCategoryLabel(article?.feedCategory || 'Geral');
+  return sourceCategory === expected;
 };
 
-const sourceMatchesCategory = (source, selectedCategory, cachedItems = []) => {
+const sourceMatchesCategory = (source, selectedCategory) => {
   if (!selectedCategory || selectedCategory === 'Tudo') return true;
   const expected = normalizeFeedCategoryLabel(selectedCategory);
-  const direct = normalizeFeedCategoryLabel(source?.category || source?.feed?.category || '');
-  if (direct === expected) return true;
-  if ((cachedItems || []).some(item => articleMatchesCategory(item, selectedCategory))) return true;
-  const haystack = normalizeSourceKey(`${source?.name || ''} ${source?.url || ''}`);
-  if (expected === 'Economia') return /economia|dinheiro|valor|investe|exame|mercado|infomoney|money|investing/.test(haystack);
-  if (expected === 'Tecnologia') return /tech|tecnologia|mac|apple|google|verge/.test(haystack);
-  if (expected === 'Local') return /piaui|piauí|teresina|gp1|180graus|portal az|meio norte|cidadeverde/.test(haystack);
-  if (expected === 'Mundo') return /mundo|internacional|world|bbc|dw|cnn|g1 mundo/.test(haystack);
-  if (expected === 'Política') return /politica|política|poder|congresso|senado|camara|câmara/.test(haystack);
-  if (expected === 'Saúde') return /saude|saúde|bem estar|anvisa/.test(haystack);
-  if (expected === 'Esportes') return /esporte|sports|ge|futebol/.test(haystack);
-  if (expected === 'Carros') return /carro|auto|motor|automovel|automóvel/.test(haystack);
-  return expected === 'Geral';
+  // Puro-por-fonte: a fonte pertence à categoria definida nas Configurações.
+  const sourceCategory = normalizeFeedCategoryLabel(source?.category || source?.feed?.category || 'Geral');
+  return sourceCategory === expected;
 };
 
 const getClusterFingerprint = (articles = [], title = '') => {
