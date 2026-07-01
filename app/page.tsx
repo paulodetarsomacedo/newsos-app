@@ -1388,14 +1388,25 @@ function FeedTab({
       return filteredByCategory.filter(n => n.sourceId === sourceFilter || n.sourceKey === sourceFilter || n.source === sourceFilter || getEditorialGroupKey(n.source, n.link) === selectedSourceMeta?.groupKey);
   }, [sourceFilter, filteredByCategory, sourceCacheView, category, selectedSourceMeta]);
   const filteredBySource = sourceSpecificBase;
-const sortedFeed = useMemo(() => smartFeedSort(filteredBySource), [filteredBySource]);  
+const sortedFeed = useMemo(() => {
+    const ordered = smartFeedSort(filteredBySource);
+    if (!readHistory || readHistory.length === 0) return ordered;
+    const readSet = new Set(readHistory);
+    const unread = [];
+    const read = [];
+    for (const item of ordered) {
+        if (readSet.has(item.id)) read.push(item);
+        else unread.push(item);
+    }
+    return [...unread, ...read];
+}, [filteredBySource, readHistory]); 
 const uniqueNews = useMemo(() => {
       const seen = new Set();
       return sortedFeed.filter(item => {
           if (seen.has(item.id)) return false;
           seen.add(item.id);
           return true;
-      }).slice(0, 50); 
+      }).slice(0, 100); 
   }, [sortedFeed]);
 
   useEffect(() => {
@@ -5933,7 +5944,13 @@ function BancaTab({ openOutlet, isDarkMode, userFeeds, realNews }) {
     return userFeeds
         .filter(feed => feed.display?.banca)
         .map((feed, index) => {
-            const latestHeadlines = realNews.filter(news => news.source === feed.name).slice(0, 2);
+            const feedSourceId = getFeedSourceId(feed);
+            const feedGroupKey = getEditorialGroupKey(feed.name, feed.url);
+            const latestHeadlines = realNews.filter(news =>
+                news.sourceId === feedSourceId ||
+                news.sourceGroup === feedGroupKey ||
+                news.source === feed.name
+            ).slice(0, 2);
             let finalLogo = resolveLogoUrl({ source: feed.name, feedUrl: feed.url, feedLogo: feed.logo, siteUrl: feed.url });
             const lowerName = safeLower(feed?.name);
             
@@ -9705,7 +9722,13 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
 
   const outletNews = useMemo(() => {
     if (!realNews || !outlet) return [];
-    return realNews.filter(news => news.source === outlet.name).slice(0, 10);
+    const outletSourceId = getFeedSourceId(outlet);
+    const outletGroupKey = getEditorialGroupKey(outlet.name, outlet.url);
+    return realNews.filter(news =>
+      news.sourceId === outletSourceId ||
+      news.sourceGroup === outletGroupKey ||
+      news.source === outlet.name
+    ).slice(0, 10);
   }, [realNews, outlet]);
 
   const mainArticle = outletNews[0];
