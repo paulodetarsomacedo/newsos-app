@@ -5770,50 +5770,50 @@ function TrendingTopicModal({ topic, allTopics = [], onClose, openArticle }) {
 
 const MudouAgoraPanel = ({ isDarkMode }) => (
   <section className="vetra-mudou-agora-panel group">
-    <div className="vetra-trending-title text-indigo-500 mb-2">
+    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+    <div className="vetra-trending-title text-indigo-500 mb-1 z-10">
       <span className="relative flex h-2.5 w-2.5 mr-1.5">
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
       </span>
-      <span>MUDOU AGORA</span>
+      <span className="text-[12px]">MUDOU AGORA</span>
     </div>
     
     <div className="mudou-agora-list">
       <div className="mudou-agora-item">
         <div className="mudou-agora-dot bg-emerald-400 shadow-emerald-500/50"></div>
         <div className="flex flex-col min-w-0">
-           <span className="text-[9px] font-bold text-emerald-500 uppercase">12 min atrás</span>
-           <span className={`truncate font-semibold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}><b>Dólar</b> ganhou 8 novas matérias</span>
+           <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">12 min atrás</span>
+           <span className={`text-[12px] truncate font-bold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}><b>Dólar</b> disparou em 8 novas fontes</span>
         </div>
       </div>
 
       <div className="mudou-agora-item">
         <div className="mudou-agora-dot bg-blue-400 shadow-blue-500/50"></div>
         <div className="flex flex-col min-w-0">
-           <span className="text-[9px] font-bold text-blue-500 uppercase">28 min atrás</span>
-           <span className={`truncate font-semibold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}><b>Caso STF</b> recebeu 4 novas fontes</span>
+           <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">28 min atrás</span>
+           <span className={`text-[12px] truncate font-bold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}><b>Caso STF</b> teve avanço de consenso</span>
         </div>
       </div>
 
       <div className="mudou-agora-item">
         <div className="mudou-agora-dot bg-purple-400 shadow-purple-500/50"></div>
         <div className="flex flex-col min-w-0">
-           <span className="text-[9px] font-bold text-purple-500 uppercase">Acelerando</span>
-           <span className={`truncate font-semibold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}><b>Apple/iPhone</b> entrou em foco</span>
+           <span className="text-[9px] font-black text-purple-500 uppercase tracking-widest">Acelerando</span>
+           <span className={`text-[12px] truncate font-bold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}><b>Apple</b> lidera os temas de tecnologia</span>
         </div>
       </div>
 
       <div className="mudou-agora-item">
         <div className="mudou-agora-dot bg-red-500 shadow-red-500/50 animate-pulse"></div>
         <div className="flex flex-col min-w-0">
-           <span className="text-[9px] font-bold text-red-500 uppercase">Agora</span>
-           <span className={`truncate font-semibold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>Novo Breaking em <b>Política</b></span>
+           <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">Agora</span>
+           <span className={`text-[12px] truncate font-bold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>Novo Breaking News em <b>Política</b></span>
         </div>
       </div>
     </div>
   </section>
 );
-
 
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters, onOpenPodNews }) { 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -5845,7 +5845,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [selectedTrendingTopic, setSelectedTrendingTopic] = useState(null);
 
   return (
-    <div className="animate-in fade-in duration-700 pb-16 min-h-screen touch-pan-y"
+    // Reduzido radicalmente o espaçamento (gap-4) para manter tudo num único flow de tela
+    <div className="animate-in fade-in duration-700 pb-20 min-h-screen touch-pan-y flex flex-col gap-4"
          onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>      
       
       {/* Indicador de Refresh */}
@@ -5856,28 +5857,26 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
          </div>
       </div>
       
-      {/* 1. STORIES (Compactos no topo) */}
-      <div className="flex items-center gap-4 px-4 pt-2 relative z-10">
-        <div className="flex-1 min-w-0"> 
-            <div className="flex space-x-5 overflow-x-auto pb-2 scrollbar-hide snap-x items-center min-h-[90px]">
-                {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).map((story) => (
-                    <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-1.5 snap-center cursor-pointer group flex-shrink-0">
-                        <div className={`relative w-[68px] h-[68px] rounded-full p-[3px] transition-all shadow-md ${story.isBreaking ? 'bg-red-600 animate-[fast-pulse_1s_ease-in-out_infinite]' : 'bg-gradient-to-tr from-rose-600 to-orange-400'}`}>
-                            <div className={`w-full h-full rounded-full border-[2.5px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
-                                <img src={story.avatar} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
-                            </div>
+      {/* 1. STORIES (Menores e mais compactos) */}
+      <div className="px-4 relative z-10 pt-1">
+        <div className="flex space-x-4 overflow-x-auto pb-1 scrollbar-hide snap-x items-center">
+            {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).map((story) => (
+                <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-1.5 snap-center cursor-pointer group flex-shrink-0">
+                    <div className={`relative w-[60px] h-[60px] rounded-full p-[2.5px] transition-all shadow-md ${story.isBreaking ? 'bg-red-600 animate-[fast-pulse_1s_ease-in-out_infinite]' : 'bg-gradient-to-tr from-rose-600 to-orange-400'}`}>
+                        <div className={`w-full h-full rounded-full border-[2px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
+                            <img src={story.avatar} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                         </div>
-                        <span className={`text-[9px] font-semibold truncate max-w-[68px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span>
                     </div>
-                ))}
-            </div>
+                    <span className={`text-[9px] font-semibold truncate max-w-[60px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span>
+                </div>
+            ))}
         </div>
       </div>
 
-      {/* 2. O PULSO (Top Grid com Altura Harmonizada) */}
+      {/* 2. O PULSO (Top Grid com as 3 Colunas Reduzidas e Harmônicas) */}
       <div className="vetra-home-top-grid">
         <section className="vetra-breaking-panel">
-          <div className="vetra-breaking-title"><Zap size={16} fill="currentColor" /> <span>DESTAQUES</span></div>
+          <div className="vetra-breaking-title"><Zap size={14} fill="currentColor" /> <span className="text-[11px]">DESTAQUES</span></div>
           <div className="vetra-breaking-list">
             {(breakingHighlights || []).slice(0, 2).map((n, i) => (
               <button key={n.id || i} onClick={() => openArticle(n)} className="vetra-breaking-row group">
@@ -5885,18 +5884,18 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                 <span className="vetra-breaking-thumb"><img src={n.img} onError={(e) => e.currentTarget.style.display='none'} alt="" /></span>
                 <span className="vetra-breaking-copy">
                   <b>{n.title}</b>
-                  <small>{stripClusterText(n.summary || '').slice(0, 80)}</small>
+                  <small>{stripClusterText(n.summary || '').slice(0, 70)}</small>
                 </span>
               </button>
             ))}
           </div>
           <button className="vetra-breaking-more" onClick={() => onTriggerWidgetRotation && onTriggerWidgetRotation()}>
-            Ver todos <ChevronRight size={14}/>
+            Ver destaques <ChevronRight size={14}/>
           </button>
         </section>
 
         <section className="vetra-trending-panel-home">
-          <div className="vetra-trending-title"><Activity size={16} fill="currentColor" /> <span>TRENDING</span></div>
+          <div className="vetra-trending-title"><Activity size={14} fill="currentColor" /> <span className="text-[11px]">TRENDING AGORA</span></div>
           <div className="vetra-trending-list-home">
             {(trendingTopics.length ? trendingTopics : [{ t: 'Coletando...', n: '', v: 35 }]).slice(0,3).map((it, i) => (
               <button key={it.t} onClick={() => setSelectedTrendingTopic(it)} className="vetra-trending-row-home">
@@ -5907,7 +5906,9 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
               </button>
             ))}
           </div>
-          <button className="vetra-trending-more-home" onClick={() => trendingTopics[0] && setSelectedTrendingTopic({ ...trendingTopics[0], showAll: true })}>Ver em alta <ChevronRight size={14}/></button>
+          <button className="vetra-trending-more-home" onClick={() => trendingTopics[0] && setSelectedTrendingTopic({ ...trendingTopics[0], showAll: true })}>
+            Ver em alta <ChevronRight size={14}/>
+          </button>
         </section>
 
         <MudouAgoraPanel isDarkMode={isDarkMode} />
@@ -5917,7 +5918,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         )}
       </div>
       
-      {/* 3. OS REIS (Clusters - Altura ideal no iPad) */}
+      {/* 3. OS REIS (Clusters) - Mantêm proporção horizontal maravilhosa, sem ser empurrados */}
       <WhileYouWereAwayWidget 
         news={newsData} 
         openArticle={openArticle} 
@@ -5928,38 +5929,38 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         heuristicClusters={heuristicClusters}
       />
     
-      {/* 4. FERRAMENTAS DE IA (Lado a Lado, Compactas) */}
+      {/* 4. FERRAMENTAS DE IA (Lado a Lado - Cards Premium SLIM) */}
       <div className="vetra-tools-row">
-        {/* AI DIGEST */}
-        <div className="glass-card relative overflow-hidden p-4 flex items-center justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
-          <div className="flex items-center gap-4">
-             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                <Sparkles size={20} className="text-white" />
+        {/* AI DIGEST SLIM */}
+        <div className="glass-card p-3 flex items-center justify-between cursor-pointer group hover:border-indigo-500/40 transition-colors" onClick={() => setShowDigest(v => !v)}>
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <Sparkles size={16} className="text-white" />
              </div>
              <div>
-                <h4 className={`text-base font-bold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
-                <p className="text-[11px] opacity-60">Resumo de {(newsData || []).length} fatos em 5 min.</p>
+                <h4 className={`text-sm font-bold leading-none mb-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
+                <p className="text-[10px] opacity-60">Resumo inteligente do dia</p>
              </div>
           </div>
-          <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-purple-500 group-hover:text-white transition-colors">
-             <ChevronRight size={16} className={showDigest ? 'rotate-90' : ''} />
+          <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+             <ChevronRight size={14} className={showDigest ? 'rotate-90' : ''} />
           </div>
         </div>
 
-        {/* PODNEWS */}
-        <div className="glass-card relative overflow-hidden p-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
-          <div className="flex items-center gap-4">
-             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative">
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
-                <Headphones size={20} className="text-white" />
+        {/* PODNEWS SLIM */}
+        <div className="glass-card p-3 flex items-center justify-between cursor-pointer group hover:border-fuchsia-500/40 transition-colors" onClick={() => onOpenPodNews && onOpenPodNews()}>
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative">
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
+                <Headphones size={16} className="text-white" />
              </div>
              <div>
-                <h4 className={`text-base font-bold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
-                <p className="text-[11px] opacity-60">Resumo em áudio pronto.</p>
+                <h4 className={`text-sm font-bold leading-none mb-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
+                <p className="text-[10px] opacity-60">Resumo diário em áudio</p>
              </div>
           </div>
-          <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-fuchsia-500 group-hover:text-white transition-colors">
-             <Play size={14} fill="currentColor" className="ml-0.5" />
+          <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-fuchsia-500 group-hover:text-white transition-colors">
+             <Play size={12} fill="currentColor" className="ml-0.5" />
           </div>
         </div>
       </div>
@@ -5970,28 +5971,28 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       )}
 
-      {/* 5. MERCADOS HOJE (Barra Premium Horizontal) */}
+      {/* 5. MERCADOS HOJE (Barra Premium Slim) */}
       <div className="vetra-market-bar">
-         <div className="glass-card p-4 flex items-center justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
-            <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
-                    <TrendingUp size={24} />
+         <div className="glass-card p-3 flex items-center justify-between cursor-pointer group hover:border-emerald-500/40 transition-colors" onClick={() => setIsMarketModalOpen(true)}>
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
+                    <TrendingUp size={20} />
                 </div>
                 <div>
-                   <div className="flex items-center gap-2">
-                       <h4 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h4>
-                       <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-600 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1">
+                   <div className="flex items-center gap-2 mb-0.5">
+                       <h4 className={`text-sm font-bold leading-none ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h4>
+                       <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-600 flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Ao Vivo
                        </span>
                    </div>
-                   <div className="flex items-center gap-4 mt-1">
-                      <span className="text-[13px] font-mono font-bold text-zinc-600 dark:text-zinc-300">IBOV 128.5k <span className="text-emerald-500">+0.45%</span></span>
-                      <span className="text-[13px] font-mono font-bold text-zinc-600 dark:text-zinc-300">USD 5,02 <span className="text-rose-500">-0.21%</span></span>
+                   <div className="flex items-center gap-3 text-[11px] font-mono font-bold text-zinc-600 dark:text-zinc-400">
+                      <span>IBOV 128.5k <span className="text-emerald-500">+0.45%</span></span>
+                      <span>USD 5,02 <span className="text-rose-500">-0.21%</span></span>
                    </div>
                 </div>
             </div>
-            <div className="hidden md:flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-emerald-500 transition-colors">
-                Ver painel completo <ArrowUpRight size={16} />
+            <div className="hidden md:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-emerald-500 transition-colors">
+                Abrir painel <ArrowUpRight size={14} />
             </div>
          </div>
       </div>
