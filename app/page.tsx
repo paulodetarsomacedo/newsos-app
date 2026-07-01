@@ -4258,7 +4258,7 @@ function MiniWatchList() {
   );
 }
 
-function ClusterCaseModal({ cluster, onClose, openArticle, getApiKey, isDarkMode }) {
+function ClusterCaseModal({ cluster, onClose, openArticle, getApiKey }) {
   const [tab, setTab] = useState(cluster?.__startTab || 'overview');
   const [aiXray, setAiXray] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -4330,59 +4330,29 @@ function ClusterCaseModal({ cluster, onClose, openArticle, getApiKey, isDarkMode
   ];
 
   const renderOverview = () => (
-    <div className="flex flex-col gap-[0.85rem]">
-      {/* NOVO 1: Resumo do caso em 20 segundos */}
-      <div className={`p-5 rounded-[1.3rem] border shadow-inner ${isDarkMode ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-indigo-50 border-indigo-200'}`}>
-        <div className="flex items-center gap-2 mb-2">
-          <Sparkles size={16} className="text-indigo-500" />
-          <span className="text-[11px] font-black uppercase tracking-widest text-indigo-500">Resumo do caso em 20 segundos</span>
-        </div>
-        <p className={`text-[15px] font-semibold leading-relaxed ${isDarkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>
-          {meta.summary}
-        </p>
+    <div className="vetra-case-overview-grid">
+      <div className="vetra-case-card fact-card">
+        <div className="case-card-title"><Telescope size={20}/> O fato central</div>
+        <div className="case-paragraphs">{centralParagraphs.map((p, i) => <p key={i}>{p}</p>)}</div>
       </div>
-
-      <div className="vetra-case-overview-grid">
-        <div className="vetra-case-card fact-card">
-          <div className="case-card-title"><Telescope size={20}/> O fato central</div>
-          <div className="case-paragraphs">{centralParagraphs.map((p, i) => <p key={i}>{p}</p>)}</div>
-        </div>
-        
-        {/* NOVO 2: Fonte líder */}
-        <div className="vetra-case-card source-insights-card">
-          <div className="case-card-title"><Activity size={19} className="text-orange-500" /> Fonte líder & Contexto</div>
-          <div className="space-y-4 mt-5">
-            <div className="flex items-center justify-between border-b pb-3 border-zinc-200 dark:border-white/5">
-              <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Primeiro sinal</span>
-              <span className="text-[12px] font-bold flex items-center gap-1.5">
-                <img src="https://logodownload.org/wp-content/uploads/2016/10/g1-logo-0.png" className="w-4 h-4 rounded bg-white object-contain" /> G1, 09:12
-              </span>
-            </div>
-            <div className="flex items-center justify-between border-b pb-3 border-zinc-200 dark:border-white/5">
-              <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Mais contexto</span>
-              <span className="text-[12px] font-bold flex items-center gap-1.5">
-                <img src="https://www.google.com/s2/favicons?domain=valor.globo.com&sz=128" className="w-4 h-4 rounded bg-white object-contain" /> Valor Econômico
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Melhor visual</span>
-              <span className="text-[12px] font-bold flex items-center gap-1.5">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/CNN_Brasil.svg/1280px-CNN_Brasil.svg.png" className="w-4 h-4 rounded bg-white object-contain" /> CNN Brasil
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="vetra-case-card consensus-card">
-          <div className="case-card-title"><CheckCircle size={19}/> Consenso entre fontes</div>
-          <div className="consensus-number">{meta.consensus}%</div>
-          <p>das fontes concordam sobre os objetivos e o impacto principal do caso.</p>
-          <div className="consensus-bar"><span className="ok"/><span className="warn"/><span className="hot"/><span className="soft"/></div>
-        </div>
-        <div className="vetra-case-card watch-card">
-          <div className="case-card-title"><Telescope size={19}/> O que acompanhar</div>
-          <MiniWatchList />
-        </div>
+      <div className="vetra-case-card consensus-card">
+        <div className="case-card-title"><CheckCircle size={19}/> Consenso entre fontes</div>
+        <div className="consensus-number">{meta.consensus}%</div>
+        <p>das fontes concordam sobre os objetivos e o impacto principal do caso.</p>
+        <div className="consensus-bar"><span className="ok"/><span className="warn"/><span className="hot"/><span className="soft"/></div>
+      </div>
+      <div className="vetra-case-card summary-card">
+        <div className="case-card-title"><FileText size={19}/> Resumo do assunto</div>
+        <ul>
+          <li>{meta.title}</li>
+          <li>Fontes convergem no fato principal, mas variam no enquadramento.</li>
+          <li>O debate deve evoluir conforme novas atualizações forem publicadas.</li>
+          <li>Mercado e lideranças podem alterar a leitura do tema.</li>
+        </ul>
+      </div>
+      <div className="vetra-case-card watch-card">
+        <div className="case-card-title"><Telescope size={19}/> O que acompanhar</div>
+        <MiniWatchList />
       </div>
     </div>
   );
@@ -5767,81 +5737,63 @@ function TrendingTopicModal({ topic, allTopics = [], onClose, openArticle }) {
   );
 }
 
-
-const MudouAgoraPanel = ({ isDarkMode }) => (
-  <section className={`vetra-trending-panel-home relative overflow-hidden flex flex-col ${isDarkMode ? 'bg-zinc-900/40' : ''}`}>
-    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
-    <div className="vetra-trending-title text-blue-500"><Zap size={18} fill="currentColor" /> <span>MUDOU AGORA</span></div>
-    <div className="flex-1 flex flex-col justify-center gap-4 relative z-10 mt-2">
-      
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 p-1.5 rounded-full bg-emerald-500/10 text-emerald-500"><TrendingUp size={14} /></div>
-        <div>
-          <p className="text-[13px] font-bold text-zinc-900 dark:text-white leading-snug">Dólar ganhou 8 novas matérias em 12 min</p>
-        </div>
-      </div>
-
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 p-1.5 rounded-full bg-blue-500/10 text-blue-500"><Layers size={14} /></div>
-        <div>
-          <p className="text-[13px] font-bold text-zinc-900 dark:text-white leading-snug">Caso STF recebeu 4 novas fontes</p>
-        </div>
-      </div>
-
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 p-1.5 rounded-full bg-purple-500/10 text-purple-500"><Activity size={14} /></div>
-        <div>
-          <p className="text-[13px] font-bold text-zinc-900 dark:text-white leading-snug">Apple/iPhone entrou em aceleração</p>
-        </div>
-      </div>
-
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 p-1.5 rounded-full bg-red-500/10 text-red-500"><Zap size={14} fill="currentColor" /></div>
-        <div>
-          <p className="text-[13px] font-bold text-zinc-900 dark:text-white leading-snug">Um novo breaking apareceu em Política</p>
-        </div>
-      </div>
-
-    </div>
-  </section>
-);
-
-
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters, onOpenPodNews }) { 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [showDigest, setShowDigest] = useState(false);
-  const [isMarketModalOpen, setIsMarketModalOpen] = useState(false); // NOVO
+  const [showDigest, setShowDigest] = useState(false); // AI Digest expansível
   
+  // --- MUDANÇA CRÍTICA 1: startY agora é REF (Não causa re-render ao tocar) ---
+  // Isso impede que o componente pisque quando você encosta o dedo.
   const startY = useRef(0); 
+  
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleTouchStart = (e) => {
+    // Só grava a posição se estiver no topo. Como é Ref, não renderiza nada visualmente.
     if (getVetraMainScrollTop() <= 5 && !isRefreshing) {
         startY.current = e.touches[0].clientY;
     }
   };
 
   const handleTouchMove = (e) => {
+    // Se não tiver ponto de partida ou estiver carregando, ignora
     if (startY.current === 0 || isRefreshing) return;
+    
     const currentY = e.touches[0].clientY;
     const diff = currentY - startY.current;
+    
+    // Só atualiza o estado (e causa render) SE o usuário estiver puxando para baixo
     if (diff > 0 && getVetraMainScrollTop() <= 5) {
+     
+      // Adiciona uma resistência para não descer demais
       const newPull = Math.min(diff * 0.5, 220);
       setPullDistance(newPull);
     }
   };
 
-  const handleTouchEnd = async () => {
-    if (pullDistance === 0) { startY.current = 0; return; }
+const handleTouchEnd = async () => {
+    if (pullDistance === 0) {
+        startY.current = 0;
+        return; 
+    }
+
     if (pullDistance > 90) {
       setIsRefreshing(true);
       setPullDistance(120); 
       setRefreshTrigger(prev => prev + 1);
-      try { if (onRefresh) await onRefresh(); } 
-      catch (err) { console.error("Falha ao atualizar feed:", err); } 
-      finally { setIsRefreshing(false); setPullDistance(0); }
-    } else { setPullDistance(0); }
+      
+      try {
+        if (onRefresh) await onRefresh();
+      } catch (err) {
+        console.error("Falha ao atualizar feed:", err);
+      } finally {
+        setIsRefreshing(false);
+        setPullDistance(0);
+      }
+    } else {
+      setPullDistance(0);
+    }
+    
     startY.current = 0;
   };
 
@@ -5862,7 +5814,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         .animate-shimmer-text { background-size: 200% auto; animation: shimmer-text 3s linear infinite; }
       `}</style>
 
-      {/* Indicador de Refresh */}
+      {/* Indicador de Refresh (Visual) */}
       <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '35%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 || isRefreshing ? 'flex' : 'none' }}>
          <div className={`flex flex-col items-center gap-3 p-6 rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-black/5 border-white/10 shadow-purple-500/20' : 'bg-white/90 border-white shadow-xl text-zinc-900'}`}>
             {isRefreshing ? <Loader2 size={42} className="animate-spin text-purple-500" /> : <RefreshCw size={42} className="text-purple-500 transition-transform" style={{ transform: `rotate(${pullDistance * 3}deg)` }}/>}
@@ -5906,13 +5858,84 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                     </div>
                 )}
             </div>
+            {/* === NOTÍCIAS EM DESTAQUE + TRENDING AGORA — design system NewsOS liquid === */}
+            <div className="vetra-home-top-grid px-4">
+              <section className="vetra-breaking-panel">
+                <div className="vetra-breaking-title"><Zap size={18} fill="currentColor" /> <span>NOTÍCIAS EM DESTAQUE</span></div>
+                <div className="vetra-breaking-list">
+                  {(breakingHighlights || []).slice(0, 3).map((n, i) => {
+                    const mins = Math.max(1, Math.round((Date.now() - new Date(n.rawDate || Date.now()).getTime()) / 60000));
+                    const rel = mins < 60 ? `há ${mins} min` : `há ${Math.round(mins / 60)}h`;
+                    return (
+                      <button key={n.id || i} onClick={() => openArticle(n)} className="vetra-breaking-row group">
+                        <span className="vetra-breaking-rank">{i + 1}</span>
+                        <span className="vetra-breaking-thumb"><img src={n.img} onError={(e) => e.currentTarget.style.display='none'} alt="" /></span>
+                        <span className="vetra-breaking-copy">
+                          <b>{n.title}</b>
+                          <small>{stripClusterText(n.summary || n.category || 'Acompanhe os principais desdobramentos desta notícia em tempo real.').slice(0, 96)}</small>
+                        </span>
+                        <em>{rel}</em>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button className="vetra-breaking-more" onClick={() => onTriggerWidgetRotation && onTriggerWidgetRotation()}>
+                  Ver todas as notícias em destaque <ChevronRight size={18}/>
+                </button>
+              </section>
+
+              <section className="vetra-trending-panel-home">
+                <div className="vetra-trending-title"><Activity size={18} fill="currentColor" /> <span>TRENDING AGORA</span></div>
+                <div className="vetra-trending-list-home">
+                  {(trendingTopics.length ? trendingTopics : [
+                    { t: 'Coletando tendências', n: 'aguarde as fontes', v: 35 },
+                    { t: 'Noticiário geral', n: 'em análise', v: 28 },
+                  ]).map((it, i) => (
+                    <button key={it.t} onClick={() => setSelectedTrendingTopic(it)} className="vetra-trending-row-home">
+                      <strong>{i + 1}</strong>
+                      <span>{it.t}</span>
+                      <small>{it.n}</small>
+                      <i><b style={{ width: `${it.v}%` }} /></i>
+                    </button>
+                  ))}
+                </div>
+                <button className="vetra-trending-more-home" onClick={() => trendingTopics[0] && setSelectedTrendingTopic({ ...trendingTopics[0], showAll: true })}>Ver todos os assuntos em alta <ChevronRight size={18}/></button>
+              </section>
+
+              {selectedTrendingTopic && (
+                <TrendingTopicModal
+                  topic={selectedTrendingTopic}
+                  allTopics={trendingTopics}
+                  onClose={() => setSelectedTrendingTopic(null)}
+                  openArticle={openArticle}
+                />
+              )}
+            </div>
         </div>
       </div>
+      
+    {/* 4.3: TrendRadar removido — espaço liberado p/ o cluster ser o destaque */}
+      
+          {/* Manchete e o NOVO Widget */}
+      <div className="space-y-4">
 
-      {/* QUICK ACTIONS ROW: AI Digest | PodNews | Mercados (Sem scroll no topo da interface) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4 relative z-20">
-        {/* AI DIGEST */}
-        <div className="glass-card relative overflow-hidden p-5 flex flex-col justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
+        
+        {/* --- SUBSTITUA O WIDGET ANTIGO POR ESTE --- */}
+   <WhileYouWereAwayWidget 
+          news={newsData} 
+          openArticle={openArticle} 
+          isDarkMode={isDarkMode} 
+          getApiKey={getApiKey}
+          clusters={savedClusters}
+          setClusters={setSavedClusters}
+          heuristicClusters={heuristicClusters} // Esta é a chave!
+        />
+      </div>
+    
+  {/* === AI DIGEST + PODNEWS === */}
+      <div className="grid md:grid-cols-2 gap-4 px-4">
+        {/* AI DIGEST (teaser; expande o SmartDigestWidget) */}
+        <div className="glass-card relative overflow-hidden p-5">
           <div className="absolute -right-8 -bottom-10 w-44 h-44 rounded-full bg-gradient-to-br from-purple-400/30 to-indigo-400/10 blur-2xl pointer-events-none" />
           <div className="relative">
             <div className="flex items-center gap-3 mb-3">
@@ -5921,71 +5944,45 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
               </div>
               <div className="leading-tight">
                 <div className="text-[16px] font-bold text-zinc-900 dark:text-white">AI Digest</div>
-                <div className="text-[12px] text-zinc-400">Briefing inteligente</div>
+                <div className="text-[12px] text-zinc-400">Seu briefing inteligente do dia</div>
               </div>
             </div>
-            <p className="text-[13px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-4">
-              Resumimos <span className="font-bold text-zinc-700 dark:text-zinc-200">{(newsData || []).length}</span> fatos em 5 min. Foco no essencial.
+            <p className="text-[13px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-4 max-w-[88%]">
+              Resumimos <span className="font-bold text-zinc-700 dark:text-zinc-200">{(newsData || []).length}</span> fatos relevantes em 5 minutos. Foco no que realmente importa para você.
             </p>
+            <button onClick={() => setShowDigest(v => !v)} className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-white/80 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-sm text-[13px] font-semibold text-zinc-800 dark:text-white hover:bg-white transition">
+              {showDigest ? 'Ocultar resumo' : 'Ver resumo de hoje'} <ChevronRight size={15} className={showDigest ? 'rotate-90 transition-transform' : 'transition-transform'} />
+            </button>
           </div>
-          <button className="w-full inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-white/80 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-sm text-[13px] font-semibold text-zinc-800 dark:text-white group-hover:bg-white transition">
-            {showDigest ? 'Ocultar resumo' : 'Ver resumo de hoje'} <ChevronRight size={15} className={showDigest ? 'rotate-90 transition-transform' : 'transition-transform'} />
-          </button>
         </div>
-
-        {/* PODNEWS */}
-        <div className="glass-card relative overflow-hidden p-5 flex flex-col justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
-          <span className="absolute top-4 right-4 text-[10px] font-semibold text-zinc-500 dark:text-zinc-300 bg-white/70 dark:bg-white/10 border border-white/80 dark:border-white/10 rounded-full px-2.5 py-1">Novo</span>
-          <div className="relative">
-             <div className="flex items-center gap-3 mb-3">
-               <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg shrink-0">
-                 <Headphones size={20} className="text-white" />
-               </div>
-               <div className="leading-tight">
-                 <div className="text-[16px] font-bold text-zinc-900 dark:text-white">PodNews</div>
-                 <div className="text-[12px] text-zinc-400">Resumo em áudio</div>
-               </div>
-             </div>
-             <p className="text-[13px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-4">
-                Ouça os principais destaques do dia em formato de áudio (7 min).
-             </p>
+        {/* PODNEWS (teaser; abre o PodNewsModal) */}
+        <div className="glass-card relative overflow-hidden p-5">
+          <span className="absolute top-4 right-4 text-[10px] font-semibold text-zinc-500 dark:text-zinc-300 bg-white/70 dark:bg-white/10 border border-white/80 dark:border-white/10 rounded-full px-2.5 py-1">Novo episódio disponível</span>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg shrink-0">
+              <Headphones size={20} className="text-white" />
+            </div>
+            <div className="leading-tight">
+              <div className="text-[16px] font-bold text-zinc-900 dark:text-white">PodNews</div>
+              <div className="text-[12px] text-zinc-400">Resumo em áudio</div>
+            </div>
           </div>
-          <button className="w-full inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-white/80 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-sm text-[13px] font-semibold text-zinc-800 dark:text-white group-hover:bg-white transition">
+          <div className="flex items-center gap-3 mb-4">
+            <p className="text-[13px] text-zinc-500 dark:text-zinc-400 leading-relaxed flex-1">Ouça os principais destaques do dia em 7 minutos.</p>
+            <div className="flex items-end gap-[2px] h-7 shrink-0">
+              {[...Array(14)].map((_, i) => (
+                <span key={i} className="w-[2px] rounded-full bg-indigo-300 dark:bg-indigo-400/60" style={{ height: `${25 + Math.abs(Math.sin(i * 1.1)) * 70}%` }} />
+              ))}
+            </div>
+            <button onClick={() => onOpenPodNews && onOpenPodNews()} className="shrink-0 w-12 h-12 rounded-full bg-white dark:bg-white/10 border border-white/80 dark:border-white/10 shadow-md flex items-center justify-center text-indigo-600 dark:text-white hover:scale-105 transition">
+              <Play size={18} fill="currentColor" />
+            </button>
+          </div>
+          <button onClick={() => onOpenPodNews && onOpenPodNews()} className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-white/80 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-sm text-[13px] font-semibold text-zinc-800 dark:text-white hover:bg-white transition">
             Ouvir resumo 07:00 <Play size={13} fill="currentColor" />
           </button>
         </div>
-
-        {/* MERCADOS HOJE COMPACTO */}
-        <div className="glass-card relative overflow-hidden p-5 flex flex-col justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
-           <span className="absolute top-4 right-4 text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Ao vivo</span>
-           <div className="flex items-center gap-3 mb-3">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shrink-0">
-                <TrendingUp size={20} className="text-white" />
-              </div>
-              <div className="leading-tight">
-                <div className="text-[16px] font-bold text-zinc-900 dark:text-white">Mercados Hoje</div>
-                <div className="text-[12px] text-zinc-400">Resumo financeiro</div>
-              </div>
-           </div>
-           
-           <div className="flex justify-between items-center mb-4 mt-2 px-1">
-              <div>
-                 <span className="text-lg font-black text-zinc-800 dark:text-zinc-200 leading-none tabular-nums">128.5k</span>
-                 <span className="text-[11px] text-emerald-500 flex items-center gap-1 font-bold mt-1"><TrendingUp size={10}/> IBOV +0.45%</span>
-              </div>
-              <div className="w-px h-8 bg-zinc-200 dark:bg-zinc-700"></div>
-              <div>
-                 <span className="text-lg font-black text-zinc-800 dark:text-zinc-200 leading-none tabular-nums">5,02</span>
-                 <span className="text-[11px] text-rose-500 flex items-center gap-1 font-bold mt-1"><TrendingDown size={10}/> USD -0.21%</span>
-              </div>
-           </div>
-
-           <button className="w-full inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-white/80 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-sm text-[13px] font-semibold text-zinc-800 dark:text-white group-hover:bg-white transition">
-             Abrir painel completo <ArrowUpRight size={14} className="text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-white" />
-           </button>
-        </div>
       </div>
-
       {showDigest && (
         <div className="px-4">
           <SmartDigestWidget 
@@ -5997,95 +5994,24 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
           />
         </div>
       )}
-
-      {/* === TOP GRID — 3 Colunas: Destaques | Trending | Mudou Agora === */}
-      <div className="vetra-home-top-grid px-4">
-        <section className="vetra-breaking-panel">
-          <div className="vetra-breaking-title"><Zap size={18} fill="currentColor" /> <span>NOTÍCIAS EM DESTAQUE</span></div>
-          <div className="vetra-breaking-list">
-            {(breakingHighlights || []).slice(0, 3).map((n, i) => {
-              const mins = Math.max(1, Math.round((Date.now() - new Date(n.rawDate || Date.now()).getTime()) / 60000));
-              const rel = mins < 60 ? `há ${mins} min` : `há ${Math.round(mins / 60)}h`;
-              return (
-                <button key={n.id || i} onClick={() => openArticle(n)} className="vetra-breaking-row group">
-                  <span className="vetra-breaking-rank">{i + 1}</span>
-                  <span className="vetra-breaking-thumb"><img src={n.img} onError={(e) => e.currentTarget.style.display='none'} alt="" /></span>
-                  <span className="vetra-breaking-copy">
-                    <b>{n.title}</b>
-                    <small>{stripClusterText(n.summary || n.category || 'Acompanhe os principais desdobramentos desta notícia em tempo real.').slice(0, 96)}</small>
-                  </span>
-                  <em>{rel}</em>
-                </button>
-              );
-            })}
-          </div>
-          <button className="vetra-breaking-more" onClick={() => onTriggerWidgetRotation && onTriggerWidgetRotation()}>
-            Ver todas as notícias em destaque <ChevronRight size={18}/>
-          </button>
-        </section>
-
-        <section className="vetra-trending-panel-home">
-          <div className="vetra-trending-title"><Activity size={18} fill="currentColor" /> <span>TRENDING AGORA</span></div>
-          <div className="vetra-trending-list-home">
-            {(trendingTopics.length ? trendingTopics : [
-              { t: 'Coletando tendências', n: 'aguarde as fontes', v: 35 },
-              { t: 'Noticiário geral', n: 'em análise', v: 28 },
-            ]).map((it, i) => (
-              <button key={it.t} onClick={() => setSelectedTrendingTopic(it)} className="vetra-trending-row-home">
-                <strong>{i + 1}</strong>
-                <span>{it.t}</span>
-                <small>{it.n}</small>
-                <i><b style={{ width: `${it.v}%` }} /></i>
-              </button>
-            ))}
-          </div>
-          <button className="vetra-trending-more-home" onClick={() => trendingTopics[0] && setSelectedTrendingTopic({ ...trendingTopics[0], showAll: true })}>Ver todos os assuntos em alta <ChevronRight size={18}/></button>
-        </section>
-
-        {/* NOVO PAINEL */}
-        <MudouAgoraPanel isDarkMode={isDarkMode} />
-
-        {selectedTrendingTopic && (
-          <TrendingTopicModal
-            topic={selectedTrendingTopic}
-            allTopics={trendingTopics}
-            onClose={() => setSelectedTrendingTopic(null)}
-            openArticle={openArticle}
-          />
-        )}
-      </div>
       
-      {/* Manchete e Clusters */}
-      <div className="space-y-4">
-        <WhileYouWereAwayWidget 
-          news={newsData} 
-          openArticle={openArticle} 
-          isDarkMode={isDarkMode} 
-          getApiKey={getApiKey}
-          clusters={savedClusters}
-          setClusters={setSavedClusters}
-          heuristicClusters={heuristicClusters}
-        />
+  {/* Market Pulse */}
+      <div className="space-y-4 px-4 pt-2">
+          {/* 4.1: cabeçalho editorial limpo */}
+          <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-white text-indigo-600 border border-zinc-200/70 shadow-sm dark:bg-white/10 dark:text-white dark:border-white/10">
+                  <TrendingUp size={18} />
+              </div>
+              <h3 className="text-[20px] font-bold tracking-tight text-zinc-900 dark:text-white">Mercados Hoje</h3>
+          </div>
+     {/* 4.2: painel de vidro limpo (sem borda gradiente roxa) com ticker + análise */}
+      {/* 4.3: cards largos com sparkline (substitui ticker + análise) */}
+          <MarketCards isDarkMode={isDarkMode} />
       </div>
-
-      {/* MODAL MERCADOS HOJE */}
-      {isMarketModalOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
-           <div className="absolute inset-0 bg-slate-500/30 backdrop-blur-md" onClick={() => setIsMarketModalOpen(false)} />
-           <div className={`relative w-full max-w-3xl rounded-[2rem] overflow-hidden shadow-2xl p-6 ${isDarkMode ? 'bg-zinc-950/90 border border-white/10 backdrop-blur-3xl' : 'bg-white/90 backdrop-blur-3xl border border-white/40'}`}>
-              <div className="flex justify-between items-center mb-6 px-2">
-                 <h2 className="text-2xl font-black flex items-center gap-2 text-zinc-900 dark:text-white"><TrendingUp className="text-emerald-500"/> Mercados Hoje</h2>
-                 <button onClick={() => setIsMarketModalOpen(false)} className="p-2 bg-black/5 dark:bg-white/10 rounded-full hover:scale-105 transition text-zinc-600 dark:text-white"><X size={20}/></button>
-              </div>
-              <div className="max-h-[70vh] overflow-y-auto custom-scrollbar">
-                 <MarketCards isDarkMode={isDarkMode} />
-              </div>
-           </div>
-        </div>
-      )}
     </div>
   );
 }
+
 
 // ==========================================================
 // === SUBSTITUA SUA FUNÇÃO "BancaTab" INTEIRA POR ESTA ===
