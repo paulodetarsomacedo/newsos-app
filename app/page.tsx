@@ -1422,13 +1422,28 @@ function FeedTab({
       return catalog.filter(source => sourceMatchesCategory(source, category, sourceCacheView?.[source.id] || []));
   }, [sourceCatalog, category, sourceCacheView]);
   const filteredByCategory = useMemo(() => category === 'Tudo' ? safeNews : safeNews.filter(n => articleMatchesCategory(n, category)), [safeNews, category]);
-  const sourceSpecificBase = useMemo(() => {
-      if (sourceFilter === 'all') return filteredByCategory;
+ const sourceSpecificBase = useMemo(() => {
+      if (sourceFilter === 'all') {
+          if (category === 'Tudo') return filteredByCategory;
+          // Categoria + Todas as Fontes: une os caches de TODAS as fontes da categoria
+          // (não depende do realNews capado em 180). Fica igual à visão por fonte.
+          const union = [];
+          const seen = new Set();
+          for (const src of (sourceCatalog || [])) {
+              if (!sourceMatchesCategory(src, category)) continue;
+              for (const it of (sourceCacheView?.[src.id] || [])) {
+                  const key = it.id || it.link;
+                  if (seen.has(key)) continue;
+                  seen.add(key); union.push(it);
+              }
+          }
+          return union.length > 0 ? union : filteredByCategory;
+      }
       const cacheItems = sourceCacheView?.[sourceFilter] || [];
       const fromCache = category === 'Tudo' ? cacheItems : cacheItems.filter(n => articleMatchesCategory(n, category));
       if (fromCache.length > 0) return fromCache;
       return filteredByCategory.filter(n => n.sourceId === sourceFilter || n.sourceKey === sourceFilter || n.source === sourceFilter || getEditorialGroupKey(n.source, n.link) === selectedSourceMeta?.groupKey);
-  }, [sourceFilter, filteredByCategory, sourceCacheView, category, selectedSourceMeta]);
+  }, [sourceFilter, filteredByCategory, sourceCacheView, sourceCatalog, category, selectedSourceMeta]);
   const filteredBySource = sourceSpecificBase;
 const sortedFeed = useMemo(() => {
     const recency = dedupNearTitles(orderByRecency(filteredBySource));
@@ -2591,8 +2606,8 @@ const MARKET_CARDS = [
 ];
 
 const Sparkline = ({ points, up, uid }) => {
-  if (!points || points.length < 2) return <div className="h-[30px]" />;
-  const w = 100, h = 30;
+  if (!points || points.length < 2) return <div className="h-[38px]" />;
+  const w = 100, h = 38;
   const min = Math.min(...points), max = Math.max(...points);
   const range = (max - min) || 1;
   const step = w / (points.length - 1);
@@ -2697,15 +2712,16 @@ const MarketCards = ({ isDarkMode }) => {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate">{label}</span>
                 {isTop && <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${up ? 'text-emerald-600 bg-emerald-500/12' : 'text-rose-600 bg-rose-500/12'}`}>Destaque</span>}
               </div>
-              <div className="mt-1.5 text-[19px] font-black text-zinc-900 dark:text-white tabular-nums leading-none">
-                {d ? fmtVal(id, d.price) : '—'}
-              </div>
-              <div className="mt-3 flex items-end justify-between gap-2">
-                <span className={`text-[12px] font-bold tabular-nums ${up ? 'text-emerald-500' : 'text-rose-500'}`}>
+              <div className="mt-1.5 flex items-baseline justify-between gap-2">
+                <span className="text-[19px] font-black text-zinc-900 dark:text-white tabular-nums leading-none">
+                  {d ? fmtVal(id, d.price) : '—'}
+                </span>
+                <span className={`text-[12px] font-bold tabular-nums shrink-0 ${up ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {d ? `${up ? '▲' : '▼'} ${up ? '+' : ''}${d.pct.toFixed(2)}%` : '...'}
                 </span>
-                <div className="w-[100px]"><Sparkline points={d?.spark} up={up} uid={id} /></div>
               </div>
+              {/* Sparkline largo: ocupa quase toda a largura do card */}
+              <div className="mt-3 w-full"><Sparkline points={d?.spark} up={up} uid={id} /></div>
             </div>
           );
         })}
@@ -4657,11 +4673,7 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
 
   return (
     <section className="vetra-clusters-section vetra-premium-cluster-section">
-      <div className="vetra-clusters-header">
-        <div>
-          <div className="vetra-clusters-title-row"><h2>Clusters em destaque</h2><span>i</span></div>
-          <p>Os temas que dominam a cobertura agora</p>
-        </div>
+    <div className="vetra-clusters-header" style={{ justifyContent: 'flex-end' }}>
         <button onClick={runAI} className="vetra-see-all-button">
           {loading ? <Loader2 size={17} className="animate-spin"/> : <span>Ver todos os clusters</span>} <ArrowRight size={18}/>
         </button>
@@ -5900,13 +5912,7 @@ const handleTouchEnd = async () => {
       
           {/* Manchete e o NOVO Widget */}
       <div className="space-y-4">
-    {/* 4.1: cabeçalho editorial limpo (sem gradiente neon) */}
-        <div className="flex items-center gap-2.5 px-4">
-            <Sparkles size={22} className="text-indigo-500 shrink-0" />
-            <h3 className="text-[22px] font-bold tracking-tight leading-tight text-zinc-900 dark:text-white">
-                As principais notícias de agora, em <span className="text-indigo-600 dark:text-indigo-400">múltiplos ângulos</span>.
-            </h3>
-        </div>
+
         
         {/* --- SUBSTITUA O WIDGET ANTIGO POR ESTE --- */}
    <WhileYouWereAwayWidget 
@@ -6868,92 +6874,134 @@ const GlobalAudioPlayer = ({ track, onClose, isDarkMode }) => {
 
 
 
-// --- COMPONENTE: SPLASH SCREEN (premium estável, sem flicker e sem home vazando por baixo) ---
-const SplashScreen = ({ onFinish, durationMs = 6800, hasWarmSnapshot = false }) => {
+
+const SplashScreen = ({ onFinish, durationMs = 6800, hasWarmSnapshot = false, ready = false }) => {
   const [step, setStep] = useState(0);
   const [statusIndex, setStatusIndex] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+
+  // Duração máxima de segurança (se "ready" nunca chegar). Quando o feed fica
+  // pronto (ready), dispensamos logo após um tempo mínimo — Splash REAL, não fixo.
+  const maxDuration = Math.max(hasWarmSnapshot ? 1200 : 5200, durationMs);
+  const minDuration = hasWarmSnapshot ? 1100 : 1600;
 
   useEffect(() => {
-    const safeDuration = Math.max(hasWarmSnapshot ? 1200 : 5600, durationMs);
-    const t1 = setTimeout(() => setStep(1), 180);
-    const t2 = setTimeout(() => setStep(2), hasWarmSnapshot ? 520 : 1500);
-    const t3 = setTimeout(() => setStep(3), Math.max(900, safeDuration - 900));
-    const t4 = setTimeout(onFinish, safeDuration);
-    const statusTimer = setInterval(() => setStatusIndex(i => (i + 1) % 5), hasWarmSnapshot ? 1200 : 1550);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-      clearInterval(statusTimer);
-    };
-  }, [onFinish, durationMs, hasWarmSnapshot]);
+    const start = Date.now();
+    const t1 = setTimeout(() => setStep(1), 160);
+    const t2 = setTimeout(() => setStep(2), hasWarmSnapshot ? 480 : 1200);
+    const tick = setInterval(() => setElapsed(Date.now() - start), 120);
+    const statusTimer = setInterval(() => setStatusIndex(i => (i + 1) % 5), hasWarmSnapshot ? 1100 : 1450);
+    const hardStop = setTimeout(onFinish, maxDuration);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(hardStop); clearInterval(tick); clearInterval(statusTimer); };
+  }, [onFinish, maxDuration, hasWarmSnapshot]);
+
+  // Dispensa REAL: quando o feed está pronto e já passou o tempo mínimo.
+  useEffect(() => {
+    if (!ready) return;
+    setStep(3);
+    const remaining = Math.max(0, minDuration - elapsed);
+    const t = setTimeout(onFinish, remaining + 380);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
   const loadingMessages = hasWarmSnapshot
-    ? ['Restaurando seu último feed', 'Conferindo novas fontes', 'Preparando a interface', 'Sincronizando em segundo plano', 'Pronto']
-    : ['Coletando fontes prioritárias', 'Baixando manchetes e imagens', 'Montando stories sem repetição', 'Preparando clusters iniciais', 'Organizando o feed temporal'];
+    ? ['Recuperando seu último panorama', 'Verificando o que mudou desde agora', 'Afinando os detalhes', 'Sincronizando em segundo plano', 'Tudo pronto para você']
+    : ['Reunindo as fontes mais confiáveis', 'Lendo as manchetes em tempo real', 'Cruzando ângulos e versões', 'Formando os clusters do momento', 'Compondo seu feed editorial'];
 
-  const progress = hasWarmSnapshot
-    ? Math.min(100, 42 + step * 22 + statusIndex * 4)
-    : Math.min(96, 12 + step * 20 + statusIndex * 12);
+  // Progresso: quando pronto → 100; senão, avança suave com o tempo (base real de fases).
+  const timedPct = Math.min(94, 10 + (elapsed / maxDuration) * 88);
+  const progress = ready ? 100 : Math.round(Math.max(timedPct, 8 + step * 8 + statusIndex * 5));
 
   const satellites = [
-    { label: 'RSS', Icon: Rss, cls: '-left-24 top-4', delay: '0ms' },
-    { label: 'Feed', Icon: Layers, cls: 'left-6 -top-20', delay: '90ms' },
-    { label: 'Stories', Icon: Sparkles, cls: 'right-6 -top-20', delay: '180ms' },
-    { label: 'Clusters', Icon: BrainCircuit, cls: '-right-24 top-4', delay: '270ms' },
+    { label: 'RSS', Icon: Rss, cls: '-left-20 top-2', delay: '0ms' },
+    { label: 'Feed', Icon: Layers, cls: 'left-4 -top-16', delay: '90ms' },
+    { label: 'Stories', Icon: Sparkles, cls: 'right-4 -top-16', delay: '180ms' },
+    { label: 'Clusters', Icon: BrainCircuit, cls: '-right-20 top-2', delay: '270ms' },
   ];
+
+  const squares = Array.from({ length: 12 }, (_, i) => i);
+  const innerSquares = Array.from({ length: 8 }, (_, i) => i);
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center overflow-hidden bg-[#061027] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(62,114,255,.34),transparent_34%),radial-gradient(circle_at_20%_20%,rgba(255,255,255,.08),transparent_28%),linear-gradient(180deg,#0b1733_0%,#050914_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(62,114,255,.36),transparent_36%),radial-gradient(circle_at_18%_18%,rgba(255,255,255,.08),transparent_28%),linear-gradient(180deg,#0b1733_0%,#050914_100%)]" />
       <div className="absolute inset-0 opacity-[0.16] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
       <div className="absolute -top-40 left-1/2 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-blue-500/20 blur-[120px]" />
 
-      <div className="relative z-10 flex w-full max-w-[560px] flex-col items-center px-8 text-center">
-        <div className="relative mb-8 flex h-64 w-64 items-center justify-center">
+      <div className="relative z-10 flex w-full max-w-[560px] flex-col items-center px-6 text-center">
+        {/* LOGO 2x + anéis de quadradinhos animados */}
+        <div className="relative mb-9 flex h-72 w-72 items-center justify-center">
+          {/* anel externo de quadradinhos girando */}
+          <div className="absolute inset-0 animate-[spin_18s_linear_infinite]">
+            {squares.map(i => {
+              const a = (i / squares.length) * Math.PI * 2;
+              const x = 50 + Math.cos(a) * 46;
+              const y = 50 + Math.sin(a) * 46;
+              return (
+                <span key={i}
+                  className="absolute h-2.5 w-2.5 rounded-[3px] bg-gradient-to-br from-blue-200 to-indigo-300/70 shadow-[0_0_12px_rgba(147,197,253,.75)] animate-pulse"
+                  style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%,-50%)', animationDelay: `${i * 110}ms` }}
+                />
+              );
+            })}
+          </div>
+          {/* anel interno em rotação contrária, mais discreto */}
+          <div className="absolute inset-6 animate-[spin_26s_linear_infinite_reverse]">
+            {innerSquares.map(i => {
+              const a = (i / innerSquares.length) * Math.PI * 2 + 0.4;
+              const x = 50 + Math.cos(a) * 44;
+              const y = 50 + Math.sin(a) * 44;
+              return (
+                <span key={i}
+                  className="absolute h-1.5 w-1.5 rounded-[2px] bg-white/40 animate-pulse"
+                  style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%,-50%)', animationDelay: `${i * 160}ms` }}
+                />
+              );
+            })}
+          </div>
+
           {satellites.map(({ label, Icon, cls, delay }) => (
-            <div
-              key={label}
+            <div key={label}
               className={`absolute ${cls} transition-all duration-700 ${step >= 1 ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-90 blur-sm'} ${step >= 3 ? 'opacity-0 scale-95' : ''}`}
-              style={{ transitionDelay: delay }}
-            >
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/12 bg-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,.18),0_18px_55px_-28px_rgba(0,0,0,.75)] backdrop-blur-2xl">
-                <Icon size={28} className="text-blue-200" />
+              style={{ transitionDelay: delay }}>
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/12 bg-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,.18),0_18px_55px_-28px_rgba(0,0,0,.75)] backdrop-blur-2xl">
+                <Icon size={26} className="text-blue-200" />
               </div>
             </div>
           ))}
 
-          <div className="absolute inset-0 rounded-full border border-white/8" />
-          <div className="absolute h-44 w-44 rounded-full bg-white/12 blur-3xl" />
-          <div className={`relative flex h-36 w-36 items-center justify-center rounded-[2.2rem] border border-white/60 bg-gradient-to-br from-white via-zinc-100 to-zinc-300 shadow-[0_0_80px_rgba(255,255,255,.36),inset_0_1px_1px_rgba(255,255,255,.95)] transition-all duration-700 ${step >= 2 ? 'scale-100 opacity-100' : 'scale-95 opacity-90'}`}>
-            <VetraMark className="h-24 w-24" />
+          <div className="absolute h-52 w-52 rounded-full bg-white/12 blur-3xl" />
+          <div className={`relative flex h-56 w-56 items-center justify-center rounded-[2.6rem] border border-white/60 bg-gradient-to-br from-white via-zinc-100 to-zinc-300 shadow-[0_0_90px_rgba(255,255,255,.4),inset_0_1px_1px_rgba(255,255,255,.95)] transition-all duration-700 ${step >= 2 ? 'scale-100 opacity-100' : 'scale-95 opacity-90'}`}>
+            <VetraMark className="h-48 w-48" />
           </div>
         </div>
 
-        <h1 className="text-6xl font-black tracking-[-0.065em] text-white drop-shadow-[0_0_28px_rgba(255,255,255,.22)] md:text-7xl">
+        {/* Nome maior */}
+        <h1 className="text-7xl font-black tracking-[-0.07em] text-white drop-shadow-[0_0_32px_rgba(255,255,255,.24)] md:text-8xl">
           Vetra
         </h1>
-        <p className="mt-3 text-[15px] font-semibold text-white/56">
+        <p className="mt-3 text-[16px] font-semibold text-white/60">
           Central de inteligência editorial
         </p>
 
-        <div className="mt-9 w-full rounded-[1.45rem] border border-white/12 bg-white/8 p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,.16),0_24px_80px_-42px_rgba(0,0,0,.88)] backdrop-blur-2xl">
+        {/* Barra maior + estado real */}
+        <div className="mt-10 w-full rounded-[1.6rem] border border-white/12 bg-white/8 p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,.16),0_24px_80px_-42px_rgba(0,0,0,.88)] backdrop-blur-2xl">
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3 text-left">
               <span className="relative flex h-3 w-3 shrink-0">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-30" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-300 opacity-40" />
                 <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-300 shadow-[0_0_18px_rgba(147,197,253,.9)]" />
               </span>
-              <span className="truncate text-[15px] font-bold text-white/90">
-                {loadingMessages[statusIndex]}
+              <span className="truncate text-[16px] font-bold text-white/92">
+                {ready ? 'Tudo pronto para você' : loadingMessages[statusIndex]}
               </span>
             </div>
-            <span className="shrink-0 text-[12px] font-black tabular-nums text-white/46">{progress}%</span>
+            <span className="shrink-0 text-[13px] font-black tabular-nums text-white/55">{progress}%</span>
           </div>
-          <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/30 shadow-[inset_0_1px_2px_rgba(0,0,0,.55)]">
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-black/30 shadow-[inset_0_1px_2px_rgba(0,0,0,.55)]">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-300 via-indigo-300 to-violet-300 shadow-[0_0_22px_rgba(147,197,253,.6)] transition-[width] duration-700 ease-out"
+              className="h-full rounded-full bg-gradient-to-r from-blue-300 via-indigo-300 to-violet-300 shadow-[0_0_22px_rgba(147,197,253,.6)] transition-[width] duration-500 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -6962,6 +7010,7 @@ const SplashScreen = ({ onFinish, durationMs = 6800, hasWarmSnapshot = false }) 
     </div>
   );
 };
+
 
 
 // --- HELPER: ABRIR VÍDEO DE FORMA NATIVA (SEM TRAVAR O APP) ---
@@ -9524,7 +9573,7 @@ return (
     // ESTRUTURA PRINCIPAL AGORA É FLEX PARA ACOMODAR O PAINEL LATERAL
     <div className={`h-[100dvh] font-sans flex overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
       
-      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} durationMs={hasMeaningfulSnapshot(visibleSnapshotRef.current) ? 1500 : 6800} hasWarmSnapshot={hasMeaningfulSnapshot(visibleSnapshotRef.current)} />}
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} durationMs={hasMeaningfulSnapshot(visibleSnapshotRef.current) ? 1500 : 6800} hasWarmSnapshot={hasMeaningfulSnapshot(visibleSnapshotRef.current)} ready={realNews.length > 0} />}
       
       {/* --- COLUNA 1: SUA ESTRUTURA ANTIGA, INTACTA --- */}
       {/* Este é o seu div antigo que continha todo o app. Agora ele é a coluna principal. */}
