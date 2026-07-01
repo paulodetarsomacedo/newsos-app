@@ -2567,11 +2567,10 @@ const MarketCards = ({ isDarkMode }) => {
       const nd = {};
       await Promise.all(MARKET_CARDS.map(async ({ id }) => {
         try {
-          const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${id}?interval=15m&range=1d`;
-          const proxyUrl = `https://newsos-app2.vercel.app/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-          const res = await fetch(proxyUrl);
-          if (!res.ok) throw new Error('net');
-          const json = JSON.parse(await res.text());
+          const { data: json, error } = await supabase.functions.invoke('market-proxy', {
+            body: { symbol: id, interval: '15m', range: '1d' }
+          });
+          if (error || !json) throw new Error('net');
           const r = json.chart?.result?.[0];
           const meta = r?.meta;
           const closes = (r?.indicators?.quote?.[0]?.close || []).filter(v => typeof v === 'number');
