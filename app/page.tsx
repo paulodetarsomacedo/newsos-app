@@ -2607,23 +2607,29 @@ const MARKET_CARDS = [
 
 const Sparkline = ({ points, up, uid }) => {
   if (!points || points.length < 2) return <div className="h-[38px]" />;
-  const w = 100, h = 38;
+  const w = 100, h = 38, pad = 2;
   const min = Math.min(...points), max = Math.max(...points);
   const range = (max - min) || 1;
   const step = w / (points.length - 1);
-  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${(i * step).toFixed(1)} ${(h - ((p - min) / range) * h).toFixed(1)}`).join(' ');
+  const y = (p) => (pad + (h - pad * 2) - ((p - min) / range) * (h - pad * 2));
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${(i * step).toFixed(1)} ${y(p).toFixed(1)}`).join(' ');
   const color = up ? '#10b981' : '#ef4444';
-  const gid = 'spk' + String(uid || '').replace(/[^a-z0-9]/gi, '') + (up ? 'u' : 'd');
+  const key = String(uid || '').replace(/[^a-z0-9]/gi, '') + (up ? 'u' : 'd');
+  const fillId = 'spf' + key, strokeId = 'sps' + key;
   return (
     <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="overflow-visible">
       <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+        <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.14" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
+        <linearGradient id={strokeId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="1" />
+        </linearGradient>
       </defs>
-      <path d={`${d} L ${w} ${h} L 0 ${h} Z`} fill={`url(#${gid})`} />
-      <path d={d} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={`${d} L ${w} ${h} L 0 ${h} Z`} fill={`url(#${fillId})`} />
+      <path d={d} fill="none" stroke={`url(#${strokeId})`} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 };
