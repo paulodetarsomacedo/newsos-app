@@ -5771,44 +5771,44 @@ function TrendingTopicModal({ topic, allTopics = [], onClose, openArticle }) {
 const MudouAgoraPanel = ({ isDarkMode }) => (
   <section className="vetra-mudou-agora-panel group">
     <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
-    <div className="vetra-trending-title text-indigo-500 mb-1 z-10">
-      <span className="relative flex h-2.5 w-2.5 mr-1.5">
+    <div className="flex items-center gap-2 mb-1 z-10 text-indigo-500 dark:text-indigo-400">
+      <span className="relative flex h-2.5 w-2.5">
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
       </span>
-      <span className="text-[12px]">MUDOU AGORA</span>
+      <span className="text-[11px] font-black uppercase tracking-widest">Mudou Agora</span>
     </div>
     
     <div className="mudou-agora-list">
       <div className="mudou-agora-item">
-        <div className="mudou-agora-dot bg-emerald-400 shadow-emerald-500/50"></div>
+        <div className="mudou-agora-dot text-emerald-500 bg-emerald-500"></div>
         <div className="flex flex-col min-w-0">
-           <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">12 min atrás</span>
-           <span className={`text-[12px] truncate font-bold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}><b>Dólar</b> disparou em 8 novas fontes</span>
+           <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none mb-0.5">12 min atrás</span>
+           <span className={`text-[12px] leading-tight truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Dólar</b> disparou em 8 novas fontes</span>
         </div>
       </div>
 
       <div className="mudou-agora-item">
-        <div className="mudou-agora-dot bg-blue-400 shadow-blue-500/50"></div>
+        <div className="mudou-agora-dot text-blue-500 bg-blue-500"></div>
         <div className="flex flex-col min-w-0">
-           <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">28 min atrás</span>
-           <span className={`text-[12px] truncate font-bold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}><b>Caso STF</b> teve avanço de consenso</span>
+           <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest leading-none mb-0.5">28 min atrás</span>
+           <span className={`text-[12px] leading-tight truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Caso STF</b> teve avanço de consenso</span>
         </div>
       </div>
 
       <div className="mudou-agora-item">
-        <div className="mudou-agora-dot bg-purple-400 shadow-purple-500/50"></div>
+        <div className="mudou-agora-dot text-purple-500 bg-purple-500"></div>
         <div className="flex flex-col min-w-0">
-           <span className="text-[9px] font-black text-purple-500 uppercase tracking-widest">Acelerando</span>
-           <span className={`text-[12px] truncate font-bold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}><b>Apple</b> lidera os temas de tecnologia</span>
+           <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest leading-none mb-0.5">Acelerando</span>
+           <span className={`text-[12px] leading-tight truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Apple</b> lidera temas de tecnologia</span>
         </div>
       </div>
 
       <div className="mudou-agora-item">
-        <div className="mudou-agora-dot bg-red-500 shadow-red-500/50 animate-pulse"></div>
+        <div className="mudou-agora-dot text-red-500 bg-red-500 animate-pulse"></div>
         <div className="flex flex-col min-w-0">
-           <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">Agora</span>
-           <span className={`text-[12px] truncate font-bold ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>Novo Breaking News em <b>Política</b></span>
+           <span className="text-[9px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest leading-none mb-0.5">Agora</span>
+           <span className={`text-[12px] leading-tight truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>Novo Breaking News em <b>Política</b></span>
         </div>
       </div>
     </div>
@@ -5845,24 +5845,24 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [selectedTrendingTopic, setSelectedTrendingTopic] = useState(null);
 
   return (
-    // Reduzido radicalmente o espaçamento (gap-4) para manter tudo num único flow de tela
-    <div className="animate-in fade-in duration-700 pb-20 min-h-screen touch-pan-y flex flex-col gap-4"
+    // O container pai agora tenta ocupar 100% da altura visível em telas grandes,
+    // garantindo que os filhos distribuam o espaço via Flexbox sem scroll indesejado.
+    <div className="animate-in fade-in duration-700 h-[calc(100dvh-120px)] overflow-y-auto lg:overflow-hidden flex flex-col gap-3 pb-8 touch-pan-y"
          onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>      
       
       {/* Indicador de Refresh */}
-      <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '35%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 || isRefreshing ? 'flex' : 'none' }}>
-         <div className={`flex flex-col items-center gap-3 p-6 rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-black/5 border-white/10 shadow-purple-500/20' : 'bg-white/90 border-white shadow-xl text-zinc-900'}`}>
-            {isRefreshing ? <Loader2 size={42} className="animate-spin text-purple-500" /> : <RefreshCw size={42} className="text-purple-500 transition-transform" style={{ transform: `rotate(${pullDistance * 3}deg)` }}/>}
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">{isRefreshing ? 'Atualizando Feed' : 'Solte para Atualizar'}</span>
+      <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '25%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 || isRefreshing ? 'flex' : 'none' }}>
+         <div className={`flex flex-col items-center gap-2 p-4 rounded-3xl shadow-2xl border ${isDarkMode ? 'bg-black/80 border-white/10 shadow-purple-500/20' : 'bg-white/95 border-zinc-200 shadow-xl text-zinc-900'} backdrop-blur-md`}>
+            {isRefreshing ? <Loader2 size={32} className="animate-spin text-purple-500" /> : <RefreshCw size={32} className="text-purple-500 transition-transform" style={{ transform: `rotate(${pullDistance * 3}deg)` }}/>}
          </div>
       </div>
       
-      {/* 1. STORIES (Menores e mais compactos) */}
-      <div className="px-4 relative z-10 pt-1">
+      {/* 1. STORIES (Ocupa apenas o espaço necessário: shrink-0) */}
+      <div className="px-4 relative z-10 shrink-0">
         <div className="flex space-x-4 overflow-x-auto pb-1 scrollbar-hide snap-x items-center">
             {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).map((story) => (
-                <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-1.5 snap-center cursor-pointer group flex-shrink-0">
-                    <div className={`relative w-[60px] h-[60px] rounded-full p-[2.5px] transition-all shadow-md ${story.isBreaking ? 'bg-red-600 animate-[fast-pulse_1s_ease-in-out_infinite]' : 'bg-gradient-to-tr from-rose-600 to-orange-400'}`}>
+                <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-1 snap-center cursor-pointer group flex-shrink-0">
+                    <div className={`relative w-[60px] h-[60px] rounded-full p-[2.5px] transition-all shadow-sm ${story.isBreaking ? 'bg-red-600 animate-[fast-pulse_1s_ease-in-out_infinite]' : 'bg-gradient-to-tr from-rose-600 to-orange-400'}`}>
                         <div className={`w-full h-full rounded-full border-[2px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
                             <img src={story.avatar} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                         </div>
@@ -5873,128 +5873,135 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
 
-      {/* 2. O PULSO (Top Grid com as 3 Colunas Reduzidas e Harmônicas) */}
-      <div className="vetra-home-top-grid">
+      {/* 2. O PULSO (Ocupa apenas o espaço necessário: shrink-0) */}
+      <div className="vetra-home-top-grid shrink-0">
         <section className="vetra-breaking-panel">
-          <div className="vetra-breaking-title"><Zap size={14} fill="currentColor" /> <span className="text-[11px]">DESTAQUES</span></div>
+          <div className="flex items-center gap-1.5 mb-2 text-red-500">
+            <Zap size={14} fill="currentColor" /> <span className="text-[11px] font-black tracking-widest uppercase">Destaques</span>
+          </div>
           <div className="vetra-breaking-list">
-            {(breakingHighlights || []).slice(0, 2).map((n, i) => (
+            {/* OBRIGATÓRIO: Apenas 3 itens para não estourar o grid */}
+            {(breakingHighlights || []).slice(0, 3).map((n, i) => (
               <button key={n.id || i} onClick={() => openArticle(n)} className="vetra-breaking-row group">
                 <span className="vetra-breaking-rank">{i + 1}</span>
                 <span className="vetra-breaking-thumb"><img src={n.img} onError={(e) => e.currentTarget.style.display='none'} alt="" /></span>
                 <span className="vetra-breaking-copy">
                   <b>{n.title}</b>
-                  <small>{stripClusterText(n.summary || '').slice(0, 70)}</small>
                 </span>
               </button>
             ))}
           </div>
-          <button className="vetra-breaking-more" onClick={() => onTriggerWidgetRotation && onTriggerWidgetRotation()}>
-            Ver destaques <ChevronRight size={14}/>
+          <button className="text-[10px] font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors flex items-center justify-end w-full mt-2" onClick={() => onTriggerWidgetRotation && onTriggerWidgetRotation()}>
+            Ver todos <ChevronRight size={14}/>
           </button>
         </section>
 
         <section className="vetra-trending-panel-home">
-          <div className="vetra-trending-title"><Activity size={14} fill="currentColor" /> <span className="text-[11px]">TRENDING AGORA</span></div>
+          <div className="flex items-center gap-1.5 mb-2 text-emerald-500">
+            <Activity size={14} /> <span className="text-[11px] font-black tracking-widest uppercase">Trending</span>
+          </div>
           <div className="vetra-trending-list-home">
             {(trendingTopics.length ? trendingTopics : [{ t: 'Coletando...', n: '', v: 35 }]).slice(0,3).map((it, i) => (
-              <button key={it.t} onClick={() => setSelectedTrendingTopic(it)} className="vetra-trending-row-home">
-                <strong>{i + 1}</strong>
-                <span className="truncate">{it.t}</span>
-                <small>{it.n}</small>
-                <i><b style={{ width: `${it.v}%` }} /></i>
+              <button key={it.t} onClick={() => setSelectedTrendingTopic(it)} className="vetra-trending-row-home group">
+                <strong className={`group-hover:text-emerald-500 transition-colors ${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>{i + 1}</strong>
+                <span className={`group-hover:text-emerald-500 transition-colors ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>{it.t}</span>
+                <small className="text-zinc-400 dark:text-zinc-500">{it.sourceCount} fontes</small>
               </button>
             ))}
           </div>
-          <button className="vetra-trending-more-home" onClick={() => trendingTopics[0] && setSelectedTrendingTopic({ ...trendingTopics[0], showAll: true })}>
+          <button className="text-[10px] font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors flex items-center justify-end w-full mt-2" onClick={() => trendingTopics[0] && setSelectedTrendingTopic({ ...trendingTopics[0], showAll: true })}>
             Ver em alta <ChevronRight size={14}/>
           </button>
         </section>
 
         <MudouAgoraPanel isDarkMode={isDarkMode} />
-
-        {selectedTrendingTopic && (
-          <TrendingTopicModal topic={selectedTrendingTopic} allTopics={trendingTopics} onClose={() => setSelectedTrendingTopic(null)} openArticle={openArticle} />
-        )}
       </div>
       
-      {/* 3. OS REIS (Clusters) - Mantêm proporção horizontal maravilhosa, sem ser empurrados */}
-      <WhileYouWereAwayWidget 
-        news={newsData} 
-        openArticle={openArticle} 
-        isDarkMode={isDarkMode} 
-        getApiKey={getApiKey}
-        clusters={savedClusters}
-        setClusters={setSavedClusters}
-        heuristicClusters={heuristicClusters}
-      />
-    
-      {/* 4. FERRAMENTAS DE IA (Lado a Lado - Cards Premium SLIM) */}
-      <div className="vetra-tools-row">
-        {/* AI DIGEST SLIM */}
-        <div className="glass-card p-3 flex items-center justify-between cursor-pointer group hover:border-indigo-500/40 transition-colors" onClick={() => setShowDigest(v => !v)}>
-          <div className="flex items-center gap-3">
-             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-                <Sparkles size={16} className="text-white" />
-             </div>
-             <div>
-                <h4 className={`text-sm font-bold leading-none mb-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
-                <p className="text-[10px] opacity-60">Resumo inteligente do dia</p>
-             </div>
-          </div>
-          <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-             <ChevronRight size={14} className={showDigest ? 'rotate-90' : ''} />
-          </div>
-        </div>
-
-        {/* PODNEWS SLIM */}
-        <div className="glass-card p-3 flex items-center justify-between cursor-pointer group hover:border-fuchsia-500/40 transition-colors" onClick={() => onOpenPodNews && onOpenPodNews()}>
-          <div className="flex items-center gap-3">
-             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative">
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
-                <Headphones size={16} className="text-white" />
-             </div>
-             <div>
-                <h4 className={`text-sm font-bold leading-none mb-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
-                <p className="text-[10px] opacity-60">Resumo diário em áudio</p>
-             </div>
-          </div>
-          <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-fuchsia-500 group-hover:text-white transition-colors">
-             <Play size={12} fill="currentColor" className="ml-0.5" />
-          </div>
-        </div>
-      </div>
-
-      {showDigest && (
-        <div className="px-4">
-          <SmartDigestWidget newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} openArticle={openArticle} />
-        </div>
+      {selectedTrendingTopic && (
+        <TrendingTopicModal topic={selectedTrendingTopic} allTopics={trendingTopics} onClose={() => setSelectedTrendingTopic(null)} openArticle={openArticle} />
       )}
-
-      {/* 5. MERCADOS HOJE (Barra Premium Slim) */}
-      <div className="vetra-market-bar">
-         <div className="glass-card p-3 flex items-center justify-between cursor-pointer group hover:border-emerald-500/40 transition-colors" onClick={() => setIsMarketModalOpen(true)}>
+      
+      {/* 3. OS REIS (Clusters) -> FLEX-1 faz com que eles se estiquem e preencham todo o "vazio" central da tela */}
+      <div className="flex-1 min-h-0 relative flex flex-col">
+        <WhileYouWereAwayWidget 
+          news={newsData} 
+          openArticle={openArticle} 
+          isDarkMode={isDarkMode} 
+          getApiKey={getApiKey}
+          clusters={savedClusters}
+          setClusters={setSavedClusters}
+          heuristicClusters={heuristicClusters}
+        />
+      </div>
+    
+      {/* 4. BASE PREMIUM (Ferramentas IA e Mercado) -> Grudados no fundo da tela (shrink-0) */}
+      <div className="shrink-0 flex flex-col gap-3 px-4">
+        
+        {/* Ferramentas de IA */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className={`p-3 rounded-2xl flex items-center justify-between cursor-pointer border shadow-sm transition-all hover:scale-[1.01] ${isDarkMode ? 'bg-zinc-900/60 border-white/5 hover:border-indigo-500/50' : 'bg-white/80 border-zinc-200 hover:border-indigo-300'}`} onClick={() => setShowDigest(v => !v)}>
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
-                    <TrendingUp size={20} />
-                </div>
-                <div>
-                   <div className="flex items-center gap-2 mb-0.5">
-                       <h4 className={`text-sm font-bold leading-none ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h4>
-                       <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-600 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Ao Vivo
-                       </span>
-                   </div>
-                   <div className="flex items-center gap-3 text-[11px] font-mono font-bold text-zinc-600 dark:text-zinc-400">
-                      <span>IBOV 128.5k <span className="text-emerald-500">+0.45%</span></span>
-                      <span>USD 5,02 <span className="text-rose-500">-0.21%</span></span>
-                   </div>
-                </div>
+               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                  <Sparkles size={16} className="text-white" />
+               </div>
+               <div>
+                  <h4 className={`text-sm font-bold leading-none mb-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
+                  <p className="text-[10px] opacity-60">Resumo de {(newsData || []).length} fatos</p>
+               </div>
             </div>
-            <div className="hidden md:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-emerald-500 transition-colors">
-                Abrir painel <ArrowUpRight size={14} />
+            <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+               <ChevronRight size={14} className={showDigest ? 'rotate-90' : ''} />
             </div>
-         </div>
+          </div>
+
+          <div className={`p-3 rounded-2xl flex items-center justify-between cursor-pointer border shadow-sm transition-all hover:scale-[1.01] ${isDarkMode ? 'bg-zinc-900/60 border-white/5 hover:border-fuchsia-500/50' : 'bg-white/80 border-zinc-200 hover:border-fuchsia-300'}`} onClick={() => onOpenPodNews && onOpenPodNews()}>
+            <div className="flex items-center gap-3">
+               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative">
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
+                  <Headphones size={16} className="text-white" />
+               </div>
+               <div>
+                  <h4 className={`text-sm font-bold leading-none mb-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
+                  <p className="text-[10px] opacity-60">Resumo diário em áudio</p>
+               </div>
+            </div>
+            <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+               <Play size={12} fill="currentColor" className="ml-0.5" />
+            </div>
+          </div>
+        </div>
+
+        {showDigest && (
+          <div className="mb-2">
+            <SmartDigestWidget newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} openArticle={openArticle} />
+          </div>
+        )}
+
+        {/* Mercado Hoje Compacto (Card Premium) */}
+        <div className={`p-4 rounded-2xl border shadow-sm cursor-pointer transition-all hover:scale-[1.01] ${isDarkMode ? 'bg-emerald-900/10 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200/50'}`} onClick={() => setIsMarketModalOpen(true)}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-md">
+                      <TrendingUp size={20} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                        <h4 className={`text-sm font-bold leading-none ${isDarkMode ? 'text-white' : 'text-emerald-950'}`}>Mercados Hoje</h4>
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-600 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Ao Vivo
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] font-mono font-bold text-zinc-600 dark:text-zinc-400 mt-1">
+                        <span>IBOV 128.5k <span className="text-emerald-500">+0.45%</span></span>
+                        <span>USD 5,02 <span className="text-rose-500">-0.21%</span></span>
+                    </div>
+                  </div>
+              </div>
+              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 opacity-60">
+                  ABRIR PAINEL <ArrowUpRight size={14} />
+              </div>
+            </div>
+        </div>
       </div>
 
       {/* MODAL MERCADOS HOJE */}
