@@ -2532,35 +2532,59 @@ const MarketTicker = ({ isDarkMode }) => {
 };
 
 
-// === MERCADOS HOJE (Etapa 4.3) — cards largos com sparkline (print) ===
+// === MERCADOS HOJE — grid premium 2 colunas, sparkline, status B3 e destaque do dia ===
 const MARKET_CARDS = [
-  { id: '^BVSP',    label: 'IBOVESPA' },
-  { id: 'USDBRL=X', label: 'DÓLAR (PTAX)' },
-  { id: 'EURBRL=X', label: 'EURO (PTAX)' },
-  { id: 'BTC-USD',  label: 'BITCOIN' },
-  { id: 'PETR4.SA', label: 'PETR4' },
-  { id: 'VALE3.SA', label: 'VALE3' },
-  { id: '^IFIX',    label: 'IFIX' },
+  { id: '^BVSP',    label: 'IBOVESPA',  kind: 'index' },
+  { id: 'USDBRL=X', label: 'DÓLAR',     kind: 'brl' },
+  { id: 'EURBRL=X', label: 'EURO',      kind: 'brl' },
+  { id: '^GSPC',    label: 'S&P 500',   kind: 'index' },
+  { id: '^IXIC',    label: 'NASDAQ',    kind: 'index' },
+  { id: 'BTC-USD',  label: 'BITCOIN',   kind: 'usd' },
+  { id: 'ETH-USD',  label: 'ETHEREUM',  kind: 'usd' },
+  { id: 'GC=F',     label: 'OURO',      kind: 'usd' },
+  { id: 'CL=F',     label: 'PETRÓLEO',  kind: 'usd' },
+  { id: 'PETR4.SA', label: 'PETR4',     kind: 'brl' },
+  { id: 'VALE3.SA', label: 'VALE3',     kind: 'brl' },
+  { id: 'ITUB4.SA', label: 'ITUB4',     kind: 'brl' },
 ];
 
-const Sparkline = ({ points, up }) => {
-  if (!points || points.length < 2) return <div className="h-[34px]" />;
-  const w = 96, h = 34;
+const Sparkline = ({ points, up, uid }) => {
+  if (!points || points.length < 2) return <div className="h-[30px]" />;
+  const w = 100, h = 30;
   const min = Math.min(...points), max = Math.max(...points);
   const range = (max - min) || 1;
   const step = w / (points.length - 1);
   const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${(i * step).toFixed(1)} ${(h - ((p - min) / range) * h).toFixed(1)}`).join(' ');
   const color = up ? '#10b981' : '#ef4444';
+  const gid = 'spk' + String(uid || '').replace(/[^a-z0-9]/gi, '') + (up ? 'u' : 'd');
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-      <path d={`${d} L ${w} ${h} L 0 ${h} Z`} fill={color} opacity="0.10" />
-      <path d={d} fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="overflow-visible">
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={`${d} L ${w} ${h} L 0 ${h} Z`} fill={`url(#${gid})`} />
+      <path d={d} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 };
 
+const isB3Open = () => {
+  try {
+    const sp = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const day = sp.getDay();
+    const mins = sp.getHours() * 60 + sp.getMinutes();
+    return day >= 1 && day <= 5 && mins >= 600 && mins < 1020;
+  } catch { return false; }
+};
+
 const MarketCards = ({ isDarkMode }) => {
   const [data, setData] = useState({});
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [marketOpen, setMarketOpen] = useState(isB3Open());
+
   useEffect(() => {
     let alive = true;
     const fetchAll = async () => {
@@ -2576,42 +2600,74 @@ const MarketCards = ({ isDarkMode }) => {
           const closes = (r?.indicators?.quote?.[0]?.close || []).filter(v => typeof v === 'number');
           if (meta && meta.regularMarketPrice != null) {
             const price = meta.regularMarketPrice;
-            const prev = meta.chartPreviousClose || price;
+            const prev = meta.chartPreviousClose || meta.previousClose || price;
             const pct = prev ? ((price - prev) / prev) * 100 : 0;
             const up = (price - prev) >= 0;
-            let val;
-            if (id === '^BVSP' || id === '^IFIX') val = price.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
-            else if (id === 'BTC-USD') val = '$ ' + price.toLocaleString('en-US', { maximumFractionDigits: 0 });
-            else val = 'R$ ' + price.toFixed(2).replace('.', ',');
-            nd[id] = { val, pct, up, spark: closes.slice(-26) };
+            nd[id] = { price, pct, up, spark: closes.slice(-30) };
           } else { nd[id] = null; }
-        } catch (e) { nd[id] = null; }
+        } catch { nd[id] = null; }
       }));
-      if (alive) setData(prev => ({ ...prev, ...nd }));
+      if (alive) { setData(prev => ({ ...prev, ...nd })); setUpdatedAt(new Date()); setMarketOpen(isB3Open()); }
     };
     fetchAll();
     const t = setInterval(fetchAll, 5 * 60 * 1000);
     return () => { alive = false; clearInterval(t); };
   }, []);
 
+  const fmtVal = (id, price) => {
+    const c = MARKET_CARDS.find(m => m.id === id);
+    if (!c) return String(price);
+    if (c.kind === 'index') return price.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    if (c.kind === 'usd') return '$ ' + price.toLocaleString('en-US', { maximumFractionDigits: price >= 100 ? 0 : 2 });
+    return 'R$ ' + price.toFixed(2).replace('.', ',');
+  };
+
+  const topMover = useMemo(() => {
+    let best = null;
+    for (const { id } of MARKET_CARDS) {
+      const d = data[id];
+      if (!d) continue;
+      if (!best || Math.abs(d.pct) > Math.abs(best.pct)) best = { id, ...d };
+    }
+    return best;
+  }, [data]);
+
+  const fmtTime = (dt) => dt ? dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+
   return (
-    <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1 px-4">
-      {MARKET_CARDS.map(({ id, label }) => {
-        const d = data[id];
-        const up = d?.up ?? true;
-        return (
-          <div key={id} className="shrink-0 w-[155px] rounded-2xl p-3.5 bg-white/80 dark:bg-white/[0.05] border border-white/80 dark:border-white/10 shadow-[0_6px_16px_-10px_rgba(15,23,42,0.25)]">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate">{label}</div>
-            <div className="mt-1 text-[17px] font-black text-zinc-900 dark:text-white tabular-nums">{d?.val || '—'}</div>
-            <div className="mt-2 flex items-end justify-between gap-2">
-              <span className={`text-[12px] font-bold tabular-nums ${up ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {d ? `${up ? '+' : ''}${d.pct.toFixed(2)}%` : '...'}
-              </span>
-              <Sparkline points={d?.spark} up={up} />
+    <div className="px-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${marketOpen ? 'text-emerald-600 border-emerald-500/30 bg-emerald-500/10' : 'text-zinc-400 border-zinc-400/25 bg-zinc-400/10'}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${marketOpen ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'}`} />
+          B3 {marketOpen ? 'aberta' : 'fechada'}
+        </span>
+        <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 tabular-nums">Atualizado {fmtTime(updatedAt)}</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {MARKET_CARDS.map(({ id, label }) => {
+          const d = data[id];
+          const up = d?.up ?? true;
+          const isTop = topMover && topMover.id === id && Math.abs(topMover.pct) > 0.01;
+          return (
+            <div key={id} className={`rounded-2xl p-4 border shadow-[0_8px_24px_-16px_rgba(15,23,42,0.35)] transition-all ${isDarkMode ? 'bg-white/[0.04] border-white/10' : 'bg-white/85 border-white/80'} ${isTop ? (up ? 'ring-1 ring-emerald-500/40' : 'ring-1 ring-rose-500/40') : ''}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate">{label}</span>
+                {isTop && <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${up ? 'text-emerald-600 bg-emerald-500/12' : 'text-rose-600 bg-rose-500/12'}`}>Destaque</span>}
+              </div>
+              <div className="mt-1.5 text-[19px] font-black text-zinc-900 dark:text-white tabular-nums leading-none">
+                {d ? fmtVal(id, d.price) : '—'}
+              </div>
+              <div className="mt-3 flex items-end justify-between gap-2">
+                <span className={`text-[12px] font-bold tabular-nums ${up ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {d ? `${up ? '▲' : '▼'} ${up ? '+' : ''}${d.pct.toFixed(2)}%` : '...'}
+                </span>
+                <div className="w-[100px]"><Sparkline points={d?.spark} up={up} uid={id} /></div>
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -6467,6 +6523,14 @@ const cleanArticleTitleForSource = (title, source = '', url = '') => {
   return clean;
 };
 
+const getYoutubeChannelLogo = (url) => {
+  const s = String(url || '');
+  const chan = s.match(/channel_id=(UC[A-Za-z0-9_-]{22})/i)?.[1];
+  if (chan) return `https://unavatar.io/youtube/${chan}?fallback=false`;
+  const user = s.match(/[?&]user=([A-Za-z0-9_.-]+)/i)?.[1];
+  if (user) return `https://unavatar.io/youtube/${user}?fallback=false`;
+  return null;
+};
 const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffer = {}) => {
   const detectedXmlTitle = metadata.detectedXmlTitle || metadata.title || feed?.name || 'Fonte';
   const siteLink = metadata.siteLink || metadata.link || feed?.url || '';
@@ -6475,6 +6539,7 @@ const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffe
   const sourceId = getFeedSourceId(feed);
   const finalLogo = resolveLogoUrl({ source: displaySource, feedUrl: feed?.url, feedLogo: metadata.feedLogo || metadata.logo || feed?.logo, siteUrl: siteLink || feed?.url });
   const isFeedYoutube = Boolean(metadata.isFeedYoutube || metadata.isYoutube || String(feed?.url ?? '').includes('youtube.com') || String(feed?.url ?? '').includes('youtu.be'));
+  const youtubeChannelLogo = isFeedYoutube ? getYoutubeChannelLogo(feed?.url) : null;
 
   return (rawItems || []).slice(0, 40).map((item, index) => {
     const itemTitle = cleanArticleTitleForSource(item?.title || item?.name || item?.description || item?.summary || '', displaySource, item?.link || feed?.url || siteLink);
@@ -6509,8 +6574,8 @@ const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffe
       source: displaySource,
       sourceId,
       sourceGroup,
-      sourceKey: sourceId,
-      logo: finalLogo,
+    sourceKey: sourceId,
+      logo: youtubeChannelLogo || finalLogo,
       time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       rawDate: finalDateObj,
       historicalTimestamp: finalTimestamp,
