@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import WebKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -8,6 +9,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            if #available(iOS 16.4, *) {
+                let scenes = UIApplication.shared.connectedScenes
+                let windowScene = scenes.first as? UIWindowScene
+                let root = windowScene?.windows.first?.rootViewController
+
+                if let bridgeVC = root as? CAPBridgeViewController {
+                    bridgeVC.webView?.isInspectable = true
+                    print("✅ Vetra WebView isInspectable ativado")
+                } else {
+                    print("⚠️ Não consegui encontrar CAPBridgeViewController para ativar isInspectable")
+                }
+            }
+        }
         return true
     }
 

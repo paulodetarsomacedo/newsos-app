@@ -8997,22 +8997,6 @@ const handleStoryNavigation = (direction) => {
           await priorityPromise.catch(() => null);
           if (!isLatestRequest()) return;
 
-          // PATCH A: commit incremental no pull-to-refresh.
-      // Sem isto, o refresh manual só trocava feed/clusters/stories
-      // depois de TODO o ciclo secundário/mídia liquidar (até ~28s).
-      if (forceRefresh) {
-          const earlySnapshot = buildSnapshotFromSourceCache();
-          if (hasMeaningfulSnapshot(earlySnapshot)) {
-              commitVisibleSnapshot(earlySnapshot, {
-                  reason: 'manual-priority',
-                  updateGlobalClusters: true,
-                  forceCommit: true,
-              });
-              setIsLoadingFeeds(false);
-          }
-      }
-
-
           const secondaryPromise = collectTextBatch(secondaryTextFeeds, { limit: 40, concurrency: 6, enrichImages: true, timeout: 28000, mode: 'complete' });
           const mediaPromise = collectTextBatch(mediaFeeds, { limit: 34, concurrency: FEED_MEDIA_CONCURRENCY, enrichImages: false, timeout: 18000, mode: 'media' });
           await Promise.allSettled([secondaryPromise, mediaPromise]);
@@ -9516,7 +9500,7 @@ return (
                     onApplyStagedUpdate={applyStagedSnapshot}
                     likedItems={likedItems}
                     onToggleLike={handleToggleLike}
-                    onRefresh={() => fetchFeeds(true)}
+                    onRefresh={() => { fetchFeeds(true); }}
                     onCategoryChange={() => {}}
                     viewedInStoryId={viewedInStoryId}
                     apiKey={analysisApiKey} 
