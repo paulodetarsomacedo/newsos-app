@@ -4638,47 +4638,73 @@ const VetraPremiumClusterCard = React.memo(function VetraPremiumClusterCard({ cl
 
 const MudouAgoraHorizontal = ({ isDarkMode }) => (
   <div className={`
-    w-full flex items-center p-2.5 px-5 gap-6 overflow-hidden h-[4.2rem] rounded-2xl relative
-    border shadow-[0_12px_30px_-10px_rgba(0,0,0,0.15)] backdrop-blur-[40px]
+    w-full flex items-center p-2 px-3 gap-4 overflow-hidden h-[4.2rem] rounded-[1.4rem] relative
+    border shadow-xl backdrop-blur-[40px] transition-all duration-300
     ${isDarkMode 
-      ? 'bg-zinc-900/40 border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]' 
-      : 'bg-white/50 border-white/80 shadow-[inset_0_1px_2px_rgba(255,255,255,1)]'}
+      ? 'bg-zinc-900/40 border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.5)]' 
+      : 'bg-white/60 border-white/80 shadow-[0_8px_30px_rgba(0,0,0,0.06)]'}
   `}>
-    {/* Efeito Glow Interno */}
-    <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+    {/* Soft Ambient Glow Overlay */}
+    <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 via-orange-500/5 to-transparent pointer-events-none"></div>
 
-    <div className="flex items-center gap-2.5 pr-6 border-r border-black/10 dark:border-white/10 shrink-0 relative z-10">
-      <div className="relative flex h-3 w-3">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-        <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-600 dark:bg-indigo-500"></span>
-      </div>
-      <span className="text-[12px] font-black uppercase text-indigo-700 dark:text-indigo-400 tracking-[0.15em] leading-none">
-        Mudou<br/>Agora
-      </span>
+    {/* Pulse Indicator (Left) */}
+    <div className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 shrink-0 relative z-10">
+        <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+            </span>
+            <span className="text-[9px] font-black uppercase text-red-600 dark:text-red-400 tracking-widest leading-none">Ao Vivo</span>
+        </div>
+        <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300 leading-none">Radar Vetra</span>
     </div>
+
+    <div className="w-px h-8 bg-black/10 dark:bg-white/10 shrink-0 relative z-10"></div>
     
-    <div className="flex justify-between items-center flex-1 min-w-0 overflow-x-auto scrollbar-hide gap-8 pr-2 relative z-10">
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.8)]"></div>
-        <div className="flex flex-col">
-          <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-0.5">12m atrás</span>
-          <span className={`text-[13px] font-bold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Dólar</b> disparou em 8 fontes</span>
+    {/* Scrolling content */}
+    <div className="flex justify-start items-center flex-1 min-w-0 overflow-x-auto scrollbar-hide gap-5 relative z-10 h-full">
+      
+      {/* Item 1: Dólar */}
+      <div className="flex items-center gap-2.5 shrink-0 bg-white/40 dark:bg-black/20 pr-3 rounded-xl border border-white/40 dark:border-white/5 transition-transform hover:scale-105 cursor-pointer">
+        <div className="w-8 h-8 rounded-l-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border-r border-white/40 dark:border-white/5">
+            <TrendingUp size={14} strokeWidth={2.5}/>
+        </div>
+        <div className="flex flex-col py-1">
+          <div className="flex items-center gap-1.5">
+              <span className={`text-[11px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Dólar R$ 5,12</span>
+              <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">+1.2%</span>
+          </div>
+          <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">Pico agora em 8 fontes</span>
         </div>
       </div>
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="w-2.5 h-2.5 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>
-        <div className="flex flex-col">
-          <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-0.5">28m atrás</span>
-          <span className={`text-[13px] font-bold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Caso STF</b> teve avanço</span>
+
+      {/* Item 2: STF */}
+      <div className="flex items-center gap-2.5 shrink-0 bg-white/40 dark:bg-black/20 pr-3 rounded-xl border border-white/40 dark:border-white/5 transition-transform hover:scale-105 cursor-pointer">
+        <div className="w-8 h-8 rounded-l-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border-r border-white/40 dark:border-white/5">
+            <Activity size={14} strokeWidth={2.5}/>
+        </div>
+        <div className="flex flex-col py-1">
+          <div className="flex items-center gap-1.5">
+              <span className={`text-[11px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Decisão do STF</span>
+              <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400">URGENTE</span>
+          </div>
+          <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">G1 e CNN · 2m atrás</span>
         </div>
       </div>
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="w-2.5 h-2.5 bg-purple-500 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
-        <div className="flex flex-col">
-          <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-0.5">Acelerando</span>
-          <span className={`text-[13px] font-bold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Apple</b> lidera temas tech</span>
+
+      {/* Item 3: Tech */}
+      <div className="flex items-center gap-2.5 shrink-0 bg-white/40 dark:bg-black/20 pr-3 rounded-xl border border-white/40 dark:border-white/5 transition-transform hover:scale-105 cursor-pointer">
+        <div className="w-8 h-8 rounded-l-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center border-r border-white/40 dark:border-white/5">
+            <Zap size={14} strokeWidth={2.5}/>
+        </div>
+        <div className="flex flex-col py-1">
+          <div className="flex items-center gap-1.5">
+              <span className={`text-[11px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Apple Vision Pro</span>
+          </div>
+          <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">Dominando cadernos Tech</span>
         </div>
       </div>
+
     </div>
   </div>
 );
@@ -5970,27 +5996,34 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
           </div>
         </div>
 
-        {/* MERCADOS HOJE (flex-1 para expandir e igualar ao AI Digest) */}
-        <div className="true-liquid-glass flex-1 min-h-[80px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-emerald-500/60 transition-colors" onClick={() => setIsMarketModalOpen(true)}>
-            <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
-                    <TrendingUp size={20} />
+   {/* MERCADOS HOJE (Mini-Dashboard Funcional) */}
+        <div className="true-liquid-glass flex-1 min-h-[80px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-emerald-500/60 transition-all duration-300" onClick={() => setIsMarketModalOpen(true)}>
+            <div className="flex items-center gap-3 min-w-0 w-full">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] group-hover:scale-105 transition-transform">
+                    <TrendingUp size={22} strokeWidth={2.5} />
                 </div>
-                <div className="min-w-0">
-                   <div className="flex items-center gap-2 mb-0.5">
-                       <h4 className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h4>
-                       <span className="px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-600 flex items-center gap-1 shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Ao Vivo
+                <div className="min-w-0 flex-1">
+                   <div className="flex items-center justify-between gap-2 mb-1">
+                       <h4 className={`text-[14px] font-black tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h4>
+                       <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Aberto
                        </span>
                    </div>
-                   <div className="flex items-center gap-3 text-[10px] font-mono font-bold text-zinc-600 dark:text-zinc-400 truncate">
-                      <span>IBOV 128.5k <span className="text-emerald-500">+0.45%</span></span>
-                      <span>USD 5,02 <span className="text-rose-500">-0.21%</span></span>
+                   <div className="flex items-end justify-between w-full">
+                       <div className="flex items-center gap-3 text-[11px] font-bold text-zinc-600 dark:text-zinc-400 truncate">
+                          <span className="flex items-center gap-1">IBOV <span className="text-emerald-600 dark:text-emerald-400">128.5k</span></span>
+                          <span className="flex items-center gap-1">USD <span className="text-rose-600 dark:text-rose-400">5,02</span></span>
+                       </div>
+                       
+                       {/* Mini visual bars (CSS) p/ dar ar de Dashboard Real-time */}
+                       <div className="flex items-end gap-[3px] h-4 opacity-60 group-hover:opacity-100 transition-opacity">
+                           <div className="w-1.5 h-2 bg-zinc-300 dark:bg-zinc-600 rounded-sm"></div>
+                           <div className="w-1.5 h-3 bg-zinc-300 dark:bg-zinc-600 rounded-sm"></div>
+                           <div className="w-1.5 h-1.5 bg-zinc-300 dark:bg-zinc-600 rounded-sm"></div>
+                           <div className="w-1.5 h-4 bg-emerald-500 rounded-sm shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+                       </div>
                    </div>
                 </div>
-            </div>
-            <div className="hidden xl:flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 group-hover:text-emerald-500 transition-colors shrink-0">
-                ABRIR <ArrowUpRight size={12} />
             </div>
         </div>
 
@@ -6002,16 +6035,30 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       )}
 
-      {/* MODAL MERCADOS HOJE */}
+      {/* MODAL MERCADOS HOJE - Vidro Transparente Absoluto */}
       {isMarketModalOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
-           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={() => setIsMarketModalOpen(false)} />
-           <div className={`relative w-full max-w-3xl rounded-[2rem] overflow-hidden shadow-2xl p-6 glass-card`}>
-              <div className="flex justify-between items-center mb-6 px-2">
-                 <h2 className="text-2xl font-black flex items-center gap-2 text-zinc-900 dark:text-white"><TrendingUp className="text-emerald-500"/> Mercados Hoje</h2>
-                 <button onClick={() => setIsMarketModalOpen(false)} className="p-2 bg-black/5 dark:bg-white/10 rounded-full hover:scale-105 transition"><X size={20}/></button>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
+           {/* Overlay mais escuro p/ dar contraste ao vidro */}
+           <div className="absolute inset-0 bg-black/50 backdrop-blur-2xl" onClick={() => setIsMarketModalOpen(false)} />
+           
+           {/* Shell 100% Vidro */}
+           <div className={`relative w-full max-w-4xl rounded-[2.5rem] overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] p-6 md:p-8 flex flex-col border ${isDarkMode ? 'bg-zinc-900/40 border-white/10' : 'bg-white/40 border-white/60'} backdrop-blur-3xl`}>
+              
+              {/* Luz ambiente volumétrica atrás do conteúdo */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-40 bg-emerald-500/20 blur-[100px] pointer-events-none"></div>
+              
+              <div className="flex justify-between items-start mb-8 relative z-10">
+                 <div>
+                     <h2 className="text-3xl font-black flex items-center gap-3 text-zinc-900 dark:text-white tracking-tight">
+                         <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 shadow-inner"><TrendingUp className="text-emerald-500" size={28} strokeWidth={2.5}/></div>
+                         Panorama Global
+                     </h2>
+                     <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mt-2 ml-1">Cotações da B3 e índices mundiais em tempo real.</p>
+                 </div>
+                 <button onClick={() => setIsMarketModalOpen(false)} className="p-3 bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/10 rounded-full hover:scale-105 active:scale-95 transition backdrop-blur-md text-zinc-600 dark:text-zinc-300"><X size={20}/></button>
               </div>
-              <div className="max-h-[70vh] overflow-y-auto custom-scrollbar">
+              
+              <div className="max-h-[70vh] overflow-y-auto custom-scrollbar relative z-10 -mx-4 px-4">
                  <MarketCards isDarkMode={isDarkMode} />
               </div>
            </div>
