@@ -5960,73 +5960,63 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         />
       </div>
     
-      {/* 4. BASE PREMIUM: As 3 Ferramentas alinhadas na mesma linha (FLEX ROW) */}
-      <div className="shrink-0 flex flex-row items-center gap-3 px-4 mt-2 w-full">
+  {/* 4. BASE PREMIUM OPTICAL GLASS: Ferramentas flutuando sobre a grade */}
+      <div className="shrink-0 flex flex-row items-center gap-4 px-4 mt-3 w-full">
         
-        
-
-
-
-        {/* AI DIGEST (flex-1 para expandir) */}
-        <div className="true-liquid-glass flex-1 min-h-[130px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-indigo-500/60 transition-colors" onClick={() => setShowDigest(v => !v)}>
-          <div className="flex items-center gap-3 min-w-0">
-             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shrink-0">
-                <Sparkles size={18} className="text-white" />
+        {/* AI DIGEST */}
+        <div className="optical-glass flex-1 min-h-[135px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
+          <div className="caustic-glow bg-indigo-500 group-hover:bg-purple-500 transition-colors duration-500"></div>
+          <div className="flex items-center gap-4 min-w-0 relative z-10">
+             <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
+                <Sparkles size={26} className="text-indigo-600 dark:text-indigo-400" />
              </div>
              <div className="min-w-0">
-                <h4 className={`text-sm font-bold mb-0.5 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
-                <p className={`text-[9px] uppercase tracking-wider font-bold opacity-50 truncate`}>Resumo do dia</p>
+                <h4 className={`text-lg font-black tracking-tight mb-1 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
+                <p className="text-[11px] uppercase tracking-widest font-bold opacity-60 truncate">Resumo do dia</p>
              </div>
           </div>
-          <div className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors shrink-0">
-             <ChevronRight size={14} className={showDigest ? 'rotate-90' : ''} />
+          <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner relative z-10 shrink-0">
+             <ChevronRight size={20} className={showDigest ? 'rotate-90' : ''} />
           </div>
         </div>
 
-        {/* PODNEWS (Fixado um tamanho central) */}
-        <div className="true-liquid-glass w-[180px] xl:w-[220px] shrink-0 min-h-[130px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-fuchsia-500/60 transition-colors" onClick={() => onOpenPodNews && onOpenPodNews()}>
-          <div className="flex items-center gap-3 min-w-0">
-             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative shrink-0">
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
-                <Headphones size={18} className="text-white" />
+        {/* PODNEWS */}
+        <div className="optical-glass w-[200px] xl:w-[260px] shrink-0 min-h-[135px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
+          <div className="caustic-glow bg-fuchsia-500 group-hover:bg-pink-500 transition-colors duration-500"></div>
+          <div className="flex items-center gap-4 min-w-0 relative z-10">
+             <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 relative transition-transform group-hover:scale-105">
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-800 rounded-full shadow-sm"></span>
+                <Headphones size={26} className="text-fuchsia-600 dark:text-fuchsia-400" />
              </div>
              <div className="min-w-0">
-                <h4 className={`text-sm font-bold mb-0.5 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
-                <p className={`text-[9px] uppercase tracking-wider font-bold opacity-50 truncate`}>Áudio pronto</p>
+                <h4 className={`text-lg font-black tracking-tight mb-1 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
+                <p className="text-[11px] uppercase tracking-widest font-bold opacity-60 truncate">Áudio pronto</p>
              </div>
           </div>
-          <div className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-500 group-hover:text-white transition-colors shrink-0">
-             <Play size={12} fill="currentColor" className="ml-0.5" />
+          <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-600 group-hover:text-white transition-all shadow-inner relative z-10 shrink-0">
+             <Play size={18} fill="currentColor" className="ml-0.5" />
           </div>
         </div>
 
-   {/* MERCADOS HOJE (Mini-Dashboard Funcional) */}
-        <div className="true-liquid-glass flex-1 min-h-[130px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-emerald-500/60 transition-all duration-300" onClick={() => setIsMarketModalOpen(true)}>
-            <div className="flex items-center gap-3 min-w-0 w-full">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] group-hover:scale-105 transition-transform">
-                    <TrendingUp size={22} strokeWidth={2.5} />
+        {/* MERCADOS HOJE */}
+        <div className="optical-glass flex-1 min-h-[135px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
+            <div className="caustic-glow bg-emerald-500 group-hover:bg-green-400 transition-colors duration-500"></div>
+            <div className="flex items-center gap-4 min-w-0 w-full relative z-10">
+                <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
+                    <TrendingUp size={26} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5}/>
                 </div>
                 <div className="min-w-0 flex-1">
                    <div className="flex items-center justify-between gap-2 mb-1">
-                       <h4 className={`text-[14px] font-black tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h4>
-                       <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Aberto
+                       <h4 className={`text-lg font-black tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados</h4>
+                       <span className="px-2 py-0.5 rounded border border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/50 text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 shrink-0 shadow-sm">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Ao Vivo
                        </span>
                    </div>
-                   <div className="flex items-end justify-between w-full">
-                       <div className="flex items-center gap-3 text-[11px] font-bold text-zinc-600 dark:text-zinc-400 truncate">
-                          <span className="flex items-center gap-1">IBOV <span className="text-emerald-600 dark:text-emerald-400">128.5k</span></span>
-                          <span className="flex items-center gap-1">USD <span className="text-rose-600 dark:text-rose-400">5,02</span></span>
-                       </div>
-                       
-                       {/* Mini visual bars (CSS) p/ dar ar de Dashboard Real-time */}
-                       <div className="flex items-end gap-[3px] h-4 opacity-60 group-hover:opacity-100 transition-opacity">
-                           <div className="w-1.5 h-2 bg-zinc-300 dark:bg-zinc-600 rounded-sm"></div>
-                           <div className="w-1.5 h-3 bg-zinc-300 dark:bg-zinc-600 rounded-sm"></div>
-                           <div className="w-1.5 h-1.5 bg-zinc-300 dark:bg-zinc-600 rounded-sm"></div>
-                           <div className="w-1.5 h-4 bg-emerald-500 rounded-sm shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
-                       </div>
-                   </div>
+                   
+                   {/* NOVO RESUMO DO MERCADO */}
+                   <p className="text-[11px] font-bold leading-snug text-zinc-600 dark:text-zinc-300 mt-1.5 line-clamp-2 pr-2">
+                       Ibovespa opera em alta impulsionado por NY. Dólar recua para R$ 5,02 aguardando novos dados de inflação.
+                   </p>
                 </div>
             </div>
         </div>
