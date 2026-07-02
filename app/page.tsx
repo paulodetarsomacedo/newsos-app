@@ -5967,8 +5967,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         <div className="optical-glass flex-1 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
           <div className="caustic-glow bg-indigo-500 group-hover:bg-purple-500 transition-colors duration-500"></div>
           <div className="flex items-center gap-4 min-w-0 relative z-10">
-             <div className="w-16 h-16 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
-                <Sparkles size={32} className="text-indigo-600 dark:text-indigo-400" />
+             <div className="w-21 h-21 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
+                <Sparkles size={38} className="text-indigo-600 dark:text-indigo-400" />
              </div>
              <div className="min-w-0">
                 <h4 className={`text-xl font-black tracking-tight mb-1 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
@@ -5985,9 +5985,9 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         <div className="optical-glass w-[260px] xl:w-[320px] shrink-0 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
           <div className="caustic-glow bg-fuchsia-500 group-hover:bg-pink-500 transition-colors duration-500"></div>
           <div className="flex items-center gap-4 min-w-0 relative z-10">
-             <div className="w-16 h-16 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 relative transition-transform group-hover:scale-105">
+             <div className="w-21 h-21 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 relative transition-transform group-hover:scale-105">
                 <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-800 rounded-full shadow-sm"></span>
-                <Headphones size={32} className="text-fuchsia-600 dark:text-fuchsia-400" />
+                <Headphones size={38} className="text-fuchsia-600 dark:text-fuchsia-400" />
              </div>
              <div className="min-w-0">
                 <h4 className={`text-xl font-black tracking-tight mb-1 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
@@ -6003,8 +6003,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         <div className="optical-glass flex-1 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
             <div className="caustic-glow bg-emerald-500 group-hover:bg-green-400 transition-colors duration-500"></div>
             <div className="flex items-center gap-4 min-w-0 w-full relative z-10">
-                <div className="w-16 h-16 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
-                    <TrendingUp size={32} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5}/>
+                <div className="w-21 h-21 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
+                    <TrendingUp size={38} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5}/>
                 </div>
                 <div className="min-w-0 flex-1">
                    <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -6013,9 +6013,20 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Ao Vivo
                        </span>
                    </div>
-                   <p className="text-xs font-bold leading-snug text-zinc-600 dark:text-zinc-300 line-clamp-2 pr-2">
-                       Ibovespa opera em alta impulsionado por NY. Dólar recua para R$ 5,02 aguardando novos dados de inflação.
-                   </p>
+                    <div className="flex flex-col gap-1 mt-1.5 pr-2 w-full">
+                       <div className="flex items-center gap-1.5">
+                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                           <p className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 truncate">
+                               Ibovespa opera em alta impulsionado por NY
+                           </p>
+                       </div>
+                       <div className="flex items-center gap-1.5">
+                           <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                           <p className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 truncate">
+                               Dólar recua para R$ 5,02 aguardando dados
+                           </p>
+                       </div>
+                   </div>
                 </div>
             </div>
         </div>
