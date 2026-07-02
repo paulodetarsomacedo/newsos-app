@@ -5966,7 +5966,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         
         {/* AI DIGEST */}
         {/* Correção de Altura: Trocado min-h por h-[115px] cravado */}
-        <div className="optical-glass flex-1 h-[115px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
+        <div className="optical-glass flex-1 h-[175px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
           <div className="caustic-glow bg-indigo-500 group-hover:bg-purple-500 transition-colors duration-500"></div>
           <div className="flex items-center gap-4 min-w-0 relative z-10">
              <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
@@ -5983,7 +5983,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
 
         {/* PODNEWS */}
-        <div className="optical-glass w-[200px] xl:w-[260px] shrink-0 h-[115px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
+        <div className="optical-glass w-[200px] xl:w-[260px] shrink-0 h-[175px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
           <div className="caustic-glow bg-fuchsia-500 group-hover:bg-pink-500 transition-colors duration-500"></div>
           <div className="flex items-center gap-4 min-w-0 relative z-10">
              <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 relative transition-transform group-hover:scale-105">
@@ -6001,7 +6001,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
 
         {/* MERCADOS HOJE */}
-        <div className="optical-glass flex-1 h-[115px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
+        <div className="optical-glass flex-1 h-[175px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
             <div className="caustic-glow bg-emerald-500 group-hover:bg-green-400 transition-colors duration-500"></div>
             <div className="flex items-center gap-4 min-w-0 w-full relative z-10">
                 <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
