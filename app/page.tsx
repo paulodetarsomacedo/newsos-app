@@ -732,43 +732,35 @@ const fetchMarketData = async () => {
       />}
 
       {/* ===================================================================== */}
-      {/* === HEADER GLOBAL — LIQUID GLASS NAVY PREMIUM (Vetra) =============== */}
-      {/* Tokens dos prints: barra inflada (realce no topo + sheen + sombra     */}
-      {/* suave); cápsulas glossy (.liquid-search-inset); keycap; PRO azul.     */}
-      {/* LÓGICA PRESERVADA: busca, calendário (drag+handleDateChange),         */}
-      {/* aiStatus, isLoading, onOpenSettings. Ticker removido (migra p/ Home). */}
+      {/* === HEADER GLOBAL — OPTICAL CLEAR GLASS 3D ========================== */}
       {/* ===================================================================== */}
-      <div className="liquid-header-navy relative w-full overflow-hidden rounded-[1.9rem]">
-        {/* glow decorativo interno (puramente visual) */}
-        <div className="absolute -top-1/2 left-[18%] w-[40%] h-[180%] bg-blue-400/8 blur-[80px] rounded-full pointer-events-none" />
+      <div className="optical-header-base relative w-full overflow-hidden rounded-[2rem] p-1.5">
+        
+        <div className="relative px-3 sm:px-4 py-3 sm:py-3 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
 
-        <div className="relative px-4 sm:px-6 py-4 sm:py-5 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6">
-
-          {/* ---- MARCA: ícone Vetra + nome + PRO + saudação + data ---- */}
-          <div className="flex items-center gap-3.5 shrink-0">
-            <div className="w-14 h-14 rounded-[1.1rem] bg-gradient-to-br from-white to-zinc-200 flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_22px_-8px_rgba(0,0,0,0.55)] border border-white/50 shrink-0">
-              <VetraMark className="w-8 h-8" />
+          {/* ---- MARCA & SAUDAÇÃO (Pílula 1 - Caustic Blue) ---- */}
+          <div className="optical-pill caustic-blue flex items-center gap-3.5 shrink-0 px-4 py-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-inner shrink-0">
+              <VetraMark className="w-7 h-7 stroke-white" />
             </div>
-            <div className="flex flex-col leading-tight">
-              <div className="flex items-center gap-2.5">
-                <span className="text-2xl font-black tracking-tight text-white">Vetra</span>
-                <span className="liquid-badge-pro px-2.5 py-[3px] rounded-md text-[10px] font-bold uppercase tracking-wider text-white">Pro</span>
+            <div className="flex flex-col leading-tight pr-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">Vetra</span>
+                <span className="bg-gradient-to-r from-blue-500 to-indigo-500 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest text-white shadow-sm">Pro</span>
               </div>
-              {/* saudação dinâmica — MOCK nome "Tiago": trocar por user real */}
               {currentDate && (() => {
                 const h = currentDate.getHours();
                 const g = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
                 const Ico = h < 18 ? Sun : Moon;
                 return (
-                  <span className="mt-1 text-[13px] font-semibold text-white/85 flex items-center gap-1.5">
-                    <Ico size={13} className="text-amber-300" /> {g}, Tiago
+                  <span className="mt-1 text-[11px] font-bold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                    <Ico size={12} className={h < 18 ? "text-amber-500" : "text-indigo-400"} /> {g}, Tiago
                   </span>
                 );
               })()}
-              {/* DATA — tap abre calendário, arrasto troca o dia (lógica original) */}
               {currentDate && (
                 <div
-                  className="cursor-pointer select-none touch-none w-fit"
+                  className="cursor-pointer select-none touch-none w-fit mt-0.5"
                   onMouseDown={(e) => handleDragStart(e.clientX)}
                   onMouseMove={(e) => handleDragMove(e.clientX)}
                   onMouseUp={handleDragEnd}
@@ -778,49 +770,50 @@ const fetchMarketData = async () => {
                   onTouchEnd={handleDragEnd}
                   style={{ transform: `translateX(${dragOffset}px)` }}
                 >
-                  <span className="text-[11px] font-medium text-white/40">{formatDate(currentDate)}</span>
+                  <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">{formatDate(currentDate)}</span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* ---- BUSCA + ASK AI (cápsula glossy, Ask AI dentro) ---- */}
+          {/* ---- BUSCA + ASK AI (Pílula 2 - Caustic Purple) ---- */}
           <div className="flex-1 min-w-0 w-full">
-            <div className="liquid-search-inset flex items-center gap-2.5 h-14 pl-4 pr-2 rounded-2xl">
-              <Search size={19} className="text-white/40 shrink-0" />
+            <div className="optical-pill caustic-purple flex items-center gap-2.5 h-[4.5rem] pl-5 pr-2">
+              <Search size={20} className="text-zinc-400 dark:text-zinc-500 shrink-0" strokeWidth={2.5} />
               <input
                 ref={searchInputRef}
                 type="text"
                 placeholder="Buscar notícias, fontes ou tópicos..."
-                className="flex-1 min-w-0 bg-transparent text-white placeholder:text-white/40 text-[15px] font-medium outline-none"
+                className="flex-1 min-w-0 bg-transparent text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-[15px] font-bold outline-none"
                 onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { if (onSearch) { onSearch(e.target.value); } e.target.value = ''; } }}
               />
-              <span className="liquid-keycap hidden sm:flex items-center gap-1 text-[11px] font-semibold text-white/55 rounded-lg px-2 py-1 shrink-0">⌘ K</span>
-              <div className="hidden sm:block w-px h-7 bg-white/12 mx-1.5 shrink-0" />
-              <button onClick={triggerSearch} className="flex items-center gap-2 pl-2 pr-3.5 py-2.5 rounded-xl hover:bg-white/8 active:scale-95 transition-all shrink-0">
-                <Sparkles size={19} className="text-blue-300" />
-                <span className="text-[15px] font-semibold text-white">Ask AI</span>
+              <span className="optical-keycap hidden sm:flex items-center gap-1 text-[10px] font-black text-zinc-500 dark:text-zinc-400 px-2 py-1 shrink-0 uppercase tracking-widest">⌘ K</span>
+              <div className="hidden sm:block w-px h-8 bg-zinc-200 dark:bg-zinc-700 mx-2 shrink-0" />
+              <button onClick={triggerSearch} className="flex items-center gap-2 px-4 h-12 rounded-xl bg-zinc-900 dark:bg-white hover:scale-105 active:scale-95 transition-all shrink-0 shadow-lg">
+                <Sparkles size={18} className="text-purple-400 dark:text-purple-600" />
+                <span className="text-[13px] font-black text-white dark:text-zinc-900">Ask AI</span>
               </button>
             </div>
           </div>
 
-          {/* ---- STATUS DO SISTEMA + AVATAR ---- */}
-          <div className="flex items-center gap-3.5 shrink-0">
-            <div className="liquid-search-inset hidden sm:flex items-center gap-3 h-14 px-4 rounded-2xl">
+          {/* ---- STATUS DO SISTEMA + AVATAR (Pílula 3 - Caustic Green) ---- */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="optical-pill caustic-green hidden sm:flex items-center gap-3 h-[4.5rem] px-5">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-[0_0_10px_#34d399]" />
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-50 ${isLoading ? 'bg-amber-400' : 'bg-emerald-500'}`} />
+                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isLoading ? 'bg-amber-500 shadow-[0_0_10px_#f59e0b]' : 'bg-emerald-500 shadow-[0_0_10px_#10b981]'}`} />
               </span>
               <div className="flex flex-col leading-tight">
-                <span className="text-[13px] font-bold text-white">{isLoading ? 'Sincronizando…' : 'Sistema ok.'}</span>
-                <span className="text-[11px] text-white/55 truncate max-w-[150px]">{isLoading ? aiStatus : 'Todos os serviços'}</span>
+                <span className="text-[13px] font-black text-zinc-900 dark:text-white">{isLoading ? 'Sincronizando' : 'Sistema ok'}</span>
+                <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider truncate max-w-[130px]">{isLoading ? aiStatus : 'Todos os serviços'}</span>
               </div>
             </div>
-            {/* avatar abre Configurações (onOpenSettings preservado) */}
-            <button onClick={onOpenSettings} className="w-14 h-14 rounded-full overflow-hidden border-2 border-white/15 shadow-[0_8px_18px_-8px_rgba(0,0,0,0.6)] hover:scale-105 transition-transform shrink-0">
+            
+            <button onClick={onOpenSettings} className="w-[4.5rem] h-[4.5rem] rounded-2xl overflow-hidden border-[3px] border-white dark:border-zinc-800 shadow-[0_8px_16px_rgba(0,0,0,0.15)] hover:scale-105 transition-transform shrink-0">
               <img src="https://ui-avatars.com/api/?name=Tiago&background=1e3a8a&color=fff&bold=true" className="w-full h-full object-cover" alt="User" />
             </button>
           </div>
+          
         </div>
       </div>
     </div>
