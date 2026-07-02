@@ -4637,71 +4637,50 @@ const VetraPremiumClusterCard = React.memo(function VetraPremiumClusterCard({ cl
 
 
 const MudouAgoraHorizontal = ({ isDarkMode }) => (
-  <div className={`
-    w-full flex items-center p-2 px-3 gap-4 overflow-hidden h-[4.2rem] rounded-[1.4rem] relative
-    border shadow-xl backdrop-blur-[40px] transition-all duration-300
-    ${isDarkMode 
-      ? 'bg-zinc-900/40 border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.5)]' 
-      : 'bg-white/60 border-white/80 shadow-[0_8px_30px_rgba(0,0,0,0.06)]'}
-  `}>
-    {/* Soft Ambient Glow Overlay */}
-    <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 via-orange-500/5 to-transparent pointer-events-none"></div>
-
-    {/* Pulse Indicator (Left) */}
-    <div className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 shrink-0 relative z-10">
-        <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-            </span>
-            <span className="text-[9px] font-black uppercase text-red-600 dark:text-red-400 tracking-widest leading-none">Ao Vivo</span>
+  <div className="w-full flex items-center gap-3 overflow-hidden h-[4.5rem] relative">
+    
+    {/* Bloco Título Fixo (Vidro Sólido) */}
+    <div className="optical-glass flex flex-col items-center justify-center px-4 h-full shrink-0 relative z-10">
+        <div className="caustic-glow bg-red-500 w-[150%] h-[150%]"></div>
+        <div className="relative z-10 flex flex-col items-center">
+            <div className="flex items-center gap-1.5 mb-1">
+                <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600 dark:bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                </span>
+                <span className="text-[10px] font-black uppercase text-red-600 dark:text-red-400 tracking-[0.2em] leading-none">Ao Vivo</span>
+            </div>
+            <span className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 leading-none">Radar Vetra</span>
         </div>
-        <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300 leading-none">Radar Vetra</span>
     </div>
 
-    <div className="w-px h-8 bg-black/10 dark:bg-white/10 shrink-0 relative z-10"></div>
-    
-    {/* Scrolling content */}
-    <div className="flex justify-start items-center flex-1 min-w-0 overflow-x-auto scrollbar-hide gap-5 relative z-10 h-full">
+    {/* Itens com rolagem (Pílulas de Vidro Transparente da Imagem) */}
+    <div className="flex justify-start items-center flex-1 min-w-0 overflow-x-auto scrollbar-hide gap-3 relative z-10 h-full py-1">
       
-      {/* Item 1: Dólar */}
-      <div className="flex items-center gap-2.5 shrink-0 bg-white/40 dark:bg-black/20 pr-3 rounded-xl border border-white/40 dark:border-white/5 transition-transform hover:scale-105 cursor-pointer">
-        <div className="w-8 h-8 rounded-l-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border-r border-white/40 dark:border-white/5">
-            <TrendingUp size={14} strokeWidth={2.5}/>
+      {/* Pílula 1 */}
+      <div className="optical-glass h-full flex items-center gap-3 shrink-0 pr-4 pl-1 hover:scale-105 cursor-pointer">
+        <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+            <TrendingUp size={16} strokeWidth={2.5}/>
         </div>
-        <div className="flex flex-col py-1">
-          <div className="flex items-center gap-1.5">
-              <span className={`text-[11px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Dólar R$ 5,12</span>
-              <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">+1.2%</span>
+        <div className="flex flex-col justify-center">
+          <div className="flex items-center gap-1.5 mb-0.5">
+              <span className={`text-[12px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Dólar Dispara</span>
+              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">AGORA</span>
           </div>
-          <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">Pico agora em 8 fontes</span>
+          <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">Pico registrado em 8 fontes</span>
         </div>
       </div>
 
-      {/* Item 2: STF */}
-      <div className="flex items-center gap-2.5 shrink-0 bg-white/40 dark:bg-black/20 pr-3 rounded-xl border border-white/40 dark:border-white/5 transition-transform hover:scale-105 cursor-pointer">
-        <div className="w-8 h-8 rounded-l-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border-r border-white/40 dark:border-white/5">
-            <Activity size={14} strokeWidth={2.5}/>
+      {/* Pílula 2 */}
+      <div className="optical-glass h-full flex items-center gap-3 shrink-0 pr-4 pl-1 hover:scale-105 cursor-pointer">
+        <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center justify-center text-blue-600 dark:text-blue-400">
+            <Activity size={16} strokeWidth={2.5}/>
         </div>
-        <div className="flex flex-col py-1">
-          <div className="flex items-center gap-1.5">
-              <span className={`text-[11px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Decisão do STF</span>
-              <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400">URGENTE</span>
+        <div className="flex flex-col justify-center">
+          <div className="flex items-center gap-1.5 mb-0.5">
+              <span className={`text-[12px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Decisão do STF</span>
           </div>
-          <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">G1 e CNN · 2m atrás</span>
-        </div>
-      </div>
-
-      {/* Item 3: Tech */}
-      <div className="flex items-center gap-2.5 shrink-0 bg-white/40 dark:bg-black/20 pr-3 rounded-xl border border-white/40 dark:border-white/5 transition-transform hover:scale-105 cursor-pointer">
-        <div className="w-8 h-8 rounded-l-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center border-r border-white/40 dark:border-white/5">
-            <Zap size={14} strokeWidth={2.5}/>
-        </div>
-        <div className="flex flex-col py-1">
-          <div className="flex items-center gap-1.5">
-              <span className={`text-[11px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Apple Vision Pro</span>
-          </div>
-          <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">Dominando cadernos Tech</span>
+          <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">G1 e CNN cobrindo · 2m atrás</span>
         </div>
       </div>
 
@@ -5960,67 +5939,63 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         />
       </div>
     
-      {/* 4. BASE PREMIUM: As 3 Ferramentas alinhadas na mesma linha (FLEX ROW) */}
-      <div className="shrink-0 flex flex-row items-center gap-3 px-4 mt-2 w-full">
+   {/* 4. BASE PREMIUM OPTICAL GLASS: Ferramentas flutuando sobre a grade */}
+      <div className="shrink-0 flex flex-row items-center gap-4 px-4 mt-3 w-full">
         
-        {/* AI DIGEST (flex-1 para expandir) */}
-        <div className="true-liquid-glass flex-1 min-h-[80px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-indigo-500/60 transition-colors" onClick={() => setShowDigest(v => !v)}>
-          <div className="flex items-center gap-3 min-w-0">
-             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shrink-0">
-                <Sparkles size={18} className="text-white" />
+        {/* AI DIGEST */}
+        <div className="optical-glass flex-1 min-h-[85px] p-3 px-4 flex items-center justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
+          <div className="caustic-glow bg-indigo-500 group-hover:bg-purple-500 transition-colors duration-500"></div>
+          <div className="flex items-center gap-3 min-w-0 relative z-10">
+             {/* O botão interno SÓLIDO (regra 2 da imagem) */}
+             <div className="w-11 h-11 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700">
+                <Sparkles size={20} className="text-indigo-600 dark:text-indigo-400" />
              </div>
              <div className="min-w-0">
-                <h4 className={`text-sm font-bold mb-0.5 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
-                <p className={`text-[9px] uppercase tracking-wider font-bold opacity-50 truncate`}>Resumo do dia</p>
+                <h4 className={`text-[15px] font-black tracking-tight mb-0.5 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
+                <p className={`text-[9px] uppercase tracking-wider font-bold opacity-60 truncate`}>Resumo do dia</p>
              </div>
           </div>
-          <div className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors shrink-0">
-             <ChevronRight size={14} className={showDigest ? 'rotate-90' : ''} />
+          <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner relative z-10 shrink-0">
+             <ChevronRight size={16} className={showDigest ? 'rotate-90' : ''} />
           </div>
         </div>
 
-        {/* PODNEWS (Fixado um tamanho central) */}
-        <div className="true-liquid-glass w-[180px] xl:w-[220px] shrink-0 min-h-[80px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-fuchsia-500/60 transition-colors" onClick={() => onOpenPodNews && onOpenPodNews()}>
-          <div className="flex items-center gap-3 min-w-0">
-             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative shrink-0">
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
-                <Headphones size={18} className="text-white" />
+        {/* PODNEWS */}
+        <div className="optical-glass w-[180px] xl:w-[240px] shrink-0 min-h-[85px] p-3 px-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
+          <div className="caustic-glow bg-fuchsia-500 group-hover:bg-pink-500 transition-colors duration-500"></div>
+          <div className="flex items-center gap-3 min-w-0 relative z-10">
+             <div className="w-11 h-11 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 relative">
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-zinc-800 rounded-full shadow-sm"></span>
+                <Headphones size={20} className="text-fuchsia-600 dark:text-fuchsia-400" />
              </div>
              <div className="min-w-0">
-                <h4 className={`text-sm font-bold mb-0.5 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
-                <p className={`text-[9px] uppercase tracking-wider font-bold opacity-50 truncate`}>Áudio pronto</p>
+                <h4 className={`text-[15px] font-black tracking-tight mb-0.5 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
+                <p className={`text-[9px] uppercase tracking-wider font-bold opacity-60 truncate`}>Áudio pronto</p>
              </div>
           </div>
-          <div className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-500 group-hover:text-white transition-colors shrink-0">
-             <Play size={12} fill="currentColor" className="ml-0.5" />
+          <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-600 group-hover:text-white transition-all shadow-inner relative z-10 shrink-0">
+             <Play size={14} fill="currentColor" className="ml-0.5" />
           </div>
         </div>
 
-   {/* MERCADOS HOJE (Mini-Dashboard Funcional) */}
-        <div className="true-liquid-glass flex-1 min-h-[80px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-emerald-500/60 transition-all duration-300" onClick={() => setIsMarketModalOpen(true)}>
-            <div className="flex items-center gap-3 min-w-0 w-full">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] group-hover:scale-105 transition-transform">
-                    <TrendingUp size={22} strokeWidth={2.5} />
+        {/* MERCADOS HOJE */}
+        <div className="optical-glass flex-1 min-h-[85px] p-3 px-4 flex items-center justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
+            <div className="caustic-glow bg-emerald-500 group-hover:bg-green-400 transition-colors duration-500"></div>
+            <div className="flex items-center gap-3 min-w-0 w-full relative z-10">
+                <div className="w-11 h-11 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700">
+                    <TrendingUp size={20} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5}/>
                 </div>
                 <div className="min-w-0 flex-1">
                    <div className="flex items-center justify-between gap-2 mb-1">
-                       <h4 className={`text-[14px] font-black tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h4>
-                       <span className="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Aberto
+                       <h4 className={`text-[15px] font-black tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados</h4>
+                       <span className="px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/50 text-[8px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1 shrink-0 shadow-sm">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Ao Vivo
                        </span>
                    </div>
                    <div className="flex items-end justify-between w-full">
-                       <div className="flex items-center gap-3 text-[11px] font-bold text-zinc-600 dark:text-zinc-400 truncate">
-                          <span className="flex items-center gap-1">IBOV <span className="text-emerald-600 dark:text-emerald-400">128.5k</span></span>
-                          <span className="flex items-center gap-1">USD <span className="text-rose-600 dark:text-rose-400">5,02</span></span>
-                       </div>
-                       
-                       {/* Mini visual bars (CSS) p/ dar ar de Dashboard Real-time */}
-                       <div className="flex items-end gap-[3px] h-4 opacity-60 group-hover:opacity-100 transition-opacity">
-                           <div className="w-1.5 h-2 bg-zinc-300 dark:bg-zinc-600 rounded-sm"></div>
-                           <div className="w-1.5 h-3 bg-zinc-300 dark:bg-zinc-600 rounded-sm"></div>
-                           <div className="w-1.5 h-1.5 bg-zinc-300 dark:bg-zinc-600 rounded-sm"></div>
-                           <div className="w-1.5 h-4 bg-emerald-500 rounded-sm shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+                       <div className="flex items-center gap-3 text-[11px] font-black text-zinc-600 dark:text-zinc-300 truncate">
+                          <span className="flex items-center gap-1">IBOV <span className="text-emerald-600 dark:text-emerald-400">+0.4%</span></span>
+                          <span className="flex items-center gap-1">USD <span className="text-rose-600 dark:text-rose-400">-0.2%</span></span>
                        </div>
                    </div>
                 </div>
@@ -9631,8 +9606,8 @@ const handleOpenGlassBrowser = (article) => {
 
 
 return (
-    // ESTRUTURA PRINCIPAL AGORA É FLEX PARA ACOMODAR O PAINEL LATERAL
-    <div className={`h-[100dvh] font-sans flex overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>      
+    // ESTRUTURA PRINCIPAL COM O NOVO BACKGROUND TECHNICAL GRID
+    <div className={`bg-technical-grid h-[100dvh] font-sans flex overflow-hidden selection:bg-blue-500/30 transition-colors duration-500 ${isDarkMode ? 'bg-slate-900 text-zinc-100' : 'bg-slate-100 text-zinc-900'}`}>   
       
       {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} durationMs={hasMeaningfulSnapshot(visibleSnapshotRef.current) ? 1500 : 6800} hasWarmSnapshot={hasMeaningfulSnapshot(visibleSnapshotRef.current)} ready={realNews.length > 0} />}
       
