@@ -5982,7 +5982,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
 
         {/* PODNEWS */}
         {/* Largura aumentada de w-[200px] para w-[260px] para o texto respirar */}
-        <div className="optical-glass w-[260px] xl:w-[320px] shrink-0 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
+        <div className="optical-glass w-[330px] xl:w-[320px] shrink-0 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
           <div className="caustic-glow bg-fuchsia-500 group-hover:bg-pink-500 transition-colors duration-500"></div>
           <div className="flex items-center gap-4 min-w-0 relative z-10">
              <div className="w-21 h-21 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 relative transition-transform group-hover:scale-105">
