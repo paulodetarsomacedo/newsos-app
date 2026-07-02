@@ -5896,14 +5896,17 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                       {it.t}
                   </span>
                   
-           {/* Nova Régua: A barra e os textos abaixo dela */}
+         {/* Nova Régua Premium + Visual Badge */}
                   <div className="flex flex-col items-end gap-1.5 w-full">
-                      <div className="w-full h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700/50 overflow-hidden shadow-inner border border-black/5 dark:border-white/5">
-                          <div className="h-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400" style={{ width: `${it.v}%` }} />
+                      <div className="w-full h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden shadow-inner border border-black/5 dark:border-white/5 relative">
+                          <div 
+                              className="absolute inset-y-0 left-0 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 shadow-[0_0_12px_rgba(249,115,22,0.6)]" 
+                              style={{ width: `${Math.min(100, Math.max(15, it.v))}%` }} 
+                          />
                       </div>
-                      <small className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-right leading-none uppercase tracking-widest">
-                          {numFontes} FONTES • {numManchetes} MANCHETES
-                      </small>
+                      <div className="flex items-center gap-1 text-[8px] font-black tracking-widest uppercase text-orange-600 dark:text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded shadow-sm border border-orange-500/20">
+                          <Activity size={10} className="text-orange-500" /> Em Alta
+                      </div>
                   </div>
                 </button>
                )
