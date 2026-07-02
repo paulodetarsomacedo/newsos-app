@@ -5960,63 +5960,60 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         />
       </div>
     
- {/* 4. BASE PREMIUM OPTICAL GLASS: Ferramentas flutuando sobre a grade */}
-      {/* Correção do Espaço: Trocado mt-3 por -mt-3. Correção da Altura: items-stretch */}
+{/* 4. BASE PREMIUM OPTICAL GLASS: Ferramentas flutuando sobre a grade */}
       <div className="shrink-0 flex flex-row items-stretch gap-4 px-4 -mt-3 w-full">
         
         {/* AI DIGEST */}
-        {/* Correção de Altura: Trocado min-h por h-[115px] cravado */}
-        <div className="optical-glass flex-1 h-[115px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
+        <div className="optical-glass flex-1 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
           <div className="caustic-glow bg-indigo-500 group-hover:bg-purple-500 transition-colors duration-500"></div>
           <div className="flex items-center gap-4 min-w-0 relative z-10">
-             <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
-                <Sparkles size={26} className="text-indigo-600 dark:text-indigo-400" />
+             <div className="w-16 h-16 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
+                <Sparkles size={32} className="text-indigo-600 dark:text-indigo-400" />
              </div>
              <div className="min-w-0">
-                <h4 className={`text-lg font-black tracking-tight mb-1 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
-                <p className="text-[11px] uppercase tracking-widest font-bold opacity-60 truncate">Resumo do dia</p>
+                <h4 className={`text-xl font-black tracking-tight mb-1 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
+                <p className="text-xs uppercase tracking-widest font-bold opacity-60 truncate">Resumo do dia</p>
              </div>
           </div>
-          <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner relative z-10 shrink-0">
-             <ChevronRight size={20} className={showDigest ? 'rotate-90' : ''} />
+          <div className="w-12 h-12 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner relative z-10 shrink-0">
+             <ChevronRight size={24} className={showDigest ? 'rotate-90' : ''} />
           </div>
         </div>
 
         {/* PODNEWS */}
-        <div className="optical-glass w-[200px] xl:w-[260px] shrink-0 h-[115px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
+        {/* Largura aumentada de w-[200px] para w-[260px] para o texto respirar */}
+        <div className="optical-glass w-[260px] xl:w-[320px] shrink-0 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
           <div className="caustic-glow bg-fuchsia-500 group-hover:bg-pink-500 transition-colors duration-500"></div>
           <div className="flex items-center gap-4 min-w-0 relative z-10">
-             <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 relative transition-transform group-hover:scale-105">
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-800 rounded-full shadow-sm"></span>
-                <Headphones size={26} className="text-fuchsia-600 dark:text-fuchsia-400" />
+             <div className="w-16 h-16 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 relative transition-transform group-hover:scale-105">
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-800 rounded-full shadow-sm"></span>
+                <Headphones size={32} className="text-fuchsia-600 dark:text-fuchsia-400" />
              </div>
              <div className="min-w-0">
-                <h4 className={`text-lg font-black tracking-tight mb-1 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
-                <p className="text-[11px] uppercase tracking-widest font-bold opacity-60 truncate">Áudio pronto</p>
+                <h4 className={`text-xl font-black tracking-tight mb-1 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
+                <p className="text-xs uppercase tracking-widest font-bold opacity-60 truncate">Áudio pronto</p>
              </div>
           </div>
-          <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-600 group-hover:text-white transition-all shadow-inner relative z-10 shrink-0">
-             <Play size={18} fill="currentColor" className="ml-0.5" />
+          <div className="w-12 h-12 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-600 group-hover:text-white transition-all shadow-inner relative z-10 shrink-0">
+             <Play size={20} fill="currentColor" className="ml-1" />
           </div>
         </div>
 
         {/* MERCADOS HOJE */}
-        <div className="optical-glass flex-1 h-[115px] p-4 flex items-center justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
+        <div className="optical-glass flex-1 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
             <div className="caustic-glow bg-emerald-500 group-hover:bg-green-400 transition-colors duration-500"></div>
             <div className="flex items-center gap-4 min-w-0 w-full relative z-10">
-                <div className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
-                    <TrendingUp size={26} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5}/>
+                <div className="w-16 h-16 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
+                    <TrendingUp size={32} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5}/>
                 </div>
                 <div className="min-w-0 flex-1">
-                   <div className="flex items-center justify-between gap-2 mb-1">
-                       <h4 className={`text-lg font-black tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados</h4>
-                       <span className="px-2 py-0.5 rounded border border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/50 text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 shrink-0 shadow-sm">
+                   <div className="flex items-center justify-between gap-2 mb-1.5">
+                       <h4 className={`text-xl font-black tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados</h4>
+                       <span className="px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/50 text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 shrink-0 shadow-sm">
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Ao Vivo
                        </span>
                    </div>
-                   
-                   {/* NOVO RESUMO DO MERCADO */}
-                   <p className="text-[11px] font-bold leading-snug text-zinc-600 dark:text-zinc-300 mt-1.5 line-clamp-2 pr-2">
+                   <p className="text-xs font-bold leading-snug text-zinc-600 dark:text-zinc-300 line-clamp-2 pr-2">
                        Ibovespa opera em alta impulsionado por NY. Dólar recua para R$ 5,02 aguardando novos dados de inflação.
                    </p>
                 </div>
