@@ -4637,8 +4637,8 @@ const VetraPremiumClusterCard = React.memo(function VetraPremiumClusterCard({ cl
 
 
 const MudouAgoraHorizontal = ({ isDarkMode }) => (
-  <div className="true-liquid-glass w-full flex items-center p-3 px-5 gap-5 overflow-hidden h-[4.5rem]">
-    <div className="flex items-center gap-2 pr-5 border-r border-black/10 dark:border-white/10 shrink-0">
+  <div className="true-liquid-glass w-full flex items-center p-3 px-5 gap-6 overflow-hidden h-[4.5rem]">
+    <div className="flex items-center gap-2 pr-6 border-r border-black/10 dark:border-white/10 shrink-0">
       <div className="relative flex h-2.5 w-2.5">
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
@@ -4648,26 +4648,64 @@ const MudouAgoraHorizontal = ({ isDarkMode }) => (
       </span>
     </div>
     
-    <div className="flex gap-8 overflow-x-auto scrollbar-hide items-center flex-nowrap w-full">
-      <div className="flex items-center gap-2 shrink-0">
+    {/* Lista flexível ocupando todo o resto do espaço */}
+    <div className="flex justify-between items-center flex-1 min-w-0 overflow-x-auto scrollbar-hide gap-8 pr-2">
+      <div className="flex items-center gap-2.5 shrink-0">
         <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
         <div className="flex flex-col">
-          <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">12 min atrás</span>
-          <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Dólar</b> disparou em 8 novas fontes</span>
+          <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-0.5">12 min atrás</span>
+          <span className={`text-[13px] font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Dólar</b> disparou em 8 novas fontes</span>
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2.5 shrink-0">
         <div className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
         <div className="flex flex-col">
-          <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">28 min atrás</span>
-          <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Caso STF</b> teve avanço de consenso</span>
+          <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-0.5">28 min atrás</span>
+          <span className={`text-[13px] font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Caso STF</b> teve avanço de consenso</span>
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2.5 shrink-0">
         <div className="w-2 h-2 bg-purple-500 rounded-full shadow-[0_0_8px_rgba(168,85,247,0.8)]"></div>
         <div className="flex flex-col">
-          <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest">Acelerando</span>
-          <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Apple</b> lidera temas de tecnologia</span>
+          <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-0.5">Acelerando</span>
+          <span className={`text-[13px] font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Apple</b> lidera temas de tecnologia</span>
+        </div>
+      </div>
+    </div>
+  </div>
+);const MudouAgoraHorizontal = ({ isDarkMode }) => (
+  <div className="true-liquid-glass w-full flex items-center p-3 px-5 gap-6 overflow-hidden h-[4.5rem]">
+    <div className="flex items-center gap-2 pr-6 border-r border-black/10 dark:border-white/10 shrink-0">
+      <div className="relative flex h-2.5 w-2.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
+      </div>
+      <span className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest leading-none">
+        Mudou<br/>Agora
+      </span>
+    </div>
+    
+    {/* Lista flexível ocupando todo o resto do espaço */}
+    <div className="flex justify-between items-center flex-1 min-w-0 overflow-x-auto scrollbar-hide gap-8 pr-2">
+      <div className="flex items-center gap-2.5 shrink-0">
+        <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+        <div className="flex flex-col">
+          <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-0.5">12 min atrás</span>
+          <span className={`text-[13px] font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Dólar</b> disparou em 8 novas fontes</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2.5 shrink-0">
+        <div className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
+        <div className="flex flex-col">
+          <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-0.5">28 min atrás</span>
+          <span className={`text-[13px] font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Caso STF</b> teve avanço de consenso</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2.5 shrink-0">
+        <div className="w-2 h-2 bg-purple-500 rounded-full shadow-[0_0_8px_rgba(168,85,247,0.8)]"></div>
+        <div className="flex flex-col">
+          <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-0.5">Acelerando</span>
+          <span className={`text-[13px] font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Apple</b> lidera temas de tecnologia</span>
         </div>
       </div>
     </div>
@@ -4675,7 +4713,6 @@ const MudouAgoraHorizontal = ({ isDarkMode }) => (
 );
 
 function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters, headerLeft }) {
-  const [loading, setLoading] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const [selectedCluster, setSelectedCluster] = useState(null);
   const carouselRef = useRef(null);
@@ -4685,20 +4722,6 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
     const base = clusters && clusters.length > 0 ? clusters : heuristicClusters;
     return (base || []).filter(c => normalizeClusterArticles(c).length > 0).slice(0, 12);
   }, [clusters, heuristicClusters]);
-
-  const runAI = async () => {
-    const currentApiKey = getApiKey?.('widgets');
-    if (!currentApiKey || !news || news.length < 10) {
-      alert('Aguarde o carregamento das notícias ou configure a API Key.');
-      return;
-    }
-    setLoading(true);
-    setClusters?.(null);
-    const result = await generateSmartClustering(news, currentApiKey, 300);
-    if (result) setClusters?.(result);
-    else alert('IA indisponível no momento. Mantendo clusters heurísticos.');
-    setLoading(false);
-  };
 
   const goToSlide = (idx) => {
     const el = carouselRef.current;
@@ -4748,12 +4771,9 @@ function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clus
 
   return (
     <section className="vetra-clusters-section vetra-premium-cluster-section w-full">
-      {/* NOVO HEADER: Acomoda o componente "Mudou Agora" na esquerda e o botão na direita */}
-      <div className="flex items-center justify-between gap-4 w-full px-4 mb-4">
-          {headerLeft && <div className="flex-1 min-w-0">{headerLeft}</div>}
-          <button onClick={runAI} className="vetra-see-all-button shrink-0">
-            {loading ? <Loader2 size={17} className="animate-spin"/> : <span>Ver todos os clusters</span>} <ArrowRight size={18}/>
-          </button>
+      {/* HEADER DINÂMICO 100% WIDTH (Injeta o Mudou Agora sem o botão da IA) */}
+      <div className="w-full px-4 mb-3">
+          {headerLeft && headerLeft}
       </div>
 
       <div ref={carouselRef} onScroll={onCarouselScroll} className="vetra-premium-cluster-rail scrollbar-hide">
@@ -5841,8 +5861,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [selectedTrendingTopic, setSelectedTrendingTopic] = useState(null);
 
   return (
-    // Padding Bottom de 160px (pb-40) garante que Mercado Hoje não bata na Dock de navegação iOS
-    <div className="animate-in fade-in duration-700 pb-40 min-h-screen touch-pan-y"
+    <div className="animate-in fade-in duration-700 h-[100dvh] overflow-y-auto overflow-x-hidden flex flex-col pb-32 touch-pan-y"
          onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>      
       
       {/* Indicador de Refresh */}
@@ -5853,7 +5872,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       </div>
       
       {/* 1. STORIES */}
-      <div className="px-4 relative z-10 pt-1">
+      <div className="px-4 relative z-10 shrink-0 pt-1 mb-3">
         <div className="flex space-x-4 overflow-x-auto pb-1 scrollbar-hide snap-x items-center">
             {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).map((story) => (
                 <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-1.5 snap-center cursor-pointer group flex-shrink-0">
@@ -5868,18 +5887,18 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
       </div>
 
-      {/* 2. O PULSO (Top Grid com 2 Colunas Fiéis aos Prints 1 e 2) */}
-      <div className="vetra-home-top-grid px-4">
+      {/* 2. O PULSO (Apenas Destaques e Trending Lado a Lado) */}
+      <div className="vetra-home-top-grid shrink-0 mb-6 px-4">
         
-        {/* DESTAQUES */}
+        {/* DESTAQUES (Botão "Ver Todos" removido) */}
         <section className="vetra-breaking-panel">
-          <div className="vetra-breaking-title"><Zap size={20} fill="currentColor" /> <span>NOTÍCIAS EM DESTAQUE</span></div>
+          <div className="vetra-breaking-title"><Zap size={18} fill="currentColor" /> <span>NOTÍCIAS EM DESTAQUE</span></div>
           <div className="vetra-breaking-list">
             {(breakingHighlights || []).slice(0, 3).map((n, i) => {
               const mins = Math.max(1, Math.round((Date.now() - new Date(n.rawDate || Date.now()).getTime()) / 60000));
               const rel = mins < 60 ? `há ${mins} min` : `há ${Math.round(mins / 60)}h`;
               return (
-                <button key={n.id || i} onClick={() => openArticle(n)} className="vetra-breaking-row group">
+                <div key={n.id || i} onClick={() => openArticle(n)} className="vetra-breaking-row group cursor-pointer">
                   <span className="vetra-breaking-rank">{i + 1}</span>
                   <span className="vetra-breaking-thumb"><img src={n.img} onError={(e) => e.currentTarget.style.display='none'} alt="" /></span>
                   <span className="vetra-breaking-copy">
@@ -5887,23 +5906,20 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                     <small>{stripClusterText(n.summary || '').slice(0, 75)}</small>
                   </span>
                   <em>{rel}</em>
-                </button>
+                </div>
               );
             })}
           </div>
-          <button className="vetra-breaking-more" onClick={() => onTriggerWidgetRotation && onTriggerWidgetRotation()}>
-            <span>Ver todas as notícias em destaque</span> <ChevronRight size={18}/>
-          </button>
         </section>
 
-        {/* TRENDING */}
+        {/* TRENDING (Botão "Ver Todos" removido) */}
         <section className="vetra-trending-panel-home">
-          <div className="vetra-trending-title"><Activity size={20} fill="currentColor" /> <span>TRENDING AGORA</span></div>
+          <div className="vetra-trending-title"><Activity size={18} fill="currentColor" /> <span>TRENDING AGORA</span></div>
           <div className="vetra-trending-list-home">
-            {(trendingTopics.length ? trendingTopics : [{ t: 'Coletando...', n: '', v: 35 }]).slice(0,5).map((it, i) => {
+            {(trendingTopics.length ? trendingTopics : [{ t: 'Coletando...', n: '', v: 35 }]).slice(0,4).map((it, i) => {
                const [fontes, manchetes] = (it.n || "").split('·').map(s => s.trim());
                return (
-                <button key={it.t} onClick={() => setSelectedTrendingTopic(it)} className="vetra-trending-row-home group">
+                <div key={it.t} onClick={() => setSelectedTrendingTopic(it)} className="vetra-trending-row-home group cursor-pointer">
                   <strong>{i + 1}</strong>
                   <span>{it.t}</span>
                   <small>
@@ -5911,13 +5927,10 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                       <span>{manchetes || ""}</span>
                   </small>
                   <i><b style={{ width: `${it.v}%` }} /></i>
-                </button>
+                </div>
                )
             })}
           </div>
-          <button className="vetra-trending-more-home" onClick={() => trendingTopics[0] && setSelectedTrendingTopic({ ...trendingTopics[0], showAll: true })}>
-            <span>Ver todos os assuntos em alta</span> <ChevronRight size={18}/>
-          </button>
         </section>
 
       </div>
@@ -5927,7 +5940,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       )}
       
       {/* 3. OS REIS (Clusters com Mudou Agora injetado no Header) */}
-      <div className="mt-8">
+      <div className="shrink-0 relative flex flex-col mb-4">
         <WhileYouWereAwayWidget 
           news={newsData} 
           openArticle={openArticle} 
@@ -5940,52 +5953,52 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         />
       </div>
     
-      {/* 4. FERRAMENTAS DE IA (Liquid Glass Premium Imagem 3, Taller) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 mt-6">
+      {/* 4. FERRAMENTAS DE IA E MERCADO (Liquid Glass Premium, margens curtas) */}
+      <div className="shrink-0 flex flex-col gap-4 px-4">
         
-        {/* AI DIGEST */}
-        <div className="true-liquid-glass min-h-[110px] p-5 flex items-center justify-between cursor-pointer group hover:border-indigo-500/60 transition-colors" onClick={() => setShowDigest(v => !v)}>
-          <div className="flex items-center gap-5">
-             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-                <Sparkles size={24} className="text-white" />
-             </div>
-             <div>
-                <h4 className={`text-lg font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
-                <p className={`text-sm ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>Resumo inteligente do dia</p>
-             </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* AI DIGEST */}
+          <div className="true-liquid-glass min-h-[100px] p-5 flex items-center justify-between cursor-pointer group hover:border-indigo-500/60 transition-colors" onClick={() => setShowDigest(v => !v)}>
+            <div className="flex items-center gap-5">
+               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                  <Sparkles size={24} className="text-white" />
+               </div>
+               <div>
+                  <h4 className={`text-lg font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
+                  <p className={`text-sm ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>Resumo inteligente do dia</p>
+               </div>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+               <ChevronRight size={20} className={showDigest ? 'rotate-90' : ''} />
+            </div>
           </div>
-          <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-             <ChevronRight size={20} className={showDigest ? 'rotate-90' : ''} />
+
+          {/* PODNEWS */}
+          <div className="true-liquid-glass min-h-[100px] p-5 flex items-center justify-between cursor-pointer group hover:border-fuchsia-500/60 transition-colors" onClick={() => onOpenPodNews && onOpenPodNews()}>
+            <div className="flex items-center gap-5">
+               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative">
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
+                  <Headphones size={24} className="text-white" />
+               </div>
+               <div>
+                  <h4 className={`text-lg font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
+                  <p className={`text-sm ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>Resumo diário em áudio</p>
+               </div>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-500 group-hover:text-white transition-colors">
+               <Play size={18} fill="currentColor" className="ml-0.5" />
+            </div>
           </div>
         </div>
 
-        {/* PODNEWS */}
-        <div className="true-liquid-glass min-h-[110px] p-5 flex items-center justify-between cursor-pointer group hover:border-fuchsia-500/60 transition-colors" onClick={() => onOpenPodNews && onOpenPodNews()}>
-          <div className="flex items-center gap-5">
-             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative">
-                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
-                <Headphones size={24} className="text-white" />
-             </div>
-             <div>
-                <h4 className={`text-lg font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
-                <p className={`text-sm ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>Resumo diário em áudio</p>
-             </div>
+        {showDigest && (
+          <div className="mt-1">
+            <SmartDigestWidget newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} openArticle={openArticle} />
           </div>
-          <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-500 group-hover:text-white transition-colors">
-             <Play size={18} fill="currentColor" className="ml-0.5" />
-          </div>
-        </div>
-      </div>
+        )}
 
-      {showDigest && (
-        <div className="px-4 mt-2">
-          <SmartDigestWidget newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} openArticle={openArticle} />
-        </div>
-      )}
-
-      {/* 5. MERCADOS HOJE (Barra Liquid Glass Taller) */}
-      <div className="px-4 mt-4">
-         <div className="true-liquid-glass min-h-[110px] p-5 flex items-center justify-between cursor-pointer group hover:border-emerald-500/60 transition-colors" onClick={() => setIsMarketModalOpen(true)}>
+        {/* MERCADOS HOJE */}
+        <div className="true-liquid-glass min-h-[100px] p-5 flex items-center justify-between cursor-pointer group hover:border-emerald-500/60 transition-colors" onClick={() => setIsMarketModalOpen(true)}>
             <div className="flex items-center gap-5">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 flex items-center justify-center">
                     <TrendingUp size={28} />
@@ -6006,7 +6019,8 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             <div className="hidden sm:flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 group-hover:text-emerald-500 transition-colors">
                 ABRIR PAINEL <ArrowUpRight size={18} />
             </div>
-         </div>
+        </div>
+
       </div>
 
       {/* MODAL MERCADOS HOJE */}
@@ -6027,7 +6041,6 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     </div>
   );
 }
-
 
 // ==========================================================
 // === SUBSTITUA SUA FUNÇÃO "BancaTab" INTEIRA POR ESTA ===
