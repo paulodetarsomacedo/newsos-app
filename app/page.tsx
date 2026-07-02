@@ -5792,7 +5792,6 @@ function TrendingTopicModal({ topic, allTopics = [], onClose, openArticle }) {
 }
 
 
-
 function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters, onOpenPodNews }) { 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showDigest, setShowDigest] = useState(false);
@@ -5822,9 +5821,17 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const trendingTopics = useMemo(() => computeTrendingTopics(newsData || []), [newsData]);
   const [selectedTrendingTopic, setSelectedTrendingTopic] = useState(null);
 
+  // Helper para cor de temperatura da Trend
+  const getTrendColor = (score) => {
+      if (score >= 80) return isDarkMode ? '#f87171' : '#dc2626'; // Red
+      if (score >= 60) return isDarkMode ? '#fb923c' : '#ea580c'; // Orange
+      if (score >= 40) return isDarkMode ? '#facc15' : '#ca8a04'; // Yellow
+      return isDarkMode ? '#818cf8' : '#4f46e5'; // Indigo (Frio)
+  };
+
   return (
-    // Redução brutal de padding inferior e gaps para a tela inteira subir e o mercado aparecer
-    <div className="animate-in fade-in duration-700 h-[100dvh] overflow-y-auto overflow-x-hidden flex flex-col gap-2 pb-24 touch-pan-y"
+    // Padding Bottom reduzido (pb-28) para o Mercado ancorar com precisão perto da dock navigation
+    <div className="animate-in fade-in duration-700 h-[100dvh] overflow-y-auto overflow-x-hidden flex flex-col gap-3 pb-28 touch-pan-y"
          onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>      
       
       {/* Indicador de Refresh */}
@@ -5839,23 +5846,23 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         <div className="flex space-x-4 overflow-x-auto pb-1 scrollbar-hide snap-x items-center">
             {storiesToDisplay && storiesToDisplay.filter(s => !seenStoryIds?.includes(s.id)).map((story) => (
                 <div key={story.id} onClick={() => openStory(story)} className="flex flex-col items-center space-y-1.5 snap-center cursor-pointer group flex-shrink-0">
-                    <div className={`relative w-[64px] h-[64px] rounded-full p-[2.5px] transition-all shadow-sm ${story.isBreaking ? 'bg-red-600 animate-[fast-pulse_1s_ease-in-out_infinite]' : 'bg-gradient-to-tr from-rose-600 to-orange-400'}`}>
+                    <div className={`relative w-[60px] h-[60px] rounded-full p-[2.5px] transition-all shadow-sm ${story.isBreaking ? 'bg-red-600 animate-[fast-pulse_1s_ease-in-out_infinite]' : 'bg-gradient-to-tr from-rose-600 to-orange-400'}`}>
                         <div className={`w-full h-full rounded-full border-[2px] overflow-hidden ${isDarkMode ? 'border-zinc-950 bg-zinc-900' : 'border-white bg-zinc-200'}`}>
                             <img src={story.avatar} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                         </div>
                     </div>
-                    <span className={`text-[9px] font-semibold truncate max-w-[68px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span>
+                    <span className={`text-[9px] font-semibold truncate max-w-[64px] text-center ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{story.name}</span>
                 </div>
             ))}
         </div>
       </div>
 
-      {/* 2. O PULSO (Top Grid) */}
+      {/* 2. O PULSO (Top Grid com Altura Reduzida e Ajustada) */}
       <div className="vetra-home-top-grid px-4 shrink-0">
         
         {/* DESTAQUES */}
         <section className="vetra-breaking-panel">
-          <div className="vetra-breaking-title"><Zap size={18} fill="currentColor" /> <span>NOTÍCIAS EM DESTAQUE</span></div>
+          <div className="vetra-breaking-title"><Zap size={16} fill="currentColor" /> <span>NOTÍCIAS EM DESTAQUE</span></div>
           <div className="vetra-breaking-list">
             {(breakingHighlights || []).slice(0, 3).map((n, i) => (
                 <button key={n.id || i} onClick={() => openArticle(n)} className="vetra-breaking-row group cursor-pointer">
@@ -5869,28 +5876,36 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
           </div>
         </section>
 
-        {/* TRENDING (Novo Design - Régua Premium e Larga) */}
+        {/* TRENDING (Nova Régua Super Premium) */}
         <section className="vetra-trending-panel-home">
-          <div className="vetra-trending-title"><Activity size={18} fill="currentColor" /> <span>TRENDING AGORA</span></div>
+          <div className="vetra-trending-title"><Activity size={16} fill="currentColor" /> <span>TRENDING AGORA</span></div>
           <div className="vetra-trending-list-home">
             {(trendingTopics.length ? trendingTopics : [{ t: 'Coletando...', n: '', v: 35 }]).slice(0,4).map((it, i) => {
-               const [fontes, manchetes] = (it.n || "").split('·').map(s => s.trim());
+               // Limpeza correta da string de fontes para evitar duplicação do texto no front
+               const fontesStr = it.n ? it.n.split('·')[0] : '';
+               const manchetesStr = it.n ? it.n.split('·')[1] : '';
+               const numFontes = fontesStr.replace(/[^\d]/g, '');
+               const numManchetes = manchetesStr ? manchetesStr.replace(/[^\d]/g, '') : '';
+
                return (
                 <button key={it.t} onClick={() => setSelectedTrendingTopic(it)} className="vetra-trending-row-home group cursor-pointer">
-                  <strong>{i + 1}</strong>
+                  <strong className={`${isDarkMode ? 'text-white' : 'text-zinc-800'}`}>{i + 1}</strong>
                   
-                  {/* Nome da Trend Ganha Destaque (Colorido e Bold) */}
-                  <span className="trend-name">{it.t}</span>
+                  {/* Nome da Trend com cor baseada na Temperatura */}
+                  <span 
+                     className="text-[1.05rem] font-black truncate transition-colors"
+                     style={{ color: getTrendColor(it.v) }}
+                  >
+                      {it.t}
+                  </span>
                   
-                  {/* Nova Régua: Larga em cima, textos menores embaixo */}
+                  {/* Régua de Temperatura Larga e Sofisticada */}
                   <div className="flex flex-col items-end gap-1.5 w-full">
-                      {/* A Régua (Agora como div principal, mais grossa e bonita) */}
-                      <div className="w-full h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700/50 overflow-hidden shadow-inner">
+                      <div className="w-full h-2 rounded-full bg-zinc-200 dark:bg-zinc-800/80 overflow-hidden shadow-inner border border-black/5 dark:border-white/5">
                           <div className="h-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400" style={{ width: `${it.v}%` }} />
                       </div>
-                      {/* Textos compactos abaixo da régua */}
-                      <small className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-right leading-none uppercase tracking-wider">
-                          {fontes} fts • {manchetes}
+                      <small className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-right leading-none uppercase tracking-widest mt-0.5">
+                          {numFontes} FONTES • {numManchetes} MANCHETES
                       </small>
                   </div>
                 </button>
@@ -5898,14 +5913,15 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
             })}
           </div>
         </section>
+
       </div>
       
       {selectedTrendingTopic && (
         <TrendingTopicModal topic={selectedTrendingTopic} allTopics={trendingTopics} onClose={() => setSelectedTrendingTopic(null)} openArticle={openArticle} />
       )}
       
-      {/* 3. OS REIS (Clusters + Mudou Agora Injetado) */}
-      <div className="shrink-0 relative flex flex-col mt-1">
+      {/* 3. OS REIS (Clusters Mais Altos e com Barra "Mudou Agora" no Topo) */}
+      <div className="flex-1 min-h-0 relative flex flex-col mt-0">
         <WhileYouWereAwayWidget 
           news={newsData} 
           openArticle={openArticle} 
@@ -5918,74 +5934,73 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         />
       </div>
     
-      {/* 4. FERRAMENTAS DE IA E MERCADO (True Liquid Glass) */}
-      <div className="shrink-0 flex flex-col gap-2 px-4 mt-1">
+      {/* 4. BASE PREMIUM: AI Digest, PodNews e Mercado na MESMA LINHA (Flex Row em telas grandes) */}
+      <div className="shrink-0 flex flex-col lg:flex-row gap-4 px-4 mt-2">
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* AI DIGEST */}
-          <div className="true-liquid-glass min-h-[90px] p-4 flex items-center justify-between cursor-pointer group hover:border-indigo-500/60 transition-colors" onClick={() => setShowDigest(v => !v)}>
-            <div className="flex items-center gap-4">
-               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-                  <Sparkles size={20} className="text-white" />
-               </div>
-               <div>
-                  <h4 className={`text-base font-bold mb-0.5 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
-                  <p className={`text-xs ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>Resumo do dia</p>
-               </div>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-               <ChevronRight size={18} className={showDigest ? 'rotate-90' : ''} />
-            </div>
+        {/* AI DIGEST (flex-1 para igualar com Mercado) */}
+        <div className="true-liquid-glass flex-1 min-h-[90px] p-4 flex items-center justify-between cursor-pointer group hover:border-indigo-500/60 transition-colors" onClick={() => setShowDigest(v => !v)}>
+          <div className="flex items-center gap-4">
+             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <Sparkles size={20} className="text-white" />
+             </div>
+             <div>
+                <h4 className={`text-base font-bold mb-0.5 leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
+                <p className={`text-[10px] opacity-60 leading-tight`}>Resumo do dia</p>
+             </div>
           </div>
-
-          {/* PODNEWS */}
-          <div className="true-liquid-glass min-h-[90px] p-4 flex items-center justify-between cursor-pointer group hover:border-fuchsia-500/60 transition-colors" onClick={() => onOpenPodNews && onOpenPodNews()}>
-            <div className="flex items-center gap-4">
-               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative">
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
-                  <Headphones size={20} className="text-white" />
-               </div>
-               <div>
-                  <h4 className={`text-base font-bold mb-0.5 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
-                  <p className={`text-xs ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>Áudio pronto</p>
-               </div>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-500 group-hover:text-white transition-colors">
-               <Play size={16} fill="currentColor" className="ml-0.5" />
-            </div>
+          <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors shrink-0">
+             <ChevronRight size={16} className={showDigest ? 'rotate-90' : ''} />
           </div>
         </div>
 
-        {showDigest && (
-          <div className="mt-1 mb-1">
-            <SmartDigestWidget newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} openArticle={openArticle} />
+        {/* PODNEWS (Fixado um tamanho menor para ficar no centro, super premium) */}
+        <div className="true-liquid-glass lg:w-[260px] shrink-0 min-h-[90px] p-4 flex items-center justify-between cursor-pointer group hover:border-fuchsia-500/60 transition-colors" onClick={() => onOpenPodNews && onOpenPodNews()}>
+          <div className="flex items-center gap-4">
+             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative">
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
+                <Headphones size={20} className="text-white" />
+             </div>
+             <div>
+                <h4 className={`text-base font-bold mb-0.5 leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
+                <p className={`text-[10px] opacity-60 leading-tight`}>Áudio pronto</p>
+             </div>
           </div>
-        )}
+          <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-500 group-hover:text-white transition-colors shrink-0">
+             <Play size={14} fill="currentColor" className="ml-0.5" />
+          </div>
+        </div>
 
-        {/* MERCADOS HOJE */}
-        <div className="true-liquid-glass min-h-[90px] p-4 flex items-center justify-between cursor-pointer group hover:border-emerald-500/60 transition-colors" onClick={() => setIsMarketModalOpen(true)}>
-            <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 flex items-center justify-center">
+        {/* MERCADOS HOJE (flex-1 para fechar o grid equilibrado na mesma linha) */}
+        <div className="true-liquid-glass flex-1 min-h-[90px] p-4 flex items-center justify-between cursor-pointer group hover:border-emerald-500/60 transition-colors" onClick={() => setIsMarketModalOpen(true)}>
+            <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
                     <TrendingUp size={24} />
                 </div>
-                <div>
+                <div className="min-w-0">
                    <div className="flex items-center gap-2 mb-1">
-                       <h4 className={`text-lg font-bold leading-none ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h4>
-                       <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-600 flex items-center gap-1">
+                       <h4 className={`text-base font-bold leading-none truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados Hoje</h4>
+                       <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-600 flex items-center gap-1 shrink-0">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Ao Vivo
                        </span>
                    </div>
-                   <div className="flex items-center gap-4 text-xs font-mono font-bold text-zinc-600 dark:text-zinc-300">
+                   <div className="flex items-center gap-3 text-[11px] font-mono font-bold text-zinc-600 dark:text-zinc-400 truncate">
                       <span>IBOV 128.5k <span className="text-emerald-500">+0.45%</span></span>
                       <span>USD 5,02 <span className="text-rose-500">-0.21%</span></span>
                    </div>
                 </div>
             </div>
-            <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 group-hover:text-emerald-500 transition-colors">
-                ABRIR PAINEL <ArrowUpRight size={14} />
+            <div className="hidden xl:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 group-hover:text-emerald-500 transition-colors shrink-0">
+                PAINEL <ArrowUpRight size={14} />
             </div>
         </div>
+
       </div>
+
+      {showDigest && (
+        <div className="px-4 mt-2">
+          <SmartDigestWidget newsData={newsData} getApiKey={getApiKey} isDarkMode={isDarkMode} refreshTrigger={refreshTrigger} openArticle={openArticle} />
+        </div>
+      )}
 
       {/* MODAL MERCADOS HOJE */}
       {isMarketModalOpen && (
