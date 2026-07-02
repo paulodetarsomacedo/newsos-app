@@ -5963,8 +5963,12 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       {/* 4. BASE PREMIUM: As 3 Ferramentas alinhadas na mesma linha (FLEX ROW) */}
       <div className="shrink-0 flex flex-row items-center gap-3 px-4 mt-2 w-full">
         
+        
+
+
+
         {/* AI DIGEST (flex-1 para expandir) */}
-        <div className="true-liquid-glass flex-1 min-h-[115px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-indigo-500/60 transition-colors" onClick={() => setShowDigest(v => !v)}>
+        <div className="true-liquid-glass flex-1 min-h-[130px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-indigo-500/60 transition-colors" onClick={() => setShowDigest(v => !v)}>
           <div className="flex items-center gap-3 min-w-0">
              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shrink-0">
                 <Sparkles size={18} className="text-white" />
@@ -5980,7 +5984,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
 
         {/* PODNEWS (Fixado um tamanho central) */}
-        <div className="true-liquid-glass w-[180px] xl:w-[220px] shrink-0 min-h-[115px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-fuchsia-500/60 transition-colors" onClick={() => onOpenPodNews && onOpenPodNews()}>
+        <div className="true-liquid-glass w-[180px] xl:w-[220px] shrink-0 min-h-[130px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-fuchsia-500/60 transition-colors" onClick={() => onOpenPodNews && onOpenPodNews()}>
           <div className="flex items-center gap-3 min-w-0">
              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg relative shrink-0">
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
@@ -5997,7 +6001,7 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         </div>
 
    {/* MERCADOS HOJE (Mini-Dashboard Funcional) */}
-        <div className="true-liquid-glass flex-1 min-h-[115px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-emerald-500/60 transition-all duration-300" onClick={() => setIsMarketModalOpen(true)}>
+        <div className="true-liquid-glass flex-1 min-h-[130px] p-3 px-4 flex items-center justify-between cursor-pointer group hover:border-emerald-500/60 transition-all duration-300" onClick={() => setIsMarketModalOpen(true)}>
             <div className="flex items-center gap-3 min-w-0 w-full">
                 <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] group-hover:scale-105 transition-transform">
                     <TrendingUp size={22} strokeWidth={2.5} />
