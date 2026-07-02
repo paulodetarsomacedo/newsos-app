@@ -5830,9 +5830,9 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [selectedTrendingTopic, setSelectedTrendingTopic] = useState(null);
 
   return (
-    // pb-24 é suficiente agora que a base cabe em uma única linha
-    <div className="animate-in fade-in duration-700 h-[100dvh] overflow-y-auto overflow-x-hidden flex flex-col gap-2 pb-24 touch-pan-y"
-         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>      
+// pb-24 é suficiente agora que a base cabe em uma única linha
+    <div className="animate-in fade-in duration-700 flex flex-col gap-2 pb-24 touch-pan-y w-full"
+         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>     
       
       {/* Indicador de Refresh */}
       <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '25%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 || isRefreshing ? 'flex' : 'none' }}>
@@ -5896,12 +5896,12 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                       {it.t}
                   </span>
                   
-                  {/* Nova Régua: A barra e os textos abaixo dela */}
-                  <div className="flex flex-col items-start gap-1 w-full pl-2">
+           {/* Nova Régua: A barra e os textos abaixo dela */}
+                  <div className="flex flex-col items-end gap-1.5 w-full">
                       <div className="w-full h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700/50 overflow-hidden shadow-inner border border-black/5 dark:border-white/5">
                           <div className="h-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400" style={{ width: `${it.v}%` }} />
                       </div>
-                      <small className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-left leading-none uppercase tracking-widest mt-0.5">
+                      <small className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-right leading-none uppercase tracking-widest">
                           {numFontes} FONTES • {numManchetes} MANCHETES
                       </small>
                   </div>
@@ -5917,9 +5917,9 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
         <TrendingTopicModal topic={selectedTrendingTopic} allTopics={trendingTopics} onClose={() => setSelectedTrendingTopic(null)} openArticle={openArticle} />
       )}
       
-      {/* 3. OS REIS (Clusters com Mudou Agora Injetado no Header) */}
-      <div className="flex-1 min-h-0 relative flex flex-col mt-2">
-        <WhileYouWereAwayWidget 
+   {/* 3. OS REIS (Clusters com Mudou Agora Injetado no Header) */}
+      <div className="relative flex flex-col mt-2 w-full">
+        <WhileYouWereAwayWidget
           news={newsData} 
           openArticle={openArticle} 
           isDarkMode={isDarkMode} 
