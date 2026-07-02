@@ -4673,43 +4673,6 @@ const MudouAgoraHorizontal = ({ isDarkMode }) => (
       </div>
     </div>
   </div>
-);const MudouAgoraHorizontal = ({ isDarkMode }) => (
-  <div className="true-liquid-glass w-full flex items-center p-3 px-5 gap-6 overflow-hidden h-[4.5rem]">
-    <div className="flex items-center gap-2 pr-6 border-r border-black/10 dark:border-white/10 shrink-0">
-      <div className="relative flex h-2.5 w-2.5">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
-      </div>
-      <span className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest leading-none">
-        Mudou<br/>Agora
-      </span>
-    </div>
-    
-    {/* Lista flexível ocupando todo o resto do espaço */}
-    <div className="flex justify-between items-center flex-1 min-w-0 overflow-x-auto scrollbar-hide gap-8 pr-2">
-      <div className="flex items-center gap-2.5 shrink-0">
-        <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
-        <div className="flex flex-col">
-          <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-0.5">12 min atrás</span>
-          <span className={`text-[13px] font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Dólar</b> disparou em 8 novas fontes</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-2.5 shrink-0">
-        <div className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
-        <div className="flex flex-col">
-          <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-0.5">28 min atrás</span>
-          <span className={`text-[13px] font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Caso STF</b> teve avanço de consenso</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-2.5 shrink-0">
-        <div className="w-2 h-2 bg-purple-500 rounded-full shadow-[0_0_8px_rgba(168,85,247,0.8)]"></div>
-        <div className="flex flex-col">
-          <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-0.5">Acelerando</span>
-          <span className={`text-[13px] font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}><b>Apple</b> lidera temas de tecnologia</span>
-        </div>
-      </div>
-    </div>
-  </div>
 );
 
 function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters, headerLeft }) {
