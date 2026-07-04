@@ -5966,58 +5966,66 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
       </div>
     
 {/* 4. BASE PREMIUM OPTICAL GLASS: Ferramentas flutuando sobre a grade */}
-      <div className="shrink-0 flex flex-row items-stretch gap-4 px-4 -mt-3 w-full">
+      <div className="shrink-0 flex flex-row items-center gap-4 px-4 -mt-3 w-full">
         
-        {/* AI DIGEST */}
-        <div className="optical-glass flex-1 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
+        {/* AI DIGEST — agora ganha mais largura porque PodNews ficou compacto */}
+        <div className="optical-glass flex-[1.25] min-w-0 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => setShowDigest(v => !v)}>
           <div className="caustic-glow bg-indigo-500 group-hover:bg-purple-500 transition-colors duration-500"></div>
+
           <div className="flex items-center gap-4 min-w-0 relative z-10">
-             <div className="w-21 h-21 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
+             <div className="w-[5.25rem] h-[5.25rem] rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
                 <Sparkles size={38} className="text-indigo-600 dark:text-indigo-400" />
              </div>
+
              <div className="min-w-0">
                 <h4 className={`text-xl font-black tracking-tight mb-1 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>AI Digest</h4>
                 <p className="text-xs uppercase tracking-widest font-bold opacity-60 truncate">Resumo do dia</p>
              </div>
           </div>
+
           <div className="w-12 h-12 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner relative z-10 shrink-0">
              <ChevronRight size={24} className={showDigest ? 'rotate-90' : ''} />
           </div>
         </div>
 
-        {/* PODNEWS */}
-        {/* Largura aumentada de w-[200px] para w-[260px] para o texto respirar */}
-        <div className="optical-glass w-[285px] xl:w-[320px] shrink-0 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => onOpenPodNews && onOpenPodNews()}>
+        {/* PODNEWS — somente o quadrado/logo, maior e mais alto */}
+        <button
+          type="button"
+          className="optical-glass w-[150px] xl:w-[166px] h-[150px] shrink-0 p-3 flex items-center justify-center cursor-pointer group"
+          onClick={() => onOpenPodNews && onOpenPodNews()}
+          aria-label="Abrir PodNews"
+        >
           <div className="caustic-glow bg-fuchsia-500 group-hover:bg-pink-500 transition-colors duration-500"></div>
-          <div className="flex items-center gap-4 min-w-0 relative z-10">
-             <div className="w-21 h-21 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 relative transition-transform group-hover:scale-105">
-                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-800 rounded-full shadow-sm"></span>
-                <Headphones size={38} className="text-fuchsia-600 dark:text-fuchsia-400" />
-             </div>
-             <div className="min-w-0">
-                <h4 className={`text-xl font-black tracking-tight mb-1 truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>PodNews</h4>
-                <p className="text-xs uppercase tracking-widest font-bold opacity-60 truncate">Áudio pronto</p>
-             </div>
-          </div>
-          <div className="w-12 h-12 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center group-hover:bg-fuchsia-600 group-hover:text-white transition-all shadow-inner relative z-10 shrink-0">
-             <Play size={20} fill="currentColor" className="ml-1" />
-          </div>
-        </div>
 
-        {/* MERCADOS HOJE */}
-        <div className="optical-glass flex-1 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
+          <div className="relative z-10 w-full h-full rounded-[1.45rem] bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 shadow-[0_8px_18px_rgba(0,0,0,0.12),inset_0_-3px_6px_rgba(0,0,0,0.06)] flex flex-col items-center justify-center gap-2 transition-transform group-hover:scale-[1.035]">
+            <span className="absolute top-3 right-3 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-800 rounded-full shadow-sm" />
+            <Headphones size={44} className="text-fuchsia-600 dark:text-fuchsia-400" />
+            <span className={`text-[15px] font-black tracking-tight leading-none ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+              PodNews
+            </span>
+            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-fuchsia-500/80">
+              áudio
+            </span>
+          </div>
+        </button>
+
+        {/* MERCADOS HOJE — mais largo, modal por toque/click */}
+        <div className="optical-glass flex-[1.25] min-w-0 h-[115px] px-5 py-4 flex items-center justify-between cursor-pointer group" onClick={() => setIsMarketModalOpen(true)}>
             <div className="caustic-glow bg-emerald-500 group-hover:bg-green-400 transition-colors duration-500"></div>
+
             <div className="flex items-center gap-4 min-w-0 w-full relative z-10">
-                <div className="w-21 h-21 rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
+                <div className="w-[5.25rem] h-[5.25rem] rounded-[1.25rem] bg-white dark:bg-zinc-800 flex items-center justify-center shadow-[0_4px_10px_rgba(0,0,0,0.1),inset_0_-2px_4px_rgba(0,0,0,0.05)] shrink-0 border border-zinc-100 dark:border-zinc-700 transition-transform group-hover:scale-105">
                     <TrendingUp size={38} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5}/>
                 </div>
+
                 <div className="min-w-0 flex-1">
                    <div className="flex items-center justify-between gap-2 mb-1.5">
                        <h4 className={`text-xl font-black tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>Mercados</h4>
                        <span className="px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/50 text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 shrink-0 shadow-sm">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Ao Vivo
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Ao vivo
                        </span>
                    </div>
+
                     <div className="flex flex-col gap-1 mt-1.5 pr-2 w-full">
                        <div className="flex items-center gap-1.5">
                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
@@ -6025,17 +6033,17 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
                                Ibovespa opera em alta impulsionado por NY
                            </p>
                        </div>
+
                        <div className="flex items-center gap-1.5">
                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                            <p className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 truncate">
-                               Dólar recua para R$ 5,02 aguardando dados
+                               Dólar recua aguardando novos dados
                            </p>
                        </div>
-                   </div>
+                    </div>
                 </div>
             </div>
         </div>
-
       </div>
 
       {showDigest && (
