@@ -4635,79 +4635,84 @@ const VetraPremiumClusterCard = React.memo(function VetraPremiumClusterCard({ cl
   );
 });
 
-
-const MudouAgoraHorizontal = ({ isDarkMode }) => (
-  <div className={`
-    w-full flex items-center p-2 px-3 gap-4 overflow-hidden h-[4.2rem] rounded-[1.4rem] relative
-    border shadow-xl backdrop-blur-[40px] transition-all duration-300
-    ${isDarkMode 
-      ? 'bg-zinc-900/40 border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.5)]' 
-      : 'bg-white/60 border-white/80 shadow-[0_8px_30px_rgba(0,0,0,0.06)]'}
-  `}>
-    {/* Soft Ambient Glow Overlay */}
-    <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 via-orange-500/5 to-transparent pointer-events-none"></div>
-
-    {/* Pulse Indicator (Left) */}
-    <div className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 shrink-0 relative z-10">
-        <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-            </span>
-            <span className="text-[9px] font-black uppercase text-red-600 dark:text-red-400 tracking-widest leading-none">Ao Vivo</span>
-        </div>
-        <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300 leading-none">Radar Vetra</span>
-    </div>
-
-    <div className="w-px h-8 bg-black/10 dark:bg-white/10 shrink-0 relative z-10"></div>
-    
-    {/* Scrolling content */}
-    <div className="flex justify-start items-center flex-1 min-w-0 overflow-x-auto scrollbar-hide gap-5 relative z-10 h-full">
-      
-      {/* Item 1: Dólar */}
-      <div className="flex items-center gap-2.5 shrink-0 bg-white/40 dark:bg-black/20 pr-3 rounded-xl border border-white/40 dark:border-white/5 transition-transform hover:scale-105 cursor-pointer">
-        <div className="w-8 h-8 rounded-l-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border-r border-white/40 dark:border-white/5">
-            <TrendingUp size={14} strokeWidth={2.5}/>
-        </div>
-        <div className="flex flex-col py-1">
-          <div className="flex items-center gap-1.5">
-              <span className={`text-[11px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Dólar R$ 5,12</span>
-              <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">+1.2%</span>
-          </div>
-          <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">Pico agora em 8 fontes</span>
-        </div>
-      </div>
-
-      {/* Item 2: STF */}
-      <div className="flex items-center gap-2.5 shrink-0 bg-white/40 dark:bg-black/20 pr-3 rounded-xl border border-white/40 dark:border-white/5 transition-transform hover:scale-105 cursor-pointer">
-        <div className="w-8 h-8 rounded-l-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border-r border-white/40 dark:border-white/5">
-            <Activity size={14} strokeWidth={2.5}/>
-        </div>
-        <div className="flex flex-col py-1">
-          <div className="flex items-center gap-1.5">
-              <span className={`text-[11px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Decisão do STF</span>
-              <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400">URGENTE</span>
-          </div>
-          <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">G1 e CNN · 2m atrás</span>
-        </div>
-      </div>
-
-      {/* Item 3: Tech */}
-      <div className="flex items-center gap-2.5 shrink-0 bg-white/40 dark:bg-black/20 pr-3 rounded-xl border border-white/40 dark:border-white/5 transition-transform hover:scale-105 cursor-pointer">
-        <div className="w-8 h-8 rounded-l-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center border-r border-white/40 dark:border-white/5">
-            <Zap size={14} strokeWidth={2.5}/>
-        </div>
-        <div className="flex flex-col py-1">
-          <div className="flex items-center gap-1.5">
-              <span className={`text-[11px] font-black uppercase tracking-wide ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>Apple Vision Pro</span>
-          </div>
-          <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">Dominando cadernos Tech</span>
-        </div>
-      </div>
-
-    </div>
-  </div>
+const RadioGlyphFallback = ({ className = "" }) => (
+  <span className={`relative inline-flex h-3.5 w-3.5 ${className}`}>
+    <span className="absolute inset-0 rounded-full bg-current opacity-20 animate-ping" />
+    <span className="relative m-auto h-2 w-2 rounded-full bg-current" />
+  </span>
 );
+
+const MudouAgoraHorizontal = ({ isDarkMode }) => {
+  const deltas = [
+    { icon: <TrendingUp size={14} />, label: 'Dólar', value: '+8 matérias', tone: 'emerald', note: '12 min' },
+    { icon: <Activity size={14} />, label: 'STF', value: '+4 fontes', tone: 'blue', note: 'caso ganhou corpo' },
+    { icon: <Zap size={14} />, label: 'Apple/iPhone', value: 'acelerou', tone: 'violet', note: 'tech em alta' },
+    { icon: <RadioGlyphFallback />, label: 'Política', value: 'breaking', tone: 'rose', note: 'novo sinal' },
+  ];
+
+  return (
+    <div className={`
+      w-full flex items-center p-2 px-3 gap-3 overflow-hidden h-[4.2rem] rounded-[1.4rem] relative
+      border shadow-xl backdrop-blur-[40px] transition-all duration-300
+      ${isDarkMode 
+        ? 'bg-zinc-900/40 border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.5)]' 
+        : 'bg-white/60 border-white/80 shadow-[0_8px_30px_rgba(0,0,0,0.06)]'}
+    `}>
+      <div className="absolute inset-0 bg-gradient-to-r from-sky-500/10 via-indigo-500/5 to-transparent pointer-events-none" />
+
+      <div className="relative z-10 h-full flex items-center gap-2.5 shrink-0 px-3 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg">
+          <Sparkles size={16} />
+        </div>
+        <div className="leading-none">
+          <div className="text-[9px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
+            Mudou agora
+          </div>
+          <div className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300 mt-1">
+            Desde o último refresh
+          </div>
+        </div>
+      </div>
+
+      <div className="w-px h-8 bg-black/10 dark:bg-white/10 shrink-0 relative z-10" />
+
+      <div className="relative z-10 flex-1 min-w-0 overflow-x-auto scrollbar-hide">
+        <div className="flex items-center gap-2.5 h-full w-max pr-2">
+          {deltas.map((item) => (
+            <div
+              key={item.label}
+              className="group shrink-0 h-[3rem] min-w-[11rem] rounded-2xl bg-white/45 dark:bg-black/20 border border-white/50 dark:border-white/5 px-3 flex items-center gap-2.5 transition-transform active:scale-[0.98]"
+            >
+              <div className={`
+                w-8 h-8 rounded-xl flex items-center justify-center shrink-0
+                ${item.tone === 'emerald' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : ''}
+                ${item.tone === 'blue' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : ''}
+                ${item.tone === 'violet' ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400' : ''}
+                ${item.tone === 'rose' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : ''}
+              `}>
+                {item.icon}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className={`text-[11px] font-black uppercase tracking-wide truncate ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>
+                  {item.label}
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] font-black text-zinc-700 dark:text-zinc-200 truncate">
+                    {item.value}
+                  </span>
+                  <span className="text-[9px] font-bold text-zinc-400 truncate">
+                    · {item.note}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 function WhileYouWereAwayWidget({ news, openArticle, isDarkMode, getApiKey, clusters, setClusters, heuristicClusters, headerLeft }) {
   const [activeSlide, setActiveSlide] = useState(0);
