@@ -6695,13 +6695,12 @@ const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffe
     const finalImage = absolutizeUrl(imageFromItem, primaryLink || siteLink || feed?.url) || finalLogo;
     const cleanSummary = repairMojibakeText(stripFeedText(item?.summary || item?.description || item?.contentEncoded || '', 360));
     const stableHash = stringToHash(`${sourceId}-${item.id || itemTitle}-${primaryLink || index}`);
-    
     return {
       id: `${sourceId}-${stableHash}`,
       source: displaySource,
       sourceId,
       sourceGroup,
-      sourceKey: sourceId,
+    sourceKey: sourceId,
       logo: youtubeChannelLogo || finalLogo,
       time: finalDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       rawDate: finalDateObj,
@@ -6715,24 +6714,7 @@ const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffe
       link: primaryLink,
       audio: audioReal || (primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i) ? primaryLink : null),
       videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
-      date: finalDateObj.toLocaleDateString(),
-      
-      // NOVOS CAMPOS ENRIQUECIDOS PELO EDGE FUNCTION (Retrocompatíveis)
-      canonicalUrl: item.canonicalUrl || primaryLink,
-      publishedAt: item.publishedAt || rawDateString,
-      rssDescription: item.rssDescription || cleanSummary,
-      metaDescription: item.metaDescription || "",
-      ogDescription: item.ogDescription || "",
-      jsonLdDescription: item.jsonLdDescription || "",
-      firstParagraph: item.firstParagraph || "",
-      contextText: item.contextText || cleanSummary,
-      contextLevel: item.contextLevel || "title_only",
-      entities: item.entities || [],
-      keyphrases: item.keyphrases || [],
-      eventType: item.eventType || "geral",
-      contentHash: item.contentHash || "",
-      normalizedTitle: item.normalizedTitle || itemTitle,
-      coreWords: item.coreWords || itemTitle
+      date: finalDateObj.toLocaleDateString()
     };
   }).filter(Boolean);
 };
