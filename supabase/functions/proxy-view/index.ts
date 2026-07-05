@@ -1,3 +1,6 @@
+// ARQUIVO: supabase/functions/proxy-view/index.ts
+// Vetra — proxy de leitura completa com headers de navegador, timeout, charset BR e Readability.
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
 import { Readability } from "https://esm.sh/@mozilla/readability@0.4.4";
@@ -8,8 +11,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const TIMEOUT_FULL_MS = 12000;
-const TIMEOUT_LITE_MS = 5000;
+const TIMEOUT_MS = 12000;
 const MAX_HTML_BYTES = 2_500_000;
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
@@ -50,40 +52,13 @@ function stripDangerousNodes(doc: any): void {
   nodes.forEach((node: any) => node.remove());
 }
 
-function stripTags(html: string): string {
-    return String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function extractImageFromJsonLd(html: string): string | null {
-  const scripts = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
-  for (const script of scripts) {
-    const raw = script.replace(/^[\s\S]*?>/, "").replace(/<\/script>$/i, "").trim();
-    try {
-      const parsed = JSON.parse(raw); const list = Array.isArray(parsed) ? parsed : [parsed];
-      const stack = [...list];
-      while (stack.length) {
-        const item = stack.shift(); if (!item || typeof item !== "object") continue;
-        const image = item.image || item.thumbnailUrl || item.logo;
-        if (typeof image === "string") return image;
-        if (Array.isArray(image) && image[0]) return typeof image[0] === "string" ? image[0] : image[0]?.url;
-        if (image?.url) return image.url;
-        const graph = item["@graph"]; if (graph) stack.push(...(Array.isArray(graph) ? graph : [graph]));
-      }
-    } catch (_e) {}
-  }
-  return null;
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const targetUrl = normalizeUrl(body.url);
-    const mode = String(body.mode || "full").toLowerCase();
-    
-    const timeoutMs = mode === "lite" ? TIMEOUT_LITE_MS : TIMEOUT_FULL_MS;
+    const { url } = await req.json().catch(() => ({}));
+    const targetUrl = normalizeUrl(url);
 
     const response = await fetch(targetUrl, {
       headers: {
@@ -95,7 +70,7 @@ serve(async (req) => {
         "Upgrade-Insecure-Requests": "1",
       },
       redirect: "follow",
-      signal: withTimeoutSignal(timeoutMs),
+      signal: withTimeoutSignal(TIMEOUT_MS),
     });
 
     if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
@@ -111,105 +86,12 @@ serve(async (req) => {
     const doc = new DOMParser().parseFromString(html, "text/html");
     if (!doc) throw new Error("Falha ao fazer parse do HTML");
 
-    // ==========================================================
-    // LITE MODE: Extração Rápida Sem Readability
-    // ==========================================================
-    if (mode === "lite") {
-        const canonicalNode = doc.querySelector("link[rel='canonical']");
-        const canonicalUrl = canonicalNode?.getAttribute("href") || response.url || targetUrl;
-
-        const title = doc.querySelector("title")?.textContent || "";
-        const metaDescription = doc.querySelector("meta[name='description'], meta[property='og:description']")?.getAttribute("content") || "";
-        const ogDescription = doc.querySelector("meta[property='og:description']")?.getAttribute("content") || "";
-        const image = doc.querySelector("meta[property='og:image']")?.getAttribute("content") || extractImageFromJsonLd(html) || "";
-        
-        let author = doc.querySelector("meta[name='author']")?.getAttribute("content") || "";
-        let publishedTime = doc.querySelector("meta[property='article:published_time']")?.getAttribute("content") || "";
-        let section = doc.querySelector("meta[property='article:section']")?.getAttribute("content") || "";
-        let siteName = doc.querySelector("meta[property='og:site_name']")?.getAttribute("content") || "";
-
-        let jsonLdDescription = "";
-        const scripts = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
-        for (const script of scripts) {
-            try {
-                const raw = script.replace(/^[\s\S]*?>/, "").replace(/<\/script>$/i, "").trim();
-                const parsed = JSON.parse(raw);
-                const list = Array.isArray(parsed) ? parsed : [parsed];
-                for (const item of list) {
-                    if (item.description) jsonLdDescription = item.description;
-                    if (item.articleBody) jsonLdDescription = item.articleBody.substring(0, 500);
-                    if (item.author?.name) author = item.author.name;
-                    if (item.datePublished) publishedTime = item.datePublished;
-                }
-            } catch (e) {}
-        }
-
-        stripDangerousNodes(doc);
-
-        const paragraphs = doc.querySelectorAll("p");
-        let firstParagraph = "";
-        const topParagraphs: string[] = [];
-        
-        let pCount = 0;
-        for (const p of paragraphs) {
-            const text = stripTags((p as any).textContent || "");
-            if (text.length > 50) {
-                if (!firstParagraph) firstParagraph = text;
-                topParagraphs.push(text);
-                pCount++;
-                if (pCount >= 5) break; 
-            }
-        }
-
-        const contextTextCandidates = [firstParagraph, jsonLdDescription, ogDescription, metaDescription];
-        let contextText = "";
-        for (const c of contextTextCandidates) {
-            if (c && c.length > 50) {
-                contextText = c.substring(0, 1200);
-                break;
-            }
-        }
-
-        let hash = 0;
-        const strToHash = `${canonicalUrl}::${title}::${publishedTime}::${contextText.substring(0,50)}`;
-        for (let i = 0; i < strToHash.length; i++) {
-            hash = ((hash << 5) - hash) + strToHash.charCodeAt(i);
-            hash = hash & hash;
-        }
-        const contentHash = Math.abs(hash).toString(16);
-
-        return jsonResponse({
-            finalUrl: response.url || targetUrl,
-            mode: "lite",
-            context: {
-                canonicalUrl,
-                title: stripTags(title),
-                metaDescription,
-                ogDescription,
-                jsonLdDescription,
-                firstParagraph,
-                topParagraphs,
-                contextText,
-                contentHash,
-                siteName,
-                author,
-                publishedTime,
-                section,
-                image
-            }
-        });
-    }
-
-    // ==========================================================
-    // FULL MODE: Extração Completa com Readability (Padrão Antigo)
-    // ==========================================================
     stripDangerousNodes(doc);
     const reader = new Readability(doc, { charThreshold: 300 }).parse();
     if (!reader || !reader.textContent) throw new Error("Readability não conseguiu extrair conteúdo principal");
 
     return jsonResponse({
       finalUrl: response.url || targetUrl,
-      mode: "full",
       reader: {
         title: reader.title,
         content: reader.content,
