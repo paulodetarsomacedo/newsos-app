@@ -1263,10 +1263,10 @@ const NewsCard = React.memo(({
       style={{ 
           zIndex: isSelected ? 40 : 1,
           transform: `translateX(${translateX}px)`,
-          transition: translateX === 0 ? 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' : 'none'
+          transition: translateX === 0 ? 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s ease' : 'none'
       }}
       onClick={() => { setActivePill('read'); onClick(news); }}
-      className={`glass-card group relative cursor-pointer will-change-transform overflow-hidden ${isSelected ? 'ring-2 ring-blue-500/60' : ''}`}
+      className={`glass-card group relative cursor-pointer will-change-transform overflow-hidden ${isRead ? 'opacity-60 hover:opacity-100' : ''} ${isSelected ? 'ring-2 ring-blue-500/60' : ''}`}
     >
       {/* CARTÃO HORIZONTAL — vidro discreto (Etapa 2). Lógica/handlers preservados. */}
       <div className="flex gap-4 sm:gap-5 p-3 sm:p-4">
@@ -1450,12 +1450,8 @@ const sortedFeed = useMemo(() => {
     // Categoria específica OU fonte específica: recência pura (Bug 5).
     // "Para você" (Tudo + Todas as Fontes): diversidade por fonte com teto (Bug 2).
     const base = (category !== 'Tudo' || sourceFilter !== 'all') ? recency : diversifyBySource(recency, 6);
-    // Rebaixa lidas para o fim, preservando a ordem (Bug 1 anterior).
-    if (!readHistory || readHistory.length === 0) return base;
-    const readSet = new Set(readHistory);
-    const unread = [], read = [];
-    for (const item of base) { readSet.has(item.id) ? read.push(item) : unread.push(item); }
-    return [...unread, ...read];
+ // Não rebaixa mais lidas: mantém na posição e apenas esmaece o card lido (isRead no NewsCard).
+    return base;
 }, [filteredBySource, category, sourceFilter, readHistory]);
 const uniqueNews = useMemo(() => {
       const seen = new Set();

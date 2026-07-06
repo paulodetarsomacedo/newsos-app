@@ -556,6 +556,12 @@ function buildItemContextFields(item: any, rawDescription: any, lite?: any) {
 const MAX_CONTEXT_PER_SOURCE = 10;      // teto de artigos com HTML-lite por fonte (não mexe no MAX_OG_PER_SOURCE)
 const CONTEXT_LITE_TIMEOUT_MS = 2200;   // timeout curto por artigo (dentro de 1500–2500ms)
 const CONTEXT_LITE_CONCURRENCY = 3;     // concorrência baixa
+const BOILERPLATE_RE = /(pol[ií]tica de privacidade|uso de cookies|aceitar cookies|este site (utiliza|usa) cookies|ao usar nosso site|leia mais or aceitar|termos de uso|consentimento|gerenciar cookies|cookie policy|privacy policy|terms of service)/i;
+const JUNK_URL_RE = /(politica[-_]?de[-_]?privacidade|privacidade|termos[-_]?de[-_]?uso|\/termos\b|cookies?|consent|conhecaopovo)/i;
+function liteLooksBoilerplate(lite: any) {
+  const probe = `${lite.metaDescription || ""} ${lite.ogDescription || ""} ${lite.jsonLdDescription || ""} ${String(lite.firstParagraph || "").slice(0, 200)}`;
+  return BOILERPLATE_RE.test(probe) || JUNK_URL_RE.test(String(lite.canonicalUrl || ""));
+}
 
 async function fetchLiteContextForUrl(url: string) {
   if (!isHttpUrl(url)) return null;
@@ -567,22 +573,21 @@ async function fetchLiteContextForUrl(url: string) {
 
 async function enrichItemsLite(items: any[], options: { enrichContext?: boolean }) {
   if (!options || options.enrichContext !== true || !Array.isArray(items) || !items.length) return items;
-  // elegíveis: contexto pobre + link http. Nunca reprocessa quem já veio bom.
+  // elegíveis: contexto pobre + link http, NÃO raspado e sem cara de página utilitária.
   const eligible = items.filter((it: any) =>
-    it && it.link && isHttpUrl(it.link) &&
+    it && it.link && isHttpUrl(it.link) && !it.scraped && !JUNK_URL_RE.test(it.link) &&
     (it.contextLevel === "title_only" || it.contextLevel === "rss_summary")
   ).slice(0, MAX_CONTEXT_PER_SOURCE);
   if (!eligible.length) return items;
   await runPool(eligible, CONTEXT_LITE_CONCURRENCY, async (it: any) => {
     try {
       const lite = await fetchLiteContextForUrl(it.link);
-      if (!lite) return;
+      if (!lite || liteLooksBoilerplate(lite)) return;   // descarta cookies/privacidade
       const fresh = buildItemContextFields(it, it.rssDescription || it.description || "", lite);
-      // só promove se de fato melhorou; nunca rebaixa
       const gotBetter = fresh.contextLevel === "html_lite" ||
         (fresh.contextText && fresh.contextText.length > String(it.contextText || "").length);
       if (gotBetter) Object.assign(it, fresh);
-    } catch { /* mantém item como estava */ }
+    } catch { /* mantém o item como estava (rss_summary/title_only) */ }
   });
   return items;
 }
@@ -662,7 +667,7 @@ function scrapeArticlesFromHtml(html: string, pageUrl: string, feedInput: FeedIn
   const doc = new DOMParser().parseFromString(html, "text/html"); if (!doc) return [];
   const host = getHostname(pageUrl); const sourceKey = normalizeKey(`${feedInput.name || ''} ${pageUrl}`);
   const seen = new Set<string>(); const items: any[] = [];
-  const bad = /assine|login|newsletter|publicidade|termos|politica-de-privacidade|cookies|facebook|twitter|instagram|youtube|whatsapp|podcast|ao-vivo|videos?$|webstories|newsletter/i;
+  const bad = /assine|login|newsletter|publicidade|termos|politica-de-privacidade|politicadeprivacidade|conhecaopovo|cookies|facebook|twitter|instagram|youtube|whatsapp|podcast|ao-vivo|videos?$|webstories|newsletter/i;
   const allowedCrossHostForUol = (hrefHost: string) => {
     if (!sourceKey.includes('uol') && !host.includes('uol.com.br')) return false;
     return hrefHost.includes('uol.com.br') || hrefHost.includes('folha.uol.com.br') || hrefHost.includes('tnonline.uol.com.br');
@@ -683,6 +688,13 @@ function scrapeArticlesFromHtml(html: string, pageUrl: string, feedInput: FeedIn
     const nodeTitle = getNodeText(titleNode);
     const ownText = getNodeText(a);
     let title = cleanScrapedTitle(nodeTitle || attrTitle || ownText, feedInput, href, pageUrl);
+    // NOVO: se o título veio truncado (card com reticências), recupera a versão completa já presente no card
+    if (/(\.{3}|…)\s*$/.test(title)) {
+      const fuller = [attrTitle, getNodeText(findWithinContext(a, ['p','[class*=summary]','[class*=description]','[class*=excerpt]'])), ownText]
+        .map((t) => cleanScrapedTitle(t, feedInput, href, pageUrl))
+        .filter((t) => t && !/(\.{3}|…)\s*$/.test(t) && t.length >= title.length);
+      if (fuller.length) title = fuller[0];
+    }
 
     if (isSbt && (!title || title.length < 28)) {
       const contextTitle = getNodeText(findWithinContext(a, ['h3','h2','h4'])) || attrTitle || ownText;
@@ -809,6 +821,8 @@ async function parseOneFeed(feedInput: FeedInput, options: { limit: number; enri
         if (og) item.img = og;
       }
 if (!item.img) item.img = feedLogo;
+      // Backfill da ficha p/ itens que não passaram pelo normalizeItem (manualParseXml / scrape HTML)
+      if (!item.contextLevel) Object.assign(item, buildItemContextFields(item, item.contentEncoded || item.description || item.rssDescription || ""));
       return item;
     }));
 
