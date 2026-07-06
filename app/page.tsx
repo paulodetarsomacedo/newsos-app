@@ -6713,7 +6713,18 @@ const normalizeFeedItemsForClient = (feed, rawItems, metadata = {}, historyBuffe
       img: finalImage,
       link: primaryLink,
       audio: audioReal || (primaryLink?.match(/\.(mp3|m4a|aac|ogg)(\?|#|$)/i) ? primaryLink : null),
-      videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
+     videoId: item.videoId || (isYoutubeItem ? getVideoId(primaryLink) : null),
+      // contexto Vetra (aditivo — só passa adiante, não altera nada acima)
+      canonicalUrl: item.canonicalUrl || primaryLink || null,
+      publishedAt: item.publishedAt || null,
+      contextText: item.contextText || null,
+      contextLevel: item.contextLevel || null,
+      contentHash: item.contentHash || null,
+      eventType: item.eventType || null,
+      entities: item.entities || null,
+      keyphrases: item.keyphrases || null,
+      normalizedTitle: item.normalizedTitle || null,
+      coreWords: item.coreWords || null,
       date: finalDateObj.toLocaleDateString()
     };
   }).filter(Boolean);

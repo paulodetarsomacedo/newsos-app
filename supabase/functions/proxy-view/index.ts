@@ -52,13 +52,79 @@ function stripDangerousNodes(doc: any): void {
   nodes.forEach((node: any) => node.remove());
 }
 
+// --- Vetra proxy-view LITE: contexto curto sem Readability (aditivo) ---
+const LITE_CONTEXT_MAX = 1400;
+function liteStripTags(input: any, max = 1400) {
+  return String(input || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&apos;/g,"'").replace(/&nbsp;/g," ").replace(/&amp;/g,"&")
+    .replace(/\s+/g, " ").trim().slice(0, max);
+}
+function liteFirstMatch(re: RegExp, s: any) { const m = String(s || "").match(re); return m ? m[1] : ""; }
+function liteAbsolutize(candidate: any, base: any) {
+  const c = String(candidate || "").trim(); if (!c) return null;
+  if (/^https?:\/\//i.test(c)) return c;
+  if (c.startsWith("//")) return "https:" + c;
+  try { return new URL(c, base).href; } catch { return null; }
+}
+function liteStableHash(str: any) {
+  let h1 = 0x811c9dc5, h2 = 0x1000193 >>> 0; const s = String(str || "");
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 ^= c; h1 = Math.imul(h1, 0x01000193); h2 = Math.imul(h2 ^ c, 0x85ebca6b); }
+  return (h1 >>> 0).toString(16).padStart(8, "0") + (h2 >>> 0).toString(16).padStart(8, "0");
+}
+function extractLiteContext(html: any, doc: any, finalUrl: any) {
+  const head = String(html || "").slice(0, 300000);
+  const canonicalRaw = liteFirstMatch(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i, head)
+    || liteFirstMatch(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i, head);
+  const canonicalUrl = liteAbsolutize(canonicalRaw, finalUrl) || finalUrl;
+  const title = liteStripTags(liteFirstMatch(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i, head) || liteFirstMatch(/<title[^>]*>([\s\S]*?)<\/title>/i, head), 300);
+  const metaDescription = liteStripTags(liteFirstMatch(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i, head) || liteFirstMatch(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i, head), 900);
+  const ogDescription = liteStripTags(liteFirstMatch(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']*)["']/i, head), 900);
+  const section = liteStripTags(liteFirstMatch(/<meta[^>]+property=["']article:section["'][^>]+content=["']([^"']*)["']/i, head), 120);
+  const author = liteStripTags(liteFirstMatch(/<meta[^>]+name=["']author["'][^>]+content=["']([^"']*)["']/i, head) || liteFirstMatch(/<meta[^>]+property=["']article:author["'][^>]+content=["']([^"']*)["']/i, head), 160);
+  const publishedTime = liteFirstMatch(/<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']*)["']/i, head) || liteFirstMatch(/<time[^>]+datetime=["']([^"']+)["']/i, head);
+  const siteName = liteStripTags(liteFirstMatch(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']*)["']/i, head), 120);
+  const image = liteAbsolutize(liteFirstMatch(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i, head) || liteFirstMatch(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i, head), finalUrl);
+  let jsonLdDescription = "";
+  const scripts = head.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
+  for (const script of scripts) {
+    const raw = script.replace(/^[\s\S]*?>/, "").replace(/<\/script>$/i, "").trim();
+    try {
+      const parsed = JSON.parse(raw); const list = Array.isArray(parsed) ? parsed : [parsed]; const stack = [...list];
+      while (stack.length) { const node: any = stack.shift(); if (!node || typeof node !== "object") continue;
+        const desc = node.description || node.articleBody || node.abstract;
+        if (typeof desc === "string" && desc.length > jsonLdDescription.length) jsonLdDescription = desc;
+        const graph = node["@graph"]; if (graph) stack.push(...(Array.isArray(graph) ? graph : [graph])); }
+    } catch (_e) {}
+    if (jsonLdDescription) break;
+  }
+  jsonLdDescription = liteStripTags(jsonLdDescription, LITE_CONTEXT_MAX);
+  const topParagraphs: string[] = []; let firstParagraph = "";
+  try {
+    const container = doc.querySelector("article") || doc.querySelector("main") || doc.body || doc;
+    for (const p of Array.from(container?.querySelectorAll?.("p") || [])) {
+      const t = liteStripTags((p as any).textContent, 600);
+      if (t && t.length >= 60) { if (!firstParagraph) firstParagraph = t; if (topParagraphs.length < 6) topParagraphs.push(t); }
+      if (topParagraphs.length >= 6) break;
+    }
+  } catch (_e) {}
+  const parts = [jsonLdDescription, ogDescription, metaDescription, firstParagraph].filter(Boolean);
+  let contextText = "";
+  for (const part of parts) { if (contextText.length >= LITE_CONTEXT_MAX) break; if (!contextText.includes(part.slice(0, 60))) contextText += (contextText ? " " : "") + part; }
+  contextText = contextText.slice(0, LITE_CONTEXT_MAX).replace(/\s+\S*$/, "").trim();
+  const contentHash = "v1_" + liteStableHash([String(canonicalUrl).split(/[?#]/)[0], title, publishedTime, contextText.slice(0, 200)].join("|"));
+  return { canonicalUrl, title, metaDescription, ogDescription, jsonLdDescription, firstParagraph, topParagraphs, contextText, contentHash, siteName, author, publishedTime, section, image };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   try {
-    const { url } = await req.json().catch(() => ({}));
+    const { url, mode } = await req.json().catch(() => ({}));
     const targetUrl = normalizeUrl(url);
+    const liteMode = String(mode || "").toLowerCase() === "lite";
 
     const response = await fetch(targetUrl, {
       headers: {
@@ -70,7 +136,7 @@ serve(async (req) => {
         "Upgrade-Insecure-Requests": "1",
       },
       redirect: "follow",
-      signal: withTimeoutSignal(TIMEOUT_MS),
+      signal: withTimeoutSignal(liteMode ? Math.min(TIMEOUT_MS, 6000) : TIMEOUT_MS),
     });
 
     if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
@@ -85,6 +151,11 @@ serve(async (req) => {
     const html = decodeBuffer(buffer, contentType);
     const doc = new DOMParser().parseFromString(html, "text/html");
     if (!doc) throw new Error("Falha ao fazer parse do HTML");
+
+    if (liteMode) {
+      const context = extractLiteContext(html, doc, response.url || targetUrl);
+      return jsonResponse({ finalUrl: response.url || targetUrl, mode: "lite", context });
+    }
 
     stripDangerousNodes(doc);
     const reader = new Readability(doc, { charThreshold: 300 }).parse();

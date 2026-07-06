@@ -396,6 +396,197 @@ function cleanArticleTitleForSource(title: string, source = '', url = ''): strin
   return clean.replace(/\s+([,.;:!?])/g, '$1').replace(/\s+/g, ' ').trim();
 }
 
+// ============================================================================
+// VETRA CONTEXT ENRICHMENT — aditivo e retrocompatível.
+// NÃO toca em fontes/URLs/descoberta/worker. Só computa "ficha compacta" do que já existe.
+// ============================================================================
+const CONTEXT_TEXT_MAX = 1200;
+const CONTEXT_TEXT_MIN_FULLISH = 320;
+const PT_STOPWORDS = new Set("a o as os um uma uns umas de do da dos das em no na nos nas por para com sem sob sobre entre e ou mas que se ao aos pelo pela pelos pelas num numa dum duma este esta estes estas esse essa esses essas aquele aquela isso isto aquilo seu sua seus suas meu minha nosso nossa como quando onde qual quais quem cujo cuja mais menos muito muita muitos muitas ja nao sim foi ser sao era eram tem ter ha haver apos ate".split(/\s+/));
+const TITLE_NOISE = /\b(ao vivo|veja|video|entenda|assista|confira|urgente|imagens|fotos|em tempo real|minuto a minuto|integra|opiniao|analise|resumo|antes e depois)\b/gi;
+
+function stripAccents(s: any) { return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+function cleanRssDescription(raw: any, max = 900) { return stripTags(raw || "", max); }
+
+function buildContextText(parts: any) {
+  const seen: string[] = [];
+  const pushClean = (t: any) => {
+    const clean = stripTags(String(t || ""), CONTEXT_TEXT_MAX);
+    if (clean && clean.length >= 24 && !seen.some(s => s.slice(0, 60) === clean.slice(0, 60))) seen.push(clean);
+  };
+  pushClean(parts.rssDescription); pushClean(parts.jsonLdDescription); pushClean(parts.ogDescription);
+  pushClean(parts.metaDescription); pushClean(parts.firstParagraph);
+  let out = seen.join(" ").replace(/\s+/g, " ").trim();
+  if (out.length > CONTEXT_TEXT_MAX) out = out.slice(0, CONTEXT_TEXT_MAX).replace(/\s+\S*$/, "").trim();
+  return out;
+}
+
+function detectEventType(text: any) {
+  const t = " " + stripAccents(String(text || "")).toLowerCase() + " ";
+  const rules: Array<[string, RegExp]> = [
+    ["morte", /\b(morre|morreu|morte|faleceu|obito|vitima fatal|mortos?)\b/],
+    ["prisao", /\b(preso|presa|prisao|detido|detida|capturad|apreendid)\b/],
+    ["acidente", /\b(acidente|colisao|capotou|atropel|descarril)\b/],
+    ["decisao_judicial", /\b(stf|stj|tj|justica|juiz|liminar|sentenca|condenad|absolvi|habeas)\b/],
+    ["economia", /\b(dolar|inflacao|selic|ipca|pib|bolsa|ibovespa|juros|mercado)\b/],
+    ["politica", /\b(presidente|ministro|congresso|senado|camara|governo|eleic|votac|deputad|prefeit)\b/],
+    ["esporte", /\b(gol|jogo|partida|campeonato|placar|venceu|derrota|classific)\b/],
+    ["seguranca", /\b(tiroteio|operacao|homicidio|assalto|roubo|trafico|apreensao)\b/],
+    ["clima", /\b(chuva|tempestade|enchente|temporal|seca|onda de calor|frente fria|alagament)\b/],
+    ["anuncio", /\b(anuncia|lanca|lancamento|apresenta|revela|confirma|divulga)\b/],
+  ];
+  for (const [name, re] of rules) if (re.test(t)) return name;
+  return "outro";
+}
+
+function extractEntities(text: any) {
+  const src = String(text || "");
+  const out: any = { orgs: [], names: [], numbers: [], money: [], percents: [], tickers: [] };
+  const push = (arr: string[], v: any) => { const s = String(v || "").trim().replace(/[.,;]+$/, ""); if (s && !arr.includes(s) && arr.length < 12) arr.push(s); };
+  (src.match(/\b\d{1,3}(?:[.,]\d+)?\s?%/g) || []).forEach(v => push(out.percents, v.replace(/\s+/g, "")));
+  (src.match(/\bR\$\s?\d[\d.,]*(?:\s?(?:mil|milh\w+|bilh\w+|trilh\w+))?/gi) || []).forEach(v => push(out.money, v.replace(/\s+/g, " ").trim()));
+  (src.match(/\b(?:US\$|€|£)\s?\d[\d.,]*/g) || []).forEach(v => push(out.money, v.replace(/\s+/g, "")));
+  (src.match(/\b[A-Z]{4}\d{1,2}\b/g) || []).forEach(v => push(out.tickers, v));
+  (src.match(/\b\d{1,3}(?:\.\d{3})+(?:,\d+)?\b/g) || []).forEach(v => push(out.numbers, v));
+  (src.match(/\b(?:STF|STJ|TSE|TCU|TJ|MPF|PRF|INSS|IBGE|Copom|Anvisa|Ibama|Petrobras|Bradesco|Nubank|B3|Selic|Ibovespa)\b/g) || []).forEach(v => push(out.orgs, v));
+  const capSeq = src.match(/\b(?:[A-ZÀ-Ý][a-zà-ÿ]{2,}\s+){1,4}[A-ZÀ-Ý][a-zà-ÿ]{2,}\b/g) || [];
+  capSeq.forEach(v => { const words = v.trim().split(/\s+/); if (words.length >= 2 && words.length <= 5) push(out.names, v.trim()); });
+  return out;
+}
+
+function extractKeyphrases(text: any, max = 10) {
+  const words = stripAccents(String(text || "")).toLowerCase()
+    .replace(/https?:\/\/\S+/g, " ").replace(/[^a-z0-9\s-]/gi, " ")
+    .split(/\s+/).filter(w => w.length >= 4 && !PT_STOPWORDS.has(w) && !/^\d+$/.test(w));
+  const freq = new Map<string, number>();
+  for (const w of words) freq.set(w, (freq.get(w) || 0) + 1);
+  return [...freq.entries()].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length).slice(0, max).map(e => e[0]);
+}
+
+function normalizeTitleAndCoreWords(title: any) {
+  const noiseRemoved = String(title || "").replace(TITLE_NOISE, " ");
+  const normalizedTitle = stripAccents(noiseRemoved).toLowerCase().replace(/[^a-z0-9\s-]/g, " ").replace(/\s+/g, " ").trim();
+  const coreWords = normalizedTitle.split(/\s+/).filter(w => w.length >= 3 && !PT_STOPWORDS.has(w));
+  return { normalizedTitle, coreWords };
+}
+
+function stableHash(str: any) {
+  let h1 = 0x811c9dc5, h2 = 0x1000193 >>> 0;
+  const s = String(str || "");
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 ^= c; h1 = Math.imul(h1, 0x01000193); h2 = Math.imul(h2 ^ c, 0x85ebca6b); }
+  return (h1 >>> 0).toString(16).padStart(8, "0") + (h2 >>> 0).toString(16).padStart(8, "0");
+}
+function makeContentHash(item: any) {
+  const canonical = String(item.canonicalUrl || item.link || "").split(/[?#]/)[0];
+  const basis = [canonical, String(item.title || ""), String(item.publishedAt || item.pubDate || ""), String(item.contextText || "").slice(0, 200)].join("|");
+  return "v1_" + stableHash(basis);
+}
+
+function firstMatch(re: RegExp, s: any) { const m = String(s || "").match(re); return m ? m[1] : ""; }
+
+// Extrator HTML-lite (usado só pelo enriquecimento opcional; não roda por padrão).
+function extractLiteArticleContext(html: any, finalUrl: any) {
+  const head = String(html || "").slice(0, 300000);
+  const canonicalRaw = firstMatch(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i, head)
+    || firstMatch(/<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["']/i, head)
+    || firstMatch(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i, head);
+  const canonicalUrl = absolutizeUrl(canonicalRaw, finalUrl) || finalUrl;
+  const metaDescription = htmlDecode(firstMatch(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i, head) || firstMatch(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i, head));
+  const ogDescription = htmlDecode(firstMatch(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']*)["']/i, head) || firstMatch(/<meta[^>]+content=["']([^"']*)["'][^>]+property=["']og:description["']/i, head));
+  const section = htmlDecode(firstMatch(/<meta[^>]+property=["']article:section["'][^>]+content=["']([^"']*)["']/i, head));
+  const author = htmlDecode(firstMatch(/<meta[^>]+name=["']author["'][^>]+content=["']([^"']*)["']/i, head) || firstMatch(/<meta[^>]+property=["']article:author["'][^>]+content=["']([^"']*)["']/i, head));
+  const publishedTime = firstMatch(/<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']*)["']/i, head) || firstMatch(/<time[^>]+datetime=["']([^"']+)["']/i, head);
+  const image = absolutizeUrl(extractImageFromHtml(head), finalUrl) || null;
+  let jsonLdDescription = ""; let firstParagraph = "";
+  try {
+    const scripts = head.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
+    for (const script of scripts) {
+      const raw = script.replace(/^[\s\S]*?>/, "").replace(/<\/script>$/i, "").trim();
+      try {
+        const parsed = JSON.parse(raw); const list = Array.isArray(parsed) ? parsed : [parsed]; const stack = [...list];
+        while (stack.length) {
+          const node: any = stack.shift(); if (!node || typeof node !== "object") continue;
+          const desc = node.description || node.articleBody || node.abstract;
+          if (typeof desc === "string" && desc.length > jsonLdDescription.length) jsonLdDescription = desc;
+          const graph = node["@graph"]; if (graph) stack.push(...(Array.isArray(graph) ? graph : [graph]));
+        }
+      } catch (_e) {}
+      if (jsonLdDescription) break;
+    }
+  } catch (_e) {}
+  try {
+    const doc: any = new DOMParser().parseFromString(head, "text/html");
+    if (doc) {
+      const container = doc.querySelector("article") || doc.querySelector("main") || doc.body || doc;
+      for (const p of Array.from(container?.querySelectorAll?.("p") || [])) {
+        const t = getNodeText(p);
+        if (t && t.length >= 80) { firstParagraph = t.slice(0, CONTEXT_TEXT_MAX); break; }
+      }
+    }
+  } catch (_e) {}
+  return { canonicalUrl, metaDescription: stripTags(metaDescription, 900), ogDescription: stripTags(ogDescription, 900), jsonLdDescription: stripTags(jsonLdDescription, CONTEXT_TEXT_MAX), firstParagraph: stripTags(firstParagraph, CONTEXT_TEXT_MAX), section, author, publishedTime, image };
+}
+
+// Combina RSS (+ lite opcional) na ficha final. É o que o normalizeItem chama.
+function buildItemContextFields(item: any, rawDescription: any, lite?: any) {
+  const rssDescription = cleanRssDescription(rawDescription, 900);
+  const l = lite || {};
+  const contextText = buildContextText({ rssDescription, metaDescription: l.metaDescription, ogDescription: l.ogDescription, jsonLdDescription: l.jsonLdDescription, firstParagraph: l.firstParagraph });
+  let contextLevel: string;
+  const hasLite = !!(l.metaDescription || l.ogDescription || l.jsonLdDescription || l.firstParagraph);
+  if (rssDescription && rssDescription.length >= CONTEXT_TEXT_MIN_FULLISH) contextLevel = "rss_fullish";
+  else if (hasLite && contextText.length >= 120) contextLevel = "html_lite";
+  else if (rssDescription && rssDescription.length >= 40) contextLevel = "rss_summary";
+  else contextLevel = "title_only";
+  const basisText = `${item.title || ""} ${contextText}`;
+  const { normalizedTitle, coreWords } = normalizeTitleAndCoreWords(item.title || "");
+  const canonicalUrl = (l.canonicalUrl && isHttpUrl(l.canonicalUrl)) ? l.canonicalUrl : (item.link || null);
+  const publishedAt = item.isoDate || item.pubDate || l.publishedTime || null;
+  const fields: any = { canonicalUrl, publishedAt, rssDescription, metaDescription: l.metaDescription || null, ogDescription: l.ogDescription || null, jsonLdDescription: l.jsonLdDescription || null, firstParagraph: l.firstParagraph || null, contextText, contextLevel, entities: extractEntities(basisText), keyphrases: extractKeyphrases(basisText), eventType: detectEventType(basisText), normalizedTitle, coreWords };
+  fields.contentHash = makeContentHash({ canonicalUrl, link: item.link, title: item.title, publishedAt, contextText });
+  return fields;
+}
+
+// ============================================================================
+// VETRA HTML-LITE ENRICHMENT — OPCIONAL e DEFAULT OFF.
+// Só roda com { enrichContext: true } (ou { allowProxy: true }) no body.
+// Nunca derruba a fonte; se falhar, item mantém rss_summary/title_only.
+// ============================================================================
+const MAX_CONTEXT_PER_SOURCE = 10;      // teto de artigos com HTML-lite por fonte (não mexe no MAX_OG_PER_SOURCE)
+const CONTEXT_LITE_TIMEOUT_MS = 2200;   // timeout curto por artigo (dentro de 1500–2500ms)
+const CONTEXT_LITE_CONCURRENCY = 3;     // concorrência baixa
+
+async function fetchLiteContextForUrl(url: string) {
+  if (!isHttpUrl(url)) return null;
+  try {
+    const { text, finalUrl } = await fetchText(url, CONTEXT_LITE_TIMEOUT_MS);
+    return extractLiteArticleContext(String(text || "").slice(0, 300000), finalUrl || url);
+  } catch { return null; }
+}
+
+async function enrichItemsLite(items: any[], options: { enrichContext?: boolean }) {
+  if (!options || options.enrichContext !== true || !Array.isArray(items) || !items.length) return items;
+  // elegíveis: contexto pobre + link http. Nunca reprocessa quem já veio bom.
+  const eligible = items.filter((it: any) =>
+    it && it.link && isHttpUrl(it.link) &&
+    (it.contextLevel === "title_only" || it.contextLevel === "rss_summary")
+  ).slice(0, MAX_CONTEXT_PER_SOURCE);
+  if (!eligible.length) return items;
+  await runPool(eligible, CONTEXT_LITE_CONCURRENCY, async (it: any) => {
+    try {
+      const lite = await fetchLiteContextForUrl(it.link);
+      if (!lite) return;
+      const fresh = buildItemContextFields(it, it.rssDescription || it.description || "", lite);
+      // só promove se de fato melhorou; nunca rebaixa
+      const gotBetter = fresh.contextLevel === "html_lite" ||
+        (fresh.contextText && fresh.contextText.length > String(it.contextText || "").length);
+      if (gotBetter) Object.assign(it, fresh);
+    } catch { /* mantém item como estava */ }
+  });
+  return items;
+}
+
+
 function normalizeItem(item: any, index: number, parsed: any, feedUrl: string, feedLogo: string | null, isYoutube: boolean) {
   const link = safeString(item.link || item.guid || item.id || "");
   const videoId = safeString(item.videoId) || (link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/)?.[2] || null);
@@ -406,7 +597,8 @@ function normalizeItem(item: any, index: number, parsed: any, feedUrl: string, f
   const enclosure = getFromMaybeArray(item.enclosure);
   let audioFile: string | null = null; if (enclosure?.url && /audio|mpeg|mp3|m4a|ogg/i.test(enclosure?.type || enclosure?.url)) audioFile = enclosure.url;
   const pubDate = item.pubDate || item.isoDate || item.published || item.updated || item.date || null;
-  return { id: videoId || item.guid || item.id || link || `${feedUrl}#${index}`, title, link, pubDate, isoDate: item.isoDate || null, img, videoId, description: stripTags(rawDescription, 500), contentEncoded: item.contentEncoded || item.content || null, audioFile, category: Array.isArray(item.categories) ? item.categories[0] : (Array.isArray(item.category) ? item.category[0] : item.category || null), creator: item.creator || item.author || null, isYoutube: Boolean(videoId || isYoutube) };
+  const __item = { id: videoId || item.guid || item.id || link || `${feedUrl}#${index}`, title, link, pubDate, isoDate: item.isoDate || null, img, videoId, description: stripTags(rawDescription, 500), contentEncoded: item.contentEncoded || item.content || null, audioFile, category: Array.isArray(item.categories) ? item.categories[0] : (Array.isArray(item.category) ? item.category[0] : item.category || null), creator: item.creator || item.author || null, isYoutube: Boolean(videoId || isYoutube) };
+  return { ...__item, ...buildItemContextFields(__item, rawDescription) };
 }
 
 function getNodeText(node: any): string { return safeString(node?.textContent || '').replace(/\s+/g, ' ').trim(); }
@@ -572,7 +764,7 @@ async function buildHtmlFallbackPayload(feedInput: FeedInput, htmlFallback: Fetc
   return { title: feedInput.name || getHostname(fallbackUrl), link: fallbackUrl, feedUrl: fallbackUrl, image: getDomainLogo(fallbackUrl, feedInput.name || 'Fonte'), isYoutube: false, items: [] };
 }
 
-async function parseOneFeed(feedInput: FeedInput, options: { limit: number; enrichImages: boolean; mode: string }) {
+async function parseOneFeed(feedInput: FeedInput, options: { limit: number; enrichImages: boolean; mode: string; enrichContext?: boolean }) {
   const feedId = safeString(feedInput.id || feedInput.url || feedInput.name);
   const startedAt = Date.now();
   let lastError = "Falha temporária";
@@ -615,9 +807,12 @@ async function parseOneFeed(feedInput: FeedInput, options: { limit: number; enri
         const og = await fetchOgImage(item.link);
         if (og) item.img = og;
       }
-      if (!item.img) item.img = feedLogo;
+     if (!item.img) item.img = feedLogo;
       return item;
     }));
+
+    // Enriquecimento HTML-lite opcional (default OFF; só com enrichContext=true).
+    await enrichItemsLite(finalItems, { enrichContext: options.enrichContext === true });
 
     return { feedId, inputUrl: feedInput.url, ok: finalItems.length > 0, status: finalItems.length > 0 ? "ok" : "empty", title: parsedPayload.title || feedInput.name || getHostname(feedInput.url), link: parsedPayload.link || parsedPayload.feedUrl || feedInput.url, feedUrl: parsedPayload.feedUrl || feedInput.url, image: feedLogo, isYoutube: !!parsedPayload.isYoutube, items: finalItems.filter((item: any) => item.title || item.link), error: finalItems.length ? undefined : lastError, elapsedMs: Date.now() - startedAt };
   } catch (error) {
@@ -642,6 +837,7 @@ serve(async (req) => {
     if (!inputUrl) return jsonResponse({ error: "URL is required", items: [] }, 400);
     const limit = Math.max(1, Math.min(Number(body.limit || (body.brief ? 24 : DEFAULT_LIMIT)), MAX_LIMIT));
     const enrichImages = body.enrichImages !== false;
+    const enrichContext = body.enrichContext === true || body.allowProxy === true;
     const feedInput: FeedInput = {
       id: safeString(body.id || body.sourceId || inputUrl),
       name: safeString(body.sourceName || body.name || body.title || "Fonte"),
@@ -650,7 +846,7 @@ serve(async (req) => {
       category: safeString(body.category || "Geral"),
       type: safeString(body.type || "rss"),
     };
-    const source = await parseOneFeed(feedInput, { limit, enrichImages, mode: safeString(body.mode || "single") });
+    const source = await parseOneFeed(feedInput, { limit, enrichImages, mode: safeString(body.mode || "single"), enrichContext });
     return jsonResponse({
       title: source.title,
       description: null,
