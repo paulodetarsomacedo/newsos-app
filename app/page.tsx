@@ -1273,9 +1273,42 @@ const NewsCard = React.memo(({
 
         {/* IMAGEM À ESQUERDA */}
         <div className="relative shrink-0 w-[34%] max-w-[230px] min-w-[110px] aspect-[4/3] rounded-[1.2rem] overflow-hidden bg-zinc-200">
-          <img src={news.img} alt={news.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
+          {/* Placeholder de marca — só aparece se a imagem falhar em todas as tentativas */}
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800">
+            <span className="text-[15px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
+              {(news.source || '?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}
+            </span>
+          </div>
+          <img
+            src={news.img}
+            alt={news.title}
+            loading="lazy"
+            className="relative w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            onError={(e) => {
+              const el = e.currentTarget;
+              // 1) tenta via proxy de imagem (contorna hotlink/referer/CORS — WaPo, Cidade Verde etc.)
+              if (!el.dataset.imgStage) {
+                el.dataset.imgStage = 'proxy';
+                const raw = String(news.img || '').replace(/^https?:\/\//, '');
+                if (raw && !raw.includes('images.weserv.nl')) {
+                  el.src = `https://images.weserv.nl/?url=${encodeURIComponent(raw)}&w=480&h=360&fit=cover&output=webp`;
+                  return;
+                }
+              }
+              // 2) cai para o logo da fonte
+              if (el.dataset.imgStage !== 'logo' && news.logo) {
+                el.dataset.imgStage = 'logo';
+                el.style.objectFit = 'contain';
+                el.style.padding = '20%';
+                el.src = news.logo;
+                return;
+              }
+              // 3) some e deixa o placeholder de marca aparecer
+              el.style.display = 'none';
+            }}
+          />
           {isRead && (
-            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[9px] font-bold uppercase tracking-wider">Lida</span>
+            <span className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[9px] font-bold uppercase tracking-wider">Lida</span>
           )}
         </div>
 
