@@ -1340,103 +1340,6 @@ const NewsCard = React.memo(({
 });
 
 
-// ===================================================================== //
-// === VETRA REFRESH — Controlador de fases + Overlay premium ========== //
-// Fases: idle | pull | searching | staging | applying | done | error    //
-// Reutilizável em FeedTab e HappeningTab. Não toca em backend.          //
-// ===================================================================== //
-function useVetraRefreshController({ applyStaged } = {}) {
-  const [phase, setPhase] = useState('idle');
-  const timersRef = useRef([]);
-
-  const clearTimers = useCallback(() => {
-    timersRef.current.forEach((t) => clearTimeout(t));
-    timersRef.current = [];
-  }, []);
-
-  const schedule = useCallback((fn, ms) => {
-    const t = setTimeout(fn, ms);
-    timersRef.current.push(t);
-    return t;
-  }, []);
-
-  useEffect(() => () => clearTimers(), [clearTimers]);
-
-  // Feedback de arraste (antes de soltar)
-  const setPull = useCallback((armed) => {
-    setPhase((p) => (p === 'idle' || p === 'pull') ? (armed ? 'pull' : 'idle') : p);
-  }, []);
-
-  // Executa o refresh real e caminha pelas fases visuais.
-  // applyStaged é idempotente/no-op-safe: aplica staging se existir, senão ignora.
-  const run = useCallback(async (task) => {
-    clearTimers();
-    setPhase('searching');
-    // Enquanto o fetch continua, migra para "montando staging"
-    schedule(() => setPhase((p) => (p === 'searching' ? 'staging' : p)), 750);
-    try {
-      await Promise.resolve(task && task());
-      setPhase('applying');
-      try { applyStaged && applyStaged(); } catch (_) {}
-      schedule(() => setPhase('done'), 460);
-      schedule(() => setPhase('idle'), 1500);
-    } catch (err) {
-      console.error('Vetra refresh falhou:', err);
-      setPhase('error');
-      schedule(() => setPhase('idle'), 1700);
-    }
-  }, [clearTimers, schedule, applyStaged]);
-
-  const isBusy = phase === 'searching' || phase === 'staging' || phase === 'applying';
-  return { phase, isBusy, setPull, run };
-}
-
-function VetraRefreshOverlay({ phase = 'idle', info = null, isDarkMode = false }) {
-  if (phase === 'idle') return null;
-
-  const MAP = {
-    pull:      { title: 'Puxe para renovar',      sub: 'Solte para buscar novos sinais', icon: RefreshCw, spin: false, busy: false, tone: 'blue' },
-    searching: { title: 'Buscando novos sinais',  sub: 'Consultando suas fontes',        icon: Loader2,   spin: true,  busy: true,  tone: 'blue' },
-    staging:   { title: 'Montando staging',       sub: 'Organizando o que mudou',        icon: Loader2,   spin: true,  busy: true,  tone: 'blue' },
-    applying:  { title: 'Aplicando atualização',  sub: 'Refinando seu feed',             icon: Sparkles,  spin: false, busy: true,  tone: 'blue' },
-    done:      { title: 'Tudo atualizado',        sub: 'Seu feed está em dia',           icon: Check,     spin: false, busy: false, tone: 'emerald' },
-    error:     { title: 'Não foi possível agora', sub: 'Mantivemos o feed atual',        icon: X,         spin: false, busy: false, tone: 'rose' },
-  };
-  const s = MAP[phase] || MAP.searching;
-  const Icon = s.icon;
-
-  const orbStyle = s.tone === 'emerald'
-    ? { background: 'radial-gradient(circle at 28% 16%, rgba(255,255,255,.5), transparent 32%), linear-gradient(145deg, #34d399, #059669 60%, #047857)' }
-    : s.tone === 'rose'
-    ? { background: 'radial-gradient(circle at 28% 16%, rgba(255,255,255,.5), transparent 32%), linear-gradient(145deg, #fb7185, #e11d48 60%, #be123c)' }
-    : undefined;
-
-  const showInfo = (phase === 'applying' || phase === 'done') && info && info.count > 0;
-
-  return (
-    <div className="vetra-refresh-backdrop" aria-live="polite" role="status">
-      <div className="vetra-refresh-overlay w-[min(22rem,calc(100vw-2rem))] flex flex-col gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
-        <div className="flex items-center gap-3">
-          <div className="vetra-refresh-orb shrink-0" data-busy={s.busy ? 'true' : 'false'} style={orbStyle}>
-            <Icon size={22} className={s.spin ? 'animate-spin' : ''} strokeWidth={2.4} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className={`text-[15px] font-black tracking-tight truncate ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-              {s.title}
-            </div>
-            <div className={`text-[12px] font-semibold truncate ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-              {showInfo ? `${info.count} novos sinais de ${info.sourceCount} fontes` : s.sub}
-            </div>
-          </div>
-        </div>
-        <div className="vetra-refresh-track">
-          <div className="vetra-refresh-bar" data-static={s.busy ? 'false' : 'true'} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // --- TAB: FEED (COM PROTEÇÃO CONTRA DUPLICATAS) ---
 // --- TAB: FEED (VERSÃO FINAL, LIMPA E OTIMIZADA) ---
 function FeedTab({ 
@@ -1481,10 +1384,6 @@ function FeedTab({
   const introAudioRef = useRef(null);
   const outroAudioRef = useRef(null);
   const prevCategory = useRef(category);
-
-  // Overlay premium de refresh (fases) + preview seguro dos primeiros cards
-  const refreshCtl = useVetraRefreshController({ applyStaged: onApplyStagedUpdate });
-  const feedPreviewActive = refreshCtl.phase === 'searching' || refreshCtl.phase === 'staging';
 
   useEffect(() => {
     if (feedContainerRef.current && prevCategory.current !== category) {
@@ -1571,29 +1470,26 @@ const uniqueNews = useMemo(() => {
       }
   }, [sourceFilter, sourceCacheView, sourceStatusMap, onEnsureSourceLoaded]);
 
-const handleTouchStart = (e) => { if (feedContainerRef.current?.scrollTop <= 5 && !isRefreshing) setStartY(e.touches[0].clientY); };
+  const handleTouchStart = (e) => { if (feedContainerRef.current?.scrollTop <= 5 && !isRefreshing) setStartY(e.touches[0].clientY); };
   const handleTouchMove = (e) => {
     if (startY === 0 || isRefreshing || (feedContainerRef.current && feedContainerRef.current.scrollTop > 5)) return;
     const diff = e.touches[0].clientY - startY;
     if (diff > 0) {
-      const next = Math.min(diff * 0.45, 140);
-      setPullDistance(next);
-      refreshCtl.setPull(next > 70); // arma o rótulo "Solte para renovar"
+      
+      setPullDistance(Math.min(diff * 0.45, 140));
     }
   };
 const handleTouchEnd = async () => {
     if (pullDistance > 70) {
       setIsRefreshing(true);
-      // Fecha o feedback de arraste e entrega o overlay premium ao controlador.
-      setPullDistance(0); setStartY(0);
       try {
-        await refreshCtl.run(() => onRefresh && onRefresh());
+        if (onRefresh) await onRefresh();
+      } catch (err) {
+        console.error("Falha ao atualizar FeedTab:", err);
       } finally {
         setIsRefreshing(false);
       }
-      return;
     }
-    refreshCtl.setPull(false);
     setPullDistance(0); setStartY(0);
   };
 
@@ -1798,28 +1694,19 @@ const handleTouchEnd = async () => {
       {/* CARTÕES — coluna centralizada, vidro discreto */}
       <div className="flex flex-col gap-4 px-3 sm:px-5 max-w-5xl mx-auto w-full">
         {uniqueNews.length === 0 && !isLoading && <div className="text-center py-10 opacity-50"><p>Nenhuma notícia encontrada.</p></div>}
-        {uniqueNews.map((news, idx) => (
-          <div
-            key={news.id}
-            className={feedPreviewActive && idx < 36 ? 'vetra-card-preview rounded-3xl' : ''}
-            style={feedPreviewActive && idx < 36 ? { animationDelay: `${Math.min(idx, 35) * 22}ms` } : undefined}
-          >
+        {uniqueNews.map((news) => (
             <NewsCard 
-              news={news} isSelected={selectedArticleId === news.id}
+              key={news.id} news={news} isSelected={selectedArticleId === news.id}
               playingAudio={isGenerating ? {id: localPlayingAudio?.id, isGenerating: true} : localPlayingAudio}
               onPlay={handleLocalPlay} isRead={readHistory?.includes(news.id)}
               isSaved={savedItems?.some((item) => item.id === news.id)}
               isDarkMode={isDarkMode} onClick={onReadArticle} onAnalyze={openArticle}
               onToggleSave={onToggleSave} isLiked={likedItems?.includes(news.id)}
-             onToggleLike={onToggleLike}
+              onToggleLike={onToggleLike}
               onSwipeLeft={onSwipeLeftArticle} 
             />
-          </div>
         ))}
       </div>
-
-      {/* Overlay premium de refresh (fases) */}
-      <VetraRefreshOverlay phase={refreshCtl.phase} info={stagedUpdateInfo} isDarkMode={isDarkMode} />
     </div>
   );
 }
@@ -5940,7 +5827,7 @@ function TrendingTopicModal({ topic, allTopics = [], onClose, openArticle }) {
   );
 }
 
-function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters, onOpenPodNews, stagedUpdateInfo, onApplyStagedUpdate }) { 
+function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh, storiesToDisplay, onMarkAsSeen, getApiKey, savedClusters, setSavedClusters, seenStoryIds, onTriggerWidgetRotation, heuristicClusters, onOpenPodNews }) { 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showDigest, setShowDigest] = useState(false);
   const [isMarketModalOpen, setIsMarketModalOpen] = useState(false);
@@ -5949,30 +5836,18 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Mesmo overlay premium de refresh do Feed (fases + staging)
-  const refreshCtl = useVetraRefreshController({ applyStaged: onApplyStagedUpdate });
-
   const handleTouchStart = (e) => { if (getVetraMainScrollTop() <= 5 && !isRefreshing) startY.current = e.touches[0].clientY; };
   const handleTouchMove = (e) => {
     if (startY.current === 0 || isRefreshing) return;
     const diff = e.touches[0].clientY - startY.current;
-    if (diff > 0 && getVetraMainScrollTop() <= 5) {
-      const next = Math.min(diff * 0.5, 220);
-      setPullDistance(next);
-      refreshCtl.setPull(next > 90);
-    }
+    if (diff > 0 && getVetraMainScrollTop() <= 5) setPullDistance(Math.min(diff * 0.5, 220));
   };
   const handleTouchEnd = async () => {
     if (pullDistance === 0) { startY.current = 0; return; }
     if (pullDistance > 90) {
-      setIsRefreshing(true); setRefreshTrigger(prev => prev + 1);
-      setPullDistance(0); startY.current = 0;
-      try { await refreshCtl.run(() => onRefresh && onRefresh()); }
-      finally { setIsRefreshing(false); }
-      return;
-    }
-    refreshCtl.setPull(false);
-    setPullDistance(0);
+      setIsRefreshing(true); setPullDistance(120); setRefreshTrigger(prev => prev + 1);
+      try { if (onRefresh) await onRefresh(); } catch (err) {} finally { setIsRefreshing(false); setPullDistance(0); }
+    } else { setPullDistance(0); }
     startY.current = 0;
   };
 
@@ -5986,29 +5861,12 @@ function HappeningTab({ openArticle, openStory, isDarkMode, newsData, onRefresh,
     <div className="animate-in fade-in duration-700 flex flex-col gap-2 pb-24 touch-pan-y w-full"
          onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>     
       
-  {/* Indicador de arraste (o overlay premium assume durante o refresh) */}
-      <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '25%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 && !isRefreshing ? 'flex' : 'none' }}>
+      {/* Indicador de Refresh */}
+      <div className="fixed left-0 right-0 z-[1000] flex justify-center pointer-events-none" style={{ top: '25%', opacity: Math.min(pullDistance / 80, 1), transform: `scale(${Math.min(pullDistance / 100, 1.2)})`, display: pullDistance > 0 || isRefreshing ? 'flex' : 'none' }}>
          <div className={`flex flex-col items-center gap-2 p-4 rounded-3xl shadow-2xl border ${isDarkMode ? 'bg-black/80 border-white/10 shadow-purple-500/20' : 'bg-white/95 border-zinc-200 shadow-xl text-zinc-900'} backdrop-blur-md`}>
-            <RefreshCw size={32} className="text-purple-500 transition-transform" style={{ transform: `rotate(${pullDistance * 3}deg)` }}/>
+            {isRefreshing ? <Loader2 size={32} className="animate-spin text-purple-500" /> : <RefreshCw size={32} className="text-purple-500 transition-transform" style={{ transform: `rotate(${pullDistance * 3}deg)` }}/>}
          </div>
       </div>
-
-      {/* Overlay premium de refresh (fases) + banner de staging opcional */}
-      <VetraRefreshOverlay phase={refreshCtl.phase} info={stagedUpdateInfo} isDarkMode={isDarkMode} />
-      {stagedUpdateInfo && refreshCtl.phase === 'idle' && onApplyStagedUpdate && (
-        <div className="px-4 pt-1">
-          <button
-            onClick={onApplyStagedUpdate}
-            className="vetra-update-ready w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left animate-in slide-in-from-top-2 fade-in duration-300"
-          >
-            <span className="flex items-center gap-2 min-w-0">
-              <Sparkles size={16} className="text-blue-500 shrink-0" />
-              <span className="font-black text-sm text-zinc-900 truncate">{stagedUpdateInfo.count} novas notícias de {stagedUpdateInfo.sourceCount} fontes</span>
-            </span>
-            <span className="text-[11px] font-bold text-blue-600 whitespace-nowrap">Atualizar agora</span>
-          </button>
-        </div>
-      )}
       
       {/* 1. STORIES */}
       <div className="px-4 relative z-10 shrink-0 pt-1">
@@ -9837,8 +9695,7 @@ return (
                     // Você precisaria passar essa função para o WhileYouWereAwayWidget
                     setSavedClusters={setGlobalClusters}
                     getApiKey={getApiKey}
-                    stagedUpdateInfo={stagedUpdateInfo}
-                    onApplyStagedUpdate={applyStagedSnapshot}
+                  
                 />
             )}
         
