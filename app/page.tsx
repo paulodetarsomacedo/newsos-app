@@ -1273,40 +1273,57 @@ const NewsCard = React.memo(({
 
         {/* IMAGEM À ESQUERDA */}
         <div className="relative shrink-0 w-[34%] max-w-[230px] min-w-[110px] aspect-[4/3] rounded-[1.2rem] overflow-hidden bg-zinc-200">
-          {/* Placeholder de marca — só aparece se a imagem falhar em todas as tentativas */}
+          {/* Placeholder: logo da fonte num tile branco; iniciais só se o logo também falhar */}
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800">
-            <span className="text-[15px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
+            <span className="absolute text-[17px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
               {(news.source || '?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}
             </span>
+            {news.logo && (
+              <img
+                src={news.logo}
+                alt=""
+                className="relative w-[46%] h-[46%] object-contain rounded-2xl bg-white p-2.5 shadow-sm"
+                onError={(e) => {
+                  const el = e.currentTarget;
+                  // logo direto falhou → tenta o favicon do domínio (fonte confiável, igual ao dropdown)
+                  if (!el.dataset.logoStage) {
+                    el.dataset.logoStage = 'favicon';
+                    const dom = getUrlDomain(news.link || news.canonicalUrl || '');
+                    if (dom && !String(el.src).includes('s2/favicons')) {
+                      el.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=128`;
+                      return;
+                    }
+                  }
+                  // some e deixa as iniciais aparecerem
+                  el.style.display = 'none';
+                }}
+              />
+            )}
           </div>
-          <img
-            src={news.img}
-            alt={news.title}
-            loading="lazy"
-            className="relative w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-            onError={(e) => {
-              const el = e.currentTarget;
-              // 1) tenta via proxy de imagem (contorna hotlink/referer/CORS — WaPo, Cidade Verde etc.)
-              if (!el.dataset.imgStage) {
-                el.dataset.imgStage = 'proxy';
-                const raw = String(news.img || '').replace(/^https?:\/\//, '');
-                if (raw && !raw.includes('images.weserv.nl')) {
-                  el.src = `https://images.weserv.nl/?url=${encodeURIComponent(raw)}&w=480&h=360&fit=cover&output=webp`;
-                  return;
+
+          {/* Foto real do artigo — só renderiza quando há imagem de verdade (não o logo/favicon) */}
+          {(!news.img || news.img === news.logo || /s2\/favicons|ui-avatars\.com/.test(String(news.img))) ? null : (
+            <img
+              src={news.img}
+              alt={news.title}
+              loading="lazy"
+              className="relative w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              onError={(e) => {
+                const el = e.currentTarget;
+                // 1) tenta via proxy de imagem (contorna hotlink/referer/CORS)
+                if (!el.dataset.imgStage) {
+                  el.dataset.imgStage = 'proxy';
+                  const raw = String(news.img || '').replace(/^https?:\/\//, '');
+                  if (raw && !raw.includes('images.weserv.nl')) {
+                    el.src = `https://images.weserv.nl/?url=${encodeURIComponent(raw)}&w=480&h=360&fit=cover&output=webp`;
+                    return;
+                  }
                 }
-              }
-              // 2) cai para o logo da fonte
-              if (el.dataset.imgStage !== 'logo' && news.logo) {
-                el.dataset.imgStage = 'logo';
-                el.style.objectFit = 'contain';
-                el.style.padding = '20%';
-                el.src = news.logo;
-                return;
-              }
-              // 3) some e deixa o placeholder de marca aparecer
-              el.style.display = 'none';
-            }}
-          />
+                // 2) some e deixa o placeholder de logo aparecer
+                el.style.display = 'none';
+              }}
+            />
+          )}
           {isRead && (
             <span className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[9px] font-bold uppercase tracking-wider">Lida</span>
           )}
@@ -1337,10 +1354,31 @@ const NewsCard = React.memo(({
           <div className="mt-auto pt-3 flex items-end justify-between gap-3">
             {/* FONTE */}
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-11 h-11 rounded-xl bg-white border border-zinc-200/70 shadow-sm flex items-center justify-center shrink-0 overflow-hidden">
-                {news.logo
-                  ? <img src={news.logo} className="w-full h-full object-contain p-1.5" onError={(e)=>{ e.target.style.display='none'; }} alt="" />
-                  : <span className="text-[11px] font-bold text-[#1e3a8a]">{(news.source||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}</span>}
+              <div className="relative w-11 h-11 rounded-xl bg-white border border-zinc-200/70 shadow-sm flex items-center justify-center shrink-0 overflow-hidden">
+                <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-[#1e3a8a]">
+                  {(news.source||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}
+                </span>
+                {news.logo && (
+                  <img
+                    src={news.logo}
+                    className="relative w-full h-full object-contain p-1.5 bg-white"
+                    alt=""
+                    onError={(e) => {
+                      const el = e.currentTarget;
+                      // 1) tenta o favicon do domínio (fonte confiável — a mesma do dropdown)
+                      if (!el.dataset.logoStage) {
+                        el.dataset.logoStage = 'favicon';
+                        const dom = getUrlDomain(news.link || news.canonicalUrl || '');
+                        if (dom && !String(el.src).includes('s2/favicons')) {
+                          el.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=128`;
+                          return;
+                        }
+                      }
+                      // 2) some e deixa as iniciais aparecerem
+                      el.style.display = 'none';
+                    }}
+                  />
+                )}
               </div>
               <div className="flex items-center gap-2 min-w-0 text-[13px]">
                 <span className="font-semibold text-zinc-700 truncate">{news.source}</span>
@@ -7472,6 +7510,9 @@ const SOURCE_LOGO_OVERRIDES = [
   { key: 'macmagazine', display: 'MacMagazine', match: ['macmagazine'], domains: ['macmagazine.com.br'], logo: 'https://www.google.com/s2/favicons?domain=macmagazine.com.br&sz=128' },
   { key: '9to5mac', display: '9to5Mac', match: ['9to5mac', '9to5 mac'], domains: ['9to5mac.com'], logo: 'https://www.google.com/s2/favicons?domain=9to5mac.com&sz=128' },
   { key: 'foxnews', display: 'Fox News', match: ['fox news'], domains: ['foxnews.com'], logo: 'https://www.google.com/s2/favicons?domain=foxnews.com&sz=128' },
+  { key: 'washingtonpost', display: 'Washington Post', match: ['washington post', 'the washington post', 'washingtonpost'], domains: ['washingtonpost.com'], logo: 'https://www.google.com/s2/favicons?domain=washingtonpost.com&sz=128' },
+  { key: 'appleinsider', display: 'Apple Insider News', match: ['apple insider', 'apple insider news', 'appleinsidernews'], domains: ['appleinsider.com'], logo: 'https://media.licdn.com/dms/image/v2/C4D0BAQGfO86wS9645Q/company-logo_200_200/company-logo_200_200/0/1631364742854?e=2147483647&v=beta&t=clBv8BXjYMf-UdHovK07aPWpLM-N-a0CUoueZ17cHns' },
+  { key: 'cidadeverde', display: 'Cidade Verde', match: ['cidade verde', 'cidadeverde'], domains: ['cidadeverde.com', 'cidadeverde.com.br'], logo: 'https://www.google.com/s2/favicons?domain=cidadeverde.com&sz=128' },
 ];
 
 const isLikelyHttpUrl = (value) => /^https?:\/\//i.test(String(value ?? '').trim());
