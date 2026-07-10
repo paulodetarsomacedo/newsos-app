@@ -846,6 +846,97 @@ const firstSentenceMatching = (sentences: string[], rx: RegExp): string | null =
   return null;
 };
 
+// ============================================================
+// (FASE 2 — Camadas 2 e 3) CLASSIFICAÇÃO DE FRASES POR PAPEL
+// Cada frase recebe papéis e uma pontuação. As seções passam a
+// escolher a frase de MAIOR pontuação para o papel que precisam —
+// conserta "background em vez de fato" e "número perdido".
+// ============================================================
+
+export type SentenceRole =
+  | 'main_fact' | 'detail' | 'number' | 'cause' | 'consequence'
+  | 'next_step' | 'instruction' | 'legal_status' | 'background' | 'quote';
+
+// Sinais de FATO CENTRAL (verbos de ação no presente/passado recente).
+const MAIN_FACT_VERBS = /\b(anuncia|anunciou|aprova|aprovou|decide|decidiu|demite|demitiu|exonera|nomeia|nomeou|determina|determinou|pede|pediu|protocolou|publica|publicou|confirma|confirmou|lanca|lancou|assina|assinou|proibe|proibiu|suspende|suspendeu|libera|autoriza|condena|condenou|entrega|entregou|compra|comprou|adquire|vai|planeja|estabelece|estabeleceu|exige|exigiu)\b/;
+// Sinais de BACKGROUND (contexto histórico — o que NÃO queremos como fato).
+const BACKGROUND_RX = /\b(desde (?:sua |a |o |\d)|em \d{4}|historicamente|ao longo (?:da|do) |foi (?:criad|fundad|introduzid|construíd)|no passado|antigamente|tradicionalmente|nasceu em|primeira pessoa a|a primeira)\b/;
+const INSTRUCTION_RX = /\b(toque|clique|selecione|abra|acesse|escolha|confirme|va em|arraste|digite|pressione)\b/;
+const LEGAL_STATUS_RX = /\b(cabe recurso|transitou em julgado|em segunda instancia|aguarda julgamento|processo administrativo|liminar|sentenca|portaria|decreto)\b/;
+const NUMBER_IN_SENT = /(?:R\$|US\$|\$|€)\s?[\d.,]+|\b\d+(?:[.,]\d+)?\s?%|\b\d{1,3}(?:\.\d{3})+\b|\b\d+(?:[.,]\d+)?\s?(?:mil|milh|bilh|tri)/i;
+
+export interface ClassifiedSentence {
+  text: string;
+  norm: string;
+  idx: number;
+  roles: Set<SentenceRole>;
+  score: number;   // relevância como FATO principal
+}
+
+export const classifySentences = (
+  sentences: string[],
+  frame: HeuristicFrame,
+  title: string
+): ClassifiedSentence[] => {
+  const normTitleWords = new Set(normalizeTerm(title).split(' ').filter(w => w.length > 3));
+  const actorNorm = frame.actor ? normalizeTerm(frame.actor) : '';
+  const topicNorm = frame.topic ? normalizeTerm(frame.topic) : '';
+
+  return sentences.map((text, idx) => {
+    const norm = normalizeTerm(text);
+    const roles = new Set<SentenceRole>();
+
+    const isBackground = BACKGROUND_RX.test(norm);
+    if (isBackground) roles.add('background');
+    if (MAIN_FACT_VERBS.test(norm) && !isBackground) roles.add('main_fact');
+    if (NUMBER_IN_SENT.test(text)) roles.add('number');
+    if (CAUSE_RX.test(norm)) roles.add('cause');
+    if (CONSEQUENCE_RX.test(norm)) roles.add('consequence');
+    if (NEXT_STEP_RX.test(norm)) roles.add('next_step');
+    if (INSTRUCTION_RX.test(norm)) roles.add('instruction');
+    if (LEGAL_STATUS_RX.test(norm)) roles.add('legal_status');
+    if (/["“”].{10,}["“”]|,\s*(?:disse|afirmou|declarou|segundo)\b/.test(text)) roles.add('quote');
+    if (roles.size === 0) roles.add('detail');
+
+    // ── Pontuação como FATO principal (Camada 3) ──
+    let score = 0;
+    score += Math.max(0, 3 - idx * 0.6);                  // lead-bias
+    if (roles.has('main_fact')) score += 2.5;             // verbo de ação forte
+    if (actorNorm && norm.includes(actorNorm)) score += 2;// entidade principal
+    if (topicNorm && norm.includes(topicNorm)) score += 1.2;
+    let overlap = 0;
+    for (const w of norm.split(' ')) if (normTitleWords.has(w)) overlap++;
+    score += Math.min(2.5, overlap * 0.5);               // sobreposição com título
+    if (roles.has('number')) score += 1;                 // dado quantitativo
+    if (roles.has('background')) score -= 2.5;            // penaliza background
+    if (roles.has('instruction')) score -= 1;            // passo não é fato
+    if (roles.has('quote')) score -= 0.5;
+    if (BOILERPLATE_SENT_RX.test(text)) score -= 12;
+    if (!/[a-zà-ú]/.test(text)) score -= 5;
+    if (text.length < 30) score -= 1;
+
+    return { text, norm, idx, roles, score };
+  });
+};
+
+// Melhor frase para um papel específico (ou melhor fato principal).
+const bestForRole = (
+  classified: ClassifiedSentence[],
+  role: SentenceRole | 'main',
+  exclude: Set<number> = new Set()
+): ClassifiedSentence | null => {
+  const pool = classified.filter(c => !exclude.has(c.idx));
+  if (role === 'main') {
+    const ranked = [...pool].sort((a, b) => b.score - a.score);
+    return ranked[0] || null;
+  }
+  const withRole = pool.filter(c => c.roles.has(role));
+  if (withRole.length === 0) return null;
+  // dentro do papel, prioriza pontuação (recência + relevância)
+  return withRole.sort((a, b) => b.score - a.score)[0];
+};
+
+
 const sec = (key: string, label: string, iconKey: string, text: string, confidence: number): SummarySection | null => {
   const t = String(text || '').trim();
   if (!t || t.length < 12) return null;
@@ -867,11 +958,27 @@ const buildAdaptiveSections = (ctx: SectionCtx): SummarySection[] => {
   // "Em resumo" — sempre a primeira, é o que temos de mais confiável.
   out.push(sec('resumo', 'Em resumo', 'zap', one_liner, 0.9));
 
-  // Frase principal para as seções factuais: a 1ª frase do corpo que NÃO
-  // seja praticamente igual ao one_liner (evita repetir o resumo).
+  // (FASE 2) Classifica as frases do corpo por papel. As seções escolhem a
+  // frase de MAIOR pontuação para o papel que precisam, em vez da 1ª frase.
   const normOne = normalizeTerm(one_liner);
-  const factSents = bodySents.filter(s => sentenceSimilarity(normalizeTerm(s), normOne) < 0.6);
-  const mainFact = factSents[0] || bodySents[0] || what_happened;
+  const classified = classifySentences(bodySents, frame, ctx.title)
+    .filter(c => sentenceSimilarity(c.norm, normOne) < 0.6); // não repetir o resumo
+  const usedIdx = new Set<number>();
+
+  // Fato principal: a frase de maior score (não a primeira). Isto conserta
+  // "background em vez de fato" (ex.: Khomeini 1979 vs. a ausência hoje).
+  const mainC = bestForRole(classified, 'main');
+  const mainFact = mainC?.text || what_happened;
+  if (mainC) usedIdx.add(mainC.idx);
+
+  // helper: pega melhor frase de um papel, marca usada, evita duplicar o fato
+  const take = (role: SentenceRole | 'main'): string | null => {
+    const c = bestForRole(classified, role, usedIdx);
+    if (!c) return null;
+    if (sentenceSimilarity(c.norm, normalizeTerm(mainFact)) > 0.7) return null;
+    usedIdx.add(c.idx);
+    return c.text;
+  };
 
   if (mode === 'how_to') {
     out.push(sec('aprende', 'O que você aprende',
@@ -893,26 +1000,27 @@ const buildAdaptiveSections = (ctx: SectionCtx): SummarySection[] => {
   }
 
   else if (mode === 'policy_or_legal') {
-    
     out.push(sec('pedido', 'O que foi pedido/decidido', 'scale', mainFact, hasBody ? 0.85 : 0.6));
-    const causa = firstSentenceMatching(bodySents, CAUSE_RX);
-    if (causa && causa !== mainFact) out.push(sec('motivo', 'Motivo', 'filetext', causa, 0.75));
-    const prox = firstSentenceMatching(bodySents, NEXT_STEP_RX);
+    const num = take('number');
+    if (num) out.push(sec('numero', 'Em números', 'trendingup', num, 0.8));
+    const causa = take('cause');
+    if (causa) out.push(sec('motivo', 'Motivo', 'filetext', causa, 0.75));
+    const prox = take('next_step');
     if (prox) out.push(sec('proximo', 'Próxima etapa', 'clock', prox, 0.8)); // SÓ se explícito
   }
 
   else if (mode === 'market_update') {
-    
     out.push(sec('mov', 'O que mudou', 'trendingup', mainFact, hasBody ? 0.85 : 0.6));
-    const causa = firstSentenceMatching(bodySents, CAUSE_RX);
-    if (causa && causa !== mainFact) out.push(sec('motivo', 'Motivo', 'filetext', causa, 0.75));
-    const prox = firstSentenceMatching(bodySents, NEXT_STEP_RX);
-    if (prox && prox !== mainFact) out.push(sec('proximo', 'Próxima etapa', 'clock', prox, 0.78));
+    const num = take('number');
+    if (num) out.push(sec('numero', 'Em números', 'trendingup', num, 0.8));
+    const causa = take('cause');
+    if (causa) out.push(sec('motivo', 'Motivo', 'filetext', causa, 0.75));
   }
 
   else if (mode === 'profile_obituary') {
     out.push(sec('quem', 'Quem foi', 'user', mainFact, hasBody ? 0.82 : 0.6));
-    if (bodySents[1]) out.push(sec('legado', 'Trajetória', 'history', bodySents[1], 0.7));
+    const legado = take('detail');
+    if (legado) out.push(sec('legado', 'Trajetória', 'history', legado, 0.7));
   }
 
   else if (mode === 'sports_live') {
@@ -923,14 +1031,21 @@ const buildAdaptiveSections = (ctx: SectionCtx): SummarySection[] => {
 
   else {
     // breaking_event / general → frame factual, sem inventar impacto.
-    
     out.push(sec('fatos', 'Fatos principais', 'filetext', mainFact, hasBody ? 0.85 : 0.55));
-    const causa = firstSentenceMatching(bodySents, CAUSE_RX);
-    if (causa && causa !== mainFact) out.push(sec('causa', 'Por quê', 'filetext', causa, 0.72));
-    const cons = firstSentenceMatching(bodySents, CONSEQUENCE_RX);
-    if (cons && cons !== mainFact) out.push(sec('mudou', 'O que muda', 'trendingup', cons, 0.75)); // SÓ se explícito
-    const prox = firstSentenceMatching(bodySents, NEXT_STEP_RX);
-    if (prox && prox !== mainFact) out.push(sec('proximo', 'Próximo marco', 'clock', prox, 0.78)); // SÓ se explícito
+    const num = take('number');
+    if (num) out.push(sec('numero', 'Em números', 'trendingup', num, 0.78));
+    const causa = take('cause');
+    if (causa) out.push(sec('causa', 'Por quê', 'filetext', causa, 0.72));
+    // Sem causa explícita: usa a próxima frase factual mais forte como contexto,
+    // preservando o encadeamento (ex.: "foi preso no ano passado…").
+    else {
+      const contexto = take('main');
+      if (contexto) out.push(sec('contexto', 'Contexto', 'filetext', contexto, 0.68));
+    }
+    const cons = take('consequence');
+    if (cons) out.push(sec('mudou', 'O que muda', 'trendingup', cons, 0.75)); // SÓ se explícito
+    const prox = take('next_step');
+    if (prox) out.push(sec('proximo', 'Próximo marco', 'clock', prox, 0.78)); // SÓ se explícito
   }
 
   // Camada 6: filtra nulos, aplica piso de confiança e orçamento.
