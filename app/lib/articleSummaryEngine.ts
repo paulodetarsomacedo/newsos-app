@@ -20,6 +20,101 @@ const displayTerm = (term: any): string => {
   return disp;
 };
 
+// ============================================================
+// ADAPTADORES DO FORMATO DO SERVIDOR (edge function)
+// O servidor (buildItemContextFields) manda:
+//   entities = { orgs[], names[], numbers[], money[], percents[], tickers[] }
+//   eventType ∈ { morte, prisao, acidente, decisao_judicial, economia,
+//                 politica, esporte, seguranca, clima, anuncio, outro }
+//   money já vem extraído certo ("R$ 120 milhões") — usamos direto.
+// ============================================================
+
+// Lê entities seja como objeto {orgs,names,...} (formato do servidor) OU
+// como array simples (compatibilidade). Retorna listas normalizadas.
+interface ServerEntities {
+  orgs: string[]; names: string[]; numbers: string[];
+  money: string[]; percents: string[]; tickers: string[];
+}
+const readEntities = (raw: any): ServerEntities => {
+  const empty: ServerEntities = { orgs: [], names: [], numbers: [], money: [], percents: [], tickers: [] };
+  if (!raw) return empty;
+  if (Array.isArray(raw)) {
+    // formato antigo/simples: trata tudo como "names"
+    return { ...empty, names: raw.filter(Boolean).map(String) };
+  }
+  if (typeof raw === 'object') {
+    return {
+      orgs: Array.isArray(raw.orgs) ? raw.orgs.filter(Boolean).map(String) : [],
+      names: Array.isArray(raw.names) ? raw.names.filter(Boolean).map(String) : [],
+      numbers: Array.isArray(raw.numbers) ? raw.numbers.filter(Boolean).map(String) : [],
+      money: Array.isArray(raw.money) ? raw.money.filter(Boolean).map(String) : [],
+      percents: Array.isArray(raw.percents) ? raw.percents.filter(Boolean).map(String) : [],
+      tickers: Array.isArray(raw.tickers) ? raw.tickers.filter(Boolean).map(String) : [],
+    };
+  }
+  return empty;
+};
+
+// Números prontos do servidor: money + percents, deduplicados e limpos.
+// Substitui o extractor local bugado ("R$ 120 mil" / "US$ 71,").
+const numbersFromEntities = (ent: ServerEntities): string[] => {
+  const all = [...ent.money, ...ent.percents]
+    .map(s => s.replace(/[.,;]+$/, '').trim())   // tira pontuação pendurada
+    .filter(Boolean);
+  return Array.from(new Set(all)).slice(0, 4);
+};
+
+// Tradução eventType do servidor → tipos internos (dos meus templates).
+const SERVER_EVENT_MAP: Record<string, string> = {
+  morte: 'death',
+  prisao: 'security_operation',
+  acidente: 'accident',
+  decisao_judicial: 'legal_decision',
+  economia: 'market_move',
+  politica: 'announcement',   // política genérica: refinada pela detecção local se possível
+  esporte: 'sports_match',
+  seguranca: 'security_operation',
+  clima: 'weather_event',
+  anuncio: 'announcement',
+  // "outro" NÃO entra aqui de propósito → dispara detecção local.
+};
+
+// Resolve o eventType final: usa o do servidor quando é específico;
+// quando é "outro"/"politica"/vazio, tenta a detecção local (mais fina).
+const resolveEventType = (serverType: any, localText: string): string => {
+  const st = String(serverType || '').toLowerCase();
+  const local = detectEventType(localText);
+  // Se a detecção local achou algo específico, ela tem prioridade sobre
+  // os tipos genéricos do servidor.
+  if (local !== 'general') {
+    // exceção: se servidor deu tipo forte e local concordou em espírito, mantém local
+    return local;
+  }
+  if (st && st !== 'outro' && SERVER_EVENT_MAP[st]) return SERVER_EVENT_MAP[st];
+  return 'general';
+};
+
+// ------------------------------------------------------------
+// DETECÇÃO DE TIPO DE CONTEÚDO (não é tudo notícia!)
+// Listicle e tutorial recebem frame próprio, não frame de notícia.
+// ------------------------------------------------------------
+export type ContentType = 'news' | 'listicle' | 'tutorial' | 'opinion';
+
+const LISTICLE_TITLE_RX = /\b(\d+\s+(?:coisas|motivos|razoes|dicas|formas|maneiras|jeitos|lugares|filmes|series|livros|receitas|passos)|quem (?:e|sao|foi|foram)|veja (?:os|as|quais)|conheca|lista d|os \d+|as \d+|ranking|melhores|piores)\b/i;
+const TUTORIAL_TITLE_RX = /\b(como (?:criar|fazer|usar|configurar|instalar|ativar|desativar|baixar|acessar|resolver|montar|escolher)|passo a passo|tutorial|aprenda a|guia (?:de|para|completo)|saiba como|veja como)\b/i;
+const TUTORIAL_BODY_RX = /\b(neste (?:artigo|tutorial|guia)|mostraremos|vamos (?:mostrar|ensinar|ver)|toque em|clique em|selecione|va em|acesse (?:o menu|as configuracoes)|siga os passos|passo \d)\b/i;
+const OPINION_TITLE_RX = /\b(opiniao|analise:|editorial|coluna|por que .+\?|o que pensar)\b/i;
+
+export const detectContentType = (article: any, body: string): ContentType => {
+  const title = normalizeTerm(article?.title || '');
+  const bodyNorm = normalizeTerm(body || '');
+  // Categoria/section do servidor podem ajudar, mas título manda.
+  if (TUTORIAL_TITLE_RX.test(title) || TUTORIAL_BODY_RX.test(bodyNorm)) return 'tutorial';
+  if (LISTICLE_TITLE_RX.test(title)) return 'listicle';
+  if (OPINION_TITLE_RX.test(title)) return 'opinion';
+  return 'news';
+};
+
 // ------------------------------------------------------------
 // Tipos
 // ------------------------------------------------------------
@@ -124,15 +219,36 @@ const TIMESTAMP_RX = /\b\d{1,2}\/\d{1,2}\/\d{2,4}(?:\s*[•·-]?\s*\d{1,2}[:h]\d
 // Editoria colada no começo ("Mundo", "Esportes", "Economia" grudado).
 const LEADING_EDITORIA_RX = /^(mundo|brasil|economia|esportes|politica|tecnologia|saude|cultura|internacional|opiniao|colunas)\s*/i;
 
+// Marcas com CamelCase legítimo que NÃO devem ser quebradas pelo decolar.
+// (o bug "iPhone" -> "i Phone" veio daqui)
+const BRAND_GUARD: Array<[RegExp, string]> = [
+  [/\bi\s?phone/gi, 'iPhone'], [/\bi\s?pad/gi, 'iPad'], [/\bi\s?os\b/gi, 'iOS'],
+  [/\bi\s?mac/gi, 'iMac'], [/\bi\s?cloud/gi, 'iCloud'], [/\bmac\s?os/gi, 'macOS'],
+  [/\byou\s?tube/gi, 'YouTube'], [/\bwhats\s?app/gi, 'WhatsApp'],
+  [/\btik\s?tok/gi, 'TikTok'], [/\blinked\s?in/gi, 'LinkedIn'],
+  [/\bair\s?pods/gi, 'AirPods'], [/\bpower\s?point/gi, 'PowerPoint'],
+  [/\bchat\s?gpt/gi, 'ChatGPT'], [/\bopen\s?ai/gi, 'OpenAI'],
+];
+
+const restoreBrands = (t: string): string => {
+  let out = t;
+  for (const [rx, canonical] of BRAND_GUARD) out = out.replace(rx, canonical);
+  return out;
+};
+
 // Quebra junções coladas. Só insere espaço (NÃO ponto), para não criar
 // pontuação sintética que engane o gate de qualidade.
-const decolar = (t: string): string =>
-  t
+// Marcas legítimas são preservadas via restoreBrands (antes e depois).
+const decolar = (t: string): string => {
+  const protectedText = restoreBrands(t);
+  const split = protectedText
     .replace(/([a-zà-ú])([A-ZÀ-Ú])/g, '$1 $2')       // minúscula→MAIÚSCULA: "acessoBand" -> "acesso Band"
     .replace(/([a-zà-úA-ZÀ-Ú])(\d)/g, '$1 $2')       // letra→dígito: "americano10" -> "americano 10"
     .replace(/(\d)([A-ZÀ-Úa-zà-ú])/g, '$1 $2')       // dígito→letra: "01Estatísticas" -> "01 Estatísticas"
     .replace(/\s+/g, ' ')
     .trim();
+  return restoreBrands(split); // reconstrói marcas que o split possa ter separado
+};
 
 export const sanitizeExtractedText = (raw: any): string => {
   let t = stripHtml(raw);
@@ -282,11 +398,20 @@ const ACTION_VERBS = ['aprova', 'aprovou', 'autoriza', 'autorizou', 'libera', 'l
 export const extractHeuristicFrame = (article: any, fullText: string): HeuristicFrame => {
   const title = String(article?.title || '');
   const normTitle = normalizeTerm(title);
+  const ent = readEntities(article?.entities);
+  const normTitleForKp = normTitle;
+  const normBody = normalizeTerm(fullText || '');
 
-  // actor: entidades enriquecidas > capitalizadas do título
-  const enriched = Array.isArray(article?.entities) ? article.entities.filter(Boolean) : [];
+  // Entidades do servidor que REALMENTE aparecem no título têm prioridade
+  // como ator — é o sujeito da manchete, não um nome solto do corpo.
+  const inTitle = (s: string) => normTitle.includes(normalizeTerm(s));
+  const orgsInTitle = ent.orgs.filter(inTitle);
+  const namesInTitle = ent.names.filter(inTitle);
   const caps = extractCapitalizedEntities(title);
-  const actor = (enriched[0] || caps[0] || null) as string | null;
+
+  // actor: nome próprio no título > org no título > 1ª entidade > capitalizada.
+  const actorRaw = namesInTitle[0] || orgsInTitle[0] || ent.names[0] || ent.orgs[0] || caps[0] || null;
+  const actor = actorRaw ? displayTerm(actorRaw) : null;
 
   // action: primeiro verbo de ação conhecido presente no título
   let action: string | null = null;
@@ -294,30 +419,37 @@ export const extractHeuristicFrame = (article: any, fullText: string): Heuristic
     if (new RegExp(`\\b${v}\\b`).test(normTitle)) { action = v; break; }
   }
 
-  // topic: termos canônicos do dicionário (confiáveis) têm prioridade.
-  // keyphrase só entra se for VALIDADA — presente no título ou recorrente
-  // no corpo — senão vira ruído ("arrowhead", "eua" solto).
-  const titleAndSummary = `${title} ${article?.summary || ''}`;
-  const canon = getCanonicalTerms(titleAndSummary);
-  const normTitleForKp = normalizeTerm(title);
-  const normBody = normalizeTerm(fullText || '');
-  const rawKeyphrases = Array.isArray(article?.keyphrases) ? article.keyphrases.filter(Boolean) : [];
+  // topic: o SUJEITO da história. Prioridade honesta:
+  //  1) org/nome do título que NÃO seja o ator (o "sobre quem/o quê")
+  //  2) termo canônico do dicionário que aparece no título
+  //  3) keyphrase validada (no título ou recorrente no corpo)
+  // Nunca um termo genérico solto do dicionário que não está no título.
+  const canonAll = getCanonicalTerms(`${title} ${article?.summary || ''}`);
+  const canonInTitle = canonAll.filter(inTitle);
+  const rawKeyphrases = ent.names.length || ent.orgs.length
+    ? [] // se já temos entidades boas, nem precisamos de keyphrase p/ tópico
+    : (Array.isArray(article?.keyphrases) ? article.keyphrases.filter(Boolean) : []);
   const validKeyphrases = rawKeyphrases.filter((kp: any) => {
     const n = normalizeTerm(kp);
-    if (!n || n.length < 3) return false;
-    if (normTitleForKp.includes(n)) return true;                 // no título
-    const occurrences = normBody.split(n).length - 1;
-    return occurrences >= 2;                                     // recorrente no corpo
+    if (!n || n.length < 4) return false;
+    if (normTitleForKp.includes(n)) return true;
+    return (normBody.split(n).length - 1) >= 2;
   });
 
-  // Prioridade: canônico > keyphrase validada > 2ª entidade capitalizada.
-  // displayTerm dá a forma de exibição correta (EUA, Dólar, STF).
-  const topicRaw = (canon[0] || validKeyphrases[0] || caps[1] || null) as string | null;
-  const topic = topicRaw ? displayTerm(topicRaw) : null;
+  const actorNorm = actorRaw ? normalizeTerm(actorRaw) : '';
+  const topicCandidates = [
+    ...orgsInTitle, ...namesInTitle, ...canonInTitle,
+  ].filter(t => normalizeTerm(t) !== actorNorm);
+  const topicRaw = topicCandidates[0] || canonInTitle[0] || validKeyphrases[0] || caps[1] || null;
+  // Só usa tópico se ele estiver no título (evita "foco em Meta/Condenação").
+  const topic = (topicRaw && inTitle(topicRaw)) ? displayTerm(topicRaw)
+    : (canonInTitle[0] ? displayTerm(canonInTitle[0]) : null);
 
-  const affectedRaw = (canon[1] || validKeyphrases[1] || enriched[1] || null) as string | null;
+  const affectedRaw = topicCandidates[1] || canonInTitle[1] || null;
   const affected = affectedRaw ? displayTerm(affectedRaw) : null;
-  const numbers = extractNumbers(`${title} ${fullText || ''}`.slice(0, 1200));
+
+  // numbers: usa money/percents já extraídos pelo servidor (corretos).
+  const numbers = numbersFromEntities(ent);
 
   let phase: HeuristicFrame['phase'] = 'indefinido';
   if (/\b(pode|deve|podera|devera|vai|ira)\b/.test(normTitle)) phase = 'possivel';
@@ -536,6 +668,64 @@ function sentenceSimilarity(a: string, b: string): number {
 }
 
 // ------------------------------------------------------------
+// (ITEM 5) Resumo para conteúdo que NÃO é notícia.
+// Listicle e tutorial recebem perguntas apropriadas ao formato,
+// não "Impacto provável / O que acompanhar" de hard news.
+// ------------------------------------------------------------
+interface NonNewsCtx {
+  title: string; source: string; category: string; bestBody: string;
+  hasBody: boolean; frame: HeuristicFrame; one_liner_seed: string;
+}
+
+const buildNonNewsSummary = (kind: ContentType, ctx: NonNewsCtx): SmartHeuristicSummary => {
+  const { title, source, category, bestBody, hasBody, frame } = ctx;
+  const bodySents = splitSentences(bestBody);
+  const lead = bodySents[0] ? firstSentence(bestBody, 220) : title;
+  const topicLabel = frame.topic || frame.actor || 'o tema';
+
+  if (kind === 'tutorial') {
+    // Extrai passos, se houver, sem despejá-los crus.
+    const stepCount = (bestBody.match(/\b(passo|toque em|clique em|selecione|va em|acesse)\b/gi) || []).length;
+    return {
+      quality: hasBody ? 'good' : 'medium',
+      event_type: 'tutorial',
+      category,
+      one_liner: `Guia prático${frame.topic ? ` sobre ${frame.topic}` : ''}: ${title}.`,
+      what_happened: hasBody
+        ? `${source} publicou um passo a passo${frame.topic ? ` sobre ${frame.topic}` : ''}. ${lead}`
+        : `${source} traz um tutorial${frame.topic ? ` sobre ${frame.topic}` : ''}. O passo a passo completo está no site.`,
+      why_it_matters: `Conteúdo útil para quem quer aprender a fazer isso na prática${frame.topic ? `, envolvendo ${frame.topic}` : ''}.`,
+      likely_impact: stepCount > 0
+        ? `O guia descreve o procedimento em etapas${stepCount >= 3 ? ` (cerca de ${stepCount} passos)` : ''}.`
+        : 'O conteúdo é instrutivo e voltado à aplicação prática.',
+      what_to_watch: 'Requisitos, versões de app/sistema e diferenças entre plataformas.',
+      snippets: [],
+      confidence_note: hasBody
+        ? 'Este é um tutorial — o passo a passo completo, com telas e detalhes, está no site.'
+        : 'Tutorial com pouco texto no feed; abra no site para o passo a passo completo.',
+      used_sources: { title: true, rssDescription: Boolean(ctx.one_liner_seed), contextText: hasBody, extractedText: false, clusterContext: false },
+    };
+  }
+
+  // listicle
+  return {
+    quality: hasBody ? 'good' : 'medium',
+    event_type: 'listicle',
+    category,
+    one_liner: lead,
+    what_happened: hasBody
+      ? `${source} reuniu uma lista${frame.topic ? ` sobre ${frame.topic}` : ''}. ${bodySents.slice(0, 2).join(' ')}`.trim()
+      : `${source} publicou uma lista${frame.topic ? ` sobre ${frame.topic}` : ''}. Os itens completos estão no site.`,
+    why_it_matters: `Conteúdo de leitura e curiosidade${frame.topic ? ` sobre ${topicLabel}` : ''}, feito para explorar item a item.`,
+    likely_impact: 'É um conteúdo de contexto e entretenimento, sem desdobramento factual imediato.',
+    what_to_watch: 'Vale abrir no site para ver a lista completa com todos os itens.',
+    snippets: [],
+    confidence_note: 'Esta é uma lista/matéria de curiosidade — o conteúdo completo, item a item, está no site.',
+    used_sources: { title: true, rssDescription: Boolean(ctx.one_liner_seed), contextText: hasBody, extractedText: false, clusterContext: false },
+  };
+};
+
+// ------------------------------------------------------------
 // MOTOR PRINCIPAL
 // ------------------------------------------------------------
 export const generateSmartHeuristicSummary = (
@@ -571,12 +761,23 @@ export const generateSmartHeuristicSummary = (
     : contextUsable ? contextText
     : rssDescription;
 
-  // eventType: enriquecido > detecção local
-  const event_type = (article?.eventType && String(article.eventType)) ||
-    detectEventType(`${title}. ${bestBody.slice(0, 400)}`);
+  // (ITEM 3) eventType: traduz o do servidor e cai na detecção local
+  // quando vier "outro"/genérico. "sports_match" refinado abaixo.
+  const event_type = resolveEventType(article?.eventType, `${title}. ${bestBody.slice(0, 400)}`);
 
   const frame = extractHeuristicFrame(article, bestBody);
   const seed = article?.id || title;
+
+  // (ITEM 5) Tipo de conteúdo: nem tudo é notícia. Listicle e tutorial
+  // recebem frame próprio, honesto, em vez de perguntas de notícia.
+  const contentType = detectContentType(article, bestBody);
+  if (contentType === 'listicle' || contentType === 'tutorial') {
+    return buildNonNewsSummary(contentType, {
+      title, source, category, bestBody,
+      hasBody: extractedUsable || contextUsable,
+      frame, one_liner_seed: rssDescription,
+    });
+  }
 
   // (ITEM 6) Página de placar / partida ao vivo: não é notícia analisável.
   // Retorna resumo honesto e específico em vez de forçar templates.
