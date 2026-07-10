@@ -103,7 +103,7 @@ export const SEMANTIC_DICTIONARY: SemanticDictionary = {
     'guerra': ['conflito armado', 'ofensiva militar', 'combates', 'hostilidades'],
   },
   clima: {
-    'chuva forte': ['temporal', 'chuvas intensas', 'tempestade', 'precipitacao'],
+    'chuva forte': ['chuvas intensas', 'tempestade', 'precipitacao', 'chuva torrencial'],
     'onda de calor': ['calor extremo', 'temperaturas elevadas', 'calorao'],
     'inmet': ['instituto de meteorologia', 'alerta meteorologico'],
     'enchente': ['alagamento', 'inundacao', 'cheia', 'transbordamento'],
@@ -229,3 +229,65 @@ export const getDomainHints = (text: any): string[] => {
   }
   return Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
 };
+
+// ------------------------------------------------------------
+// (ITEM 5) Camada de apresentação — displayLabel dos termos canônicos.
+// Resolve o bug do "eua"/"arrowhead" minúsculos: o matching usa a forma
+// normalizada, mas a UI recebe a forma correta de exibição.
+// ------------------------------------------------------------
+
+// Siglas conhecidas → caixa alta. Chave normalizada (sem acento).
+const ACRONYMS = new Set([
+  'eua', 'stf', 'stj', 'tse', 'tst', 'trf', 'pgr', 'mpf', 'pf', 'prf', 'pm',
+  'bc', 'copom', 'pib', 'ipca', 'inpc', 'igp-m', 'ir', 'irpf', 'b3', 'ibov',
+  'fed', 'fomc', 'onu', 'otan', 'ue', 'fmi', 'sus', 'anvisa', 'ia', 'ai',
+  'ufc', 'nba', 'nfl', 'cbf', 'btc', 'usd', 'eac', 'petr4', 'idf', 'hc',
+  'ong', 'mp', 'df', 'sp', 'rj', 'mg', 'pi', 'ne',
+]);
+
+// Exceções onde nem "sigla" nem "capitalizar" acertam a grafia jornalística.
+const DISPLAY_OVERRIDES: Record<string, string> = {
+  'petrobras': 'Petrobras',
+  'ibovespa': 'Ibovespa',
+  'selic': 'Selic',
+  'bitcoin': 'Bitcoin',
+  'iphone': 'iPhone',
+  'ios': 'iOS',
+  'chatgpt': 'ChatGPT',
+  'youtube': 'YouTube',
+  'whatsapp': 'WhatsApp',
+  'inteligência artificial': 'Inteligência Artificial',
+  'imposto de renda': 'Imposto de Renda',
+  'banco central': 'Banco Central',
+  'câmara dos deputados': 'Câmara dos Deputados',
+  'governo federal': 'Governo Federal',
+  'união europeia': 'União Europeia',
+};
+
+// Palavras que ficam em minúscula no meio de nomes próprios compostos.
+const LOWER_CONNECTORS = new Set(['de', 'do', 'da', 'dos', 'das', 'e', 'a', 'o', 'em', 'na', 'no']);
+
+/** Converte um termo canônico na sua forma de exibição correta. */
+export const displayCanonicalTerm = (term: any): string => {
+  const raw = String(term ?? '').trim();
+  if (!raw) return '';
+  const norm = normalizeTerm(raw);
+  if (DISPLAY_OVERRIDES[norm]) return DISPLAY_OVERRIDES[norm];
+  if (ACRONYMS.has(norm)) return norm.toUpperCase();
+
+  return raw
+    .split(/\s+/)
+    .map((word, i) => {
+      const wNorm = normalizeTerm(word);
+      if (ACRONYMS.has(wNorm)) return word.toUpperCase();
+      if (i > 0 && LOWER_CONNECTORS.has(wNorm)) return word.toLowerCase();
+      // capitaliza a primeira letra preservando o resto (mantém acentos)
+      return word.charAt(0).toLocaleUpperCase('pt-BR') + word.slice(1);
+    })
+    .join(' ');
+};
+
+/** Como getCanonicalTerms, mas já retorna as formas de exibição. */
+export const getCanonicalTermsForDisplay = (text: any): string[] =>
+  getCanonicalTerms(text).map(displayCanonicalTerm);
+

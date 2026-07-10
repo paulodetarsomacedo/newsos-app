@@ -5,7 +5,20 @@
 // Nunca inventa fato: quando falta dado, admite incerteza.
 // ============================================================
 
-import { normalizeTerm, getCanonicalTerms, getDomainHints } from './semanticDictionary';
+import { normalizeTerm, getCanonicalTerms, getDomainHints, displayCanonicalTerm } from './semanticDictionary';
+
+// Forma de exibição de qualquer termo (canônico do dicionário OU entidade
+// capitalizada do título). Siglas/exceções resolvidas pelo dicionário;
+// o resto mantém a capitalização de origem quando já vem capitalizado.
+const displayTerm = (term: any): string => {
+  const raw = String(term ?? '').trim();
+  if (!raw) return '';
+  const disp = displayCanonicalTerm(raw);
+  // Se displayCanonicalTerm só recapitalizou um termo já capitalizado no
+  // original (entidade tipo "Donald Trump"), preserva o original.
+  if (/[A-ZÀ-Ú]/.test(raw) && normalizeTerm(raw) === normalizeTerm(disp)) return raw;
+  return disp;
+};
 
 // ------------------------------------------------------------
 // Tipos
@@ -35,22 +48,31 @@ export interface SmartHeuristicSummary {
 // Ordem da lista = prioridade em caso de empate.
 // ------------------------------------------------------------
 const EVENT_PATTERNS: Array<{ type: string; patterns: RegExp[] }> = [
-  { type: 'death', patterns: [/\bmorre\b/, /\bmorte\b/, /\bobito\b/, /\bfalece\b/, /\bfaleceu\b/, /\bmorreu\b/, /\bmortos?\b/] },
-  { type: 'accident', patterns: [/\bacidente\b/, /\bcolisao\b/, /\bqueda de\b/, /\bdesabamento\b/, /\bincendio\b/, /\bcapota/, /\batropel/] },
-  { type: 'security_operation', patterns: [/\boperacao policial\b/, /\bprisao\b/, /\bpreso\b/, /\bpresa\b/, /\bmandados?\b/, /\bapreensao\b/, /\bapreende\b/] },
-  { type: 'investigation', patterns: [/\binvestiga\b/, /\bapura\b/, /\bmira\b/, /\boperacao\b/, /\bbusca e apreensao\b/, /\bdenuncia\b/, /\binquerito\b/] },
-  { type: 'legal_decision', patterns: [/\bdecide\b/, /\bdecisao judicial\b/, /\bjulgamento\b/, /\bjulga\b/, /\bliminar\b/, /\bcondena\b/, /\babsolve\b/, /\bstf\b/, /\btribunal\b/, /\bstj\b/, /\bjustica\b/] },
-  { type: 'regulation', patterns: [/\bregulamenta\b/, /\bregulacao\b/, /\bnorma\b/, /\bregras\b/, /\bmarco regulatorio\b/, /\bresolucao\b/] },
-  { type: 'approval', patterns: [/\baprova\b/, /\baprovou\b/, /\bautoriza\b/, /\blibera\b/, /\bsanciona\b/, /\bsancionou\b/, /\baprovado\b/, /\baprovada\b/] },
-  { type: 'market_move', patterns: [/\bsobe\b/, /\bcai\b/, /\brecua\b/, /\bavanca\b/, /\bdispara\b/, /\bdespenca\b/, /\bfecha em alta\b/, /\bfecha em queda\b/, /\bdesvaloriza\b/, /\bvaloriza\b/] },
-  { type: 'weather_event', patterns: [/\bchuvas?\b/, /\btemporal\b/, /\bonda de calor\b/, /\bfrio\b/, /\balerta meteorologico\b/, /\bciclone\b/, /\bgeada\b/, /\bvendaval\b/] },
-  { type: 'alert', patterns: [/\balerta\b/, /\brisco\b/, /\bsurto\b/, /\bemergencia\b/, /\bameaca\b/, /\bpreocupacao\b/, /\bepidemia\b/] },
-  { type: 'study', patterns: [/\bestudo\b/, /\bpesquisa\b/, /\bcientistas\b/, /\blevantamento\b/, /\bdados mostram\b/, /\bpesquisadores\b/] },
-  { type: 'conflict', patterns: [/\bconflito\b/, /\bataques?\b/, /\btensao\b/, /\bguerra\b/, /\bcrise\b/, /\bbombardeio\b/, /\bofensiva\b/, /\bmisseis?\b/] },
-  { type: 'sports_absence', patterns: [/\bnao viaja\b/, /\bdesfalca\b/, /\bdesfalque\b/, /\blesao\b/, /\bfora d[eo]\b/, /\bduvida\b/, /\bcortado\b/, /\bvetado\b/] },
-  { type: 'launch', patterns: [/\blancamento\b/, /\bestreia\b/, /\bapresenta novo\b/, /\bchega ao mercado\b/, /\blanca\b/, /\blancou\b/] },
-  { type: 'announcement', patterns: [/\banuncia\b/, /\banunciou\b/, /\bapresenta\b/, /\bdivulga\b/, /\bconfirma\b/, /\brevela\b/] },
+  { type: 'death', patterns: [/\bmorre\b/, /\bmorte\b/, /\bobito\b/, /\bfalece\b/, /\bfaleceu\b/, /\bmorreu\b/, /\bmortos?\b/, /\bvitimas? fatais?\b/] },
+  { type: 'accident', patterns: [/\bacidente\b/, /\bcolisao\b/, /\bqueda de\b/, /\bdesabamento\b/, /\bincendio\b/, /\bcapota/, /\batropel/, /\bdescarril/, /\bnaufrag/] },
+  { type: 'security_operation', patterns: [/\boperacao policial\b/, /\bprisao\b/, /\bpreso\b/, /\bpresa\b/, /\bmandados?\b/, /\bapreensao\b/, /\bapreende\b/, /\bdeflagr/, /\bmegaoperacao\b/] },
+  { type: 'investigation', patterns: [/\binvestiga\b/, /\bapura\b/, /\bmira\b/, /\bbusca e apreensao\b/, /\bdenuncia\b/, /\binquerito\b/, /\bindiciad/, /\bdelacao\b/] },
+  { type: 'legal_decision', patterns: [/\bdecide\b/, /\bdecisao judicial\b/, /\bjulgamento\b/, /\bjulga\b/, /\bliminar\b/, /\bcondena\b/, /\babsolve\b/, /\bstf\b/, /\btribunal\b/, /\bstj\b/, /\bnega recurso\b/, /\bhomologa\b/] },
+  { type: 'regulation', patterns: [/\bregulamenta\b/, /\bregulacao\b/, /\bnorma\b/, /\bregras\b/, /\bmarco regulatorio\b/, /\bresolucao\b/, /\bpublica edital\b/, /\bdecreto\b/] },
+  // (ITEM 6) demissão/nomeação/extinção de cargos e órgãos — cobre "Trump desmonta comissão".
+  { type: 'dismissal', patterns: [/\bdemite\b/, /\bdemitiu\b/, /\bexonera\b/, /\bexonerou\b/, /\bdesmonta\b/, /\bdesmontou\b/, /\besvazia\b/, /\besvaziou\b/, /\bafasta\b/, /\bafastou\b/, /\bdestitui\b/, /\bextingue\b/, /\bextinguiu\b/, /\bdissolve\b/, /\bdissolveu\b/, /\bcai o\b/, /\bpede demissao\b/, /\brenuncia\b/] },
+  { type: 'appointment', patterns: [/\bnomeia\b/, /\bnomeou\b/, /\bindica\b/, /\bindicou\b/, /\bempossa\b/, /\btoma posse\b/, /\bassume\b/, /\bassumiu\b/, /\bescolhe para\b/, /\bnovo ministro\b/, /\bnovo presidente d/] },
+  { type: 'approval', patterns: [/\baprova\b/, /\baprovou\b/, /\bautoriza\b/, /\bautorizou\b/, /\blibera\b/, /\bliberou\b/, /\bsanciona\b/, /\bsancionou\b/, /\baprovado\b/, /\baprovada\b/, /\bval a\b/, /\bda aval\b/] },
+  { type: 'market_move', patterns: [/\bsobe\b/, /\bcai\b/, /\brecua\b/, /\bavanca\b/, /\bdispara\b/, /\bdespenca\b/, /\bfecha em alta\b/, /\bfecha em queda\b/, /\bdesvaloriza\b/, /\bvaloriza\b/, /\bderrete\b/, /\bsalta\b/, /\btomba\b/, /\bbate recorde\b/, /\brenova maxima\b/] },
+  { type: 'weather_event', patterns: [/\bchuvas?\b/, /\btemporal\b/, /\bonda de calor\b/, /\bfrio\b/, /\balerta meteorologico\b/, /\bciclone\b/, /\bgeada\b/, /\bvendaval\b/, /\bgranizo\b/, /\benchente\b/, /\balagament/] },
+  { type: 'alert', patterns: [/\balerta\b/, /\brisco\b/, /\bsurto\b/, /\bemergencia\b/, /\bameaca\b/, /\bpreocupacao\b/, /\bepidemia\b/, /\bcolapso\b/] },
+  { type: 'study', patterns: [/\bestudo\b/, /\bpesquisa\b/, /\bcientistas\b/, /\blevantamento\b/, /\bdados mostram\b/, /\bpesquisadores\b/, /\bcenso\b/, /\bmapeamento\b/] },
+  { type: 'conflict', patterns: [/\bconflito\b/, /\bataques?\b/, /\btensao\b/, /\bguerra\b/, /\bbombardeio\b/, /\bofensiva\b/, /\bmisseis?\b/, /\binvasao\b/, /\bcessar-fogo\b/, /\bretaliacao\b/] },
+  // (ITEM 6) placar / partida ao vivo — página de acompanhamento, tratada com honestidade.
+  { type: 'sports_match', patterns: [/\bx\b.*\bsiga\b/, /\bao vivo\b/, /\btempo real\b/, /\bplacar\b/, /\bminuto a minuto\b/, /\bacompanhe\b.*\bjogo\b/, /\bescalacao\b/, /\bpre-jogo\b/, /\blance a lance\b/, /\b\d+\s?x\s?\d+\b/] },
+  { type: 'sports_absence', patterns: [/\bnao viaja\b/, /\bdesfalca\b/, /\bdesfalque\b/, /\blesao\b/, /\bfora d[eo]\b/, /\bduvida\b/, /\bcortado\b/, /\bvetado\b/, /\bsuspenso\b/, /\bpoupado\b/] },
+  { type: 'launch', patterns: [/\blancamento\b/, /\bestreia\b/, /\bapresenta novo\b/, /\bchega ao mercado\b/, /\blanca\b/, /\blancou\b/, /\brevela novo\b/] },
+  { type: 'announcement', patterns: [/\banuncia\b/, /\banunciou\b/, /\bapresenta\b/, /\bdivulga\b/, /\bconfirma\b/, /\brevela\b/, /\bfirma acordo\b/, /\bfecha parceria\b/] },
+  { type: 'crisis', patterns: [/\bcrise\b/, /\bcaos\b/, /\bescandalo\b/, /\bpolemica\b/, /\bapagao\b/, /\bfalencia\b/, /\brombo\b/] },
 ];
+
+// Tipos que exigem tratamento honesto específico no "O que aconteceu?".
+export const SPECIAL_LIVE_TYPES = new Set(['sports_match']);
 
 export const detectEventType = (rawText: any): string => {
   const text = ` ${normalizeTerm(rawText)} `;
@@ -255,7 +277,7 @@ export interface HeuristicFrame {
   phase: 'passado' | 'presente' | 'possivel' | 'indefinido';
 }
 
-const ACTION_VERBS = ['aprova', 'aprovou', 'autoriza', 'libera', 'sanciona', 'anuncia', 'anunciou', 'lanca', 'lancou', 'apresenta', 'divulga', 'confirma', 'investiga', 'apura', 'decide', 'condena', 'absolve', 'sobe', 'cai', 'recua', 'avanca', 'dispara', 'despenca', 'alerta', 'regulamenta', 'suspende', 'proibe', 'derruba', 'mantem', 'amplia', 'reduz', 'corta', 'eleva'];
+const ACTION_VERBS = ['aprova', 'aprovou', 'autoriza', 'autorizou', 'libera', 'liberou', 'sanciona', 'anuncia', 'anunciou', 'lanca', 'lancou', 'apresenta', 'divulga', 'divulgou', 'confirma', 'confirmou', 'investiga', 'apura', 'decide', 'decidiu', 'condena', 'condenou', 'absolve', 'sobe', 'cai', 'recua', 'avanca', 'dispara', 'despenca', 'alerta', 'regulamenta', 'suspende', 'suspendeu', 'proibe', 'proibiu', 'derruba', 'mantem', 'amplia', 'reduz', 'corta', 'eleva', 'demite', 'demitiu', 'exonera', 'exonerou', 'desmonta', 'desmontou', 'esvazia', 'esvaziou', 'afasta', 'nomeia', 'nomeou', 'indica', 'assume', 'assumiu', 'extingue', 'dissolve', 'veta', 'vetou', 'aprovou'];
 
 export const extractHeuristicFrame = (article: any, fullText: string): HeuristicFrame => {
   const title = String(article?.title || '');
@@ -272,12 +294,29 @@ export const extractHeuristicFrame = (article: any, fullText: string): Heuristic
     if (new RegExp(`\\b${v}\\b`).test(normTitle)) { action = v; break; }
   }
 
-  // topic: termos canônicos > keyphrases > segunda entidade
-  const canon = getCanonicalTerms(`${title} ${article?.summary || ''}`);
-  const keyphrases = Array.isArray(article?.keyphrases) ? article.keyphrases.filter(Boolean) : [];
-  const topic = (canon[0] || keyphrases[0] || caps[1] || null) as string | null;
+  // topic: termos canônicos do dicionário (confiáveis) têm prioridade.
+  // keyphrase só entra se for VALIDADA — presente no título ou recorrente
+  // no corpo — senão vira ruído ("arrowhead", "eua" solto).
+  const titleAndSummary = `${title} ${article?.summary || ''}`;
+  const canon = getCanonicalTerms(titleAndSummary);
+  const normTitleForKp = normalizeTerm(title);
+  const normBody = normalizeTerm(fullText || '');
+  const rawKeyphrases = Array.isArray(article?.keyphrases) ? article.keyphrases.filter(Boolean) : [];
+  const validKeyphrases = rawKeyphrases.filter((kp: any) => {
+    const n = normalizeTerm(kp);
+    if (!n || n.length < 3) return false;
+    if (normTitleForKp.includes(n)) return true;                 // no título
+    const occurrences = normBody.split(n).length - 1;
+    return occurrences >= 2;                                     // recorrente no corpo
+  });
 
-  const affected = (canon[1] || keyphrases[1] || enriched[1] || null) as string | null;
+  // Prioridade: canônico > keyphrase validada > 2ª entidade capitalizada.
+  // displayTerm dá a forma de exibição correta (EUA, Dólar, STF).
+  const topicRaw = (canon[0] || validKeyphrases[0] || caps[1] || null) as string | null;
+  const topic = topicRaw ? displayTerm(topicRaw) : null;
+
+  const affectedRaw = (canon[1] || validKeyphrases[1] || enriched[1] || null) as string | null;
+  const affected = affectedRaw ? displayTerm(affectedRaw) : null;
   const numbers = extractNumbers(`${title} ${fullText || ''}`.slice(0, 1200));
 
   let phase: HeuristicFrame['phase'] = 'indefinido';
@@ -367,6 +406,18 @@ const IMPACT_TPL: TplMap = {
     'A ação pode desdobrar em novas prisões, denúncias e fases da operação.',
     'Operações assim costumam gerar desdobramentos judiciais nos dias seguintes.',
   ],
+  dismissal: [
+    'A saída pode alterar o comando, a condução de políticas e o equilíbrio de forças envolvido.',
+    'A mudança tende a repercutir na estrutura afetada e nas decisões que dependiam desse posto.',
+  ],
+  appointment: [
+    'A nomeação pode redefinir prioridades, alianças e a direção da área assumida.',
+    'A chegada ao cargo tende a sinalizar mudanças de rumo e novas ênfases.',
+  ],
+  crisis: [
+    'A crise pode pressionar responsáveis, exigir respostas rápidas e gerar desdobramentos em cadeia.',
+    'O agravamento tende a cobrar posicionamento e medidas de contenção.',
+  ],
   general: [
     'Os desdobramentos dependem de confirmações e novos detalhes da cobertura.',
     'O efeito prático ainda depende de mais informações das próximas horas.',
@@ -389,6 +440,9 @@ const WATCH_TPL: TplMap = {
   death: ['Informações oficiais da família e repercussão no meio em que atuava.'],
   weather_event: ['Novos boletins meteorológicos e orientações da Defesa Civil.'],
   security_operation: ['Novas fases da operação, decisões judiciais e identificação dos alvos.'],
+  dismissal: ['Quem assume o posto, a reação dos envolvidos e os efeitos práticos da mudança.'],
+  appointment: ['Primeiras decisões, prioridades anunciadas e a reação ao nome escolhido.'],
+  crisis: ['Medidas de resposta, responsabilização e evolução do quadro nas próximas horas.'],
   general: ['Atualizações das próximas horas e confirmação por outras fontes.'],
 };
 
@@ -523,6 +577,26 @@ export const generateSmartHeuristicSummary = (
 
   const frame = extractHeuristicFrame(article, bestBody);
   const seed = article?.id || title;
+
+  // (ITEM 6) Página de placar / partida ao vivo: não é notícia analisável.
+  // Retorna resumo honesto e específico em vez de forçar templates.
+  if (SPECIAL_LIVE_TYPES.has(event_type)) {
+    const teams = title.match(/([A-ZÀ-Ú][\wà-ú]+)\s*x\s*([A-ZÀ-Ú][\wà-ú]+)/i);
+    const matchLabel = teams ? `${teams[1]} x ${teams[2]}` : 'a partida';
+    return {
+      quality: 'medium',
+      event_type,
+      category,
+      one_liner: `Página de acompanhamento ao vivo de ${matchLabel}.`,
+      what_happened: `${source} mantém uma cobertura em tempo real de ${matchLabel}, com placar, escalações e lances atualizados durante o jogo.`,
+      why_it_matters: 'Acompanhamento ao vivo é útil para quem quer seguir o andamento da partida em tempo real.',
+      likely_impact: 'O resultado pode influenciar a classificação e o próximo confronto das equipes.',
+      what_to_watch: 'Gols, cartões, substituições e o placar final ao término da partida.',
+      snippets: [],
+      confidence_note: 'Esta é uma página de placar ao vivo — o conteúdo muda durante o jogo. Abra no site para acompanhar em tempo real.',
+      used_sources: { title: true, rssDescription: used_sources.rssDescription, contextText: false, extractedText: false, clusterContext: false },
+    };
+  }
 
   // --- quality ---
   // "good" exige corpo aprovado no gate (não só longo).
