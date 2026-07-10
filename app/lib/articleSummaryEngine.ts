@@ -313,7 +313,9 @@ export const sanitizeExtractedText = (raw: any): string => {
   // (FASE 1.5) Remove atributos HTML que vazaram como texto
   // (ex.: 'data-large-file="..."', 'src="..."', 'width="640"').
   t = t.replace(/\b[a-z-]+=(["'])[^"']*\1/gi, ' ');
-  t = t.replace(/\b(data|src|href|width|height|class|style|alt|title|loading|srcset|sizes)-?[a-z-]*=?\S*/gi, ' ');
+  // Atributos sem aspas: exige o sinal de '=' para não comer palavras comuns
+  // ("datam", "dados", "srcado"...). O '=' é a assinatura de atributo.
+  t = t.replace(/\b(?:data-[a-z-]+|src|srcset|href|width|height|class|style|alt|title|loading|sizes)\s*=\s*\S+/gi, ' ');
   t = decolar(t);
   t = t.replace(PHOTO_CREDIT_RX, ' ');
   // (FASE 1.5) Crédito de agência no INÍCIO seguido de travessão/hífen
@@ -937,6 +939,75 @@ const bestForRole = (
 };
 
 
+// ============================================================
+// TÓPICOS PREMIUM DO GLASSBROWSER
+// 4-5 blocos fortes e DIVERSOS extraídos do texto rico (proxy-lite:
+// linha fina + 6 parágrafos). Sem título por bloco — só o quadradinho
+// lucide + o texto. Cada bloco cobre um ângulo diferente; nunca repete.
+// ============================================================
+
+// Ícone/cor por PAPEL dominante da frase — dá ritmo visual sem emoji.
+const roleIcon = (c: ClassifiedSentence, order: number): string => {
+  if (c.roles.has('number')) return 'trendingup';
+  if (c.roles.has('next_step')) return 'clock';
+  if (c.roles.has('consequence')) return 'trendingup';
+  if (c.roles.has('cause')) return 'filetext';
+  if (c.roles.has('quote')) return 'user';
+  if (c.roles.has('legal_status')) return 'scale';
+  return ['zap', 'filetext', 'globe', 'bookmark', 'history'][order % 5];
+};
+
+// Poda uma frase longa para caber bonito no bloco (fronteira limpa).
+const trimTopic = (text: string, max = 300): string => {
+  const t = String(text || '').trim();
+  if (t.length <= max) return t;
+  const slice = t.slice(0, max);
+  const cut = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('; '));
+  return (cut > max * 0.5 ? slice.slice(0, cut + 1) : slice.slice(0, slice.lastIndexOf(' '))).trim() + '…';
+};
+
+export const extractPremiumTopics = (
+  bodySents: string[],
+  frame: HeuristicFrame,
+  title: string,
+  oneLiner: string,
+  maxTopics = 5
+): SummarySection[] => {
+  if (bodySents.length === 0) return [];
+  const classified = classifySentences(bodySents, frame, title)
+    .filter(c => c.text.length >= 45 && c.text.length <= 400)
+    .filter(c => c.score > -3);
+  if (classified.length === 0) return [];
+
+  const chosen: ClassifiedSentence[] = [];
+  const pool = [...classified].sort((a, b) => b.score - a.score);
+
+  // 1º bloco = FATO CENTRAL (frase de maior score), mesmo que se pareça com
+  // o one_liner — o resumo do print mostrava só a linha fina, e o fato
+  // principal merece um bloco próprio como abertura.
+  if (pool[0]) chosen.push(pool[0]);
+
+  // Demais blocos: relevância + DIVERSIDADE (MMR simplificado). Cada novo
+  // bloco precisa ser diferente dos já escolhidos.
+  for (const cand of pool) {
+    if (chosen.length >= maxTopics) break;
+    if (chosen.some(ch => ch.idx === cand.idx)) continue;
+    const tooSimilar = chosen.some(ch => sentenceSimilarity(cand.norm, ch.norm) > 0.5);
+    if (tooSimilar) continue;
+    chosen.push(cand);
+  }
+
+  chosen.sort((a, b) => a.idx - b.idx); // leitura natural: começo → fim
+
+  return chosen.map((c, i) => ({
+    key: `topic-${i}`,
+    label: '',
+    iconKey: roleIcon(c, i),
+    text: trimTopic(c.text),
+    confidence: Math.max(0.6, Math.min(1, 0.6 + c.score / 12)),
+  }));
+};
+
 const sec = (key: string, label: string, iconKey: string, text: string, confidence: number): SummarySection | null => {
   const t = String(text || '').trim();
   if (!t || t.length < 12) return null;
@@ -1251,12 +1322,19 @@ export const generateSmartHeuristicSummary = (
   // --- (FASE 1) content_mode + seções adaptativas ---
   const content_mode = detectContentMode(article, bestBody, event_type);
   const bodySents = splitSentences(extractedUsable ? cleanExtracted : (contextUsable ? contextText : rssDescription));
-  const sections = buildAdaptiveSections({
-    mode: content_mode, title, source, bodySents, frame,
-    one_liner, what_happened,
-    hasBody: extractedUsable || contextUsable,
-    contextLevel: article?.contextLevel,
-  });
+
+  // TÓPICOS PREMIUM: com texto rico (proxy-lite: linha fina + parágrafos),
+  // extrai 4-5 blocos fortes e diversos. Sem texto suficiente, cai nas
+  // seções adaptativas por modo (fallback honesto).
+  const premiumTopics = extractPremiumTopics(bodySents, frame, title, one_liner, 5);
+  const sections = (premiumTopics.length >= 3)
+    ? premiumTopics
+    : buildAdaptiveSections({
+        mode: content_mode, title, source, bodySents, frame,
+        one_liner, what_happened,
+        hasBody: extractedUsable || contextUsable,
+        contextLevel: article?.contextLevel,
+      });
 
   return {
     quality,

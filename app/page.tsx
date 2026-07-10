@@ -3544,8 +3544,8 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
                 <div key={i} className="flex gap-3 items-start rounded-xl bg-white/60 border border-white/70 p-3">
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${row.tile}`}>{row.icon}</div>
                   <div className="min-w-0">
-                    <div className="text-[13px] font-bold text-zinc-900 mb-0.5">{row.label}</div>
-                    <div className="text-[13px] text-zinc-500 leading-relaxed">{row.text}</div>
+                    {row.label ? <div className="text-[13px] font-bold text-zinc-900 mb-0.5">{row.label}</div> : null}
+                    <div className={`text-[13px] leading-relaxed ${row.label ? 'text-zinc-500' : 'text-zinc-700'}`}>{row.text}</div>
                   </div>
                 </div>
               ))}
@@ -3555,7 +3555,8 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
             )}
           </div>
 
-          {/* TRECHOS RELEVANTES (heurístico com fallback) */}
+          {/* TRECHOS RELEVANTES — só quando NÃO há tópicos premium (evita repetição) */}
+          {!(smartSummary?.sections && smartSummary.sections.length > 0 && !smartSummary.sections[0].label) && (
           <div className="mt-4 rounded-2xl bg-white/55 backdrop-blur-xl border border-white/70 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-purple-500 text-2xl leading-none">&ldquo;</span>
@@ -3567,6 +3568,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
               ))}
             </div>
           </div>
+          )}
 
           {/* estado real do fetch (discreto) — sem subcontainer "Leitura otimizada" */}
           {status === 'loading' && (
@@ -9817,26 +9819,40 @@ const handlePlayAudio = async (article) => {
 
 
   const fetchOptimizedContent = useCallback(async (url, articleId) => {
-    // ESTA FUNÇÃO PRECISA DO 'supabase' QUE ESTÁ NO ESCOPO DO NewsOS_V12
-    const cacheKey = `newsos_fulltext_${articleId}`;
+    // Texto rico do GlassBrowser via proxy-view LITE (barata): traz a linha
+    // fina (metaDescription/ogDescription) + até 6 parágrafos (topParagraphs),
+    // não só o primeiro. A proxy-full (Readability) fica só para "Análise IA".
+    const cacheKey = `newsos_richtext_${articleId}`;
     const cached = sessionStorage.getItem(cacheKey);
-    
-    if (cached) return cached; // Retorna o texto, não o JSON parseado
+    if (cached) return cached;
 
-    // CHAMA A SUA FUNÇÃO EDGE NO SUPABASE
-    const { data, error } = await supabase.functions.invoke('fetch-text-summary', {
-        body: { url: url } 
+    const { data, error } = await supabase.functions.invoke('proxy-view', {
+        body: { url: url, mode: 'lite' }
     });
+    if (error) throw new Error("Erro no serviço de leitura do Supabase: " + error.message);
 
-    if (error) throw new Error("Erro no serviço de resumo do Supabase: " + error.message);
-
-    // Salva e retorna APENAS O TEXTO CORTADO
-    if (data && data.text) {
-        sessionStorage.setItem(cacheKey, data.text);
-        return data.text;
+    const ctx = data?.context || {};
+    // Monta o corpo rico: linha fina primeiro (o "resumo do jornalista"),
+    // depois os parágrafos, deduplicando trechos repetidos.
+    const lede = String(ctx.metaDescription || ctx.ogDescription || '').trim();
+    const paras = Array.isArray(ctx.topParagraphs) ? ctx.topParagraphs : [];
+    const seen = new Set();
+    const parts = [];
+    for (const p of [lede, ...paras, ctx.firstParagraph, ctx.contextText]) {
+        const t = String(p || '').trim();
+        if (!t || t.length < 40) continue;
+        const key = t.slice(0, 60).toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        parts.push(t);
     }
-    
-    throw new Error("Resumo otimizado não disponível.");
+    const richText = parts.join('\n\n').slice(0, 4000);
+
+    if (richText && richText.length > 50) {
+        sessionStorage.setItem(cacheKey, richText);
+        return richText;
+    }
+    throw new Error("Leitura otimizada não disponível.");
 }, [supabase]); // Depende apenas da instância do supabase
 
 
