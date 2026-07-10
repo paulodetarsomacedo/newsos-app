@@ -7,9 +7,6 @@ import { Browser } from '@capacitor/browser';
 import { InAppBrowser } from '@awesome-cordova-plugins/in-app-browser';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as stringSimilarity from 'string-similarity';
-// --- VETRA HEURISTICS (sem IA) ---
-import { generateSmartHeuristicSummary } from './lib/articleSummaryEngine';
-import { generateSmartHeuristicClusters } from './lib/clusterEngine';
 
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
@@ -3423,47 +3420,28 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
   };
 
 
-  // RESUMO INTELIGENTE — HEURÍSTICO (sem IA).
-  // Abre imediatamente com generateSmartHeuristicSummary(article) e,
-  // quando o proxy-lite devolve texto (state `content`), recalcula com
-  // extractedText — os containers atualizam suavemente via re-render.
-  // O botão "Análise IA" continua chamando onAnalyze (fluxo intacto).
+  // RESUMO INTELIGENTE — MOCK visual (a lógica atual não gera resumo estruturado;
+  // row 1 usa article.summary real quando existe). Pronto p/ futura integração.
   const _gbDate = article?.rawDate ? new Date(article.rawDate) : null;
   const displayDate = _gbDate
     ? _gbDate.toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
-  const smartSummary = useMemo(() => {
-    try {
-      const extracted = (content && content.length > 120) ? content : undefined;
-      return generateSmartHeuristicSummary(article, extracted);
-    } catch (e) {
-      console.error('Heurística do GlassBrowser falhou (fallback mock):', e);
-      return null;
-    }
-  }, [article, content]);
   const SUMMARY_ROWS = [
     { label: 'Em uma frase', tile: 'bg-purple-500/15 text-purple-300', icon: <Zap size={18} />,
-      text: smartSummary?.one_liner || (article?.summary ? article.summary.replace(/\.\.\.$/, '') : 'Síntese principal da notícia em uma linha objetiva.') },
+      text: article?.summary ? article.summary.replace(/\.\.\.$/, '') : 'Síntese principal da notícia em uma linha objetiva.' },
     { label: 'O que aconteceu?', tile: 'bg-blue-500/15 text-blue-300', icon: <FileText size={18} />,
-      text: smartSummary?.what_happened || 'Resumo factual do acontecimento central reportado pela fonte.' },
+      text: 'Resumo factual do acontecimento central reportado pela fonte.' },
     { label: 'Por que importa?', tile: 'bg-emerald-500/15 text-emerald-300', icon: <BrainCircuit size={18} />,
-      text: smartSummary?.why_it_matters || 'Contexto e relevância do tema para o leitor e para o cenário atual.' },
+      text: 'Contexto e relevância do tema para o leitor e para o cenário atual.' },
     { label: 'Impacto provável', tile: 'bg-amber-500/15 text-amber-300', icon: <TrendingUp size={18} />,
-      text: smartSummary?.likely_impact || 'Possíveis efeitos e desdobramentos a curto e médio prazo.' },
+      text: 'Possíveis efeitos e desdobramentos a curto e médio prazo.' },
     { label: 'O que acompanhar', tile: 'bg-violet-500/15 text-violet-300', icon: <Telescope size={18} />,
-      text: smartSummary?.what_to_watch || 'Próximos passos e pontos a observar no desenrolar da história.' },
+      text: 'Próximos passos e pontos a observar no desenrolar da história.' },
   ];
-  const summaryModeLabel = smartSummary
-    ? (smartSummary.quality === 'good' ? 'Resumo heurístico · contexto amplo'
-      : smartSummary.quality === 'medium' ? 'Resumo heurístico'
-      : 'Prévia heurística')
-    : 'Geração com IA';
-  const QUOTES = (smartSummary?.snippets && smartSummary.snippets.length > 0)
-    ? smartSummary.snippets.slice(0, 2)
-    : [
-      'Trechos relevantes da reportagem aparecem aqui quando a leitura otimizada é concluída.',
-      'Use "Análise IA" para uma análise aprofundada do conteúdo completo.',
-    ];
+  const QUOTES = [
+    'Trecho relevante extraído da reportagem aparecerá aqui quando a análise por IA estiver disponível.',
+    'Segundo trecho de destaque, com a citação mais importante do conteúdo original.',
+  ];
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-300">
@@ -3510,7 +3488,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
                 <Sparkles size={18} className="text-purple-500" />
                 <span className="text-[15px] font-bold text-zinc-900">Resumo Inteligente</span>
               </div>
-              <span className="text-[11px] text-zinc-400">{summaryModeLabel}</span>
+              <span className="text-[11px] text-zinc-400">Geração com IA</span>
             </div>
             <div className="space-y-2">
               {SUMMARY_ROWS.map((row, i) => (
@@ -3523,12 +3501,9 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
                 </div>
               ))}
             </div>
-            {smartSummary?.confidence_note && (
-              <div className="mt-2 text-[11px] text-zinc-400 italic px-1">{smartSummary.confidence_note}</div>
-            )}
           </div>
 
-          {/* TRECHOS RELEVANTES (heurístico com fallback) */}
+          {/* TRECHOS RELEVANTES (mock) */}
           <div className="mt-4 rounded-2xl bg-white/55 backdrop-blur-xl border border-white/70 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-purple-500 text-2xl leading-none">&ldquo;</span>
@@ -8803,18 +8778,7 @@ const buildStableSnapshot = useCallback((newsItems = [], videoItems = [], podcas
     const sortedNews = smartFeedSort(newsItems);
     const sortedVideos = sortByDateSafe(videoItems);
     const sortedPodcasts = sortByDateSafe(podcastItems);
-    // Cluster Engine heurístico novo (score composto, sem IA).
-    // Se falhar ou render pouco, cai no motor antigo — nada é removido.
-    let clusters = [];
-    try {
-        clusters = generateSmartHeuristicClusters(sortedNews) || [];
-    } catch (e) {
-        console.error('SmartClusters falhou, usando heurística antiga:', e);
-        clusters = [];
-    }
-    if (!clusters || clusters.length < 2) {
-        clusters = generateHeuristicClusters(sortedNews) || [];
-    }
+    let clusters = generateHeuristicClusters(sortedNews);
     if (!clusters || clusters.length < 3) {
         const fallbackClusters = createFallbackEditorialClusters(sortedNews);
         const existingKeys = new Set((clusters || []).map(cluster => normalizeSourceKey(cluster?.ai_title || '')));
