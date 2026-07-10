@@ -71,6 +71,145 @@ export const detectEventType = (rawText: any): string => {
 const stripHtml = (s: any): string =>
   String(s ?? '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
 
+// ------------------------------------------------------------
+// (ITEM 1) sanitizeExtractedText — higieniza o texto do proxy-lite.
+// O proxy-lite entrega texto colado de menus, timestamps, créditos de
+// foto e editoria grudada. Aqui removemos esse ruído ANTES de qualquer
+// uso, para nenhum container receber lixo de navegação.
+// ------------------------------------------------------------
+
+// Blocos de navegação/boilerplate que aparecem colados no início.
+const NAV_BOILERPLATE_RX = /\b(menu|minha band|tudo em um so lugar|pagina inicial|programas|jogos de hoje|assine|cadastre-se|newsletter|todos os campeonatos|topicos relacionados|leia mais|leia tambem|veja tambem|compartilhe|publicidade|continua apos|siga o [a-z]+ no|acesse o|baixe o app)\b/gi;
+
+// Créditos de foto/agência. Cobre três formatos:
+//  "Al Drago/Getty Images", "Foto: Reuters", "Divulgação".
+// A alternância com barra vem primeiro (mais específica) para pegar o
+// nome do fotógrafo colado à agência.
+const AGENCIES = 'getty images|getty|reuters|afp|ap photo|agencia brasil|ebc|divulgacao|reproducao|arquivo pessoal|shutterstock|folhapress|estadao conteudo|montagem';
+const PHOTO_CREDIT_RX = new RegExp(
+  // Nome Próprio (1-3 palavras) "/" Agência  →  "Al Drago/Getty Images"
+  `(?:[A-ZÀ-Ú][a-zà-ú]+\\s*){1,3}\\/\\s*(?:${AGENCIES})\\b` +
+  // ou  "Foto:/Crédito: Agência"
+  `|(?:foto|credito|imagem)\\s*[:\\-]?\\s*(?:${AGENCIES})\\b` +
+  // ou  a agência sozinha
+  `|\\b(?:${AGENCIES})\\b`,
+  'gi'
+);
+
+// Timestamps e marcações de atualização.
+const TIMESTAMP_RX = /\b\d{1,2}\/\d{1,2}\/\d{2,4}(?:\s*[•·-]?\s*\d{1,2}[:h]\d{2})?\b|\batualizad[oa]\s+(?:em|h[aá])?\s*[\d/:\sh]*|\b\d{1,2}[:h]\d{2}\b/gi;
+
+// Editoria colada no começo ("Mundo", "Esportes", "Economia" grudado).
+const LEADING_EDITORIA_RX = /^(mundo|brasil|economia|esportes|politica|tecnologia|saude|cultura|internacional|opiniao|colunas)\s*/i;
+
+// Quebra junções coladas. Só insere espaço (NÃO ponto), para não criar
+// pontuação sintética que engane o gate de qualidade.
+const decolar = (t: string): string =>
+  t
+    .replace(/([a-zà-ú])([A-ZÀ-Ú])/g, '$1 $2')       // minúscula→MAIÚSCULA: "acessoBand" -> "acesso Band"
+    .replace(/([a-zà-úA-ZÀ-Ú])(\d)/g, '$1 $2')       // letra→dígito: "americano10" -> "americano 10"
+    .replace(/(\d)([A-ZÀ-Úa-zà-ú])/g, '$1 $2')       // dígito→letra: "01Estatísticas" -> "01 Estatísticas"
+    .replace(/\s+/g, ' ')
+    .trim();
+
+export const sanitizeExtractedText = (raw: any): string => {
+  let t = stripHtml(raw);
+  if (!t) return '';
+  t = decolar(t);
+  t = t.replace(PHOTO_CREDIT_RX, ' ');
+  t = t.replace(TIMESTAMP_RX, ' ');
+  t = t.replace(NAV_BOILERPLATE_RX, ' ');
+  t = t.replace(LEADING_EDITORIA_RX, '');
+  // Remove sequências longas de Capitalizadas sem verbo nem pontuação
+  // (assinatura típica de menu: "Fórmula Indy Fórmula 1 Band Motor …").
+  t = t.replace(/(?:\b[A-ZÀ-Ú][a-zà-ú]+\b[ ]){6,}/g, m => (/[.!?]/.test(m) ? m : ' '));
+  // Remove blocos duplicados literais (menus costumam repetir o mesmo trecho).
+  t = dedupeChunks(t);
+  // Limpa resíduos órfãos de remoções (barras/vírgulas soltas, ex.: "Al Drago/ O").
+  t = t
+    .replace(/\s+[/,;]\s*(?=[A-ZÀ-Ú])/g, '. ')  // "americano, Al Drago/ O" -> "americano. O"
+    .replace(/\s+[/,;]\s+/g, ' ')
+    .replace(/\.\s*\./g, '.');
+  return t.replace(/\s+/g, ' ').replace(/\s+([.,;:])/g, '$1').trim();
+};
+
+// Remove trechos longos que se repetem (assinatura de menu/rodapé duplicado).
+const dedupeChunks = (t: string): string => {
+  const seen = new Set<string>();
+  const parts = t.split(/(?<=[.!?…])\s+/);
+  const out: string[] = [];
+  for (const p of parts) {
+    const key = normalizeTerm(p).slice(0, 60);
+    if (key.length > 20 && seen.has(key)) continue;
+    if (key.length > 20) seen.add(key);
+    out.push(p);
+  }
+  return out.join(' ');
+};
+
+// ------------------------------------------------------------
+// (ITEM 2) scoreBodyQuality — comprimento NÃO é qualidade.
+// Mede se o corpo parece prosa jornalística real. Reprovado, o motor
+// rebaixa para a descrição do RSS e admite incerteza (nunca diz
+// "contexto amplo" em cima de lixo).
+// ------------------------------------------------------------
+const PT_STOPWORDS_SAMPLE = new Set(['a', 'o', 'de', 'da', 'do', 'que', 'e', 'em', 'para', 'com', 'os', 'as', 'no', 'na', 'um', 'uma', 'por', 'se', 'dos', 'das', 'ao', 'aos', 'nas', 'nos']);
+
+export interface BodyQuality {
+  ok: boolean;
+  score: number;              // 0..1
+  reasons: string[];
+}
+
+export const scoreBodyQuality = (text: string): BodyQuality => {
+  const t = String(text || '').trim();
+  const reasons: string[] = [];
+  if (t.length < 160) return { ok: false, score: 0, reasons: ['curto'] };
+
+  const words = t.split(/\s+/);
+  const wordCount = words.length;
+
+  // 1) Densidade de pontuação de fim de frase (prosa real tem ~1 a cada 15-25 palavras).
+  const sentenceEnders = (t.match(/[.!?…]/g) || []).length;
+  const punctDensity = sentenceEnders / Math.max(1, wordCount / 20);
+  const punctScore = Math.min(1, punctDensity);
+  if (punctScore < 0.4) reasons.push('poucas frases pontuadas');
+
+  // 2) Proporção de stopwords (prosa PT-BR real ~30-50%; menu/lista tem quase nenhuma).
+  let stop = 0;
+  for (const w of words) if (PT_STOPWORDS_SAMPLE.has(normalizeTerm(w))) stop++;
+  const stopRatio = stop / Math.max(1, wordCount);
+  const stopScore = stopRatio < 0.12 ? stopRatio / 0.12 : 1;
+  if (stopRatio < 0.12) reasons.push('poucas palavras funcionais (parece lista/menu)');
+
+  // 3) Palavras coladas/anômalas: tokens muito longos ou com maiúscula interna sobrando.
+  const glued = words.filter(w => w.length > 24 || /[a-zà-ú][A-ZÀ-Ú]/.test(w)).length;
+  const gluedRatio = glued / Math.max(1, wordCount);
+  const gluedScore = 1 - Math.min(1, gluedRatio * 8);
+  if (gluedRatio > 0.05) reasons.push('palavras coladas');
+
+  // 4) Comprimento médio de frase plausível (nem 1 palavra, nem 200).
+  const avgSentLen = wordCount / Math.max(1, sentenceEnders);
+  const lenScore = (avgSentLen >= 6 && avgSentLen <= 45) ? 1 : 0.4;
+  if (lenScore < 1) reasons.push('frases com tamanho atípico');
+
+  // 5) Densidade verbal — prosa jornalística tem verbos conjugados;
+  // menus e placares ("Escalação Mandante Visitante Placar ao vivo") não.
+  let verbs = 0;
+  for (const w of words) {
+    const n = normalizeTerm(w);
+    if (n.length < 4) continue;
+    // terminações verbais comuns PT-BR (3ª pessoa, particípios, infinitivos, futuros)
+    if (/(ou|ram|aram|eram|iram|ando|endo|indo|ado|ido|ada|ida|ava|iam|ará|erá|irá|am|em|ou|iu|eu)$/.test(n)) verbs++;
+  }
+  const verbRatio = verbs / Math.max(1, wordCount);
+  const verbScore = verbRatio >= 0.06 ? 1 : verbRatio / 0.06;
+  if (verbRatio < 0.06) reasons.push('poucos verbos (parece menu/placar)');
+
+  const score = punctScore * 0.22 + stopScore * 0.24 + gluedScore * 0.2 + lenScore * 0.08 + verbScore * 0.26;
+  return { ok: score >= 0.58, score: Number(score.toFixed(2)), reasons };
+};
+
 const splitSentences = (text: string): string[] => {
   if (!text) return [];
   return text
@@ -287,6 +426,62 @@ const pickSnippets = (fullText: string, frame: HeuristicFrame, title: string): s
 };
 
 // ------------------------------------------------------------
+// (ITEM 3) pickNarrativeSentences — monta o "O que aconteceu?" com
+// frases REAIS bem pontuadas, com viés para o lead (início da matéria),
+// penalizando boilerplate. Substitui o antigo slice(0,2) cego.
+// ------------------------------------------------------------
+const BOILERPLATE_SENT_RX = /\b(clique|leia mais|leia tambem|assine|newsletter|publicidade|cookies|siga o|baixe o app|compartilhe|topicos relacionados|menu|cadastre-se|aguardando atualizacao|proximo lance|tempo real|placar ao vivo)\b/i;
+
+const pickNarrativeSentences = (
+  body: string,
+  frame: HeuristicFrame,
+  title: string,
+  count = 2,
+  excludeSimilarTo?: string
+): string[] => {
+  const sentences = splitSentences(body).filter(s => s.length >= 40 && s.length <= 320);
+  if (sentences.length === 0) return [];
+  const normTitleWords = new Set(normalizeTerm(title).split(' ').filter(w => w.length > 3));
+  const scored = sentences.map((s, idx) => {
+    const norm = normalizeTerm(s);
+    let score = 0;
+    // Lead-bias: as primeiras frases da matéria valem mais.
+    score += Math.max(0, 3 - idx * 0.5);
+    if (frame.actor && norm.includes(normalizeTerm(frame.actor))) score += 2;
+    if (frame.topic && norm.includes(normalizeTerm(frame.topic))) score += 1.5;
+    if (/\d/.test(s)) score += 1;
+    let overlap = 0;
+    for (const w of norm.split(' ')) if (normTitleWords.has(w)) overlap++;
+    score += Math.min(2, overlap * 0.4);
+    if (BOILERPLATE_SENT_RX.test(s)) score -= 12;
+    // Frase saudável tem verbo/pontuação e não é só maiúsculas.
+    if (!/[a-zà-ú]/.test(s)) score -= 5;
+    return { s, score, idx };
+  });
+  const excl = excludeSimilarTo ? normalizeTerm(excludeSimilarTo) : '';
+  const chosen = scored
+    .filter(x => x.score > 0)
+    .filter(x => !excl || sentenceSimilarity(normalizeTerm(x.s), excl) < 0.6)
+    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
+    .slice(0, count)
+    // Reordena por posição original para leitura natural.
+    .sort((a, b) => a.idx - b.idx)
+    .map(x => x.s);
+  return chosen;
+};
+
+// (ITEM 4) Similaridade leve entre frases (Jaccard de palavras) para
+// deduplicar one_liner vs. what_happened sem dependência externa.
+function sentenceSimilarity(a: string, b: string): number {
+  const sa = new Set(a.split(/\s+/).filter(w => w.length > 3));
+  const sb = new Set(b.split(/\s+/).filter(w => w.length > 3));
+  if (sa.size === 0 || sb.size === 0) return 0;
+  let inter = 0;
+  for (const w of sa) if (sb.has(w)) inter++;
+  return inter / Math.min(sa.size, sb.size);
+}
+
+// ------------------------------------------------------------
 // MOTOR PRINCIPAL
 // ------------------------------------------------------------
 export const generateSmartHeuristicSummary = (
@@ -295,22 +490,31 @@ export const generateSmartHeuristicSummary = (
 ): SmartHeuristicSummary => {
   const title = stripHtml(article?.title || '');
   const rssDescription = stripHtml(article?.summary || article?.description || '');
-  const contextText = stripHtml(article?.contextText || '');
-  const cleanExtracted = stripHtml(extractedText || '');
+  // (ITEM 1) contextText e extractedText passam pelo saneador.
+  const contextText = sanitizeExtractedText(article?.contextText || '');
+  const cleanExtracted = sanitizeExtractedText(extractedText || '');
   const category = String(article?.category || 'Geral');
   const source = String(article?.source || 'a fonte');
+
+  // (ITEM 2) Gate de qualidade: corpo longo mas ruim é REPROVADO e não
+  // pode ser tratado como "contexto amplo".
+  const extractedQuality = cleanExtracted.length > 200 ? scoreBodyQuality(cleanExtracted) : { ok: false, score: 0, reasons: ['ausente'] };
+  const contextQuality = contextText.length > 80 ? scoreBodyQuality(contextText) : { ok: false, score: 0, reasons: ['ausente'] };
+  const extractedUsable = cleanExtracted.length > 200 && extractedQuality.ok;
+  const contextUsable = contextText.length > 80 && contextQuality.ok;
 
   const used_sources = {
     title: Boolean(title),
     rssDescription: rssDescription.length > 40,
-    contextText: contextText.length > 80,
-    extractedText: cleanExtracted.length > 200,
+    contextText: contextUsable,
+    extractedText: extractedUsable,
     clusterContext: false,
   };
 
   // Melhor corpo de texto disponível (prioridade: extraído > contexto lite > RSS)
-  const bestBody = used_sources.extractedText ? cleanExtracted
-    : used_sources.contextText ? contextText
+  // Só entram corpos que passaram no gate; caso contrário caímos no RSS.
+  const bestBody = extractedUsable ? cleanExtracted
+    : contextUsable ? contextText
     : rssDescription;
 
   // eventType: enriquecido > detecção local
@@ -321,28 +525,48 @@ export const generateSmartHeuristicSummary = (
   const seed = article?.id || title;
 
   // --- quality ---
+  // "good" exige corpo aprovado no gate (não só longo).
   let quality: SmartHeuristicSummary['quality'] = 'weak';
-  if (used_sources.extractedText || (used_sources.contextText && contextText.length > 300)) quality = 'good';
-  else if (used_sources.contextText || used_sources.rssDescription) quality = 'medium';
+  if (extractedUsable || (contextUsable && contextText.length > 300)) quality = 'good';
+  else if (contextUsable || used_sources.rssDescription) quality = 'medium';
 
   // --- one_liner ---
+  // Se a descrição do RSS está truncada (termina em "..."), prefere a
+  // primeira frase COMPLETA do corpo aprovado — evita one_liner cortado em "que…".
+  const rssTruncated = /(\.\.\.|…)\s*$/.test(rssDescription);
   let one_liner: string;
-  if (used_sources.rssDescription || used_sources.contextText) {
-    one_liner = firstSentence(rssDescription || contextText, 200);
+  if (used_sources.rssDescription && !rssTruncated) {
+    one_liner = firstSentence(rssDescription, 200);
+  } else if (extractedUsable || contextUsable) {
+    one_liner = firstSentence(extractedUsable ? cleanExtracted : contextText, 200);
+  } else if (used_sources.rssDescription) {
+    one_liner = firstSentence(rssDescription, 200);
   } else {
     one_liner = title;
   }
 
   // --- what_happened ---
+  // (ITEM 3) frases pontuadas reais com lead-bias, não slice cego.
+  // (ITEM 4) exclui frases quase idênticas ao one_liner (sem duplicar).
   let what_happened: string;
-  if (used_sources.contextText || used_sources.extractedText) {
-    const body = used_sources.extractedText ? cleanExtracted : contextText;
-    const sents = splitSentences(body).slice(0, 2);
-    what_happened = sents.join(' ') || firstSentence(body, 300);
+  if (contextUsable || extractedUsable) {
+    const body = extractedUsable ? cleanExtracted : contextText;
+    const sents = pickNarrativeSentences(body, frame, title, 2, one_liner);
+    what_happened = sents.join(' ');
+    // Se a dedup esvaziou tudo (corpo curto = só o lead), usa a melhor frase disponível.
+    if (!what_happened) {
+      what_happened = pickNarrativeSentences(body, frame, title, 1).join(' ') || firstSentence(body, 300);
+    }
   } else if (used_sources.rssDescription) {
-    what_happened = firstSentence(rssDescription, 300);
+    // Descrição do RSS: se o one_liner já a consumiu, complementa com números/frame.
+    const rssSents = pickNarrativeSentences(rssDescription, frame, title, 2, one_liner);
+    what_happened = rssSents.join(' ') || firstSentence(rssDescription, 300);
+    if (sentenceSimilarity(normalizeTerm(what_happened), normalizeTerm(one_liner)) > 0.7) {
+      // one_liner e what_happened seriam a mesma frase → torna what_happened honesto.
+      what_happened = `A fonte ${source} traz esta informação principal; os demais detalhes dependem da leitura completa.`;
+    }
     if (frame.numbers.length > 0 && !what_happened.match(/\d/)) {
-      what_happened += ` A manchete menciona ${frame.numbers[0]}.`;
+      what_happened += ` A matéria menciona ${frame.numbers[0]}.`;
     }
   } else {
     // Só título: linguagem honesta, sem inventar
@@ -383,13 +607,18 @@ export const generateSmartHeuristicSummary = (
   const what_to_watch = pickTpl(WATCH_TPL, event_type, category, `${seed}-w`);
 
   // --- snippets ---
-  const snippetSource = used_sources.extractedText ? cleanExtracted : (used_sources.contextText ? contextText : '');
+  const snippetSource = extractedUsable ? cleanExtracted : (contextUsable ? contextText : '');
   const snippets = snippetSource ? pickSnippets(snippetSource, frame, title) : [];
 
   // --- confidence_note ---
+  // Detecta o caso "veio texto, mas era lixo" (proxy-lite sujo) para ser honesto.
+  const hadRawButRejected = (cleanExtracted.length > 200 && !extractedQuality.ok) ||
+    (contextText.length > 80 && !contextQuality.ok && !contextUsable);
   let confidence_note: string | undefined;
   if (quality === 'weak') {
-    confidence_note = 'O resumo é preliminar porque o RSS trouxe pouco conteúdo. A leitura completa pode revelar detalhes importantes.';
+    confidence_note = hadRawButRejected
+      ? 'O conteúdo extraído da página veio incompleto ou com ruído de navegação, então este resumo se baseia sobretudo na manchete. A leitura no site traz o texto completo.'
+      : 'O resumo é preliminar porque o RSS trouxe pouco conteúdo. A leitura completa pode revelar detalhes importantes.';
   } else if (quality === 'medium') {
     confidence_note = 'Resumo baseado na descrição da fonte; alguns desdobramentos podem não estar cobertos.';
   }
