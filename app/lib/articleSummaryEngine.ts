@@ -113,8 +113,8 @@ export const detectContentMode = (article: any, body: string, eventType?: string
   if (TUTORIAL_TITLE_RX.test(title) || TUTORIAL_BODY_RX.test(bodyNorm)) return 'how_to';
   // 2) listicle/curiosidade
   if (LISTICLE_TITLE_RX.test(title)) return 'listicle_history';
-  // 3) placar ao vivo (event_type já resolveu isso com alta precisão)
-  if (et === 'sports_match') return 'sports_live';
+  // 3) placar ao vivo — SÓ pelo título (corpo teria falso positivo)
+  if (detectEventType(article?.title || '') === 'sports_match') return 'sports_live';
   // 4) obituário/perfil
   if (et === 'death' || OBITUARY_RX.test(title)) return 'profile_obituary';
   // 5) jurídico / regulatório / tributário
@@ -208,7 +208,15 @@ const EVENT_PATTERNS: Array<{ type: string; patterns: RegExp[] }> = [
   { type: 'study', patterns: [/\bestudo\b/, /\bpesquisa\b/, /\bcientistas\b/, /\blevantamento\b/, /\bdados mostram\b/, /\bpesquisadores\b/, /\bcenso\b/, /\bmapeamento\b/] },
   { type: 'conflict', patterns: [/\bconflito\b/, /\bataques?\b/, /\btensao\b/, /\bguerra\b/, /\bbombardeio\b/, /\bofensiva\b/, /\bmisseis?\b/, /\binvasao\b/, /\bcessar-fogo\b/, /\bretaliacao\b/] },
   // (ITEM 6) placar / partida ao vivo — página de acompanhamento, tratada com honestidade.
-  { type: 'sports_match', patterns: [/\bx\b.*\bsiga\b/, /\bao vivo\b/, /\btempo real\b/, /\bplacar\b/, /\bminuto a minuto\b/, /\bacompanhe\b.*\bjogo\b/, /\bescalacao\b/, /\bpre-jogo\b/, /\blance a lance\b/, /\b\d+\s?x\s?\d+\b/] },
+  // (FASE 1.5) placar ao vivo — SÓ sinais fortes e inequívocos de PÁGINA
+  // de placar. "Copa"/"derrota" soltos NÃO contam. Exige placar de gols
+  // explícito, ou "Time x Time" combinado com "ao vivo/siga/tempo real".
+  { type: 'sports_match', patterns: [
+    /\b\d+\s?x\s?\d+\b/,                                    // 2 x 1 (placar de gols)
+    /[a-zà-ú]+\s+x\s+[a-zà-ú]+.*\b(ao vivo|siga|tempo real|minuto a minuto|acompanhe)\b/,
+    /\b(ao vivo|tempo real|minuto a minuto)\b.*[a-zà-ú]+\s+x\s+[a-zà-ú]+/,
+    /\bplacar (ao vivo|em tempo real)\b/,
+  ] },
   { type: 'sports_absence', patterns: [/\bnao viaja\b/, /\bdesfalca\b/, /\bdesfalque\b/, /\blesao\b/, /\bfora d[eo]\b/, /\bduvida\b/, /\bcortado\b/, /\bvetado\b/, /\bsuspenso\b/, /\bpoupado\b/] },
   { type: 'launch', patterns: [/\blancamento\b/, /\bestreia\b/, /\bapresenta novo\b/, /\bchega ao mercado\b/, /\blanca\b/, /\blancou\b/, /\brevela novo\b/] },
   { type: 'announcement', patterns: [/\banuncia\b/, /\banunciou\b/, /\bapresenta\b/, /\bdivulga\b/, /\bconfirma\b/, /\brevela\b/, /\bfirma acordo\b/, /\bfecha parceria\b/] },
@@ -302,8 +310,15 @@ const decolar = (t: string): string => {
 export const sanitizeExtractedText = (raw: any): string => {
   let t = stripHtml(raw);
   if (!t) return '';
+  // (FASE 1.5) Remove atributos HTML que vazaram como texto
+  // (ex.: 'data-large-file="..."', 'src="..."', 'width="640"').
+  t = t.replace(/\b[a-z-]+=(["'])[^"']*\1/gi, ' ');
+  t = t.replace(/\b(data|src|href|width|height|class|style|alt|title|loading|srcset|sizes)-?[a-z-]*=?\S*/gi, ' ');
   t = decolar(t);
   t = t.replace(PHOTO_CREDIT_RX, ' ');
+  // (FASE 1.5) Crédito de agência no INÍCIO seguido de travessão/hífen
+  // (ex.: "CGTN – O presidente...", "Reuters — Segundo..."). Remove o prefixo.
+  t = t.replace(/^\s*[A-Z][A-Za-z0-9]{1,8}\s*[–—-]\s*/, '');
   t = t.replace(TIMESTAMP_RX, ' ');
   t = t.replace(NAV_BOILERPLATE_RX, ' ');
   t = t.replace(LEADING_EDITORIA_RX, '');
@@ -407,8 +422,20 @@ const splitSentences = (text: string): string[] => {
 
 const firstSentence = (text: string, max = 220): string => {
   const s = splitSentences(text);
-  const out = s[0] || text.trim();
-  return out.length > max ? out.slice(0, max - 1).trimEnd() + '…' : out;
+  let out = (s[0] || text.trim()).replace(/(\s*\.\.\.|…)\s*$/, '').trim(); // tira reticências herdadas do RSS
+  // (FASE 1.5) Cauda incompleta do RSS: se termina em preposição/artigo órfão
+  // (ex.: "...tornando-se o maior a"), recua até a última pontuação limpa.
+  if (/[\s,)]\s*(a|o|as|os|e|de|do|da|dos|das|em|no|na|com|para|por|que|ao)$/i.test(out)) {
+    const lastStop = Math.max(out.lastIndexOf('). '), out.lastIndexOf('), '), out.lastIndexOf('. '), out.lastIndexOf(', '));
+    if (lastStop > out.length * 0.5) out = out.slice(0, lastStop + 1).replace(/[,\s]+$/, '').trim();
+  }
+  if (out.length <= max) return out;
+  // Corta numa fronteira limpa: última pontuação/vírgula antes do limite,
+  // senão o último espaço — nunca no meio de uma palavra.
+  const slice = out.slice(0, max);
+  const lastPunct = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf(', '), slice.lastIndexOf('; '));
+  const cut = lastPunct > max * 0.5 ? lastPunct + 1 : slice.lastIndexOf(' ');
+  return (cut > 0 ? slice.slice(0, cut) : slice).trimEnd() + '…';
 };
 
 const extractNumbers = (text: string): string[] => {
@@ -966,6 +993,11 @@ export const generateSmartHeuristicSummary = (
   const frame = extractHeuristicFrame(article, bestBody);
   const seed = article?.id || title;
 
+  // (FASE 1.5) Modo "placar ao vivo" é decidido SÓ pelo TÍTULO. O corpo de
+  // qualquer notícia esportiva tem blocos "ao vivo/placar" relacionados que
+  // dariam falso positivo (ex.: nota sobre Biancardi virava placar).
+  const isLiveByTitle = detectEventType(title) === 'sports_match';
+
   // (ITEM 5) Tipo de conteúdo: nem tudo é notícia. Listicle e tutorial
   // recebem frame próprio, honesto, em vez de perguntas de notícia.
   const contentType = detectContentType(article, bestBody);
@@ -979,7 +1011,7 @@ export const generateSmartHeuristicSummary = (
 
   // (ITEM 6) Página de placar / partida ao vivo: não é notícia analisável.
   // Retorna resumo honesto e específico em vez de forçar templates.
-  if (SPECIAL_LIVE_TYPES.has(event_type)) {
+  if (isLiveByTitle) {
     const teams = title.match(/([A-ZÀ-Ú][\wà-ú]+)\s*x\s*([A-ZÀ-Ú][\wà-ú]+)/i);
     const matchLabel = teams ? `${teams[1]} x ${teams[2]}` : 'a partida';
     return {
