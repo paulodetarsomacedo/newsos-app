@@ -95,23 +95,44 @@ const resolveEventType = (serverType: any, localText: string): string => {
 };
 
 // ------------------------------------------------------------
-// DETECÇÃO DE TIPO DE CONTEÚDO (não é tudo notícia!)
-// Listicle e tutorial recebem frame próprio, não frame de notícia.
+// (FASE 1 — Camada 1) DETECÇÃO DE CONTENT_MODE
+// Que tipo de MATÉRIA é (≠ event_type). Só modos de alta confiança;
+// 'general' é fallback honesto, não derrota.
 // ------------------------------------------------------------
-export type ContentType = 'news' | 'listicle' | 'tutorial' | 'opinion';
-
-const LISTICLE_TITLE_RX = /\b(\d+\s+(?:coisas|motivos|razoes|dicas|formas|maneiras|jeitos|lugares|filmes|series|livros|receitas|passos)|quem (?:e|sao|foi|foram)|veja (?:os|as|quais)|conheca|lista d|os \d+|as \d+|ranking|melhores|piores)\b/i;
-const TUTORIAL_TITLE_RX = /\b(como (?:criar|fazer|usar|configurar|instalar|ativar|desativar|baixar|acessar|resolver|montar|escolher)|passo a passo|tutorial|aprenda a|guia (?:de|para|completo)|saiba como|veja como)\b/i;
+const LISTICLE_TITLE_RX = /\b(\d+\s+(?:coisas|motivos|razoes|dicas|formas|maneiras|jeitos|lugares|filmes|series|livros|receitas|passos|curiosidades)|quem (?:e|sao|foi|foram)|veja (?:os|as|quais)|conheca|lista d|os \d+|as \d+|ranking|melhores|piores|saiba quais)\b/i;
+const TUTORIAL_TITLE_RX = /\b(como (?:criar|fazer|usar|configurar|instalar|ativar|desativar|baixar|acessar|resolver|montar|escolher|declarar|emitir|cadastrar)|passo a passo|tutorial|aprenda a|guia (?:de|para|completo)|saiba como|veja como)\b/i;
 const TUTORIAL_BODY_RX = /\b(neste (?:artigo|tutorial|guia)|mostraremos|vamos (?:mostrar|ensinar|ver)|toque em|clique em|selecione|va em|acesse (?:o menu|as configuracoes)|siga os passos|passo \d)\b/i;
-const OPINION_TITLE_RX = /\b(opiniao|analise:|editorial|coluna|por que .+\?|o que pensar)\b/i;
+const OBITUARY_RX = /\b(morre|morreu|morte de|falece|faleceu|obito|luto|aos \d+ anos)\b/i;
 
-export const detectContentType = (article: any, body: string): ContentType => {
+export const detectContentMode = (article: any, body: string, eventType?: string): ContentMode => {
   const title = normalizeTerm(article?.title || '');
   const bodyNorm = normalizeTerm(body || '');
-  // Categoria/section do servidor podem ajudar, mas título manda.
-  if (TUTORIAL_TITLE_RX.test(title) || TUTORIAL_BODY_RX.test(bodyNorm)) return 'tutorial';
-  if (LISTICLE_TITLE_RX.test(title)) return 'listicle';
-  if (OPINION_TITLE_RX.test(title)) return 'opinion';
+  const et = String(eventType || '');
+
+  // 1) tutorial: assinatura muito clara no título ou corpo
+  if (TUTORIAL_TITLE_RX.test(title) || TUTORIAL_BODY_RX.test(bodyNorm)) return 'how_to';
+  // 2) listicle/curiosidade
+  if (LISTICLE_TITLE_RX.test(title)) return 'listicle_history';
+  // 3) placar ao vivo (event_type já resolveu isso com alta precisão)
+  if (et === 'sports_match') return 'sports_live';
+  // 4) obituário/perfil
+  if (et === 'death' || OBITUARY_RX.test(title)) return 'profile_obituary';
+  // 5) jurídico / regulatório / tributário
+  if (et === 'legal_decision' || et === 'regulation' || /\b(icms|tributari|imposto|receita federal|stf|stj|justica|liminar|processo|acao civil)\b/.test(title)) return 'policy_or_legal';
+  // 6) mercado/indicadores
+  if (et === 'market_move' || /\b(dolar|bolsa|ibovespa|selic|inflacao|ipca|juros|cambio|petroleo)\b/.test(title)) return 'market_update';
+  // 7) evento factual com verbo de ação forte
+  if (['dismissal', 'appointment', 'approval', 'announcement', 'accident', 'security_operation', 'conflict', 'launch', 'crisis'].includes(et)) return 'breaking_event';
+  // fallback honesto
+  return 'general';
+};
+
+// Ponte de compatibilidade: mantém a assinatura antiga usada no motor.
+export type ContentType = 'news' | 'listicle' | 'tutorial' | 'opinion';
+export const detectContentType = (article: any, body: string): ContentType => {
+  const mode = detectContentMode(article, body);
+  if (mode === 'how_to') return 'tutorial';
+  if (mode === 'listicle_history') return 'listicle';
   return 'news';
 };
 
@@ -136,6 +157,34 @@ export interface SmartHeuristicSummary {
     extractedText: boolean;
     clusterContext: boolean;
   };
+  // ── FASE 1 (aditivo, retrocompatível) ─────────────────────
+  // content_mode: que TIPO DE MATÉRIA o usuário está lendo (≠ event_type).
+  content_mode?: ContentMode;
+  // sections: caixas ADAPTATIVAS já prontas para render. O page.tsx
+  // prefere isto quando presente; os campos fixos acima continuam
+  // preenchidos para compatibilidade/fallback.
+  sections?: SummarySection[];
+}
+
+// (FASE 1 — Camada 1) Que tipo de matéria é. Começamos com os modos de
+// ALTA confiança + 'general' como fallback honesto. Modos frágeis
+// (opinion/explainer/review) ficam para depois, com dados reais.
+export type ContentMode =
+  | 'breaking_event'   // notícia/evento factual
+  | 'policy_or_legal'  // decisão judicial, regulação, tributário
+  | 'market_update'    // mercado/indicadores
+  | 'how_to'           // tutorial/passo a passo
+  | 'listicle_history' // lista/curiosidade
+  | 'sports_live'      // placar ao vivo
+  | 'profile_obituary' // obituário/perfil
+  | 'general';         // notícia comum sem assinatura clara
+
+export interface SummarySection {
+  key: string;         // id estável da seção
+  label: string;       // título exibido
+  text: string;        // conteúdo extraído
+  iconKey: string;     // nome lógico do ícone (page.tsx mapeia p/ lucide)
+  confidence: number;  // 0..1 — page.tsx pode ocultar < piso, mas já vem filtrado
 }
 
 // ------------------------------------------------------------
@@ -674,7 +723,7 @@ function sentenceSimilarity(a: string, b: string): number {
 // ------------------------------------------------------------
 interface NonNewsCtx {
   title: string; source: string; category: string; bestBody: string;
-  hasBody: boolean; frame: HeuristicFrame; one_liner_seed: string;
+  hasBody: boolean; frame: HeuristicFrame; one_liner_seed: string; contextLevel?: any;
 }
 
 const buildNonNewsSummary = (kind: ContentType, ctx: NonNewsCtx): SmartHeuristicSummary => {
@@ -686,14 +735,20 @@ const buildNonNewsSummary = (kind: ContentType, ctx: NonNewsCtx): SmartHeuristic
   if (kind === 'tutorial') {
     // Extrai passos, se houver, sem despejá-los crus.
     const stepCount = (bestBody.match(/\b(passo|toque em|clique em|selecione|va em|acesse)\b/gi) || []).length;
+    const one_liner = `Guia prático${frame.topic ? ` sobre ${frame.topic}` : ''}: ${title}.`;
+    const what_happened = hasBody
+      ? `${source} publicou um passo a passo${frame.topic ? ` sobre ${frame.topic}` : ''}. ${lead}`
+      : `${source} traz um tutorial${frame.topic ? ` sobre ${frame.topic}` : ''}. O passo a passo completo está no site.`;
+    const sections = buildAdaptiveSections({
+      mode: 'how_to', title, source, bodySents, frame, one_liner, what_happened,
+      hasBody, contextLevel: ctx.contextLevel,
+    });
     return {
       quality: hasBody ? 'good' : 'medium',
       event_type: 'tutorial',
       category,
-      one_liner: `Guia prático${frame.topic ? ` sobre ${frame.topic}` : ''}: ${title}.`,
-      what_happened: hasBody
-        ? `${source} publicou um passo a passo${frame.topic ? ` sobre ${frame.topic}` : ''}. ${lead}`
-        : `${source} traz um tutorial${frame.topic ? ` sobre ${frame.topic}` : ''}. O passo a passo completo está no site.`,
+      one_liner,
+      what_happened,
       why_it_matters: `Conteúdo útil para quem quer aprender a fazer isso na prática${frame.topic ? `, envolvendo ${frame.topic}` : ''}.`,
       likely_impact: stepCount > 0
         ? `O guia descreve o procedimento em etapas${stepCount >= 3 ? ` (cerca de ${stepCount} passos)` : ''}.`
@@ -704,25 +759,168 @@ const buildNonNewsSummary = (kind: ContentType, ctx: NonNewsCtx): SmartHeuristic
         ? 'Este é um tutorial — o passo a passo completo, com telas e detalhes, está no site.'
         : 'Tutorial com pouco texto no feed; abra no site para o passo a passo completo.',
       used_sources: { title: true, rssDescription: Boolean(ctx.one_liner_seed), contextText: hasBody, extractedText: false, clusterContext: false },
+      content_mode: 'how_to',
+      sections,
     };
   }
 
   // listicle
+  const one_liner = lead;
+  const what_happened = hasBody
+    ? `${source} reuniu uma lista${frame.topic ? ` sobre ${frame.topic}` : ''}. ${bodySents.slice(0, 2).join(' ')}`.trim()
+    : `${source} publicou uma lista${frame.topic ? ` sobre ${frame.topic}` : ''}. Os itens completos estão no site.`;
+  const sections = buildAdaptiveSections({
+    mode: 'listicle_history', title, source, bodySents, frame, one_liner, what_happened,
+    hasBody, contextLevel: ctx.contextLevel,
+  });
   return {
     quality: hasBody ? 'good' : 'medium',
     event_type: 'listicle',
     category,
-    one_liner: lead,
-    what_happened: hasBody
-      ? `${source} reuniu uma lista${frame.topic ? ` sobre ${frame.topic}` : ''}. ${bodySents.slice(0, 2).join(' ')}`.trim()
-      : `${source} publicou uma lista${frame.topic ? ` sobre ${frame.topic}` : ''}. Os itens completos estão no site.`,
+    one_liner,
+    what_happened,
     why_it_matters: `Conteúdo de leitura e curiosidade${frame.topic ? ` sobre ${topicLabel}` : ''}, feito para explorar item a item.`,
     likely_impact: 'É um conteúdo de contexto e entretenimento, sem desdobramento factual imediato.',
     what_to_watch: 'Vale abrir no site para ver a lista completa com todos os itens.',
     snippets: [],
     confidence_note: 'Esta é uma lista/matéria de curiosidade — o conteúdo completo, item a item, está no site.',
     used_sources: { title: true, rssDescription: Boolean(ctx.one_liner_seed), contextText: hasBody, extractedText: false, clusterContext: false },
+    content_mode: 'listicle_history',
+    sections,
   };
+};
+
+// ============================================================
+// (FASE 1 — Camadas 5 e 6) SEÇÕES ADAPTATIVAS
+// Monta as caixas conforme o content_mode. Cada seção só entra se
+// tiver EVIDÊNCIA real no texto (confidence >= piso). O contextLevel
+// do servidor limita quantas caixas faturar. Nunca preenche por
+// preencher — melhor 2 caixas verdadeiras que 5 genéricas.
+// ============================================================
+
+// Quantas seções o nível de contexto honestamente permite.
+const sectionsBudgetForContextLevel = (level: any, hasBody: boolean): number => {
+  const l = String(level || '');
+  if (l === 'html_lite' || l === 'rss_fullish') return 5;
+  if (l === 'rss_summary') return hasBody ? 4 : 3;
+  if (l === 'title_only') return 2;
+  return hasBody ? 4 : 2;
+};
+
+// Detecta próximo passo EXPLÍCITO no corpo (não inventa).
+const NEXT_STEP_RX = /\b(cabe recurso|sera (?:analisad|julgad|votad|divulgad|apreciad)|aguarda (?:decisao|julgamento|votacao)|previst[oa] para|comeca a valer|entra em vigor|passa a valer|proxima (?:audiencia|sessao|etapa|fase)|deve (?:ser|entrar|comecar)|a partir de \d)/i;
+// Consequência explícita.
+const CONSEQUENCE_RX = /\b(passa a|entra em vigor|tera efeito|afeta|implica|com isso|resultando em|o que (?:pode|deve) (?:gerar|causar))/i;
+// Causa explícita.
+const CAUSE_RX = /\b(porque|devido a|em razao de|motivad[oa] por|apos |por conta de|em decorrencia)/i;
+
+const firstSentenceMatching = (sentences: string[], rx: RegExp): string | null => {
+  for (const s of sentences) if (rx.test(normalizeTerm(s))) return s;
+  return null;
+};
+
+const sec = (key: string, label: string, iconKey: string, text: string, confidence: number): SummarySection | null => {
+  const t = String(text || '').trim();
+  if (!t || t.length < 12) return null;
+  return { key, label, iconKey, text: t, confidence };
+};
+
+interface SectionCtx {
+  mode: ContentMode; title: string; source: string;
+  bodySents: string[]; frame: HeuristicFrame;
+  one_liner: string; what_happened: string;
+  hasBody: boolean; contextLevel: any;
+}
+
+const buildAdaptiveSections = (ctx: SectionCtx): SummarySection[] => {
+  const { mode, source, bodySents, frame, one_liner, what_happened, hasBody } = ctx;
+  const out: (SummarySection | null)[] = [];
+  const budget = sectionsBudgetForContextLevel(ctx.contextLevel, hasBody);
+
+  // "Em resumo" — sempre a primeira, é o que temos de mais confiável.
+  out.push(sec('resumo', 'Em resumo', 'zap', one_liner, 0.9));
+
+  // Frase principal para as seções factuais: a 1ª frase do corpo que NÃO
+  // seja praticamente igual ao one_liner (evita repetir o resumo).
+  const normOne = normalizeTerm(one_liner);
+  const factSents = bodySents.filter(s => sentenceSimilarity(normalizeTerm(s), normOne) < 0.6);
+  const mainFact = factSents[0] || bodySents[0] || what_happened;
+
+  if (mode === 'how_to') {
+    out.push(sec('aprende', 'O que você aprende',
+      frame.topic ? `Como lidar com ${frame.topic} na prática.` : `Um procedimento passo a passo.`,
+      'target', 0.8));
+    const steps = bodySents.filter(s => /\b(toque|clique|selecione|abra|acesse|escolha|confirme|va em)\b/i.test(normalizeTerm(s)));
+    if (steps.length > 0) out.push(sec('passos', 'Passos principais', 'list', steps.slice(0, 2).join(' '), 0.85));
+    else if (hasBody) out.push(sec('sobre', 'Como funciona', 'filetext', what_happened, 0.7));
+    const onde = firstSentenceMatching(bodySents, /\b(disponivel|funciona (?:em|no)|web|android|ios|iphone|desktop|navegador)\b/i);
+    if (onde) out.push(sec('onde', 'Onde funciona', 'globe', onde, 0.75));
+  }
+
+  else if (mode === 'listicle_history') {
+    out.push(sec('sobre', 'Sobre o conteúdo',
+      frame.topic ? `Uma lista/curiosidade sobre ${frame.topic}, publicada por ${source}.` : `Uma lista/matéria de curiosidade de ${source}.`,
+      'list', 0.8));
+    if (hasBody && bodySents[0]) out.push(sec('recorte', 'Recorte da lista', 'bookmark', bodySents.slice(0, 2).join(' '), 0.72));
+    out.push(sec('site', 'Lista completa', 'externallink', 'A lista completa, item a item, está no site.', 0.9));
+  }
+
+  else if (mode === 'policy_or_legal') {
+    
+    out.push(sec('pedido', 'O que foi pedido/decidido', 'scale', mainFact, hasBody ? 0.85 : 0.6));
+    const causa = firstSentenceMatching(bodySents, CAUSE_RX);
+    if (causa && causa !== mainFact) out.push(sec('motivo', 'Motivo', 'filetext', causa, 0.75));
+    const prox = firstSentenceMatching(bodySents, NEXT_STEP_RX);
+    if (prox) out.push(sec('proximo', 'Próxima etapa', 'clock', prox, 0.8)); // SÓ se explícito
+  }
+
+  else if (mode === 'market_update') {
+    
+    out.push(sec('mov', 'O que mudou', 'trendingup', mainFact, hasBody ? 0.85 : 0.6));
+    const causa = firstSentenceMatching(bodySents, CAUSE_RX);
+    if (causa && causa !== mainFact) out.push(sec('motivo', 'Motivo', 'filetext', causa, 0.75));
+    const prox = firstSentenceMatching(bodySents, NEXT_STEP_RX);
+    if (prox && prox !== mainFact) out.push(sec('proximo', 'Próxima etapa', 'clock', prox, 0.78));
+  }
+
+  else if (mode === 'profile_obituary') {
+    out.push(sec('quem', 'Quem foi', 'user', mainFact, hasBody ? 0.82 : 0.6));
+    if (bodySents[1]) out.push(sec('legado', 'Trajetória', 'history', bodySents[1], 0.7));
+  }
+
+  else if (mode === 'sports_live') {
+    // já tratado com honestidade no fluxo sports_match; aqui é redundância segura
+    out.push(sec('live', 'Acompanhamento ao vivo', 'activity',
+      'Cobertura em tempo real — placar, escalações e lances durante o jogo.', 0.75));
+  }
+
+  else {
+    // breaking_event / general → frame factual, sem inventar impacto.
+    
+    out.push(sec('fatos', 'Fatos principais', 'filetext', mainFact, hasBody ? 0.85 : 0.55));
+    const causa = firstSentenceMatching(bodySents, CAUSE_RX);
+    if (causa && causa !== mainFact) out.push(sec('causa', 'Por quê', 'filetext', causa, 0.72));
+    const cons = firstSentenceMatching(bodySents, CONSEQUENCE_RX);
+    if (cons && cons !== mainFact) out.push(sec('mudou', 'O que muda', 'trendingup', cons, 0.75)); // SÓ se explícito
+    const prox = firstSentenceMatching(bodySents, NEXT_STEP_RX);
+    if (prox && prox !== mainFact) out.push(sec('proximo', 'Próximo marco', 'clock', prox, 0.78)); // SÓ se explícito
+  }
+
+  // Camada 6: filtra nulos, aplica piso de confiança e orçamento.
+  const PISO = 0.6;
+  const filtered = out.filter((s): s is SummarySection => s != null && s.confidence >= PISO);
+
+  // Dedup por similaridade de texto (não repetir o mesmo conteúdo em 2 caixas).
+  const deduped: SummarySection[] = [];
+  for (const s of filtered) {
+    const dup = deduped.some(d => sentenceSimilarity(normalizeTerm(d.text), normalizeTerm(s.text)) > 0.7);
+    if (!dup) deduped.push(s);
+  }
+
+  // Garante piso mínimo: sempre pelo menos "Em resumo".
+  const result = deduped.slice(0, budget);
+  if (result.length === 0 && filtered.length > 0) return [filtered[0]];
+  return result;
 };
 
 // ------------------------------------------------------------
@@ -775,7 +973,7 @@ export const generateSmartHeuristicSummary = (
     return buildNonNewsSummary(contentType, {
       title, source, category, bestBody,
       hasBody: extractedUsable || contextUsable,
-      frame, one_liner_seed: rssDescription,
+      frame, one_liner_seed: rssDescription, contextLevel: article?.contextLevel,
     });
   }
 
@@ -796,6 +994,11 @@ export const generateSmartHeuristicSummary = (
       snippets: [],
       confidence_note: 'Esta é uma página de placar ao vivo — o conteúdo muda durante o jogo. Abra no site para acompanhar em tempo real.',
       used_sources: { title: true, rssDescription: used_sources.rssDescription, contextText: false, extractedText: false, clusterContext: false },
+      content_mode: 'sports_live',
+      sections: [
+        { key: 'live', label: 'Ao vivo', iconKey: 'activity', text: `${source} mantém cobertura em tempo real de ${matchLabel} — placar, escalações e lances durante o jogo.`, confidence: 0.8 },
+        { key: 'site', label: 'Acompanhar', iconKey: 'externallink', text: 'Abra no site para ver o placar atualizado em tempo real.', confidence: 0.85 },
+      ],
     };
   }
 
@@ -898,6 +1101,16 @@ export const generateSmartHeuristicSummary = (
     confidence_note = 'Resumo baseado na descrição da fonte; alguns desdobramentos podem não estar cobertos.';
   }
 
+  // --- (FASE 1) content_mode + seções adaptativas ---
+  const content_mode = detectContentMode(article, bestBody, event_type);
+  const bodySents = splitSentences(extractedUsable ? cleanExtracted : (contextUsable ? contextText : rssDescription));
+  const sections = buildAdaptiveSections({
+    mode: content_mode, title, source, bodySents, frame,
+    one_liner, what_happened,
+    hasBody: extractedUsable || contextUsable,
+    contextLevel: article?.contextLevel,
+  });
+
   return {
     quality,
     event_type,
@@ -910,5 +1123,7 @@ export const generateSmartHeuristicSummary = (
     snippets,
     confidence_note,
     used_sources,
+    content_mode,
+    sections,
   };
 };

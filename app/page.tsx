@@ -3441,18 +3441,45 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
       return null;
     }
   }, [article, content]);
-  const SUMMARY_ROWS = [
-    { label: 'Em uma frase', tile: 'bg-purple-500/15 text-purple-300', icon: <Zap size={18} />,
-      text: smartSummary?.one_liner || (article?.summary ? article.summary.replace(/\.\.\.$/, '') : 'Síntese principal da notícia em uma linha objetiva.') },
-    { label: 'O que aconteceu?', tile: 'bg-blue-500/15 text-blue-300', icon: <FileText size={18} />,
-      text: smartSummary?.what_happened || 'Resumo factual do acontecimento central reportado pela fonte.' },
-    { label: 'Por que importa?', tile: 'bg-emerald-500/15 text-emerald-300', icon: <BrainCircuit size={18} />,
-      text: smartSummary?.why_it_matters || 'Contexto e relevância do tema para o leitor e para o cenário atual.' },
-    { label: 'Impacto provável', tile: 'bg-amber-500/15 text-amber-300', icon: <TrendingUp size={18} />,
-      text: smartSummary?.likely_impact || 'Possíveis efeitos e desdobramentos a curto e médio prazo.' },
-    { label: 'O que acompanhar', tile: 'bg-violet-500/15 text-violet-300', icon: <Telescope size={18} />,
-      text: smartSummary?.what_to_watch || 'Próximos passos e pontos a observar no desenrolar da história.' },
-  ];
+  // (FASE 1) Mapa iconKey → ícone lucide + cor da caixa.
+  const SECTION_STYLE = {
+    zap:          { tile: 'bg-purple-500/15 text-purple-300',  icon: <Zap size={18} /> },
+    filetext:     { tile: 'bg-blue-500/15 text-blue-300',      icon: <FileText size={18} /> },
+    scale:        { tile: 'bg-blue-500/15 text-blue-300',      icon: <FileText size={18} /> },
+    trendingup:   { tile: 'bg-amber-500/15 text-amber-300',    icon: <TrendingUp size={18} /> },
+    clock:        { tile: 'bg-violet-500/15 text-violet-300',  icon: <Clock size={18} /> },
+    telescope:    { tile: 'bg-violet-500/15 text-violet-300',  icon: <Telescope size={18} /> },
+    target:       { tile: 'bg-emerald-500/15 text-emerald-300',icon: <Telescope size={18} /> },
+    list:         { tile: 'bg-sky-500/15 text-sky-300',        icon: <Layers size={18} /> },
+    bookmark:     { tile: 'bg-sky-500/15 text-sky-300',        icon: <Bookmark size={18} /> },
+    globe:        { tile: 'bg-teal-500/15 text-teal-300',      icon: <Globe size={18} /> },
+    user:         { tile: 'bg-emerald-500/15 text-emerald-300',icon: <BrainCircuit size={18} /> },
+    history:      { tile: 'bg-violet-500/15 text-violet-300',  icon: <History size={18} /> },
+    activity:     { tile: 'bg-rose-500/15 text-rose-300',      icon: <Activity size={18} /> },
+    externallink: { tile: 'bg-zinc-500/15 text-zinc-300',      icon: <ExternalLink size={18} /> },
+  };
+  const styleFor = (k) => SECTION_STYLE[k] || SECTION_STYLE.filetext;
+
+  // Prefere as seções adaptativas do motor; se não houver, usa as 5 caixas antigas.
+  const SUMMARY_ROWS = (smartSummary?.sections && smartSummary.sections.length > 0)
+    ? smartSummary.sections.map((s) => ({
+        label: s.label,
+        text: s.text,
+        tile: styleFor(s.iconKey).tile,
+        icon: styleFor(s.iconKey).icon,
+      }))
+    : [
+        { label: 'Em uma frase', tile: 'bg-purple-500/15 text-purple-300', icon: <Zap size={18} />,
+          text: smartSummary?.one_liner || (article?.summary ? article.summary.replace(/\.\.\.$/, '') : 'Síntese principal da notícia em uma linha objetiva.') },
+        { label: 'O que aconteceu?', tile: 'bg-blue-500/15 text-blue-300', icon: <FileText size={18} />,
+          text: smartSummary?.what_happened || 'Resumo factual do acontecimento central reportado pela fonte.' },
+        { label: 'Por que importa?', tile: 'bg-emerald-500/15 text-emerald-300', icon: <BrainCircuit size={18} />,
+          text: smartSummary?.why_it_matters || 'Contexto e relevância do tema para o leitor e para o cenário atual.' },
+        { label: 'Impacto provável', tile: 'bg-amber-500/15 text-amber-300', icon: <TrendingUp size={18} />,
+          text: smartSummary?.likely_impact || 'Possíveis efeitos e desdobramentos a curto e médio prazo.' },
+        { label: 'O que acompanhar', tile: 'bg-violet-500/15 text-violet-300', icon: <Telescope size={18} />,
+          text: smartSummary?.what_to_watch || 'Próximos passos e pontos a observar no desenrolar da história.' },
+      ];
   const summaryModeLabel = smartSummary
     ? (smartSummary.quality === 'good' ? 'Resumo heurístico · contexto amplo'
       : smartSummary.quality === 'medium' ? 'Resumo heurístico'
