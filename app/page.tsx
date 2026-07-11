@@ -3535,7 +3535,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Sparkles size={18} className="text-purple-500" />
-                <span className="text-[15px] font-bold text-zinc-900">Resumo Inteligente</span>
+                <span className="text-[15px] font-bold text-zinc-900">Pontos Importantes</span>
               </div>
               <span className="text-[11px] text-zinc-400">{summaryModeLabel}</span>
             </div>
