@@ -11122,42 +11122,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       }
   }, [apiKey, article]);
 
-  // A NOVA FUNÇÃO SINCRONIZADA COM A REALIDADE
-const runSuperPrompt = useCallback(async () => {
-      // apiKey agora vem das props, fornecida pelo pool 'analysis'
-      if (!apiKey || !article.link) {
-          setLoadingState('error');
-          return;
-      }
-      
-      try {
-          setLoadingStep(1); // Extraindo...
-          const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-          
-          if (proxyError || !proxyData?.reader?.content) throw new Error("Falha na extração de texto");
-          
-          const fullText = proxyData.reader.textContent;
-          setReaderContent(proxyData.reader); 
 
-          setLoadingStep(2); // Analisando...
-          setLoadingState('analyzing'); 
-
-          // A MÁGICA: Chama a função local generateFullAnalysis com a chave do pool
-          const result = await generateFullAnalysis(fullText, apiKey);
-          
-          if (!result) throw new Error("A análise da IA retornou vazia.");
-
-          setLoadingStep(3); // Sintetizando...
-          setAiData(result);
-          
-          setLoadingStep(4); // Finalizando...
-          setLoadingState('complete');
-
-      } catch (err) { 
-          console.error("Erro no runSuperPrompt:", err);
-          setLoadingState('error'); 
-      }
-  }, [apiKey, article]); // Depende da chave e do artigo
 
   
 const handleNodeClick = useCallback((nodeName, position) => {
