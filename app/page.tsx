@@ -2437,26 +2437,24 @@ const generateTimelineForCluster = async (articles, apiKey) => {
     }
 };
 
-// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (OTIMIZAÇÃO EXTREMA DE LATÊNCIA) ---
+// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Chave na URL) ---
 const generateFastSummary = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 6000);
 
-  // Prompt otimizado para forçar respostas curtíssimas (diminui o tempo de cálculo da IA)
   const prompt = `
-  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR).
-  REGRA CRÍTICA: Cada item do "bullets" deve ter no MÁXIMO 8 palavras. Seja extremamente direto.
+  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
   {
-    "tldr": "TLDR explicativo direto de 1 única frase de impacto.",
+    "tldr": "TLDR denso, formal e explicativo de 1 a 2 frases de forte impacto.",
     "bullets": [
-      "Fato crucial 1",
-      "Fato crucial 2",
-      "Fato crucial 3",
-      "Fato crucial 4"
+      "Fato crucial 1 (Máx 15 palavras)",
+      "Fato crucial 2 (Máx 15 palavras)",
+      "Fato crucial 3 (Máx 15 palavras)",
+      "Fato crucial 4 (Máx 15 palavras)"
     ],
     "faqs": [
-      "FAQ 1?",
-      "FAQ 2?"
+      "Pergunta frequente crucial 1?",
+      "Pergunta frequente crucial 2?"
     ]
   }
   TEXTO:
@@ -2464,19 +2462,13 @@ const generateFastSummary = async (text, apiKey) => {
   `;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
+    // Restaurado o ?key= na URL para funcionar 100% no navegador
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
       method: "POST", 
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        contents: [{ parts: [{ text: prompt }] }], 
-        generationConfig: { 
-          response_mime_type: "application/json", 
-          temperature: 0.1,        // Torna a geração de tokens muito mais rápida
-          maxOutputTokens: 250,     // Impede o modelo de processar textos longos, cortando latência de cauda
-          topP: 0.95
-        } 
-      })
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.1 } })
     });
 
     if (!res.ok) {
@@ -2495,7 +2487,6 @@ const generateFastSummary = async (text, apiKey) => {
     return null; 
   }
 };
-
 
 // --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Chave na URL) ---
 const generateDeepAnalysis = async (text, apiKey) => {
@@ -11184,7 +11175,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       }
   }, [article?.id, isOpen, initialViewMode]);
 
-// LÓGICA DE EXECUÇÃO EM MILESTONES REAIS (Bypass de timers fakes)
+  // LÓGICA DE EXECUÇÃO EM MILESTONES REAIS (Bypass de timers fakes)
   const runProgressivePrompt = useCallback(async (currentMode) => {
       if (!apiKey || !article.link) return setUiStage('error');
       
