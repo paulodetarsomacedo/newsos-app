@@ -2437,8 +2437,7 @@ const generateTimelineForCluster = async (articles, apiKey) => {
     }
 };
 
-
-// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Retorna em ~1.5s) ---
+// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Header Auth) ---
 const generateFastSummary = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 7000);
@@ -2463,17 +2462,34 @@ const generateFastSummary = async (text, apiKey) => {
   `;
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+    // CORREÇÃO DE SEGURANÇA: Retirado o ?key= da URL. Passamos agora no Header!
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+      method: "POST", 
+      headers: { 
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey // <--- AUTENTICAÇÃO SEGURA POR HEADER
+      },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.2 } })
     });
+
+    if (!res.ok) {
+      console.warn(`[Fast Summary] Gemini retornou erro ${res.status}. Usando fallback local.`);
+      return null;
+    }
+
     const data = await res.json();
-    let cleanedString = data.candidates?.[0]?.content?.parts?.[0]?.text.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
+    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!resultText) throw new Error("Resposta da IA vazia");
+
+    let cleanedString = resultText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
     return JSON.parse(cleanedString);
-  } catch (e) { console.error("Erro Fast Summary:", e); return null; }
+  } catch (e) { 
+    console.error("Erro Fast Summary:", e); 
+    return null; 
+  }
 };
 
-// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Background) ---
+// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Header Auth) ---
 const generateDeepAnalysis = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
@@ -2481,10 +2497,10 @@ const generateDeepAnalysis = async (text, apiKey) => {
   const prompt = `
   Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
   {
-    "executive": "Resumo executivo aprofundado e denso (3 parágrafos formais).",
+    "executive": "Resumo executivo aprofundado e denso (3 parágrafos formais), organizar os parágrafos.",
     "eli5": "Explicação simplificada e pedagógica usando uma analogia inteligente (1 parágrafo curto).",
     "sentiment": "Análise de tom, sentimento e viés jornalístico do artigo (neutro, crítico, otimista, etc., com justificativa de 1 parágrafo curto).",
-    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C"] },
+    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"] },
     "contextualTerms": [
       { "term": "Nó A", "context": "Importância específica deste nó na notícia. Max 25 palavras.", "evidence_quotes": ["Citação curta"] }
     ],
@@ -2496,16 +2512,32 @@ const generateDeepAnalysis = async (text, apiKey) => {
   `;
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+    // CORREÇÃO DE SEGURANÇA: Retirado o ?key= da URL. Passamos agora no Header!
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+      method: "POST", 
+      headers: { 
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey // <--- AUTENTICAÇÃO SEGURA POR HEADER
+      },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.3 } })
     });
-    const data = await res.json();
-    let cleanedString = data.candidates?.[0]?.content?.parts?.[0]?.text.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
-    return JSON.parse(cleanedString);
-  } catch (e) { console.error("Erro Deep Analysis:", e); return null; }
-};
 
+    if (!res.ok) {
+      console.warn(`[Deep Analysis] Gemini retornou erro ${res.status}.`);
+      return null;
+    }
+
+    const data = await res.json();
+    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!resultText) throw new Error("Resposta da IA vazia");
+
+    let cleanedString = resultText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
+    return JSON.parse(cleanedString);
+  } catch (e) { 
+    console.error("Erro Deep Analysis:", e); 
+    return null; 
+  }
+};
 
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODELO 2.5 FLASH) ---
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V3 - 4 CARDS + TEXTO FLUÍDO) ---
@@ -10905,10 +10937,13 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   - Não repita a pergunta. Apenas dê a resposta.
   `;
 
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+   try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey // <--- AUTENTICAÇÃO POR HEADER SEGURA
+      },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
     const data = await response.json();
