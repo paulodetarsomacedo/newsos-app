@@ -321,6 +321,13 @@ export const sanitizeExtractedText = (raw: any): string => {
   // (FASE 1.5) Crédito de agência no INÍCIO seguido de travessão/hífen
   // (ex.: "CGTN – O presidente...", "Reuters — Segundo..."). Remove o prefixo.
   t = t.replace(/^\s*[A-Z][A-Za-z0-9]{1,8}\s*[–—-]\s*/, '');
+  // (CORREÇÃO 2) Dateline de agência: "SÃO PAULO, SP ( ) -", "RIO (Reuters) -",
+  // "BRASÍLIA, DF –". Cidade em CAIXA ALTA + UF/agência opcional + travessão.
+  t = t.replace(/\b[A-ZÀ-Ú]{3,}(?:\s+[A-ZÀ-Ú]{2,})*\s*,?\s*(?:[A-Z]{2})?\s*\([^)]*\)\s*[–—-]\s*/g, '');
+  t = t.replace(/\b[A-ZÀ-Ú]{3,}(?:\s+DE\s+[A-ZÀ-Ú]{3,})*\s*,\s*[A-Z]{2}\s*[–—-]\s*/g, '');
+  // (CORREÇÃO 3) Boilerplate institucional que gruda no fim/meio de frase —
+  // corta a partir do gatilho até o fim do trecho. Cobre acentos.
+  t = t.replace(/\.?\s*(?:Siga os (?:últimos|ultimos|principais)|Reportagens,?\s*v[ií]deos|Acompanhe (?:tudo|a cobertura)|Fique por dentro|Receba (?:as|nossas) not[ií]cias)[^.]*\.?/gi, '.');
   t = t.replace(TIMESTAMP_RX, ' ');
   t = t.replace(NAV_BOILERPLATE_RX, ' ');
   t = t.replace(LEADING_EDITORIA_RX, '');
@@ -416,8 +423,12 @@ export const scoreBodyQuality = (text: string): BodyQuality => {
 
 const splitSentences = (text: string): string[] => {
   if (!text) return [];
+  // Quebra primeiro por parágrafo (o texto rico junta parágrafos com \n\n),
+  // depois por fim de frase — evita colar o fim de um parágrafo com o
+  // começo do próximo ("...opções militares Qualquer acordo final...").
   return text
-    .split(/(?<=[.!?…])\s+(?=[A-ZÀ-Ú0-9“"])/)
+    .split(/\n+/)
+    .flatMap(para => para.split(/(?<=[.!?…])\s+(?=[A-ZÀ-Ú0-9“"])/))
     .map(s => s.trim())
     .filter(s => s.length > 25);
 };
@@ -696,6 +707,11 @@ const pickSnippets = (fullText: string, frame: HeuristicFrame, title: string): s
 // ------------------------------------------------------------
 const BOILERPLATE_SENT_RX = /\b(clique|leia mais|leia tambem|assine|newsletter|publicidade|cookies|siga o|baixe o app|compartilhe|topicos relacionados|menu|cadastre-se|aguardando atualizacao|proximo lance|tempo real|placar ao vivo)\b/i;
 
+// (CORREÇÃO 3) Rodapé/chamada institucional dos veículos — nunca vira tópico.
+// Ex.: "Siga os últimos fatos... no maior canal de notícias do mundo",
+// "Reportagens, vídeos, coberturas completas, Breaking news...".
+const INSTITUTIONAL_RX = /\b(siga os (?:ultimos|principais) (?:fatos|noticias)|maior (?:canal|portal|site) de noticias|reportagens,? videos|coberturas completas|breaking news|acompanhe (?:tudo|a cobertura|as noticias)|todas as noticias|fique por dentro|mais lidas|mais recentes|receba (?:as|nossas) noticias|assine (?:a|o|nossa)|para o seu dia a dia|no maior canal)\b/i;
+
 const pickNarrativeSentences = (
   body: string,
   frame: HeuristicFrame,
@@ -908,7 +924,8 @@ export const classifySentences = (
     if (topicNorm && norm.includes(topicNorm)) score += 1.2;
     let overlap = 0;
     for (const w of norm.split(' ')) if (normTitleWords.has(w)) overlap++;
-    score += Math.min(2.5, overlap * 0.5);               // sobreposição com título
+    score += Math.min(4, overlap * 0.8);                 // sobreposição com título (peso forte:
+                                                        // o fato central quase sempre ecoa o título)
     if (roles.has('number')) score += 1;                 // dado quantitativo
     if (roles.has('background')) score -= 2.5;            // penaliza background
     if (roles.has('instruction')) score -= 1;            // passo não é fato
@@ -976,19 +993,28 @@ export const extractPremiumTopics = (
   if (bodySents.length === 0) return [];
   const classified = classifySentences(bodySents, frame, title)
     .filter(c => c.text.length >= 45 && c.text.length <= 400)
-    .filter(c => c.score > -3);
+    .filter(c => c.score > -3)
+    .filter(c => !INSTITUTIONAL_RX.test(normalizeTerm(c.text))); // fora rodapé institucional
   if (classified.length === 0) return [];
 
   const chosen: ClassifiedSentence[] = [];
   const pool = [...classified].sort((a, b) => b.score - a.score);
 
-  // 1º bloco = FATO CENTRAL (frase de maior score), mesmo que se pareça com
-  // o one_liner — o resumo do print mostrava só a linha fina, e o fato
-  // principal merece um bloco próprio como abertura.
-  if (pool[0]) chosen.push(pool[0]);
+  // 1º bloco = FATO CENTRAL. Regra editorial: é a frase que mais ecoa o
+  // TÍTULO (o título É o fato). Mais confiável que o score genérico, que
+  // pode premiar uma frase lateral com verbo forte.
+  const titleWords = new Set(normalizeTerm(title).split(' ').filter(w => w.length > 3));
+  const titleEcho = (c: ClassifiedSentence): number => {
+    if (titleWords.size === 0) return 0;
+    let hit = 0;
+    for (const w of new Set(c.norm.split(' '))) if (titleWords.has(w)) hit++;
+    return hit / titleWords.size;   // fração do título coberta pela frase
+  };
+  const byEcho = [...classified].sort((a, b) => (titleEcho(b) - titleEcho(a)) || (b.score - a.score));
+  const lead = (titleEcho(byEcho[0]) >= 0.25) ? byEcho[0] : pool[0];
+  if (lead) chosen.push(lead);
 
-  // Demais blocos: relevância + DIVERSIDADE (MMR simplificado). Cada novo
-  // bloco precisa ser diferente dos já escolhidos.
+  // Demais blocos: relevância + DIVERSIDADE (não repete ângulo).
   for (const cand of pool) {
     if (chosen.length >= maxTopics) break;
     if (chosen.some(ch => ch.idx === cand.idx)) continue;
@@ -997,12 +1023,51 @@ export const extractPremiumTopics = (
     chosen.push(cand);
   }
 
-  chosen.sort((a, b) => a.idx - b.idx); // leitura natural: começo → fim
+  // ── ORDEM EDITORIAL FIXA ──
+  // Não ordena por posição no texto (que vem embaralhado do proxy). Ordena
+  // por PAPEL, numa sequência que facilita o entendimento rápido:
+  //   1. fato central (o que aconteceu)
+  //   2. contexto / definição (o que é / pano de fundo)
+  //   3. números / dados concretos
+  //   4. causa / motivo
+  //   5. consequência / desdobramento
+  //   6. próximo passo / o que vem
+  //   7. citação / declaração
+  //   8. secundário (resto)
+  const editorialRank = (c: ClassifiedSentence, isFirst: boolean): number => {
+    if (isFirst) return 1;                          // o fato central escolhido abre sempre
+    if (c.roles.has('cause')) return 4;
+    if (c.roles.has('number')) return 3;
+    if (c.roles.has('consequence')) return 5;
+    if (c.roles.has('next_step')) return 6;
+    if (c.roles.has('legal_status')) return 5;
+    if (c.roles.has('quote')) return 7;
+    if (c.roles.has('background')) return 2;        // "o que é / pano de fundo" vem cedo
+    if (c.roles.has('main_fact')) return 2;         // outro fato forte = contexto próximo
+    return 8;                                       // detalhe secundário por último
+  };
+  const firstIdx = chosen[0]?.idx;
+  const ranked = chosen
+    .map(c => ({ c, rank: editorialRank(c, c.idx === firstIdx) }))
+    .sort((a, b) => (a.rank - b.rank) || (b.c.score - a.c.score));
 
-  return chosen.map((c, i) => ({
+  // Ícones: preferência por papel, mas SEM repetir a mesma cor em sequência
+  // (3 âmbar seguidos ficava monótono). Alterna quando já usado.
+  const PALETTE = ['zap', 'filetext', 'globe', 'trendingup', 'bookmark', 'history', 'clock'];
+  const usedIcons = new Set<string>();
+  const pickIcon = (c: ClassifiedSentence, i: number): string => {
+    const pref = roleIcon(c, i);
+    if (!usedIcons.has(pref)) { usedIcons.add(pref); return pref; }
+    const free = PALETTE.find(p => !usedIcons.has(p));
+    const chosen2 = free || PALETTE[i % PALETTE.length];
+    usedIcons.add(chosen2);
+    return chosen2;
+  };
+
+  return ranked.map(({ c }, i) => ({
     key: `topic-${i}`,
     label: '',
-    iconKey: roleIcon(c, i),
+    iconKey: pickIcon(c, i),
     text: trimTopic(c.text),
     confidence: Math.max(0.6, Math.min(1, 0.6 + c.score / 12)),
   }));
@@ -1258,10 +1323,11 @@ export const generateSmartHeuristicSummary = (
     const rssSents = pickNarrativeSentences(rssDescription, frame, title, 2, one_liner);
     what_happened = rssSents.join(' ') || firstSentence(rssDescription, 300);
     if (sentenceSimilarity(normalizeTerm(what_happened), normalizeTerm(one_liner)) > 0.7) {
-      // one_liner e what_happened seriam a mesma frase → torna what_happened honesto.
-      what_happened = `A fonte ${source} traz esta informação principal; os demais detalhes dependem da leitura completa.`;
+      // one_liner e what_happened seriam a mesma frase → não cria 2º bloco
+      // com texto genérico. Deixa vazio; o resumo mostra só "Em resumo" + nota.
+      what_happened = '';
     }
-    if (frame.numbers.length > 0 && !what_happened.match(/\d/)) {
+    if (what_happened && frame.numbers.length > 0 && !what_happened.match(/\d/)) {
       what_happened += ` A matéria menciona ${frame.numbers[0]}.`;
     }
   } else {
