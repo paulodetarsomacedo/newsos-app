@@ -2439,95 +2439,114 @@ const generateTimelineForCluster = async (articles, apiKey) => {
 
 
 // --- FUNÇÃO DE IA: ANÁLISE COMPLETA (ABA AI) ---
-const generateFullAnalysis = async (text, apiKey) => {
+const generateFullAnalysis = async (text, apiKey, onChunk) => {
   if (!text || text.length < 100 || !apiKey) return null;
 
-  // Limpa e corta para economizar tokens
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 12000);
 
+  // NDJSON: um objeto por linha. Cada linha é JSON válido e completo, então dá
+  // para renderizar assim que chega — sem parser tolerante de JSON parcial.
+  // A ORDEM importa: o que o usuário mais quer vem primeiro; timeline por último.
   const prompt = `
-  Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
-  
-  GERE UM JSON ESTRITO COM ESTA ESTRUTURA EXATA (Tudo em PT-BR):
-  {
-    "summaries": {
-      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos e bem explicados).",
-      "tldr": "Resumo em 1 única frase de impacto (Too Long Didn't Read).",
-      "eli5": "Explicação didática como se fosse para uma criança de 5 anos (analogias).",
-      "bullets": ["Ponto chave 1", "Ponto chave 2", "Ponto chave 3", "Ponto chave 4"]
-    },
-    "mindmap": {
-    "center": "Tema Central (Max 3 palavras)",
-    "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"]
-},
-"contextualTerms": [
-    {
-        "term": "Nó A (Nome exato do nó do mindmap)",
-        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. SEJA DENSO E DETALHADO. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
-        "sentiment": "neutral", 
-        "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
-    },
-    { "term": "Nó B", "context": "...", "sentiment": "positive", "evidence_quotes": ["..."] },
-    { "term": "Nó C", "context": "...", "sentiment": "negative", "evidence_quotes": ["..."] },
-    { "term": "Nó D", "context": "...", "sentiment": "neutral", "evidence_quotes": ["..."] }
-],
-    "timeline": [
-                      { "time": "Passado (Causa Raiz)", "event": "O que causou o contexto geral desta notícia?" },
-                      { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
-                      { "time": "Hoje (Fato Principal)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
-                  ],
-    "future": {
-      "optimistic": "Melhor cenário possível a longo prazo.",
-      "pessimistic": "Pior cenário/Riscos envolvidos.",
-      "probable": "O que realmente deve acontecer (análise realista)."
-    }
-  }
+Aja como um Analista de Inteligência Sênior. Analise o texto e responda em NDJSON.
 
-  TEXTO:
-  ${cleanText}
-  `;
+REGRAS CRÍTICAS DE FORMATO:
+- Emita EXATAMENTE 6 linhas, uma por objeto JSON, NA ORDEM ABAIXO.
+- Cada linha deve ser um JSON válido e completo, terminado por quebra de linha.
+- NÃO use markdown, NÃO use crases, NÃO envolva num array. Apenas as 6 linhas.
+- Tudo em PT-BR.
+
+LINHA 1 (resumos — o mais importante, emita primeiro):
+{"type":"summaries","data":{"executive":"Resumo formal, direto e jornalístico (3 parágrafos curtos e bem explicados).","tldr":"Resumo em 1 única frase de impacto.","eli5":"Explicação didática como para uma criança de 5 anos (use analogias).","bullets":["Ponto chave 1","Ponto chave 2","Ponto chave 3","Ponto chave 4"]}}
+
+LINHA 2 (perguntas que a matéria NÃO responde — servem de convite ao chat):
+{"type":"faq","data":["Pergunta relevante que o texto deixa em aberto?","Outra pergunta que o leitor faria?","Uma terceira pergunta não respondida?"]}
+
+LINHA 3 (saudações variadas para o chat — específicas desta notícia):
+{"type":"greetings","data":["Saudação mencionando o tema concreto desta matéria.","Saudação 2, tom diferente, também específica.","Saudação 3, mais curta e direta."]}
+
+LINHA 4 (mapa do caso — nós CONCRETOS: pessoas, órgãos, locais, fatos específicos. NUNCA categorias abstratas tipo "Impacto Social"):
+{"type":"mindmap","data":{"center":"Tema Central (max 3 palavras)","nodes":["Entidade/fato concreto A","Entidade/fato concreto B","Entidade/fato concreto C","Entidade/fato concreto D"]}}
+
+LINHA 5 (contexto de cada nó — com citação exata do texto como evidência):
+{"type":"contextualTerms","data":[{"term":"Nome exato do nó A","context":"Definição + importância específica NESTA notícia. Denso e detalhado, mínimo 25 palavras. Nunca genérico.","sentiment":"neutral","evidence_quotes":["Citação exata e literal do texto."]},{"term":"Nó B","context":"...","sentiment":"positive","evidence_quotes":["..."]},{"term":"Nó C","context":"...","sentiment":"negative","evidence_quotes":["..."]},{"term":"Nó D","context":"...","sentiment":"neutral","evidence_quotes":["..."]}]}
+
+LINHA 6 (linha do tempo + cenários — por último):
+{"type":"timeline_future","data":{"timeline":[{"time":"Passado (Causa Raiz)","event":"O que causou o contexto geral?"},{"time":"Recente (Gatilho)","event":"O evento que levou diretamente a esta matéria."},{"time":"Hoje (Fato Principal)","event":"O fato principal reportado hoje."}],"future":{"optimistic":"Melhor cenário possível.","pessimistic":"Pior cenário/riscos.","probable":"O que realmente deve acontecer."}}}
+
+TEXTO:
+${cleanText}
+`;
+
+  const acc = {};
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
-    });
+    // streamGenerateContent: MESMA cobrança da chamada normal (é a mesma
+    // requisição, só que os tokens chegam conforme são gerados).
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      }
+    );
+    if (!response.ok || !response.body) throw new Error('Falha no stream do Gemini');
 
-    const data = await response.json();
-    if (!response.ok || data.error) return null;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let sseBuffer = '';
+    let textBuffer = '';
 
-       const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    // ==========================================================
-    // === INÍCIO DA CORREÇÃO: Lógica de Limpeza do JSON ===
-    // ==========================================================
-    if (!jsonString) {
-        console.error("Erro Full Analysis: A IA não retornou nenhum texto.");
-        return null;
+    const drainNdjson = () => {
+      let nl;
+      while ((nl = textBuffer.indexOf('\n')) !== -1) {
+        const line = textBuffer.slice(0, nl).trim();
+        textBuffer = textBuffer.slice(nl + 1);
+        if (!line || line.startsWith('```')) continue;
+        try {
+          const obj = JSON.parse(line);
+          if (obj?.type && obj?.data !== undefined) {
+            acc[obj.type] = obj.data;
+            if (onChunk) onChunk(obj.type, obj.data, { ...acc }); // ← RENDERIZA NA HORA
+          }
+        } catch { /* linha ainda incompleta */ }
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      sseBuffer += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = sseBuffer.indexOf('\n')) !== -1) {
+        const raw = sseBuffer.slice(0, idx).trim();
+        sseBuffer = sseBuffer.slice(idx + 1);
+        if (!raw.startsWith('data:')) continue;
+        const payload = raw.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const evt = JSON.parse(payload);
+          const piece = evt?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (piece) { textBuffer += piece; drainNdjson(); }
+        } catch { /* chunk SSE parcial */ }
+      }
     }
-    
-    // 1. Remove os blocos de código markdown (como já fazia)
-    let cleanedString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    // 2. Tenta remover vírgulas finais traiçoeiras antes de fechar chaves ou colchetes.
-    // Esta expressão regular busca por ",}" e substitui por "}" e busca por ",]" e substitui por "]".
-    cleanedString = cleanedString.replace(/,\s*([}\]])/g, "$1");
+    if (textBuffer.trim()) { textBuffer += '\n'; drainNdjson(); }
 
-    // 3. Tenta fazer o parse do JSON limpo.
-    return JSON.parse(cleanedString);
-    // ==========================================================
-    // === FIM DA CORREÇÃO ===
-    // ==========================================================
-
+    if (!acc.summaries) return null;
+    // Formato retrocompatível com o que a UI já espera + campos novos
+    return {
+      summaries: acc.summaries,
+      mindmap: acc.mindmap || { center: '', nodes: [] },
+      contextualTerms: acc.contextualTerms || [],
+      timeline: acc.timeline_future?.timeline || [],
+      future: acc.timeline_future?.future || {},
+      faq: acc.faq || [],
+      greetings: acc.greetings || [],
+    };
   } catch (error) {
-    // Agora o log de erro será mais útil, mostrando o JSON problemático
-    console.error("Erro Full Analysis:", error);
-    // Se quiser ver o que a IA retornou de errado, adicione este log:
-    // console.log("JSON problemático recebido da IA:", jsonString);
+    console.error('Erro Full Analysis (stream):', error);
     return null;
   }
 };
@@ -3582,7 +3601,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze 
         {/* RODAPÉ — Ler no site (real) / Análise IA (abre painel lateral) / Chat (mock) */}
         <div className="shrink-0 px-5 sm:px-6 py-4 border-t border-white/50 flex flex-col sm:flex-row gap-3">
           <button onClick={openOriginal} className="flex-1 h-12 rounded-xl bg-white/60 border border-white/70 text-zinc-700 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 transition"><ExternalLink size={16} /> Ler no site</button>
-          <button onClick={() => { if (onAnalyze) onAnalyze(article); onClose(); }} className="flex-1 h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2"><Sparkles size={16} /> Análise IA</button>
+          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2"><Sparkles size={16} /> Análise IA</button>
           <button onClick={openArticleChatFromGlass} className="flex-1 h-12 rounded-xl vetra-whatsapp-glass-button text-[13px] font-bold flex items-center justify-center gap-2"><WhatsAppGlyph className="w-5 h-5" /> Chat com a notícia</button>
         </div>
       </div>
@@ -11034,20 +11053,74 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       if (isOpen && article) {
           setAiData(null);
           setReaderContent(null);
-          setLoadingState('extracting');
           const nextMode = initialViewMode === 'chat' ? 'chat' : 'analysis';
           setViewMode(nextMode);
           if (nextMode === 'chat') setCurrentChatApiKey(getChatApiKey?.());
           setFocusedNode(null);
           setHighlightRequest(null);
           setShowCenterModal(false);
-          
-          // Zera os passos visuais
           setLoadingStep(0);
-          
-          runSuperPrompt();
+
+          // CHAT: abre INSTANTÂNEO. Não espera análise nenhuma — ele só precisa
+          // do texto, que a proxy entrega em ~1s, em background.
+          if (nextMode === 'chat') {
+              setLoadingState('complete');   // libera a UI na hora
+              prefetchTextForChat();         // texto completo por baixo dos panos
+          } else {
+              setLoadingState('extracting');
+              runSuperPrompt();
+          }
       }
   }, [article?.id, isOpen, initialViewMode]);
+
+  // Busca o texto completo em background (para o Chat responder com precisão).
+  const prefetchTextForChat = useCallback(async () => {
+      if (!article?.link) return;
+      try {
+          const { data } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+          if (data?.reader) setReaderContent(data.reader);
+      } catch (e) { console.error('Prefetch do texto (chat) falhou:', e); }
+  }, [article?.link]);
+
+  // ANÁLISE PROGRESSIVA: uma única chamada ao Gemini (mesmo custo), mas os
+  // blocos chegam por streaming e a tela vai preenchendo. Resumo em ~4s.
+  const runSuperPrompt = useCallback(async () => {
+      if (!apiKey || !article.link) { setLoadingState('error'); return; }
+      try {
+          setLoadingStep(1);
+          const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+          if (proxyError || !proxyData?.reader?.content) throw new Error("Falha na extração de texto");
+
+          const fullText = proxyData.reader.textContent;
+          setReaderContent(proxyData.reader);
+
+          setLoadingStep(2);
+          setLoadingState('analyzing');
+
+          // onChunk dispara a cada bloco: o resumo aparece sem esperar o resto.
+          const result = await generateFullAnalysis(fullText, apiKey, (type, data, partial) => {
+              setAiData(prev => ({
+                  summaries: partial.summaries || prev?.summaries || null,
+                  mindmap: partial.mindmap || prev?.mindmap || { center: '', nodes: [] },
+                  contextualTerms: partial.contextualTerms || prev?.contextualTerms || [],
+                  timeline: partial.timeline_future?.timeline || prev?.timeline || [],
+                  future: partial.timeline_future?.future || prev?.future || {},
+                  faq: partial.faq || prev?.faq || [],
+                  greetings: partial.greetings || prev?.greetings || [],
+              }));
+              // Assim que o RESUMO chega, libera a tela (não espera timeline).
+              if (type === 'summaries') { setLoadingStep(3); setLoadingState('complete'); }
+          });
+
+          if (!result) throw new Error("A análise da IA retornou vazia.");
+          setAiData(result);
+          setLoadingStep(4);
+          setLoadingState('complete');
+      } catch (err) {
+          console.error("Erro no runSuperPrompt:", err);
+          setLoadingState('error');
+      }
+  }, [apiKey, article]);
 
   // A NOVA FUNÇÃO SINCRONIZADA COM A REALIDADE
 const runSuperPrompt = useCallback(async () => {
@@ -11165,7 +11238,7 @@ return (
     )}
 
     {/* --- TELA DE CONTEÚDO (APÓS SUCESSO) --- */}
-    {loadingState === 'complete' && aiData && (
+    {loadingState === 'complete' && aiData?.summaries && (
       <> {/* FRAGMENTO ABERTO AQUI */}
         
         {/* CABEÇALHO DO PAINEL */}
@@ -11235,10 +11308,18 @@ return (
                   )}
                 </div>
               </div>
-              <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
-              <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
-              <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
-              <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
+              {aiData.mindmap?.nodes?.length > 0 && (
+                <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
+              )}
+              {aiData.timeline?.length > 0 && (
+                <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
+              )}
+              {aiData.future?.probable && (
+                <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
+              )}
+              {aiData.mindmap?.center && (
+                <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
+              )}
             </div>
           )}
           
