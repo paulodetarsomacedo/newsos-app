@@ -2440,12 +2440,12 @@ const generateTimelineForCluster = async (articles, apiKey) => {
 // --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Chave na URL) ---
 const generateFastSummary = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 6000);
+  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 7000);
 
   const prompt = `
   Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
   {
-    "tldr": "TLDR denso, formal e explicativo de 1 a 2 frases de forte impacto.",
+    "tldr": "TLDR denso, formal e explicativo de 2 a 3 frases de forte impacto.",
     "bullets": [
       "Fato crucial 1 (Máx 15 palavras)",
       "Fato crucial 2 (Máx 15 palavras)",
@@ -2468,7 +2468,7 @@ const generateFastSummary = async (text, apiKey) => {
       headers: { 
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.1 } })
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.2 } })
     });
 
     if (!res.ok) {
@@ -11175,46 +11175,51 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       }
   }, [article?.id, isOpen, initialViewMode]);
 
-  // LÓGICA DE EXECUÇÃO EM MILESTONES REAIS (Bypass de timers fakes)
   const runProgressivePrompt = useCallback(async (currentMode) => {
       if (!apiKey || !article.link) return setUiStage('error');
       
+      let stepTimer;
+      let splashExitTimer;
+
       try {
-          // MILESTONE 0: Inicialização (Instantânea)
-          setLoadingStep(0);
+          if (currentMode !== 'chat') {
+              stepTimer = setInterval(() => {
+                  setLoadingStep(prev => prev < 2 ? prev + 1 : prev);
+              }, 1200);
 
-          // Dispara a Chamada 1 rápida em paralelo no milissegundo zero usando dados locais
-          const fastText = `${article.title}. ${article.summary || article.description || ""}`;
-          
-          // MILESTONE 1: Disparando requisição de IA (Instantânea)
-          setLoadingStep(1);
-          const fastResultPromise = generateFastSummary(fastText, fastApiKey || apiKey);
-
-          // Dispara o download do site completo (Proxy) em paralelo
-          const proxyPromise = supabase.functions.invoke('proxy-view', { body: { url: article.link } })
-            .then((data) => {
-                // MILESTONE 2: Download do site completo resolvido! (Leva ~1.2s)
-                setLoadingStep(2);
-                return data;
-            });
-
-          // Aguarda apenas a resolução real da IA rápida (Não há mais sleep() artificial de 3s!)
-          const fastResult = await fastResultPromise;
-          
-          if (fastResult) {
-              setAiFastData(fastResult);
-              // MILESTONE 3: Overview gerada com sucesso!
-              setLoadingStep(3);
-              
-              // Pequeno delay apenas para a transição fluida do fade-out do Splash
-              setTimeout(() => {
-                  setUiStage('reading'); 
-              }, 220);
-          } else {
-              throw new Error("Falha na chamada da IA de Overview.");
+              splashExitTimer = setTimeout(() => {
+                  setUiStage('reading');
+                  clearInterval(stepTimer);
+              }, 3000);
           }
 
-          // Segue para a Chamada 2 Pesada em background de forma transparente
+          // Chamada 1 (FAST) paralela imediata usando metadados locais
+          const fastText = `${article.title}. ${article.summary || article.description || ""}`;
+          const fastResultPromise = generateFastSummary(fastText, fastApiKey || apiKey);
+
+          // Download do site em background
+          const proxyPromise = supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+
+          const [fastResult] = await Promise.all([
+              fastResultPromise.catch(() => null),
+              sleep(3000)
+          ]);
+
+          if (fastResult) {
+              setAiFastData(fastResult);
+          } else {
+              setAiFastData({
+                  tldr: article.summary || "Visualizando briefing rápido...",
+                  bullets: [article.title, "Sintetizando fatos cruciais pela inteligência Vetra..."],
+                  faqs: STATIC_FAQS
+              });
+          }
+
+          setLoadingStep(3);
+          setUiStage('reading'); 
+          if (stepTimer) clearInterval(stepTimer);
+
+          // Chamada 2 (Deep) em background com texto completo
           const proxyData = await proxyPromise;
           if (proxyData?.data?.reader?.textContent) {
               const fullText = proxyData.data.reader.textContent;
@@ -11235,6 +11240,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           console.error("Erro no runProgressivePrompt:", err);
           setUiStage('error'); 
           setAiStatus('error');
+          if (stepTimer) clearInterval(stepTimer);
       }
   }, [apiKey, fastApiKey, article]);
 
@@ -11356,10 +11362,9 @@ return (
           </h3>
 
           <div className="w-full max-w-sm space-y-4">
-            <LoadingStep title="Carregando metadados e sinais locais..." isActive={loadingStep === 0} isComplete={loadingStep > 0} />
-            <LoadingStep title="Consultando inteligência artificial Vetra..." isActive={loadingStep === 1} isComplete={loadingStep > 1} />
-            <LoadingStep title="Extraindo texto completo da fonte..." isActive={loadingStep === 2} isComplete={loadingStep > 2} />
-            <LoadingStep title="Gerando Overview e pílulas do caso..." isActive={loadingStep === 3} isComplete={loadingStep > 3} />
+            <LoadingStep title="Analisando o contexto da notícia..." isActive={loadingStep === 0} isComplete={loadingStep > 0} />
+            <LoadingStep title="Mapeando rede semântica e atores..." isActive={loadingStep === 1} isComplete={loadingStep > 1} />
+            <LoadingStep title="Sintetizando inteligência de dados..." isActive={loadingStep === 2} isComplete={loadingStep > 2} />
           </div>
         </div>
       </div>
