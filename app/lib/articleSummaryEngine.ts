@@ -99,7 +99,7 @@ const resolveEventType = (serverType: any, localText: string): string => {
 // Que tipo de MATÉRIA é (≠ event_type). Só modos de alta confiança;
 // 'general' é fallback honesto, não derrota.
 // ------------------------------------------------------------
-const LISTICLE_TITLE_RX = /\b(\d+\s+(?:coisas|motivos|razoes|dicas|formas|maneiras|jeitos|lugares|filmes|series|livros|receitas|passos|curiosidades)|quem (?:e|sao|foi|foram)|veja (?:os|as|quais)|conheca|lista d|os \d+|as \d+|ranking|melhores|piores|saiba quais)\b/i;
+const LISTICLE_TITLE_RX = /\b(\d+\s+(?:coisas|motivos|razoes|dicas|formas|maneiras|jeitos|lugares|filmes|series|livros|receitas|passos|curiosidades|itens|produtos|carros|suvs|opcoes)|veja (?:os|as) \d+|conheca (?:os|as) \d+|lista d[eo]s?\b|ranking d[eo]|os \d+ (?:melhores|piores|maiores)|as \d+ (?:melhores|piores|maiores))\b/i;
 const TUTORIAL_TITLE_RX = /\b(como (?:criar|fazer|usar|configurar|instalar|ativar|desativar|baixar|acessar|resolver|montar|escolher|declarar|emitir|cadastrar)|passo a passo|tutorial|aprenda a|guia (?:de|para|completo)|saiba como|veja como)\b/i;
 const TUTORIAL_BODY_RX = /\b(neste (?:artigo|tutorial|guia)|mostraremos|vamos (?:mostrar|ensinar|ver)|toque em|clique em|selecione|va em|acesse (?:o menu|as configuracoes)|siga os passos|passo \d)\b/i;
 const OBITUARY_RX = /\b(morre|morreu|morte de|falece|faleceu|obito|luto|aos \d+ anos)\b/i;
@@ -328,6 +328,11 @@ export const sanitizeExtractedText = (raw: any): string => {
   // (CORREÇÃO 3) Boilerplate institucional que gruda no fim/meio de frase —
   // corta a partir do gatilho até o fim do trecho. Cobre acentos.
   t = t.replace(/\.?\s*(?:Siga os (?:últimos|ultimos|principais)|Reportagens,?\s*v[ií]deos|Acompanhe (?:tudo|a cobertura)|Fique por dentro|Receba (?:as|nossas) not[ií]cias)[^.]*\.?/gi, '.');
+  // Paywall / assinatura / tags / aviso de IA da redação — grudam no fim do texto.
+  t = t.replace(/\.?\s*(?:Voc[êe] tem \d+ acessos?|Qualquer pessoa que n[ãa]o [ée] assinante|J[áa] [ée] assinante|Fa[çc]a seu login|Conte[úu]do exclusivo para assinantes|Assine (?:a|o|e))[^.]*\.?/gi, '.');
+  t = t.replace(/\.?\s*(?:Resumo gerado por[^.]*|Gerado por intelig[êe]ncia artificial[^.]*|Ferramenta de IA treinada[^.]*)\.?/gi, '.');
+  t = t.replace(/\s*Tags?:\s*[^.]*/gi, ' ');                       // "Tags: Apple Lawsuits, OpenAI"
+  t = t.replace(/\.?\s*(?:This article|Subscribe|Sign up|Read more|Related stories|Follow us)[^.]*\.?/gi, '.');
   t = t.replace(TIMESTAMP_RX, ' ');
   t = t.replace(NAV_BOILERPLATE_RX, ' ');
   t = t.replace(LEADING_EDITORIA_RX, '');
@@ -708,9 +713,9 @@ const pickSnippets = (fullText: string, frame: HeuristicFrame, title: string): s
 const BOILERPLATE_SENT_RX = /\b(clique|leia mais|leia tambem|assine|newsletter|publicidade|cookies|siga o|baixe o app|compartilhe|topicos relacionados|menu|cadastre-se|aguardando atualizacao|proximo lance|tempo real|placar ao vivo)\b/i;
 
 // (CORREÇÃO 3) Rodapé/chamada institucional dos veículos — nunca vira tópico.
-// Ex.: "Siga os últimos fatos... no maior canal de notícias do mundo",
-// "Reportagens, vídeos, coberturas completas, Breaking news...".
-const INSTITUTIONAL_RX = /\b(siga os (?:ultimos|principais) (?:fatos|noticias)|maior (?:canal|portal|site) de noticias|reportagens,? videos|coberturas completas|breaking news|acompanhe (?:tudo|a cobertura|as noticias)|todas as noticias|fique por dentro|mais lidas|mais recentes|receba (?:as|nossas) noticias|assine (?:a|o|nossa)|para o seu dia a dia|no maior canal)\b/i;
+// Inclui paywall (Folha), tags de site (MacRumors), aviso de IA da redação (VEJA)
+// e boilerplate em inglês (fontes internacionais).
+const INSTITUTIONAL_RX = /\b(siga os (?:ultimos|principais) (?:fatos|noticias)|maior (?:canal|portal|site) de noticias|reportagens,? videos|coberturas completas|breaking news|acompanhe (?:tudo|a cobertura|as noticias)|todas as noticias|fique por dentro|mais lidas|mais recentes|receba (?:as|nossas) noticias|assine (?:a|o|nossa)|para o seu dia a dia|no maior canal|acessos? por dia|dar de presente|nao e assinante|assinante podera ler|ja e assinante|faca seu login|conteudo exclusivo para assinantes|resumo gerado por (?:ferramenta de )?ia|gerado por inteligencia artificial|treinada pela redacao|ferramenta de ia|^tags:|this article|subscribe|newsletter|sign up|read more|related stories|follow us)\b/i;
 
 const pickNarrativeSentences = (
   body: string,
@@ -883,6 +888,10 @@ const INSTRUCTION_RX = /\b(toque|clique|selecione|abra|acesse|escolha|confirme|v
 const LEGAL_STATUS_RX = /\b(cabe recurso|transitou em julgado|em segunda instancia|aguarda julgamento|processo administrativo|liminar|sentenca|portaria|decreto)\b/;
 const NUMBER_IN_SENT = /(?:R\$|US\$|\$|€)\s?[\d.,]+|\b\d+(?:[.,]\d+)?\s?%|\b\d{1,3}(?:\.\d{3})+\b|\b\d+(?:[.,]\d+)?\s?(?:mil|milh|bilh|tri)/i;
 
+// (POLIMENTO) Abertura órfã: pronome/conector que depende de contexto anterior.
+// Num resumo em blocos, cada bloco precisa se sustentar sozinho.
+const ORPHAN_START_RX = /^(?:ele|ela|eles|elas|este|esta|isso|isto|esse|essa|aquele|aquela|o mesmo|a mesma|segundo ele|segundo ela|alem disso|além disso|tambem|também|por isso|assim|dessa forma|nesse sentido|no entanto|porem|porém|ja ele|já ele)\b/i;
+
 export interface ClassifiedSentence {
   text: string;
   norm: string;
@@ -933,6 +942,14 @@ export const classifySentences = (
     if (BOILERPLATE_SENT_RX.test(text)) score -= 12;
     if (!/[a-zà-ú]/.test(text)) score -= 5;
     if (text.length < 30) score -= 1;
+    // (POLIMENTO) Frase ÓRFÃ: abre com pronome/conector que depende de um
+    // antecedente que o leitor não tem no bloco ("Ela também afirmou...",
+    // "Segundo ele...", "Além disso..."). Cada bloco precisa se sustentar
+    // sozinho, então essas frases perdem prioridade — a menos que já tragam
+    // um nome próprio logo em seguida.
+    if (ORPHAN_START_RX.test(text) && !/\b[A-ZÀ-Ú][a-zà-ú]{2,}\b/.test(text.slice(0, 40))) {
+      score -= 3;
+    }
 
     return { text, norm, idx, roles, score };
   });
