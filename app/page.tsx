@@ -10182,6 +10182,8 @@ return (
                             isDarkMode={isDarkMode}
                             isResizing={false} // Desativamos o isResizing pq o DOM direto não engasga a CPU
                             initialViewMode={articlePanelInitialViewMode}
+                            allNews={realNews}         // <--- ADICIONE ESTA LINHA
+    openArticle={handleOpenArticle} // <--- ADICIONE ESTA LINHA
                         />
                     </div>
                 )}
@@ -11054,7 +11056,7 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, autoSendQuery,
 // 2. O PAINEL DE IA PRINCIPAL
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, fastApiKey, apiKey, isResizing, getChatApiKey, initialViewMode = 'analysis' }) => {
+const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, fastApiKey, apiKey, isResizing, getChatApiKey, initialViewMode = 'analysis', allNews, openArticle }) => {
   const [aiFastData, setAiFastData] = useState(null);
   const [aiDeepData, setAiDeepData] = useState(null);
   
@@ -11073,6 +11075,33 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [pendingChatQuery, setPendingChatQuery] = useState(null);
   const [loadingStep, setLoadingStep] = useState(0);
 
+  // As 4 perguntas estáticas clássicas
+  const STATIC_FAQS = [
+    "O que realmente aconteceu?",
+    "Por que isso importa?",
+    "Qual o impacto esperado?",
+    "O que acompanhar a seguir?"
+  ];
+
+  // Algoritmo Heurístico de Co-cobertura do Vetra (Busca fontes alternativas no feed ativo)
+  const getOtherSourcesForArticle = (currentArticle, newsList) => {
+    if (!newsList || newsList.length === 0 || !currentArticle) return [];
+    const currentTitle = currentArticle.title;
+    const currentSource = currentArticle.source;
+    
+    return newsList
+      .filter(n => n.id !== currentArticle.id && n.source !== currentSource)
+      .map(n => {
+        // Compara a semelhança das manchetes usando a lib importada no topo
+        const similarity = stringSimilarity.compareTwoStrings(currentTitle.toLowerCase(), n.title.toLowerCase());
+        return { article: n, similarity };
+      })
+      .filter(item => item.similarity > 0.32) // Threshold ideal de correlação factual
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 3) // Mostra até as 3 melhores fontes alternativas
+      .map(item => item.article);
+  };
+
   // Formatação Premium do Texto Executivo com Letra Capitular (Estilo Editorial)
   const formatExecutiveText = (text) => {
       if (!text) return "Escrevendo resumo executivo aprofundado...";
@@ -11082,7 +11111,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       return (
           <div className="space-y-4">
               {paragraphs.map((p, i) => (
-                  <p key={i} className={`text-[15px] leading-loose ${i === 0 ? 'first-letter:text-5xl first-letter:font-serif first-letter:mr-2 first-letter:float-left first-letter:text-indigo-500' : ''}`}>
+                  <p key={i} className={`text-[15px] leading-loose ${i === 0 ? 'first-letter:text-5xl first-letter:font-serif first-letter:mr-2 first-letter:float-left first-letter:text-indigo-500 font-serif' : ''}`}>
                       {p}
                   </p>
               ))}
@@ -11103,7 +11132,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setShowCenterModal(false);
           setPendingChatQuery(null);
           setSummaryMode('executive'); 
-          setActiveTabSection('overview'); // Sempre inicia na Overview do Caso
+          setActiveTabSection('overview'); // Inicia sempre na aba Overview
           
           setLoadingStep(0);
           setUiStage(nextMode === 'chat' ? 'reading' : 'splash');
@@ -11112,7 +11141,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       }
   }, [article?.id, isOpen, initialViewMode]);
 
-const runProgressivePrompt = useCallback(async (currentMode) => {
+  const runProgressivePrompt = useCallback(async (currentMode) => {
       if (!apiKey || !article.link) return setUiStage('error');
       
       let stepTimer;
@@ -11123,60 +11152,40 @@ const runProgressivePrompt = useCallback(async (currentMode) => {
               stepTimer = setInterval(() => {
                   setLoadingStep(prev => prev < 2 ? prev + 1 : prev);
               }, 1200);
-          }
 
-          // --- VALIDADOR DE QUALIDADE INTELIGENTE ---
-          const localText = article.summary || article.description || "";
-          const isLocalTextGood = localText.trim().length > 120; // Se tiver mais de 120 caracteres, é seguro usar
-
-          // Dispara a extração do site completo em background (sempre necessária para a chamada pesada)
-          const proxyPromise = supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-
-          let fastResultPromise;
-
-          if (isLocalTextGood) {
-              // CAMINHO VELOZ (Paralelo): O texto local é bom, disparados a IA de uma vez!
-              const fastText = `${article.title}. ${localText}`;
-              fastResultPromise = generateFastSummary(fastText, fastApiKey || apiKey);
-          } else {
-              // CAMINHO SEGURO (Sequencial): O texto local é ruim, esperamos o proxy baixar o site primeiro
-              fastResultPromise = proxyPromise.then(async (proxyData) => {
-                  const fullText = proxyData?.data?.reader?.textContent || article.title;
-                  return generateFastSummary(fullText, fastApiKey || apiKey);
-              });
-          }
-
-          // Força a saída do splash em 4 segundos no máximo (UX consistente)
-          if (currentMode !== 'chat') {
               splashExitTimer = setTimeout(() => {
                   setUiStage('reading');
                   clearInterval(stepTimer);
-              }, 4000);
+              }, 3000);
           }
 
-          // Espera a IA rápida e o tempo mínimo de Splash
+          // Chamada 1 (FAST) paralela imediata usando metadados locais
+          const fastText = `${article.title}. ${article.summary || article.description || ""}`;
+          const fastResultPromise = generateFastSummary(fastText, fastApiKey || apiKey);
+
+          // Download do site em background
+          const proxyPromise = supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+
           const [fastResult] = await Promise.all([
               fastResultPromise.catch(() => null),
-              sleep(3000) // Garante pelo menos 3s de animação bonita
+              sleep(3000)
           ]);
 
           if (fastResult) {
-              if (splashExitTimer) clearTimeout(splashExitTimer);
-              if (stepTimer) clearInterval(stepTimer);
-              
               setAiFastData(fastResult);
-              setUiStage('reading'); // Abre o painel já com tudo pronto
           } else {
-              // Fallback local se a chamada rápida falhar por timeout
               setAiFastData({
                   tldr: article.summary || "Visualizando briefing rápido...",
                   bullets: [article.title, "Sintetizando fatos cruciais pela inteligência Vetra..."],
-                  faqs: ["Quais as consequências?", "O que acontece a seguir?"]
+                  faqs: STATIC_FAQS
               });
-              setUiStage('reading');
           }
 
-          // Resolve a Chamada Pesada (Background) usando o texto completo extraído do site
+          setLoadingStep(3);
+          setUiStage('reading'); 
+          if (stepTimer) clearInterval(stepTimer);
+
+          // Chamada 2 (Deep) em background com texto completo
           const proxyData = await proxyPromise;
           if (proxyData?.data?.reader?.textContent) {
               const fullText = proxyData.data.reader.textContent;
@@ -11210,7 +11219,7 @@ const runProgressivePrompt = useCallback(async (currentMode) => {
       eli5: aiDeepData?.eli5 || "",
       sentiment: aiDeepData?.sentiment || ""
     },
-    faqs: aiFastData?.faqs || [],
+    faqs: STATIC_FAQS, // Força o uso do pool estático
     mindmap: aiDeepData?.mindmap || { center: "", nodes: [] },
     timeline: aiDeepData?.timeline || [],
     future: aiDeepData?.future || null,
@@ -11257,19 +11266,20 @@ const runProgressivePrompt = useCallback(async (currentMode) => {
   
 return (
 <div className={`h-full w-full flex flex-col rounded-[1.9rem] overflow-hidden relative ${isDarkMode ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-200 bg-white'} transition-colors duration-300`}>    
-    <style jsx="true">{`
-        @keyframes spin-slow { to { transform: rotate(360deg); } }
-        .animate-spin-slow { animation: spin-slow 20s linear infinite; }
-        @keyframes spin-reverse-slow { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
-        .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
-    `}</style>
-  
- {/* --- TELA DE LOADING PREMIUM VETRA (3s exatos) --- */}
+    
+    {uiStage === 'error' && (
+      <div className="flex flex-col items-center justify-center h-full text-center p-8">
+        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
+        <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
+        <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia. O site pode estar bloqueando a extração ou a API de IA está offline.</p>
+        <button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button>
+      </div>
+    )}
+
+    {/* --- TELA DE LOADING PREMIUM VETRA (3s exatos) --- */}
     {uiStage === 'splash' && (
       <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050914] p-8 animate-in fade-in duration-300">
-        
-        {/* CORREÇÃO DO COMPILADOR/LINTER (dangerouslySetInnerHTML) */}
-        <style dangerouslySetInnerHTML={{ __html: `
+        <style jsx="true">{`
           @keyframes draw-path {
             0% { stroke-dashoffset: 100; }
             100% { stroke-dashoffset: 0; }
@@ -11279,8 +11289,7 @@ return (
             stroke-dashoffset: 100;
             animation: draw-path 3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
           }
-        `}} />
-
+        `}</style>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(99,102,241,0.18),transparent_36%)]" />
         <div className="absolute inset-0 opacity-[0.08] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
 
@@ -11324,15 +11333,6 @@ return (
             <LoadingStep title="Sintetizando inteligência de dados..." isActive={loadingStep === 2} isComplete={loadingStep > 2} />
           </div>
         </div>
-      </div>
-    )}
-
-    {uiStage === 'error' && (
-      <div className="flex flex-col items-center justify-center h-full text-center p-8">
-        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
-        <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
-        <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia. O site pode estar bloqueando a extração ou a API de IA está offline.</p>
-        <button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button>
       </div>
     )}
 
@@ -11380,19 +11380,21 @@ return (
           </div>
         </div>
 
-        {/* MENU DE ABAS UNIFICADAS NO TOPO (Design Premium) */}
+        {/* MENU DE ABAS UNIFICADAS NO TOPO (BUG 2 RESOLVIDO: Grid simétrico em 2 linhas) */}
         {viewMode === 'analysis' && (
-           <div className={`flex items-center gap-2 overflow-x-auto scrollbar-hide px-6 py-3 border-b shrink-0 relative z-30 ${isDarkMode ? 'bg-zinc-950/80 border-white/5' : 'bg-white/90 border-zinc-200'}`}>
-              {TABS_SECTIONS.map(tab => {
+           <div className={`grid grid-cols-4 gap-2 px-6 py-3 border-b shrink-0 relative z-30 ${isDarkMode ? 'bg-zinc-950/80 border-white/5' : 'bg-white/90 border-zinc-200'}`}>
+              {TABS_SECTIONS.map((tab, idx) => {
                  const active = activeTabSection === tab.id;
+                 // Cenários Futuros (índice 6) ganha col-span-2 para preencher as duas colunas restantes na linha 2 perfeitamente!
+                 const colSpan = idx === 6 ? 'col-span-2' : '';
                  return (
                     <button 
                        key={tab.id}
                        onClick={() => setActiveTabSection(tab.id)}
-                       className={`flex items-center gap-1.5 px-4 py-2 text-[11px] font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap border ${active ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20 scale-105' : (isDarkMode ? 'bg-white/5 border-transparent text-zinc-400 hover:text-white' : 'bg-black/5 border-transparent text-zinc-500 hover:text-black')}`}
+                       className={`flex items-center justify-center gap-1.5 px-2 py-2.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all border ${colSpan} ${active ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20 scale-102' : (isDarkMode ? 'bg-white/5 border-transparent text-zinc-400 hover:text-white' : 'bg-black/5 border-transparent text-zinc-500 hover:text-black')}`}
                     >
                        {tab.icon}
-                       {tab.label}
+                       <span className="truncate">{tab.label}</span>
                     </button>
                  );
               })}
@@ -11405,7 +11407,7 @@ return (
           {viewMode === 'analysis' && (
             <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20">
               
-              {/* TAB 1: OVERVIEW DO CASO (TLDR + 4 Bullets + FAQs) */}
+              {/* TAB 1: OVERVIEW DO CASO (TLDR + 4 Bullets + LADO A LADO: FAQs e Co-cobertura) */}
               {activeTabSection === 'overview' && (
                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500">
                     <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
@@ -11425,22 +11427,59 @@ return (
                        )}
                     </div>
 
-                    {/* FAQs logo abaixo */}
-                    {aiFastData?.faqs && (
-                        <div className="space-y-3 pt-2">
+                    {/* GRID LADO A LADO: FAQs Estáticas & Co-cobertura */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        
+                        {/* FAQs Estáticas de Alta Conversão */}
+                        <div className="space-y-3">
                            <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 px-2 flex items-center gap-2">
                               <MessageCircle size={14}/> Perguntas Frequentes
                            </h4>
                            <div className="space-y-2">
-                             {aiFastData.faqs.map((q, i) => (
-                               <button key={i} onClick={() => handleFaqClick(q)} className={`w-full text-left p-4 rounded-2xl flex items-center justify-between group transition-colors shadow-sm ${isDarkMode ? 'bg-zinc-800/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}>
-                                 <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{q}</span>
-                                 <ArrowRight size={16} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500" />
+                             {STATIC_FAQS.map((q, i) => (
+                               <button key={i} onClick={() => handleFaqClick(q)} className={`w-full text-left p-4 rounded-2xl flex items-center justify-between group transition-colors shadow-sm ${isDarkMode ? 'bg-zinc-900/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}>
+                                 <span className={`text-xs font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{q}</span>
+                                 <ArrowRight size={14} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500 shrink-0" />
                                </button>
                             ))}
                            </div>
                         </div>
-                    )}
+
+                        {/* O que dizem outras fontes (Análise de Co-cobertura do Vetra) */}
+                        <div className="space-y-3">
+                           <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 px-2 flex items-center gap-2">
+                              <Globe size={14}/> O que dizem outras fontes
+                           </h4>
+                           <div className="space-y-2 h-full flex flex-col">
+                              {(() => {
+                                 const otherSources = getOtherSourcesForArticle(article, allNews);
+                                 if (otherSources.length === 0) {
+                                    return (
+                                        <div className={`p-6 rounded-2xl border border-dashed flex-1 flex flex-col items-center justify-center text-center text-xs opacity-50 ${isDarkMode ? 'border-white/5 bg-zinc-900/40' : 'border-zinc-200 bg-zinc-50'}`}>
+                                            <Layers size={20} className="mb-2 text-zinc-400" />
+                                            Nenhuma fonte alternativa cobrindo este tema específico no feed de hoje.
+                                        </div>
+                                    );
+                                 }
+                                 return otherSources.map((art, i) => (
+                                    <button 
+                                       key={art.id || i} 
+                                       onClick={() => openArticle(art)} 
+                                       className={`w-full text-left p-3.5 rounded-2xl flex items-center gap-3 transition-colors shadow-sm group ${isDarkMode ? 'bg-zinc-900/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}
+                                    >
+                                       <img src={art.logo} className="w-8 h-8 rounded-lg border border-black/10 shrink-0 object-contain bg-white p-0.5" onError={(e) => e.target.style.display='none'} />
+                                       <div className="min-w-0 flex-1">
+                                          <span className="text-[9px] font-bold uppercase text-indigo-500 tracking-wide">{art.source}</span>
+                                          <h5 className={`text-xs font-bold leading-tight truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{art.title}</h5>
+                                       </div>
+                                       <ChevronRight size={14} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500 shrink-0" />
+                                    </button>
+                                 ));
+                              })()}
+                           </div>
+                        </div>
+
+                    </div>
                  </div>
               )}
 
@@ -11469,9 +11508,12 @@ return (
               {/* TAB 4: VIÉS & SENTIMENTO */}
               {activeTabSection === 'sentiment' && (
                  <div className="animate-in fade-in duration-300">
-                    <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
+                    <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900/50 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
                        {aiStatus === 'success' && aiData?.summaries?.sentiment ? (
-                           <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.sentiment}</p>
+                           <div className="space-y-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded">Análise Editorial</span>
+                              <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.sentiment}</p>
+                           </div>
                        ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
                     </div>
                  </div>
@@ -11526,9 +11568,9 @@ return (
         {showCenterModal && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
         
         {viewMode === 'drilldown' && focusedNode && (
-          // CORREÇÃO MODAL DE NÓS (Seu print resolvido): Trocado para 'absolute'
+          // CORREÇÃO DO SEU PRINT: Trocado para 'absolute'
           <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
-            <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-[90%] p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+            <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-[95%] p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2 opacity-70">
                   <img src={article.logo} className="w-5 h-5 rounded-full" />
