@@ -2438,34 +2438,55 @@ const generateTimelineForCluster = async (articles, apiKey) => {
 };
 
 
-// --- FUNÇÃO DE IA: ANÁLISE COMPLETA ÚNICA OTIMIZADA (FREE TIER) ---
-const generateFullAnalysis = async (text, apiKey) => {
+// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Retorna em ~1.5s) ---
+const generateFastSummary = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
+  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 7000);
 
-  // Corta texto para poupar tokens
+  const prompt = `
+  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
+  {
+    "tldr": "TLDR denso, formal e explicativo de 2 a 3 frases de forte impacto.",
+    "bullets": [
+      "Fato crucial 1 (Máx 15 palavras)",
+      "Fato crucial 2 (Máx 15 palavras)",
+      "Fato crucial 3 (Máx 15 palavras)",
+      "Fato crucial 4 (Máx 15 palavras)"
+    ],
+    "faqs": [
+      "Pergunta frequente crucial 1?",
+      "Pergunta frequente crucial 2?"
+    ]
+  }
+  TEXTO:
+  ${cleanText}
+  `;
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.2 } })
+    });
+    const data = await res.json();
+    let cleanedString = data.candidates?.[0]?.content?.parts?.[0]?.text.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
+    return JSON.parse(cleanedString);
+  } catch (e) { console.error("Erro Fast Summary:", e); return null; }
+};
+
+// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Background) ---
+const generateDeepAnalysis = async (text, apiKey) => {
+  if (!text || text.length < 100 || !apiKey) return null;
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
 
   const prompt = `
-  Aja como Analista de Inteligência. GERE UM JSON ESTRITO (PT-BR) com:
+  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
   {
-    "summaries": {
-      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos).",
-      "tldr": "Resumo em 1 única frase de impacto.",
-      "eli5": "Explicação didática com analogia (para leigos).",
-      "bullets": ["Fato 1", "Fato 2", "Fato 3"]
-    },
-    "faqs": [
-      "Quais as principais consequências disso?", 
-      "Por que isso importa?",
-      "Há outras visões sobre o tema?", 
-      "O que acontece a seguir?"
-    ],
-    "mindmap": {
-      "center": "Tema Central (Max 3 palavras)",
-      "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"]
-    },
+    "executive": "Resumo executivo aprofundado e denso (3 parágrafos formais).",
+    "eli5": "Explicação simplificada e pedagógica usando uma analogia inteligente (1 parágrafo curto).",
+    "sentiment": "Análise de tom, sentimento e viés jornalístico do artigo (neutro, crítico, otimista, etc., com justificativa de 1 parágrafo curto).",
+    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C"] },
     "contextualTerms": [
-      { "term": "Nó A", "context": "Definição direta e impacto na notícia. Mínimo 20 palavras.", "evidence_quotes": ["Citação curta"] }
+      { "term": "Nó A", "context": "Importância específica deste nó na notícia. Max 25 palavras.", "evidence_quotes": ["Citação curta"] }
     ],
     "timeline": [ { "time": "Hoje", "event": "Fato principal" } ],
     "future": { "optimistic": "Cenário positivo", "pessimistic": "Risco", "probable": "Realidade" }
@@ -2475,17 +2496,14 @@ const generateFullAnalysis = async (text, apiKey) => {
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.2 } })
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.3 } })
     });
-    const data = await response.json();
+    const data = await res.json();
     let cleanedString = data.candidates?.[0]?.content?.parts?.[0]?.text.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
     return JSON.parse(cleanedString);
-  } catch (error) {
-    console.error("Erro Full Analysis:", error);
-    return null;
-  }
+  } catch (e) { console.error("Erro Deep Analysis:", e); return null; }
 };
 
 
@@ -10098,7 +10116,7 @@ return (
         </div>
       </div>
 
-{/* Wrapper Integrado: Split View (GlassBrowser + ArticlePanel) */}
+ {/* Wrapper Integrado: Split View (GlassBrowser + ArticlePanel) */}
       {glassArticle && (
         <div className="fixed inset-0 z-[9999] flex items-end justify-center pb-0 pt-10 sm:p-6 animate-in fade-in duration-300 pointer-events-none">
             {/* Backdrop Negro */}
@@ -10108,12 +10126,12 @@ return (
             <div 
                 ref={splitWrapperRef}
                 className="relative w-full max-w-[1600px] flex items-stretch justify-center gap-4 pointer-events-auto pb-4 sm:pb-0" 
-                style={{ height: '75vh', minHeight: '500px', maxHeight: '95vh' }}
+                style={{ height: '75vh', minHeight: '500px', maxHeight: '95vh', transition: 'height 0.15s cubic-bezier(0.16, 1, 0.3, 1)' }}
             >
                 
                 {/* Puxador VERTICAL de Altura (Absoluto no topo do container) */}
                 <div 
-                  className="absolute -top-6 left-1/2 -translate-x-1/2 w-full max-w-sm h-12 z-[10000] cursor-ns-resize flex items-start justify-center pt-2 touch-none"
+                  className="absolute -top-6 left-1/2 -translate-x-1/2 w-full max-w-sm h-12 z-[10000] cursor-ns-resize flex items-start justify-center pt-2 touch-none pointer-events-auto"
                   onPointerDown={handleHeightDragStart}
                 >
                   <div className="w-16 h-2 bg-white/40 hover:bg-white rounded-full shadow-lg transition-colors backdrop-blur-md" />
@@ -10123,7 +10141,7 @@ return (
                 <div 
                     ref={leftPaneRef}
                     className="h-full relative z-10 flex justify-center pointer-events-auto overflow-hidden rounded-[1.9rem]"
-                    style={{ width: selectedArticle ? '55%' : '100%' }}
+                    style={{ width: selectedArticle ? '55%' : '100%', transition: 'width 0.15s cubic-bezier(0.16, 1, 0.3, 1)' }}
                 >
                     <GlassBrowser
                       article={glassArticle}
@@ -10150,7 +10168,7 @@ return (
                     <div 
                         ref={rightPaneRef}
                         className="h-full pointer-events-auto rounded-[1.9rem] overflow-hidden shadow-2xl relative bg-white dark:bg-zinc-950 border border-black/5 dark:border-white/10"
-                        style={{ width: '45%' }}
+                        style={{ width: '45%', transition: 'width 0.15s cubic-bezier(0.16, 1, 0.3, 1)' }}
                     >
                         <ArticlePanel 
                             article={selectedArticle} 
@@ -10169,7 +10187,7 @@ return (
             </div>
         </div>
       )}
-
+      
       {/* --- MODAIS GLOBAIS (FORA DAS COLUNAS) --- */}
       {askQuestion && (<AskAIModal question={askQuestion} answer={askAnswer} sources={askSources} isLoading={isAskLoading} onClose={() => setAskQuestion(null)} isDarkMode={isDarkMode} />)}
       {isSettingsOpen && (<SettingsModal onClose={() => setIsSettingsOpen(false)} isDarkMode={isDarkMode} feeds={userFeeds} setFeeds={setUserFeeds} apiKeys={apiKeys} setApiKeys={setApiKeys} user={user} />)}
@@ -11031,27 +11049,32 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, autoSendQuery,
 // ==============================================================================
 
 const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, isResizing, getChatApiKey, initialViewMode = 'analysis' }) => {
-  const [aiData, setAiData] = useState(null);
+  const [aiFastData, setAiFastData] = useState(null);
+  const [aiDeepData, setAiDeepData] = useState(null);
+  
   const [uiStage, setUiStage] = useState('splash'); // 'splash' | 'reading' | 'error'
+  const [aiStatus, setAiStatus] = useState('fetching'); // 'fetching' | 'success' | 'error'
+  
   const [viewMode, setViewMode] = useState('analysis');
   const [summaryMode, setSummaryMode] = useState('executive');
-  const [fontSize, setFontSize] = useState(19);
   const [focusedNode, setFocusedNode] = useState(null); 
   const [highlightRequest, setHighlightRequest] = useState(null); 
   const [readerContent, setReaderContent] = useState(null); 
   const [showCenterModal, setShowCenterModal] = useState(false);
   const [currentChatApiKey, setCurrentChatApiKey] = useState(null);
-  const [pendingChatQuery, setPendingChatQuery] = useState(null); 
+  const [pendingChatQuery, setPendingChatQuery] = useState(null);
   const [loadingStep, setLoadingStep] = useState(0);
 
+  // Formatação Premium com Capitular
   const formatExecutiveText = (text) => {
-      if (!text) return "Buscando contexto...";
+      if (!text) return "Processando resumo detalhado...";
       let cleaned = text.replace(/\n{3,}/g, '\n\n').trim();
-      const paragraphs = cleaned.split('\n\n').filter(p => p.length > 20);
+      const paragraphs = cleaned.split('\n\n').filter(p => p.length > 10);
+      
       return (
           <div className="space-y-4">
               {paragraphs.map((p, i) => (
-                  <p key={i} className={`text-[15px] leading-loose ${i === 0 ? 'first-letter:text-5xl first-letter:font-serif first-letter:mr-2 first-letter:float-left first-letter:text-indigo-500' : ''}`}>
+                  <p key={i} className={`text-[15px] leading-loose ${i === 0 ? 'first-letter:text-5xl first-letter:font-serif first-letter:mr-2 first-letter:float-left first-letter:text-indigo-500 font-serif' : ''}`}>
                       {p}
                   </p>
               ))}
@@ -11061,7 +11084,8 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
 
   useEffect(() => {
       if (isOpen && article) {
-          setAiData(null);
+          setAiFastData(null);
+          setAiDeepData(null);
           setReaderContent(null);
           const nextMode = initialViewMode === 'chat' ? 'chat' : 'analysis';
           setViewMode(nextMode);
@@ -11070,18 +11094,16 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setHighlightRequest(null);
           setShowCenterModal(false);
           setPendingChatQuery(null);
-          setSummaryMode('executive'); 
+          setSummaryMode('executive');
           
           setLoadingStep(0);
-          
-          // Se for chat, pula o splash premium
           setUiStage(nextMode === 'chat' ? 'reading' : 'splash');
-          
-          runOptimizedPrompt(nextMode);
+          setAiStatus('fetching');
+          runProgressivePrompt(nextMode);
       }
   }, [article?.id, isOpen, initialViewMode]);
 
-  const runOptimizedPrompt = useCallback(async (currentMode) => {
+  const runProgressivePrompt = useCallback(async (currentMode) => {
       if (!apiKey || !article.link) return setUiStage('error');
       
       let stepTimer;
@@ -11091,36 +11113,59 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           if (currentMode !== 'chat') {
               stepTimer = setInterval(() => {
                   setLoadingStep(prev => prev < 2 ? prev + 1 : prev);
-              }, 1200);
+              }, 1000);
 
-              // Força a saída do splash em exatamente 4 segundos
+              // 3 segundos cravados de animação do splash premium
               splashExitTimer = setTimeout(() => {
                   setUiStage('reading');
                   clearInterval(stepTimer);
-              }, 4000);
+              }, 3000);
           }
 
           const { data: proxyData } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
           const fullText = proxyData?.reader?.textContent || article.summary || "";
           setReaderContent(proxyData?.reader); 
 
-          // Chama a IA (O usuário pode já estar lendo se tiver passado dos 4s)
-          const result = await generateFullAnalysis(fullText, apiKey);
+          // Chamada 1: Fast Summary (Dura ~1.5s, fica pronta dentro dos 3s do splash!)
+          const fastResult = await generateFastSummary(fullText, apiKey);
+          if (fastResult) {
+              setAiFastData(fastResult);
+          }
+
+          // Chamada 2: Deep Analysis (Roda em background de forma silenciosa)
+          const deepResult = await generateDeepAnalysis(fullText, apiKey);
           
-          if (result) {
-              // Se a IA for mt rápida e voltar antes dos 4s, nós forçamos o fim do splash
+          if (deepResult) {
               if (splashExitTimer) clearTimeout(splashExitTimer);
               if (stepTimer) clearInterval(stepTimer);
               
-              setAiData(result);
+              setAiDeepData(deepResult);
+              setAiStatus('success');
               setUiStage('reading'); 
           } else {
-              setUiStage('error');
+              setAiStatus('error');
           }
       } catch (err) { 
           setUiStage('error'); 
+          setAiStatus('error');
       }
   }, [apiKey, article]);
+
+  // Juntar os dados consolidados da IA
+  const aiData = useMemo(() => ({
+    summaries: {
+      tldr: aiFastData?.tldr || "",
+      bullets: aiFastData?.bullets || [],
+      executive: aiDeepData?.executive || "",
+      eli5: aiDeepData?.eli5 || "",
+      sentiment: aiDeepData?.sentiment || ""
+    },
+    faqs: aiFastData?.faqs || [],
+    mindmap: aiDeepData?.mindmap || { center: "", nodes: [] },
+    timeline: aiDeepData?.timeline || [],
+    future: aiDeepData?.future || null,
+    contextualTerms: aiDeepData?.contextualTerms || []
+  }), [aiFastData, aiDeepData]);
 
   const handleNodeClick = useCallback((nodeName, position) => {
       if (!aiData?.contextualTerms) return;
@@ -11146,12 +11191,11 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       setViewMode('chat');
   };
 
-  // Os anéis animados Vetra V
   const squares = Array.from({ length: 12 }, (_, i) => i);
   const innerSquares = Array.from({ length: 8 }, (_, i) => i);
   
 return (
-<div className={`h-full w-full flex flex-col rounded-[1.9rem] overflow-hidden ${isDarkMode ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-200 bg-white'} transition-colors duration-300`}>    
+<div className={`h-full w-full flex flex-col rounded-[1.9rem] overflow-hidden relative ${isDarkMode ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-200 bg-white'} transition-colors duration-300`}>    
     
     {uiStage === 'error' && (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -11162,15 +11206,25 @@ return (
       </div>
     )}
 
-    {/* --- TELA DE LOADING PREMIUM VETRA (Dura máx 4s) --- */}
+    {/* --- TELA DE LOADING PREMIUM VETRA (3s exatos) --- */}
     {uiStage === 'splash' && (
       <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050914] p-8 animate-in fade-in duration-300">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(62,114,255,.15),transparent_36%)]" />
+        <style jsx="true">{`
+          @keyframes draw-path {
+            0% { stroke-dashoffset: 100; }
+            100% { stroke-dashoffset: 0; }
+          }
+          .vetra-path {
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+            animation: draw-path 3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+          }
+        `}</style>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(99,102,241,0.18),transparent_36%)]" />
         <div className="absolute inset-0 opacity-[0.08] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
 
         <div className="flex flex-col items-center text-center relative z-10">
-          
-          <div className="relative mb-8 flex h-40 w-40 items-center justify-center">
+          <div className="relative mb-8 flex h-40 h-40 items-center justify-center">
              <div className="absolute inset-0 animate-[spin_18s_linear_infinite]">
                 {squares.map(i => {
                   const a = (i / squares.length) * Math.PI * 2;
@@ -11191,26 +11245,25 @@ return (
                   );
                 })}
              </div>
-             
-             <div className="relative flex h-24 w-24 items-center justify-center rounded-[1.5rem] border border-white/60 bg-gradient-to-br from-white via-zinc-100 to-zinc-300 shadow-[0_0_50px_rgba(255,255,255,.2)]">
-                <VetraMark className="h-16 w-16" />
+             <div className="relative flex h-24 w-24 items-center justify-center rounded-[1.5rem] border border-white/10 bg-black/60 shadow-[0_0_50px_rgba(255,255,255,.1)]">
+                <VetraMark className="h-16 w-16" animate={true} strokeLeft="#ffffff" strokeRight="#3b82f6" />
              </div>
           </div>
 
-          <h3 className="text-2xl font-black text-white tracking-widest drop-shadow-lg mb-8">
+          <h3 className="text-xl font-black text-white tracking-[0.2em] mb-8">
             VETRA <span className="text-indigo-400">IA</span>
           </h3>
 
-          <div className="w-full max-w-xs space-y-4">
+          <div className="w-full max-w-sm space-y-4">
             <LoadingStep title="Analisando o contexto da notícia..." isActive={loadingStep === 0} isComplete={loadingStep > 0} />
-            <LoadingStep title="Processando rede semântica e atores..." isActive={loadingStep === 1} isComplete={loadingStep > 1} />
+            <LoadingStep title="Mapeando rede semântica e atores..." isActive={loadingStep === 1} isComplete={loadingStep > 1} />
             <LoadingStep title="Sintetizando inteligência de dados..." isActive={loadingStep === 2} isComplete={loadingStep > 2} />
           </div>
         </div>
       </div>
     )}
 
-    {/* --- TELA DE CONTEÚDO (DEPOIS DOS 4s) --- */}
+    {/* --- TELA DE CONTEÚDO (Hiearquia Visual) --- */}
     {uiStage === 'reading' && (
       <> 
         {/* CABEÇALHO DO PAINEL */}
@@ -11258,77 +11311,91 @@ return (
         <div className="flex-1 min-h-0 bg-zinc-50 dark:bg-zinc-950/50">
           
           {viewMode === 'analysis' && (
-            <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20">
+            <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20 space-y-8">
               
-              {/* BLOCO 1: RESUMOS (O Executivo usa o retorno da IA para ficar lindão) */}
-              <div className="mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '0ms' }}>
-                <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
+              {/* SEÇÃO 1: OVERVIEW (Surgimento Instantâneo) */}
+              <div className="animate-in fade-in duration-500 space-y-4">
+                 <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-2 block">Overview</span>
+                    <p className={`text-sm leading-relaxed font-semibold mb-4 ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                        {aiFastData?.tldr || article.summary}
+                    </p>
+                    {aiFastData?.bullets && (
+                       <ul className="space-y-2 border-t pt-4 border-dashed border-zinc-500/20">
+                          {aiFastData.bullets.map((b, i) => (
+                             <li key={i} className="flex gap-2.5 items-start text-xs leading-relaxed">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                                <span className={isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}>{b}</span>
+                             </li>
+                          ))}
+                       </ul>
+                    )}
+                 </div>
+              </div>
+
+              {/* SEÇÃO 2: PERGUNTAS FREQUENTES (Fica sob o Overview) */}
+              {aiFastData?.faqs && (
+                  <div className="animate-in fade-in duration-500 space-y-3">
+                     <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 px-2 flex items-center gap-2">
+                        <MessageCircle size={14}/> Perguntas Frequentes
+                     </h4>
+                     <div className="space-y-2">
+                       {aiFastData.faqs.map((q, i) => (
+                         <button key={i} onClick={() => handleFaqClick(q)} className={`w-full text-left p-4 rounded-2xl flex items-center justify-between group transition-colors shadow-sm ${isDarkMode ? 'bg-zinc-800/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}>
+                           <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{q}</span>
+                           <ArrowRight size={16} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500" />
+                         </button>
+                      ))}
+                     </div>
+                  </div>
+              )}
+
+              {/* SEÇÃO 3: RESUMOS SUBCONTAINER (ELI5, Executivo, Sentimento/Viés) */}
+              <div className="animate-in fade-in duration-500 space-y-4">
+                <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5">
                   <button onClick={() => setSummaryMode('executive')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'executive' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Executivo</button>
-                  <button onClick={() => setSummaryMode('tldr')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'tldr' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Curto</button>
-                  <button onClick={() => setSummaryMode('eli5')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'eli5' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Simples</button>
-                  <button onClick={() => setSummaryMode('bullets')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'bullets' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Tópicos</button>
+                  <button onClick={() => setSummaryMode('eli5')} disabled={aiStatus !== 'success'} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'eli5' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'} disabled:opacity-40`}>ELI5 (Simples)</button>
+                  <button onClick={() => setSummaryMode('sentiment')} disabled={aiStatus !== 'success'} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'sentiment' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'} disabled:opacity-40`}>Viés & Sentimento</button>
                 </div>
                 
                 <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
-                  {aiData ? (
-                      <>
-                          {summaryMode === 'executive' && (
-                              <div className={`text-sm ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                                  {formatExecutiveText(aiData.summaries.executive)}
-                              </div>
-                          )}
-                          {summaryMode === 'tldr' && <p className={`text-sm font-semibold italic leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>"{aiData.summaries.tldr}"</p>}
-                          {summaryMode === 'eli5' && <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.eli5}</p>}
-                          {summaryMode === 'bullets' && (
-                            <ul className="list-disc pl-5 space-y-3 marker:text-indigo-400 text-sm leading-loose">
-                              {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
-                            </ul>
-                          )}
-                      </>
-                  ) : (
-                      // Se a IA ainda estiver pensando, mostra um Skeleton bonitinho na caixa
-                      <div className="flex flex-col gap-4 animate-pulse">
-                         <div className={`h-4 w-3/4 rounded-md ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
-                         <div className={`h-4 w-full rounded-md ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
-                         <div className={`h-4 w-5/6 rounded-md ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
-                         <div className="flex items-center gap-2 pt-4 opacity-50">
-                             <Loader2 size={12} className="animate-spin text-purple-500" />
-                             <span className="text-[10px] font-bold uppercase">Gerando insights...</span>
-                         </div>
+                  {summaryMode === 'executive' && (
+                      <div className={`text-sm ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                          {aiStatus === 'success' && aiData?.summaries?.executive 
+                             ? formatExecutiveText(aiData.summaries.executive)
+                             : <div className="p-2 flex gap-3 items-center opacity-50"><Loader2 size={16} className="animate-spin text-indigo-500"/> Escrevendo resumo executivo denso...</div>
+                          }
                       </div>
+                  )}
+                  {summaryMode === 'eli5' && aiData && <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.eli5}</p>}
+                  {summaryMode === 'sentiment' && aiData && (
+                     <div className="space-y-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded">Detectado</span>
+                        <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.sentiment}</p>
+                     </div>
                   )}
                 </div>
               </div>
 
-              {/* BLOCO 2: DADOS PROFUNDOS EM CASCATA (Só quando a IA terminar) */}
-              {aiData && (
-                 <>
-                  <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '150ms' }}>
-                      <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
+              {/* SKELETON GERAL DO BACKGROUND (Aparece enquanto a IA finaliza os gráficos) */}
+              {aiStatus === 'fetching' && (
+                  <div className="animate-in fade-in duration-500">
+                    <div className="flex items-center gap-3 mb-6 opacity-60">
+                        <Loader2 size={16} className="animate-spin text-purple-500" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">IA Mapeando Conexões e Cenários...</span>
+                    </div>
+                    <AnalysisSkeleton isDarkMode={isDarkMode} />
                   </div>
+              )}
 
-                  <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '300ms' }}>
-                      <div className="mt-8 mb-8 p-6 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4 flex items-center gap-2">
-                            <MessageCircle size={14}/> Perguntas Frequentes
-                        </h4>
-                        <div className="space-y-2">
-                          {(aiData.faqs || []).map((q, i) => (
-                            <button key={i} onClick={() => handleFaqClick(q)} className={`w-full text-left p-4 rounded-2xl flex items-center justify-between group transition-colors shadow-sm ${isDarkMode ? 'bg-zinc-800/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}>
-                              <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{q}</span>
-                              <ArrowRight size={16} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500" />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                  </div>
-
-                  <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '450ms' }}>
-                      <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
-                      <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
-                      <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
-                  </div>
-                 </>
+              {/* SEÇÃO 4: DADOS DE ANÁLISE IA (Carrega em Background de forma transparente) */}
+              {aiStatus === 'success' && aiData && (
+                 <div className="animate-in slide-in-from-bottom-8 fade-in duration-1000 space-y-8">
+                  <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
+                  <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
+                  <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
+                  <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
+                </div>
               )}
             </div>
           )}
@@ -11345,11 +11412,13 @@ return (
           )}
         </div>
 
-        {/* MODAIS (Renderizados por cima de tudo) */}
+        {/* --- MODAIS DE DRILL-DOWN: ABSOLUTE (CONGELADO DENTRO DO PAINEL LATERAL) --- */}
         {showCenterModal && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
+        
         {viewMode === 'drilldown' && focusedNode && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
-            <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-lg p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900/90 border-white/10' : 'bg-white/90 border-zinc-200'}`}>
+          // CORREÇÃO DO SEU PRINT: Trocamos o 'fixed' por 'absolute' para ele ficar encapsulado no painel lateral!
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
+            <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-[90%] p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2 opacity-70">
                   <img src={article.logo} className="w-5 h-5 rounded-full" />
@@ -11358,7 +11427,8 @@ return (
                 <button onClick={() => setViewMode('analysis')} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
               </div>
               <h2 className="text-2xl font-black text-indigo-400 leading-tight mb-4">{focusedNode.name || focusedNode.term}</h2>
-{(!focusedNode?.context || safeLower(focusedNode?.context).includes('contexto geral')) ? (                <div>
+              {(!focusedNode?.context || safeLower(focusedNode?.context).includes('contexto geral')) ? (                
+                <div>
                   <p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p>
                   <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData?.summaries?.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
                 </div>
