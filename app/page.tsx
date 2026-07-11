@@ -2488,7 +2488,15 @@ ${cleanText}
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.35,
+            maxOutputTokens: 4096,
+            responseMimeType: 'text/plain',
+            thinkingConfig: { thinkingBudget: 0 }, // ← mata os ~18s de "raciocínio"
+          },
+        }),
       }
     );
     if (!response.ok || !response.body) throw new Error('Falha no stream do Gemini');
@@ -2498,19 +2506,34 @@ ${cleanText}
     let sseBuffer = '';
     let textBuffer = '';
 
-    const drainNdjson = () => {
-      let nl;
-      while ((nl = textBuffer.indexOf('\n')) !== -1) {
-        const line = textBuffer.slice(0, nl).trim();
-        textBuffer = textBuffer.slice(nl + 1);
-        if (!line || line.startsWith('```')) continue;
-        try {
-          const obj = JSON.parse(line);
-          if (obj?.type && obj?.data !== undefined) {
-            acc[obj.type] = obj.data;
-            if (onChunk) onChunk(obj.type, obj.data, { ...acc }); // ← RENDERIZA NA HORA
+// Parser por PROFUNDIDADE DE CHAVES: aceita JSON indentado, com crases,
+    // dentro de array, com aspas escapadas. Emite cada objeto assim que fecha.
+    let scanIdx = 0, depth = 0, objStart = -1, inStr = false, esc = false;
+    const drainObjects = () => {
+      for (; scanIdx < textBuffer.length; scanIdx++) {
+        const ch = textBuffer[scanIdx];
+        if (inStr) {
+          if (esc) esc = false;
+          else if (ch === '\\') esc = true;
+          else if (ch === '"') inStr = false;
+          continue;
+        }
+        if (ch === '"') { inStr = true; continue; }
+        if (ch === '{') { if (depth === 0) objStart = scanIdx; depth++; continue; }
+        if (ch === '}' && depth > 0) {
+          depth--;
+          if (depth === 0 && objStart !== -1) {
+            const raw = textBuffer.slice(objStart, scanIdx + 1);
+            objStart = -1;
+            try {
+              const obj = JSON.parse(raw);
+              if (obj?.type && obj?.data !== undefined) {
+                acc[obj.type] = obj.data;
+                if (onChunk) onChunk(obj.type, obj.data, { ...acc }); // ← RENDERIZA NA HORA
+              }
+            } catch (_e) { /* objeto malformado: ignora e segue */ }
           }
-        } catch { /* linha ainda incompleta */ }
+        }
       }
     };
 
@@ -2527,12 +2550,17 @@ ${cleanText}
         if (!payload || payload === '[DONE]') continue;
         try {
           const evt = JSON.parse(payload);
-          const piece = evt?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          if (piece) { textBuffer += piece; drainNdjson(); }
-        } catch { /* chunk SSE parcial */ }
+          const parts = evt?.candidates?.[0]?.content?.parts || [];
+          let added = false;
+          for (const p of parts) {           // ← percorre TODAS as parts, não só a [0]
+            if (p?.thought) continue;         // ← ignora parts de raciocínio
+            if (typeof p?.text === 'string' && p.text) { textBuffer += p.text; added = true; }
+          }
+          if (added) drainObjects();
+        } catch (_e) { /* chunk SSE parcial */ }
       }
     }
-    if (textBuffer.trim()) { textBuffer += '\n'; drainNdjson(); }
+    drainObjects();
 
     if (!acc.summaries) return null;
     // Formato retrocompatível com o que a UI já espera + campos novos
