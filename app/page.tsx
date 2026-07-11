@@ -3323,9 +3323,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
   const [status, setStatus] = useState('loading');
 
   useEffect(() => {
-    // 1. PRIMEIRA PROTEÇÃO: Se a função não foi passada, marca erro e para.
     if (!onFetchContent || typeof onFetchContent !== 'function') {
-        console.error("ERRO CRÍTICO: onFetchContent não é uma função. Verifique o NewsOS_V12.");
         setStatus('error');
         return;
     }
@@ -3335,9 +3333,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
     const fetchContent = async () => {
         setStatus('loading');
         try {
-            // 2. CHAMA A FUNÇÃO RECEBIDA POR PROP
             const resultText = await onFetchContent(article.link, article.id);
-
             if (resultText && resultText.length > 50) {
                 setContent(resultText);
                 setStatus('success');
@@ -3345,10 +3341,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
                 throw new Error("Texto otimizado muito curto.");
             }
         } catch (error) {
-            if (isMounted) {
-                console.error("Erro no GlassBrowser (Fetch):", error);
-                setStatus('error');
-            }
+            if (isMounted) setStatus('error');
         }
     };
     fetchContent();
@@ -3369,17 +3362,14 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
       }
   };
 
-  // RESUMO INTELIGENTE — HEURÍSTICO (sem IA).
   const _gbDate = article?.rawDate ? new Date(article.rawDate) : null;
-  const displayDate = _gbDate
-    ? _gbDate.toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : '';
+  const displayDate = _gbDate ? _gbDate.toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  
   const smartSummary = useMemo(() => {
     try {
       const extracted = (content && content.length > 120) ? content : undefined;
       return generateSmartHeuristicSummary(article, extracted);
     } catch (e) {
-      console.error('Heurística do GlassBrowser falhou (fallback mock):', e);
       return null;
     }
   }, [article, content]);
@@ -3403,59 +3393,38 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
   const styleFor = (k) => SECTION_STYLE[k] || SECTION_STYLE.filetext;
 
   const SUMMARY_ROWS = (smartSummary?.sections && smartSummary.sections.length > 0)
-    ? smartSummary.sections.map((s) => ({
-        label: s.label,
-        text: s.text,
-        tile: styleFor(s.iconKey).tile,
-        icon: styleFor(s.iconKey).icon,
-      }))
+    ? smartSummary.sections.map((s) => ({ label: s.label, text: s.text, tile: styleFor(s.iconKey).tile, icon: styleFor(s.iconKey).icon }))
     : [
-        { label: 'Em uma frase', tile: 'bg-purple-500/15 text-purple-300', icon: <Zap size={18} />,
-          text: smartSummary?.one_liner || (article?.summary ? article.summary.replace(/\.\.\.$/, '') : 'Síntese principal da notícia em uma linha objetiva.') },
-        { label: 'O que aconteceu?', tile: 'bg-blue-500/15 text-blue-300', icon: <FileText size={18} />,
-          text: smartSummary?.what_happened || 'Resumo factual do acontecimento central reportado pela fonte.' },
-        { label: 'Por que importa?', tile: 'bg-emerald-500/15 text-emerald-300', icon: <BrainCircuit size={18} />,
-          text: smartSummary?.why_it_matters || 'Contexto e relevância do tema para o leitor e para o cenário atual.' },
-        { label: 'Impacto provável', tile: 'bg-amber-500/15 text-amber-300', icon: <TrendingUp size={18} />,
-          text: smartSummary?.likely_impact || 'Possíveis efeitos e desdobramentos a curto e médio prazo.' },
-        { label: 'O que acompanhar', tile: 'bg-violet-500/15 text-violet-300', icon: <Telescope size={18} />,
-          text: smartSummary?.what_to_watch || 'Próximos passos e pontos a observar no desenrolar da história.' },
+        { label: 'Em uma frase', tile: 'bg-purple-500/15 text-purple-300', icon: <Zap size={18} />, text: smartSummary?.one_liner || (article?.summary ? article.summary.replace(/\.\.\.$/, '') : 'Síntese principal da notícia em uma linha objetiva.') },
+        { label: 'O que aconteceu?', tile: 'bg-blue-500/15 text-blue-300', icon: <FileText size={18} />, text: smartSummary?.what_happened || 'Resumo factual do acontecimento central reportado pela fonte.' },
+        { label: 'Por que importa?', tile: 'bg-emerald-500/15 text-emerald-300', icon: <BrainCircuit size={18} />, text: smartSummary?.why_it_matters || 'Contexto e relevância do tema para o leitor e para o cenário atual.' },
+        { label: 'Impacto provável', tile: 'bg-amber-500/15 text-amber-300', icon: <TrendingUp size={18} />, text: smartSummary?.likely_impact || 'Possíveis efeitos e desdobramentos a curto e médio prazo.' },
+        { label: 'O que acompanhar', tile: 'bg-violet-500/15 text-violet-300', icon: <Telescope size={18} />, text: smartSummary?.what_to_watch || 'Próximos passos e pontos a observar no desenrolar da história.' },
       ];
-  const summaryModeLabel = smartSummary
-    ? (smartSummary.quality === 'good' ? 'Resumo heurístico · contexto amplo'
-      : smartSummary.quality === 'medium' ? 'Resumo heurístico'
-      : 'Prévia heurística')
-    : 'Geração com IA';
-  const QUOTES = (smartSummary?.snippets && smartSummary.snippets.length > 0)
-    ? smartSummary.snippets.slice(0, 2)
-    : [
-      'Trechos relevantes da reportagem aparecem aqui quando a leitura otimizada é concluída.',
-      'Use "Análise IA" para uma análise aprofundada do conteúdo completo.',
-    ];
+  const summaryModeLabel = smartSummary ? (smartSummary.quality === 'good' ? 'Resumo heurístico · contexto amplo' : smartSummary.quality === 'medium' ? 'Resumo heurístico' : 'Prévia heurística') : 'Geração com IA';
+  const QUOTES = (smartSummary?.snippets && smartSummary.snippets.length > 0) ? smartSummary.snippets.slice(0, 2) : ['Trechos relevantes da reportagem aparecem aqui quando a leitura otimizada é concluída.'];
 
   return (
     <>
-      {/* O overlay escuro será gerenciado pelo layout Pai caso seja SideBySide */}
       {!isSideBySide && <div className="fixed inset-0 bg-slate-500/30 backdrop-blur-md z-[9998]" onClick={onClose} />}
 
-      {/* ===== MODAL — FROSTED GLASS CLARO ===== */}
       <div className={`glassbrowser-shell relative w-full h-[68vh] min-h-[520px] rounded-[1.9rem] overflow-hidden flex flex-col shadow-2xl transition-all ${isDarkMode ? 'bg-zinc-900 text-white border border-white/10' : 'bg-white text-zinc-900 border border-black/5'} ${isSideBySide ? '' : 'fixed z-[9999]'}`} style={{ maxWidth: isSideBySide ? '100%' : '1120px', left: isSideBySide ? 'auto' : '50%', top: isSideBySide ? 'auto' : '50%', transform: isSideBySide ? 'none' : 'translate(-50%, -50%)' }}>
 
-        {/* HERO */}
-        <div className="relative h-40 sm:h-44 shrink-0">
+        {/* HERO responsivo: flex-wrap e min-w-0 para elementos não quebrarem a tela */}
+        <div className="relative h-40 sm:h-44 shrink-0 w-full overflow-hidden">
           <img src={article.img} className="w-full h-full object-cover" onError={(e) => (e.target.style.display='none')} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-          <div className="absolute top-4 left-5 right-4 flex items-start justify-between">
-            <div className="flex items-center gap-3">
+          <div className="absolute top-4 left-4 right-4 flex items-start justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
               <div className="w-11 h-11 rounded-xl bg-white border border-white/70 shadow-md overflow-hidden shrink-0 flex items-center justify-center">
                 <img src={article.logo} className="w-full h-full object-contain p-1.5" onError={(e) => (e.target.style.display='none')} alt="" />
               </div>
-              <div className="leading-tight">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[15px] font-bold text-white drop-shadow">{article.source}</span>
-                  <CheckCircle size={14} className="text-blue-300" />
+              <div className="leading-tight min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[15px] font-bold text-white drop-shadow truncate">{article.source}</span>
+                  <CheckCircle size={14} className="text-blue-300 shrink-0" />
                 </div>
-                {displayDate && <span className="text-[12px] text-white/85 drop-shadow">{displayDate}</span>}
+                {displayDate && <span className="text-[12px] text-white/85 drop-shadow truncate block">{displayDate}</span>}
               </div>
             </div>
             <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/25 border border-white/40 backdrop-blur-md text-white flex items-center justify-center hover:bg-white/45 transition-colors shrink-0"><X size={18} /></button>
@@ -3463,73 +3432,59 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
         </div>
 
         {/* CONTEÚDO */}
-        <div className="flex-1 overflow-y-auto px-5 sm:px-6 pb-5 custom-scrollbar">
-          <h2 className="mt-4 text-[22px] sm:text-[26px] font-black leading-tight tracking-tight text-zinc-900 dark:text-white">{article.title}</h2>
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-5 custom-scrollbar w-full overflow-x-hidden">
+          <h2 className="mt-4 text-[22px] sm:text-[26px] font-black leading-tight tracking-tight text-zinc-900 dark:text-white break-words">{article.title}</h2>
           <div className="flex flex-wrap gap-2 mt-3">
             {(article.category ? [article.category, 'Análise'] : ['Notícia', 'Análise']).map((c, i) => (
               <span key={i} className="px-3 py-1 rounded-full text-[12px] font-medium text-zinc-600 dark:text-zinc-300 bg-white/60 dark:bg-white/10 border border-white/70 dark:border-white/20">{c}</span>
             ))}
           </div>
 
-          {/* RESUMO INTELIGENTE */}
-          <div className="mt-5 rounded-2xl bg-white/55 dark:bg-white/5 backdrop-blur-xl border border-white/70 dark:border-white/10 p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
+          <div className="mt-5 rounded-2xl bg-white/55 dark:bg-white/5 backdrop-blur-xl border border-white/70 dark:border-white/10 p-4 shadow-sm w-full">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-purple-500" />
+                <Sparkles size={18} className="text-purple-500 shrink-0" />
                 <span className="text-[15px] font-bold text-zinc-900 dark:text-white">Pontos Importantes</span>
               </div>
-              <span className="text-[11px] text-zinc-400">{summaryModeLabel}</span>
+              <span className="text-[11px] text-zinc-400 truncate">{summaryModeLabel}</span>
             </div>
             <div className="space-y-2">
               {SUMMARY_ROWS.map((row, i) => (
-                <div key={i} className="flex gap-3 items-start rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 p-3">
+                <div key={i} className="flex gap-3 items-start rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 p-3 w-full">
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${row.tile}`}>{row.icon}</div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     {row.label ? <div className="text-[13px] font-bold text-zinc-900 dark:text-zinc-100 mb-0.5">{row.label}</div> : null}
-                    <div className={`text-[13px] leading-relaxed ${row.label ? 'text-zinc-500 dark:text-zinc-400' : 'text-zinc-700 dark:text-zinc-300'}`}>{row.text}</div>
+                    <div className={`text-[13px] leading-relaxed break-words ${row.label ? 'text-zinc-500 dark:text-zinc-400' : 'text-zinc-700 dark:text-zinc-300'}`}>{row.text}</div>
                   </div>
                 </div>
               ))}
             </div>
-            {smartSummary?.confidence_note && (
-              <div className="mt-2 text-[11px] text-zinc-400 italic px-1">{smartSummary.confidence_note}</div>
-            )}
+            {smartSummary?.confidence_note && <div className="mt-2 text-[11px] text-zinc-400 italic px-1">{smartSummary.confidence_note}</div>}
           </div>
 
-          {/* TRECHOS RELEVANTES */}
           {!(smartSummary?.sections && smartSummary.sections.length > 0 && !smartSummary.sections[0].label) && (
-          <div className="mt-4 rounded-2xl bg-white/55 dark:bg-white/5 backdrop-blur-xl border border-white/70 dark:border-white/10 p-4 shadow-sm">
+          <div className="mt-4 rounded-2xl bg-white/55 dark:bg-white/5 backdrop-blur-xl border border-white/70 dark:border-white/10 p-4 shadow-sm w-full">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-purple-500 text-2xl leading-none">&ldquo;</span>
               <span className="text-[15px] font-bold text-zinc-900 dark:text-white">Trechos relevantes</span>
             </div>
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {QUOTES.map((q, i) => (
-                <div key={i} className="rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 p-3 text-[13px] italic text-zinc-600 dark:text-zinc-400 leading-relaxed">{q}</div>
+                <div key={i} className="rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 p-3 text-[13px] italic text-zinc-600 dark:text-zinc-400 leading-relaxed break-words">{q}</div>
               ))}
             </div>
           </div>
           )}
 
-          {status === 'loading' && (
-            <div className="mt-4 flex items-center gap-2 text-zinc-400 text-[12px]"><Loader2 size={14} className="animate-spin" /> Otimizando leitura…</div>
-          )}
-          {status === 'error' && (
-            <div className="mt-4 text-zinc-400 text-[12px]">Não foi possível otimizar o conteúdo. Use &ldquo;Ler no site&rdquo;.</div>
-          )}
+          {status === 'loading' && <div className="mt-4 flex items-center gap-2 text-zinc-400 text-[12px]"><Loader2 size={14} className="animate-spin" /> Otimizando leitura…</div>}
+          {status === 'error' && <div className="mt-4 text-zinc-400 text-[12px]">Não foi possível otimizar o conteúdo. Use &ldquo;Ler no site&rdquo;.</div>}
         </div>
 
-        {/* RODAPÉ — Ler no site (real) / Análise IA (abre painel lateral) / Chat */}
-        <div className="shrink-0 px-5 sm:px-6 py-4 border-t border-white/50 dark:border-white/10 flex flex-col sm:flex-row gap-3">
-          <button onClick={openOriginal} className="flex-1 h-12 rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 dark:hover:bg-white/10 transition"><ExternalLink size={16} /> Ler no site</button>
-          
-          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2">
-            <Sparkles size={16} /> Análise IA
-          </button>
-          
-          <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat', openWhatsAppPanel: true }); }} className="flex-1 h-12 rounded-xl vetra-whatsapp-glass-button text-[13px] font-bold flex items-center justify-center gap-2">
-            <WhatsAppGlyph className="w-5 h-5" /> Chat com a notícia
-          </button>
+        {/* RODAPÉ responsivo: flex-wrap e botões flexíveis */}
+        <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-white/50 dark:border-white/10 flex flex-wrap sm:flex-nowrap gap-3 w-full">
+          <button onClick={openOriginal} className="flex-1 min-w-[120px] h-12 rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 dark:hover:bg-white/10 transition whitespace-nowrap"><ExternalLink size={16} /> <span className="hidden min-[400px]:inline">Ler no site</span><span className="inline min-[400px]:hidden">Site</span></button>
+          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 min-w-[120px] h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2 whitespace-nowrap"><Sparkles size={16} /> Análise IA</button>
+          <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat', openWhatsAppPanel: true }); }} className="flex-1 min-w-[120px] h-12 rounded-xl vetra-whatsapp-glass-button text-[13px] font-bold flex items-center justify-center gap-2 whitespace-nowrap"><WhatsAppGlyph className="w-5 h-5" /> Chat</button>
         </div>
       </div>
     </>
@@ -11077,7 +11032,7 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, autoSendQuery,
 
 const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, isResizing, getChatApiKey, initialViewMode = 'analysis' }) => {
   const [aiData, setAiData] = useState(null);
-  const [loadingState, setLoadingState] = useState('analyzing'); 
+  const [uiStage, setUiStage] = useState('splash'); // 'splash' | 'reading' | 'error'
   const [viewMode, setViewMode] = useState('analysis');
   const [summaryMode, setSummaryMode] = useState('executive');
   const [fontSize, setFontSize] = useState(19);
@@ -11087,16 +11042,12 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [showCenterModal, setShowCenterModal] = useState(false);
   const [currentChatApiKey, setCurrentChatApiKey] = useState(null);
   const [pendingChatQuery, setPendingChatQuery] = useState(null); 
-
-  // Estado visual do Loading (Controla a barra de etapas)
   const [loadingStep, setLoadingStep] = useState(0);
 
-  // Formatação Premium do Texto Executivo com Letra Capitular (Estilo Editorial)
   const formatExecutiveText = (text) => {
       if (!text) return "Buscando contexto...";
       let cleaned = text.replace(/\n{3,}/g, '\n\n').trim();
       const paragraphs = cleaned.split('\n\n').filter(p => p.length > 20);
-      
       return (
           <div className="space-y-4">
               {paragraphs.map((p, i) => (
@@ -11122,42 +11073,52 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setSummaryMode('executive'); 
           
           setLoadingStep(0);
-          setLoadingState('analyzing');
-          runOptimizedPrompt();
+          
+          // Se for chat, pula o splash premium
+          setUiStage(nextMode === 'chat' ? 'reading' : 'splash');
+          
+          runOptimizedPrompt(nextMode);
       }
   }, [article?.id, isOpen, initialViewMode]);
 
-  const runOptimizedPrompt = useCallback(async () => {
-      if (!apiKey || !article.link) return setLoadingState('error');
+  const runOptimizedPrompt = useCallback(async (currentMode) => {
+      if (!apiKey || !article.link) return setUiStage('error');
       
       let stepTimer;
+      let splashExitTimer;
+
       try {
-          // Timer da Interface (Incrementa as frases de loading)
-          stepTimer = setInterval(() => {
-              setLoadingStep(prev => prev < 2 ? prev + 1 : prev);
-          }, 1500);
+          if (currentMode !== 'chat') {
+              stepTimer = setInterval(() => {
+                  setLoadingStep(prev => prev < 2 ? prev + 1 : prev);
+              }, 1200);
+
+              // Força a saída do splash em exatamente 4 segundos
+              splashExitTimer = setTimeout(() => {
+                  setUiStage('reading');
+                  clearInterval(stepTimer);
+              }, 4000);
+          }
 
           const { data: proxyData } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
           const fullText = proxyData?.reader?.textContent || article.summary || "";
           setReaderContent(proxyData?.reader); 
 
-          // Única Chamada à IA
+          // Chama a IA (O usuário pode já estar lendo se tiver passado dos 4s)
           const result = await generateFullAnalysis(fullText, apiKey);
           
-          clearInterval(stepTimer);
-
           if (result) {
-              setLoadingStep(3); // Completa a barra visualmente
-              setTimeout(() => {
-                  setAiData(result);
-                  setLoadingState('complete');
-              }, 400); // 400ms pra dar tempo do usuário ver que completou
+              // Se a IA for mt rápida e voltar antes dos 4s, nós forçamos o fim do splash
+              if (splashExitTimer) clearTimeout(splashExitTimer);
+              if (stepTimer) clearInterval(stepTimer);
+              
+              setAiData(result);
+              setUiStage('reading'); 
           } else {
-              setLoadingState('error');
+              setUiStage('error');
           }
       } catch (err) { 
-          clearInterval(stepTimer);
-          setLoadingState('error'); 
+          setUiStage('error'); 
       }
   }, [apiKey, article]);
 
@@ -11184,43 +11145,15 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       setPendingChatQuery(question);
       setViewMode('chat');
   };
+
+  // Os anéis animados Vetra V
+  const squares = Array.from({ length: 12 }, (_, i) => i);
+  const innerSquares = Array.from({ length: 8 }, (_, i) => i);
   
 return (
 <div className={`h-full w-full flex flex-col rounded-[1.9rem] overflow-hidden ${isDarkMode ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-200 bg-white'} transition-colors duration-300`}>    
-    <style jsx="true">{`
-        @keyframes spin-slow { to { transform: rotate(360deg); } }
-        .animate-spin-slow { animation: spin-slow 20s linear infinite; }
-        @keyframes spin-reverse-slow { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
-        .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
-    `}</style>
-  
-    {/* TELA DE LOADING PREMIUM VETRA */}
-    {loadingState === 'analyzing' && viewMode !== 'chat' && (
-      <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-3xl p-8 animate-in fade-in duration-300">
-        <div className="flex flex-col items-center mb-12 text-center">
-          <div className="relative w-28 h-28 mb-6">
-            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full blur-2xl opacity-60 animate-pulse"></div>
-            <div className="absolute inset-[-10px] border-t-2 border-indigo-400/30 rounded-full animate-spin-slow"></div>
-            <div className="absolute inset-[-20px] border-b-2 border-purple-500/20 rounded-full animate-spin-reverse-slow"></div>
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full border border-white/10 backdrop-blur-md">
-               <VetraMark className="w-16 h-16 text-white animate-pulse" />
-            </div>
-          </div>
-          <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-400 tracking-widest drop-shadow-lg">
-            VETRA <span className="text-indigo-400">INTELLIGENCE</span>
-          </h3>
-        </div>
-        
-        {/* Frases Animadas de Processamento */}
-        <div className="w-full max-w-sm space-y-6">
-          <LoadingStep title="Analisando o contexto da notícia..." isActive={loadingStep === 0} isComplete={loadingStep > 0} />
-          <LoadingStep title="Processando rede semântica e atores..." isActive={loadingStep === 1} isComplete={loadingStep > 1} />
-          <LoadingStep title="Sintetizando inteligência de dados..." isActive={loadingStep === 2} isComplete={loadingStep > 2} />
-        </div>
-      </div>
-    )}
-
-    {loadingState === 'error' && (
+    
+    {uiStage === 'error' && (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
         <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
@@ -11229,10 +11162,57 @@ return (
       </div>
     )}
 
+    {/* --- TELA DE LOADING PREMIUM VETRA (Dura máx 4s) --- */}
+    {uiStage === 'splash' && (
+      <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050914] p-8 animate-in fade-in duration-300">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(62,114,255,.15),transparent_36%)]" />
+        <div className="absolute inset-0 opacity-[0.08] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+
+        <div className="flex flex-col items-center text-center relative z-10">
+          
+          <div className="relative mb-8 flex h-40 w-40 items-center justify-center">
+             <div className="absolute inset-0 animate-[spin_18s_linear_infinite]">
+                {squares.map(i => {
+                  const a = (i / squares.length) * Math.PI * 2;
+                  const x = 50 + Math.cos(a) * 46;
+                  const y = 50 + Math.sin(a) * 46;
+                  return (
+                    <span key={i} className="absolute h-1.5 w-1.5 rounded-[2px] bg-gradient-to-br from-indigo-300 to-purple-400/70 shadow-[0_0_8px_rgba(147,197,253,.75)] animate-pulse" style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%,-50%)', animationDelay: `${i * 110}ms` }} />
+                  );
+                })}
+             </div>
+             <div className="absolute inset-4 animate-[spin_26s_linear_infinite_reverse]">
+                {innerSquares.map(i => {
+                  const a = (i / innerSquares.length) * Math.PI * 2 + 0.4;
+                  const x = 50 + Math.cos(a) * 44;
+                  const y = 50 + Math.sin(a) * 44;
+                  return (
+                    <span key={i} className="absolute h-1 w-1 rounded-[1px] bg-white/40 animate-pulse" style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%,-50%)', animationDelay: `${i * 160}ms` }} />
+                  );
+                })}
+             </div>
+             
+             <div className="relative flex h-24 w-24 items-center justify-center rounded-[1.5rem] border border-white/60 bg-gradient-to-br from-white via-zinc-100 to-zinc-300 shadow-[0_0_50px_rgba(255,255,255,.2)]">
+                <VetraMark className="h-16 w-16" />
+             </div>
+          </div>
+
+          <h3 className="text-2xl font-black text-white tracking-widest drop-shadow-lg mb-8">
+            VETRA <span className="text-indigo-400">IA</span>
+          </h3>
+
+          <div className="w-full max-w-xs space-y-4">
+            <LoadingStep title="Analisando o contexto da notícia..." isActive={loadingStep === 0} isComplete={loadingStep > 0} />
+            <LoadingStep title="Processando rede semântica e atores..." isActive={loadingStep === 1} isComplete={loadingStep > 1} />
+            <LoadingStep title="Sintetizando inteligência de dados..." isActive={loadingStep === 2} isComplete={loadingStep > 2} />
+          </div>
+        </div>
+      </div>
+    )}
+
     {/* --- TELA DE CONTEÚDO (DEPOIS DOS 4s) --- */}
-    {(loadingState === 'complete' || viewMode === 'chat') && (
+    {uiStage === 'reading' && (
       <> 
-        
         {/* CABEÇALHO DO PAINEL */}
         <div className="relative h-72 w-full flex-shrink-0 sticky top-0 z-20">
           <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" />
@@ -11277,10 +11257,10 @@ return (
         {/* CONTAINER DE CONTEÚDO DINÂMICO */}
         <div className="flex-1 min-h-0 bg-zinc-50 dark:bg-zinc-950/50">
           
-          {viewMode === 'analysis' && aiData && (
+          {viewMode === 'analysis' && (
             <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20">
               
-              {/* BLOCO 1: RESUMOS (Surge Primeiro) */}
+              {/* BLOCO 1: RESUMOS (O Executivo usa o retorno da IA para ficar lindão) */}
               <div className="mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '0ms' }}>
                 <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
                   <button onClick={() => setSummaryMode('executive')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'executive' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Executivo</button>
@@ -11290,50 +11270,66 @@ return (
                 </div>
                 
                 <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
-                  {summaryMode === 'executive' && (
-                      <div className={`text-sm ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                          {/* A IA Agora POPULA o Executivo! */}
-                          {formatExecutiveText(aiData.summaries.executive)}
+                  {aiData ? (
+                      <>
+                          {summaryMode === 'executive' && (
+                              <div className={`text-sm ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                                  {formatExecutiveText(aiData.summaries.executive)}
+                              </div>
+                          )}
+                          {summaryMode === 'tldr' && <p className={`text-sm font-semibold italic leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>"{aiData.summaries.tldr}"</p>}
+                          {summaryMode === 'eli5' && <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.eli5}</p>}
+                          {summaryMode === 'bullets' && (
+                            <ul className="list-disc pl-5 space-y-3 marker:text-indigo-400 text-sm leading-loose">
+                              {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
+                            </ul>
+                          )}
+                      </>
+                  ) : (
+                      // Se a IA ainda estiver pensando, mostra um Skeleton bonitinho na caixa
+                      <div className="flex flex-col gap-4 animate-pulse">
+                         <div className={`h-4 w-3/4 rounded-md ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
+                         <div className={`h-4 w-full rounded-md ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
+                         <div className={`h-4 w-5/6 rounded-md ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
+                         <div className="flex items-center gap-2 pt-4 opacity-50">
+                             <Loader2 size={12} className="animate-spin text-purple-500" />
+                             <span className="text-[10px] font-bold uppercase">Gerando insights...</span>
+                         </div>
                       </div>
-                  )}
-                  {summaryMode === 'tldr' && <p className={`text-sm font-semibold italic leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>"{aiData.summaries.tldr}"</p>}
-                  {summaryMode === 'eli5' && <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.eli5}</p>}
-                  {summaryMode === 'bullets' && (
-                    <ul className="list-disc pl-5 space-y-3 marker:text-indigo-400 text-sm leading-loose">
-                      {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
-                    </ul>
                   )}
                 </div>
               </div>
 
-              {/* BLOCO 2: CONSTELLATION (Cascade 150ms) */}
-              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '150ms' }}>
-                  <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
-              </div>
-
-              {/* BLOCO 3: FAQs (Cascade 300ms) */}
-              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '300ms' }}>
-                  <div className="mt-8 mb-8 p-6 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4 flex items-center gap-2">
-                        <MessageCircle size={14}/> Perguntas Frequentes
-                    </h4>
-                    <div className="space-y-2">
-                      {(aiData.faqs || []).map((q, i) => (
-                        <button key={i} onClick={() => handleFaqClick(q)} className={`w-full text-left p-4 rounded-2xl flex items-center justify-between group transition-colors shadow-sm ${isDarkMode ? 'bg-zinc-800/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}>
-                          <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{q}</span>
-                          <ArrowRight size={16} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500" />
-                        </button>
-                      ))}
-                    </div>
+              {/* BLOCO 2: DADOS PROFUNDOS EM CASCATA (Só quando a IA terminar) */}
+              {aiData && (
+                 <>
+                  <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '150ms' }}>
+                      <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
                   </div>
-              </div>
 
-              {/* BLOCO 4: RESTANTE (Cascade 450ms) */}
-              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '450ms' }}>
-                  <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
-                  <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
-                  <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
-              </div>
+                  <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '300ms' }}>
+                      <div className="mt-8 mb-8 p-6 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4 flex items-center gap-2">
+                            <MessageCircle size={14}/> Perguntas Frequentes
+                        </h4>
+                        <div className="space-y-2">
+                          {(aiData.faqs || []).map((q, i) => (
+                            <button key={i} onClick={() => handleFaqClick(q)} className={`w-full text-left p-4 rounded-2xl flex items-center justify-between group transition-colors shadow-sm ${isDarkMode ? 'bg-zinc-800/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}>
+                              <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{q}</span>
+                              <ArrowRight size={16} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                  </div>
+
+                  <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '450ms' }}>
+                      <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
+                      <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
+                      <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
+                  </div>
+                 </>
+              )}
             </div>
           )}
           
@@ -11364,7 +11360,7 @@ return (
               <h2 className="text-2xl font-black text-indigo-400 leading-tight mb-4">{focusedNode.name || focusedNode.term}</h2>
 {(!focusedNode?.context || safeLower(focusedNode?.context).includes('contexto geral')) ? (                <div>
                   <p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p>
-                  <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
+                  <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData?.summaries?.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
                 </div>
               ) : (
                 <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{focusedNode.context}</p>
