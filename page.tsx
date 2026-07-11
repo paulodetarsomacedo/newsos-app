@@ -2449,7 +2449,6 @@ const generateFullAnalysis = async (text, apiKey) => {
   Aja como Analista de Inteligência. GERE UM JSON ESTRITO (PT-BR) com:
   {
     "summaries": {
-      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos).",
       "tldr": "Resumo em 1 única frase de impacto.",
       "eli5": "Explicação didática com analogia (para leigos).",
       "bullets": ["Fato 1", "Fato 2", "Fato 3"]
@@ -8513,8 +8512,6 @@ const useLongPress = (onLongPress, onClick, { threshold = 500 } = {}) => {
   // Estados Nativos de Resize da Tela Dividida (Split View)
   const [splitWidth, setSplitWidth] = useState(55); // % largura do GlassBrowser
   const [splitHeight, setSplitHeight] = useState(75); // vh altura do Modal Principal
-  const [isResizingX, setIsResizingX] = useState(false);
-  const [isResizingY, setIsResizingY] = useState(false);
 
   const panelDivRef = useRef(null);      // Referência para o DIV do painel
   const isResizing = useRef(false);      // Flag para saber se estamos arrastando
@@ -10089,49 +10086,40 @@ return (
 
 {/* Wrapper Integrado: Split View (GlassBrowser + ArticlePanel) */}
       {glassArticle && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300" style={{ paddingTop: `${100 - splitHeight}vh` }}>
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => { setGlassArticle(null); closeArticle(); }} />
             
-            {/* O Container principal, agora usando 'style' direto para ser liso igual manteiga */}
+            {/* Puxador VERTICAL de Altura */}
             <div 
-                className="relative w-full max-w-[1600px] flex items-stretch justify-center gap-4 pointer-events-none" 
-                style={{ 
-                    height: `${splitHeight}vh`, 
-                    minHeight: '500px', 
-                    transition: isResizingY ? 'none' : 'height 0.3s cubic-bezier(0.16, 1, 0.3, 1)' 
-                }}
+              className="absolute top-4 left-1/2 -translate-x-1/2 w-32 h-6 z-[10000] cursor-ns-resize flex items-center justify-center group"
+              onPointerDown={(e) => {
+                  e.preventDefault();
+                  const startY = e.clientY || e.touches?.[0]?.clientY;
+                  const startH = splitHeight;
+                  const onMove = (moveE) => {
+                      const curY = moveE.clientY || moveE.touches?.[0]?.clientY;
+                      const deltaY = curY - startY;
+                      const vhMoved = (deltaY / window.innerHeight) * 100;
+                      // Limites: de 50vh a 95vh
+                      setSplitHeight(Math.max(50, Math.min(95, startH - vhMoved)));
+                  };
+                  const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+                  window.addEventListener('pointermove', onMove);
+                  window.addEventListener('pointerup', onUp);
+              }}
             >
-                
-                {/* Puxador VERTICAL de Altura (Absoluto no topo do container) */}
-                <div 
-                  className="absolute -top-6 left-1/2 -translate-x-1/2 w-32 h-10 z-[10000] cursor-ns-resize flex items-center justify-center group pointer-events-auto"
-                  onPointerDown={(e) => {
-                      e.preventDefault();
-                      setIsResizingY(true);
-                      const startY = e.clientY || e.touches?.[0]?.clientY;
-                      const startH = splitHeight;
-                      const onMove = (moveE) => {
-                          const curY = moveE.clientY || moveE.touches?.[0]?.clientY;
-                          const deltaY = curY - startY;
-                          const vhMoved = (deltaY / window.innerHeight) * 100;
-                          // Ao arrastar pra baixo (deltaY > 0), a altura DEVE DIMINUIR.
-                          setSplitHeight(Math.max(50, Math.min(95, startH - vhMoved)));
-                      };
-                      const onUp = () => { setIsResizingY(false); window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
-                      window.addEventListener('pointermove', onMove);
-                      window.addEventListener('pointerup', onUp);
-                  }}
-                >
-                  <div className="w-16 h-2 bg-white/40 group-hover:bg-white rounded-full shadow-lg transition-colors backdrop-blur-md" />
-                </div>
+              <div className="w-16 h-2 bg-white/30 group-hover:bg-white/60 rounded-full shadow-lg transition-colors backdrop-blur-md" />
+            </div>
 
-                {/* GLASS BROWSER (ESQUERDA) - Usando <div> normal pra não travar no resize */}
-                <div 
-                    className="h-full relative z-10 flex justify-center pointer-events-auto overflow-hidden rounded-[1.9rem]"
-                    style={{ 
-                        width: selectedArticle ? `${splitWidth}%` : '100%', 
-                        transition: isResizingX ? 'none' : 'width 0.3s cubic-bezier(0.16, 1, 0.3, 1)' 
-                    }}
+            <div className="relative w-full max-w-[1600px] flex items-stretch justify-center gap-4 pointer-events-none transition-all duration-75" style={{ height: `${splitHeight}vh`, minHeight: '500px' }}>
+                
+                {/* GLASS BROWSER (ESQUERDA) */}
+                <motion.div 
+                    layout 
+                    initial={false}
+                    animate={{ width: selectedArticle ? `${splitWidth}%` : '100%' }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className="h-full relative z-10 flex justify-center pointer-events-auto"
                 >
                     <GlassBrowser
                       article={glassArticle}
@@ -10141,19 +10129,15 @@ return (
                       onAnalyze={(art, opts) => handleOpenArticle(art, opts)}
                       isSideBySide={!!selectedArticle}
                     />
-                </div>
+                </motion.div>
 
                 {/* PUXADOR HORIZONTAL DE LARGURA (Ao meio) */}
                 {selectedArticle && (
                    <div 
-                      className="absolute top-1/2 -translate-y-1/2 w-10 h-32 z-50 cursor-ew-resize flex items-center justify-center group pointer-events-auto"
-                      style={{ 
-                          left: `calc(${splitWidth}% - 1.25rem)`,
-                          transition: isResizingX ? 'none' : 'left 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
-                      }}
+                      className="absolute top-1/2 -translate-y-1/2 w-8 h-32 z-50 cursor-ew-resize flex items-center justify-center group pointer-events-auto"
+                      style={{ left: `calc(${splitWidth}% - 1rem)` }}
                       onPointerDown={(e) => {
                           e.preventDefault();
-                          setIsResizingX(true);
                           const startX = e.clientX || e.touches?.[0]?.clientX;
                           const startW = splitWidth;
                           const containerWidth = window.innerWidth > 1600 ? 1600 : window.innerWidth;
@@ -10161,41 +10145,43 @@ return (
                               const curX = moveE.clientX || moveE.touches?.[0]?.clientX;
                               const deltaX = curX - startX;
                               const pctMoved = (deltaX / containerWidth) * 100;
-                              // Ao arrastar pra direita (deltaX > 0), a largura do Glass DEVE AUMENTAR.
+                              // Limites: de 30% a 70%
                               setSplitWidth(Math.max(30, Math.min(70, startW + pctMoved)));
                           };
-                          const onUp = () => { setIsResizingX(false); window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+                          const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
                           window.addEventListener('pointermove', onMove);
                           window.addEventListener('pointerup', onUp);
                       }}
                    >
-                      <div className="w-2 h-16 bg-white/40 group-hover:bg-purple-500 rounded-full shadow-lg transition-colors backdrop-blur-md" />
+                      <div className="w-2 h-16 bg-white/30 group-hover:bg-purple-500 rounded-full shadow-lg transition-colors backdrop-blur-md" />
                    </div>
                 )}
 
                 {/* PAINEL DE ANÁLISE IA (DIREITA) */}
-                {selectedArticle && (
-                    <div 
-                        className="h-full pointer-events-auto rounded-[1.9rem] overflow-hidden shadow-2xl relative bg-white dark:bg-zinc-950 border border-black/5 dark:border-white/10"
-                        style={{ 
-                            width: `${100 - splitWidth}%`, 
-                            transition: isResizingX ? 'none' : 'width 0.3s cubic-bezier(0.16, 1, 0.3, 1)' 
-                        }}
-                    >
-                        <ArticlePanel 
-                            article={selectedArticle} 
-                            isOpen={!!selectedArticle} 
-                            onClose={() => closeArticle()}
-                            onToggleSave={handleToggleSave}
-                            isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-                            apiKey={analysisApiKey} 
-                            getChatApiKey={getChatApiKey}
-                            isDarkMode={isDarkMode}
-                            isResizing={isResizingX || isResizingY} // Passa pra ele saber se desliga as transições de blur internas
-                            initialViewMode={articlePanelInitialViewMode}
-                        />
-                    </div>
-                )}
+                <AnimatePresence>
+                    {selectedArticle && (
+                        <motion.div 
+                            initial={{ opacity: 0, x: 50, width: '0%' }}
+                            animate={{ opacity: 1, x: 0, width: `${100 - splitWidth}%` }}
+                            exit={{ opacity: 0, x: 50, width: '0%' }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                            className="h-full pointer-events-auto rounded-[1.9rem] overflow-hidden shadow-2xl relative bg-white dark:bg-zinc-950 border border-black/5 dark:border-white/10"
+                        >
+                            <ArticlePanel 
+                                article={selectedArticle} 
+                                isOpen={!!selectedArticle} 
+                                onClose={() => closeArticle()}
+                                onToggleSave={handleToggleSave}
+                                isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
+                                apiKey={analysisApiKey} 
+                                getChatApiKey={getChatApiKey}
+                                isDarkMode={isDarkMode}
+                                isResizing={false}
+                                initialViewMode={articlePanelInitialViewMode}
+                            />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </div>
       )}
@@ -11129,15 +11115,13 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [readerContent, setReaderContent] = useState(null); 
   const [showCenterModal, setShowCenterModal] = useState(false);
   const [currentChatApiKey, setCurrentChatApiKey] = useState(null);
-  const [pendingChatQuery, setPendingChatQuery] = useState(null);
+  const [pendingChatQuery, setPendingChatQuery] = useState(null); // Usado para transferir FAQ -> Chat
 
-  // Estado para controlar a barra de progresso Vetra Premium
-  const [loadingStep, setLoadingStep] = useState(0);
-
-  // Formatação Premium do Texto Executivo (Com IA e Capitular)
+  // Formatação Premium do Texto Executivo (Local/Instantâneo)
   const formatExecutiveText = (text) => {
       if (!text) return "Buscando contexto...";
-      let cleaned = text.replace(/\n{3,}/g, '\n\n').trim();
+      // Pega ~1200 chars (garante parágrafos inteiros)
+      let cleaned = text.slice(0, 1200).replace(/\n{3,}/g, '\n\n').trim();
       const paragraphs = cleaned.split('\n\n').filter(p => p.length > 20);
       
       return (
@@ -11151,6 +11135,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       );
   };
 
+  // EFEITO DE LIMPEZA E CHAMADA ÚNICA (PROGRESSIVE UI)
   useEffect(() => {
       if (isOpen && article) {
           setAiData(null);
@@ -11162,9 +11147,8 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setHighlightRequest(null);
           setShowCenterModal(false);
           setPendingChatQuery(null);
-          setSummaryMode('executive');
+          setSummaryMode('executive'); // Sempre reseta pro executivo (imediato)
           
-          setLoadingStep(0);
           setLoadingState('analyzing');
           runOptimizedPrompt();
       }
@@ -11174,30 +11158,24 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       if (!apiKey || !article.link) return setLoadingState('error');
       
       try {
-          // Timer fake de UI para a barra de progresso (Muda o texto a cada 1.5s)
-          const intervalId = setInterval(() => {
-              setLoadingStep(prev => prev < 3 ? prev + 1 : prev);
-          }, 1500);
-
+          // Extrai o texto limpo da página via proxy (retorna em < 1s)
           const { data: proxyData } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
           const fullText = proxyData?.reader?.textContent || article.summary || "";
+          
+          // O texto já tá na tela no formato "Executive"! O usuário já começou a ler.
           setReaderContent(proxyData?.reader); 
 
-          // ÚNICA CHAMADA DA IA
+          // Chama a IA pesada em BACKGROUND (leva uns 4~6s)
           const result = await generateFullAnalysis(fullText, apiKey);
           
-          clearInterval(intervalId); // Para o timer
-          
           if (result) {
-              setLoadingStep(4); // Completa a barra
-              setTimeout(() => {
-                  setAiData(result);
-                  setLoadingState('complete');
-              }, 300); // Dá um delay pequeno só pra ver a barrinha encher
+              setAiData(result);
+              setLoadingState('complete'); // Faz os componentes da IA deslizarem p/ tela
           } else {
               setLoadingState('error');
           }
       } catch (err) { 
+          console.error("Erro no runOptimizedPrompt:", err);
           setLoadingState('error'); 
       }
   }, [apiKey, article]);
@@ -11240,33 +11218,6 @@ return (
         .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
     `}</style>
   
-    {/* --- Telas de Loading Premium (Dura ~4s) --- */}
-    {loadingState === 'analyzing' && viewMode !== 'chat' && (
-      <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-3xl p-8 animate-in fade-in duration-300">
-        <div className="flex flex-col items-center mb-12 text-center">
-          <div className="relative w-28 h-28 mb-6">
-            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full blur-2xl opacity-60 animate-pulse"></div>
-            <div className="absolute inset-[-10px] border-t-2 border-indigo-400/30 rounded-full animate-spin-slow"></div>
-            <div className="absolute inset-[-20px] border-b-2 border-purple-500/20 rounded-full animate-spin-reverse-slow"></div>
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full border border-white/10 backdrop-blur-md">
-              <BrainCircuit size={44} className="text-white animate-pulse" style={{ animationDuration: '2s' }}/>
-            </div>
-          </div>
-          <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-300 tracking-widest drop-shadow-lg">
-            NEWS OS <span className="text-white">INTELLIGENCE</span>
-          </h3>
-        </div>
-        
-        {/* As frases animadas Vetra */}
-        <div className="w-full max-w-sm space-y-6">
-          <LoadingStep title="Analisando a notícia com IA..." isActive={loadingStep === 0} isComplete={loadingStep > 0} />
-          <LoadingStep title="Extraindo contexto e conexões..." isActive={loadingStep === 1} isComplete={loadingStep > 1} />
-          <LoadingStep title="Sintetizando resumo executivo..." isActive={loadingStep === 2} isComplete={loadingStep > 2} />
-          <LoadingStep title="Mapeando linha do tempo e cenários..." isActive={loadingStep === 3} isComplete={loadingStep > 3} />
-        </div>
-      </div>
-    )}
-
     {loadingState === 'error' && (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
@@ -11276,8 +11227,8 @@ return (
       </div>
     )}
 
-    {/* --- TELA DE CONTEÚDO (Aparece Suavemente com Stagger) --- */}
-    {loadingState === 'complete' && aiData && (
+    {/* --- TELA DE CONTEÚDO (APÓS ABERTURA IMEDIATA) --- */}
+    {loadingState !== 'error' && (
       <> 
         
         {/* CABEÇALHO DO PAINEL */}
@@ -11321,30 +11272,31 @@ return (
           </div>
         </div>
         
-       {/* CONTAINER DE CONTEÚDO DINÂMICO */}
+        {/* CONTAINER DE CONTEÚDO DINÂMICO */}
         <div className="flex-1 min-h-0 bg-zinc-50 dark:bg-zinc-950/50">
           
           {viewMode === 'analysis' && (
-            <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20">
+            <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20 animate-in fade-in">
               
-              {/* BLOCO 1: RESUMOS (O Executivo agora usa o da IA também) */}
-              <div className="mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '0ms' }}>
+              {/* BLOCO 1: RESUMOS INSTANTÂNEOS */}
+              <div className="mb-10">
                 <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
                   <button onClick={() => setSummaryMode('executive')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'executive' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Executivo</button>
-                  <button onClick={() => setSummaryMode('tldr')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'tldr' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Curto</button>
-                  <button onClick={() => setSummaryMode('eli5')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'eli5' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Simples</button>
-                  <button onClick={() => setSummaryMode('bullets')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'bullets' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Tópicos</button>
+                  {aiData && <button onClick={() => setSummaryMode('tldr')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'tldr' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Curto</button>}
+                  {aiData && <button onClick={() => setSummaryMode('eli5')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'eli5' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Simples</button>}
+                  {aiData && <button onClick={() => setSummaryMode('bullets')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'bullets' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Tópicos</button>}
                 </div>
                 
                 <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
                   {summaryMode === 'executive' && (
+                      // Exibe o texto imediato. Com capitular premium.
                       <div className={`text-sm ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                          {formatExecutiveText(aiData.summaries.executive)}
+                          {formatExecutiveText(readerContent?.textContent || article.summary)}
                       </div>
                   )}
-                  {summaryMode === 'tldr' && <p className={`text-sm font-semibold italic leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>"{aiData.summaries.tldr}"</p>}
-                  {summaryMode === 'eli5' && <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.eli5}</p>}
-                  {summaryMode === 'bullets' && (
+                  {summaryMode === 'tldr' && aiData && <p className={`text-sm font-semibold italic leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>"{aiData.summaries.tldr}"</p>}
+                  {summaryMode === 'eli5' && aiData && <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.eli5}</p>}
+                  {summaryMode === 'bullets' && aiData && (
                     <ul className="list-disc pl-5 space-y-3 marker:text-indigo-400 text-sm leading-loose">
                       {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
                     </ul>
@@ -11352,12 +11304,23 @@ return (
                 </div>
               </div>
 
-              {/* BLOCO 2: DADOS PROFUNDOS EM CASCATA */}
-              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '150ms' }}>
-                  <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
-              </div>
+              {/* BLOCO 2: SKELETON EM BACKGROUND ENQUANTO IA PENSA */}
+              {loadingState === 'analyzing' && (
+                  <div className="animate-in fade-in duration-500">
+                    <div className="flex items-center gap-3 mb-6 opacity-60">
+                        <Loader2 size={16} className="animate-spin text-purple-500" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">IA Analisando Conexões e Cenários...</span>
+                    </div>
+                    <AnalysisSkeleton isDarkMode={isDarkMode} />
+                  </div>
+              )}
 
-              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '300ms' }}>
+              {/* BLOCO 3: DADOS PROFUNDOS (Deslizam quando a IA terminar) */}
+              {loadingState === 'complete' && aiData && (
+                <div className="animate-in slide-in-from-bottom-8 fade-in duration-1000">
+                  <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
+                  
+                  {/* FAQs antes da Linha do Tempo */}
                   <div className="mt-8 mb-8 p-6 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
                     <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4 flex items-center gap-2">
                         <MessageCircle size={14}/> Perguntas Frequentes
@@ -11371,13 +11334,12 @@ return (
                       ))}
                     </div>
                   </div>
-              </div>
 
-              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700" style={{ animationFillMode: 'both', animationDelay: '450ms' }}>
                   <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
                   <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
                   <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
-              </div>
+                </div>
+              )}
             </div>
           )}
           
