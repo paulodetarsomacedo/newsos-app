@@ -3500,8 +3500,8 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
 
         {/* RODAPÉ responsivo: flex-wrap e botões flexíveis */}
         <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-white/50 dark:border-white/10 flex flex-wrap sm:flex-nowrap gap-3 w-full">
-          <button onClick={openOriginal} className="flex-1 min-w-[120px] h-12 rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 dark:hover:bg-white/10 transition whitespace-nowrap"><ExternalLink size={16} /> <span className="hidden min-[400px]:inline">Ler no site</span><span className="inline min-[400px]:hidden">Site</span></button>
-          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 min-w-[120px] h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2 whitespace-nowrap"><Sparkles size={16} /> Análise IA</button>
+          <button onClick={openOriginal} className="flex-1 min-w-[120px] h-12 border-t bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 dark:hover:bg-white/10 transition whitespace-nowrap"><ExternalLink size={16} /> <span className="hidden min-[400px]:inline">Ler no site</span><span className="inline min-[400px]:hidden">Site</span></button>
+          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 min-w-[120px] h-12 border-t liquid-button text-[13px] font-semibold flex items-center justify-center gap-2 whitespace-nowrap"><Sparkles size={16} /> Análise IA</button>
           <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat', openWhatsAppPanel: true }); }} className="flex-1 min-w-[120px] h-12 rounded-xl vetra-whatsapp-glass-button text-[13px] font-bold flex items-center justify-center gap-2 whitespace-nowrap"><WhatsAppGlyph className="w-5 h-5" /> Chat</button>
         </div>
       </div>
@@ -8371,13 +8371,18 @@ export default function NewsOS_V12() {
   const [isDarkMode, setIsDarkMode] = useState(false); 
 // --- ESTADO DE CHAVES (ARQUITETURA DE POOLS) ---
 const [apiKeys, setApiKeys] = useState([
-    // Pool 1: Widgets (Leve) - Agora com 6 chaves
+    // Pool 1: Widgets (Leve) - Agora com 11 chaves (também serve os Clusters)
     { id: 1, value: '', type: 'free_widget' },
     { id: 2, value: '', type: 'free_widget' },
     { id: 3, value: '', type: 'free_widget' },
     { id: 4, value: '', type: 'free_widget' },
     { id: 14, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
     { id: 16, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
+    { id: 19, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 20, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 21, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 22, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 23, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
     
     // Legado / Backup
     { id: 5, value: '', type: 'legacy_text' },
@@ -9005,6 +9010,11 @@ const handleStoryNavigation = (direction) => {
                                 { id: 4, value: '', type: 'free_widget' },
                                 { id: 14, value: '', type: 'free_widget' },
                                 { id: 16, value: '', type: 'free_widget' },
+                                { id: 19, value: '', type: 'free_widget' },
+                                { id: 20, value: '', type: 'free_widget' },
+                                { id: 21, value: '', type: 'free_widget' },
+                                { id: 22, value: '', type: 'free_widget' },
+                                { id: 23, value: '', type: 'free_widget' },
                                 { id: 5, value: '', type: 'legacy_text' },
                                 { id: 6, value: '', type: 'legacy_audio' },
                                 { id: 7, value: '', type: 'heavy_rotation' },
@@ -11411,7 +11421,7 @@ return (
               {activeTabSection === 'overview' && (
                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500">
                     <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-                       <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-2 block">TL;DR</span>
+                       <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-2 block"></span>
                        <p className={`text-[15px] font-black leading-relaxed mb-4 ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
                            {aiFastData?.tldr || article.summary}
                        </p>
@@ -12145,7 +12155,7 @@ const handleKeyChange = (targetId, newValue) => {
 <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
    <div className="flex items-center gap-2 mb-3">
        <Activity size={14} className="text-blue-500"/>
-       <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
+       <h3 className="text-sm font-bold">Pool 1: Widgets + Clusters (Leve)</h3>
    </div>
    <div className="space-y-2">
        {apiKeys.filter(k => k.type === 'free_widget').map((key) => (
