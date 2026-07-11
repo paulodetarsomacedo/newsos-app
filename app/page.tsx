@@ -10176,6 +10176,7 @@ return (
                             onClose={() => closeArticle()}
                             onToggleSave={handleToggleSave}
                             isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
+                            fastApiKey={getApiKey('widgets')}
                             apiKey={analysisApiKey} 
                             getChatApiKey={getChatApiKey}
                             isDarkMode={isDarkMode}
@@ -10187,7 +10188,7 @@ return (
             </div>
         </div>
       )}
-      
+
       {/* --- MODAIS GLOBAIS (FORA DAS COLUNAS) --- */}
       {askQuestion && (<AskAIModal question={askQuestion} answer={askAnswer} sources={askSources} isLoading={isAskLoading} onClose={() => setAskQuestion(null)} isDarkMode={isDarkMode} />)}
       {isSettingsOpen && (<SettingsModal onClose={() => setIsSettingsOpen(false)} isDarkMode={isDarkMode} feeds={userFeeds} setFeeds={setUserFeeds} apiKeys={apiKeys} setApiKeys={setApiKeys} user={user} />)}
@@ -10586,46 +10587,51 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
 // ==============================================================================
 
 const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
-    <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 animate-in zoom-in-95 duration-200">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+    // CORREÇÃO DE PROCESSO: de 'fixed' para 'absolute' para congelar a modal dentro da coluna lateral
+    <div className="absolute inset-0 z-[6000] flex items-center justify-center p-4 animate-in zoom-in-95 duration-200">
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
         
-        <div className={`relative w-full max-w-[90vw] p-6 rounded-3xl shadow-2xl border flex flex-col ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+        <div className={`relative w-full max-w-[90%] p-6 rounded-3xl shadow-2xl border flex flex-col ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
             
             <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mb-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mb-4 shrink-0">
                     <BrainCircuit size={32} className="text-white" />
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Tema Central da Análise</span>
-                {/* CORREÇÃO: Usar data.mindmap.center */}
-                <h3 className="text-2xl font-black">{data.mindmap.center}</h3>
+                <h3 className="text-xl font-black">{data?.mindmap?.center || "Análise Principal"}</h3>
             </div>
             
-            <div className={`p-4 rounded-xl border border-dashed mt-4 ${isDarkMode ? 'border-zinc-700 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
-                {/* CORREÇÃO: Usar data.summaries.executive */}
-                <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{data.summaries.executive}</p>
+            <div className={`p-4 rounded-xl border border-dashed mt-4 ${isDarkMode ? 'border-zinc-700 bg-black/20 text-zinc-300' : 'border-zinc-200 bg-zinc-50 text-zinc-600'} text-xs leading-relaxed max-h-36 overflow-y-auto`}>
+                {formatExecutiveTextStatic(data?.summaries?.executive)}
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-xs mt-4">
+            <div className="grid grid-cols-2 gap-4 text-[11px] mt-4">
                 <div>
-                    <h4 className="font-bold mb-2 opacity-60">Pontos Principais:</h4>
+                    <h4 className="font-bold mb-2 opacity-60">Destaques:</h4>
                     <ul className="list-disc pl-4 space-y-1 marker:text-purple-400">
-                        {/* CORREÇÃO: Usar data.summaries.bullets */}
-                        {data.summaries.bullets.map((item, i) => <li key={i}>{item}</li>)}
+                        {data?.summaries?.bullets?.map((item, i) => <li key={i}>{item}</li>)}
                     </ul>
                 </div>
                 <div>
-                    <h4 className="font-bold mb-2 opacity-60">Conexões no Mapa:</h4>
+                    <h4 className="font-bold mb-2 opacity-60">Principais Nós:</h4>
                     <ul className="list-none space-y-1">
-                        {/* CORREÇÃO: Usar data.mindmap.nodes */}
-                        {data.mindmap.nodes.map((node, i) => <li key={i} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>{node}</li>)}
+                        {data?.mindmap?.nodes?.map((node, i) => (
+                           <li key={i} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></div>{node}</li>
+                        ))}
                     </ul>
                 </div>
             </div>
 
-            <button onClick={onClose} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-xs uppercase tracking-widest mt-6 hover:brightness-90 transition">Fechar</button>
+            <button onClick={onClose} className="w-full py-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-xs uppercase tracking-widest mt-6 hover:brightness-90 transition">Fechar</button>
         </div>
     </div>
 );
+
+// Função auxiliar estática e segura para renderizar texto executivo dentro da modal
+const formatExecutiveTextStatic = (text) => {
+    if (!text) return "Visualização em progresso...";
+    return text.split('\n\n').filter(p => p.length > 5).map((p, i) => <p key={i} className="mb-2 last:mb-0">{p}</p>);
+};
 
 const ConstellationWidget = ({ mindmap, onNodeClick, onCenterClick, isDarkMode }) => {
     if (!mindmap || !mindmap.nodes) return null;
@@ -11048,7 +11054,7 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, autoSendQuery,
 // 2. O PAINEL DE IA PRINCIPAL
 // ==============================================================================
 
-const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, isResizing, getChatApiKey, initialViewMode = 'analysis' }) => {
+const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, fastApiKey, apiKey, isResizing, getChatApiKey, initialViewMode = 'analysis' }) => {
   const [aiFastData, setAiFastData] = useState(null);
   const [aiDeepData, setAiDeepData] = useState(null);
   
@@ -11056,7 +11062,9 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [aiStatus, setAiStatus] = useState('fetching'); // 'fetching' | 'success' | 'error'
   
   const [viewMode, setViewMode] = useState('analysis');
+  const [activeTabSection, setActiveTabSection] = useState('overview'); // Tab Section Ativa
   const [summaryMode, setSummaryMode] = useState('executive');
+  const [fontSize, setFontSize] = useState(19);
   const [focusedNode, setFocusedNode] = useState(null); 
   const [highlightRequest, setHighlightRequest] = useState(null); 
   const [readerContent, setReaderContent] = useState(null); 
@@ -11065,16 +11073,16 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [pendingChatQuery, setPendingChatQuery] = useState(null);
   const [loadingStep, setLoadingStep] = useState(0);
 
-  // Formatação Premium com Capitular
+  // Formatação Premium do Texto Executivo com Letra Capitular (Estilo Editorial)
   const formatExecutiveText = (text) => {
-      if (!text) return "Processando resumo detalhado...";
+      if (!text) return "Escrevendo resumo executivo aprofundado...";
       let cleaned = text.replace(/\n{3,}/g, '\n\n').trim();
       const paragraphs = cleaned.split('\n\n').filter(p => p.length > 10);
       
       return (
           <div className="space-y-4">
               {paragraphs.map((p, i) => (
-                  <p key={i} className={`text-[15px] leading-loose ${i === 0 ? 'first-letter:text-5xl first-letter:font-serif first-letter:mr-2 first-letter:float-left first-letter:text-indigo-500 font-serif' : ''}`}>
+                  <p key={i} className={`text-[15px] leading-loose ${i === 0 ? 'first-letter:text-5xl first-letter:font-serif first-letter:mr-2 first-letter:float-left first-letter:text-indigo-500' : ''}`}>
                       {p}
                   </p>
               ))}
@@ -11094,7 +11102,8 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           setHighlightRequest(null);
           setShowCenterModal(false);
           setPendingChatQuery(null);
-          setSummaryMode('executive');
+          setSummaryMode('executive'); 
+          setActiveTabSection('overview'); // Sempre inicia na Overview do Caso
           
           setLoadingStep(0);
           setUiStage(nextMode === 'chat' ? 'reading' : 'splash');
@@ -11103,7 +11112,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       }
   }, [article?.id, isOpen, initialViewMode]);
 
-  const runProgressivePrompt = useCallback(async (currentMode) => {
+const runProgressivePrompt = useCallback(async (currentMode) => {
       if (!apiKey || !article.link) return setUiStage('error');
       
       let stepTimer;
@@ -11113,43 +11122,84 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           if (currentMode !== 'chat') {
               stepTimer = setInterval(() => {
                   setLoadingStep(prev => prev < 2 ? prev + 1 : prev);
-              }, 1000);
+              }, 1200);
+          }
 
-              // 3 segundos cravados de animação do splash premium
+          // --- VALIDADOR DE QUALIDADE INTELIGENTE ---
+          const localText = article.summary || article.description || "";
+          const isLocalTextGood = localText.trim().length > 120; // Se tiver mais de 120 caracteres, é seguro usar
+
+          // Dispara a extração do site completo em background (sempre necessária para a chamada pesada)
+          const proxyPromise = supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+
+          let fastResultPromise;
+
+          if (isLocalTextGood) {
+              // CAMINHO VELOZ (Paralelo): O texto local é bom, disparados a IA de uma vez!
+              const fastText = `${article.title}. ${localText}`;
+              fastResultPromise = generateFastSummary(fastText, fastApiKey || apiKey);
+          } else {
+              // CAMINHO SEGURO (Sequencial): O texto local é ruim, esperamos o proxy baixar o site primeiro
+              fastResultPromise = proxyPromise.then(async (proxyData) => {
+                  const fullText = proxyData?.data?.reader?.textContent || article.title;
+                  return generateFastSummary(fullText, fastApiKey || apiKey);
+              });
+          }
+
+          // Força a saída do splash em 4 segundos no máximo (UX consistente)
+          if (currentMode !== 'chat') {
               splashExitTimer = setTimeout(() => {
                   setUiStage('reading');
                   clearInterval(stepTimer);
-              }, 3000);
+              }, 4000);
           }
 
-          const { data: proxyData } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-          const fullText = proxyData?.reader?.textContent || article.summary || "";
-          setReaderContent(proxyData?.reader); 
+          // Espera a IA rápida e o tempo mínimo de Splash
+          const [fastResult] = await Promise.all([
+              fastResultPromise.catch(() => null),
+              sleep(3000) // Garante pelo menos 3s de animação bonita
+          ]);
 
-          // Chamada 1: Fast Summary (Dura ~1.5s, fica pronta dentro dos 3s do splash!)
-          const fastResult = await generateFastSummary(fullText, apiKey);
           if (fastResult) {
-              setAiFastData(fastResult);
-          }
-
-          // Chamada 2: Deep Analysis (Roda em background de forma silenciosa)
-          const deepResult = await generateDeepAnalysis(fullText, apiKey);
-          
-          if (deepResult) {
               if (splashExitTimer) clearTimeout(splashExitTimer);
               if (stepTimer) clearInterval(stepTimer);
               
-              setAiDeepData(deepResult);
-              setAiStatus('success');
-              setUiStage('reading'); 
+              setAiFastData(fastResult);
+              setUiStage('reading'); // Abre o painel já com tudo pronto
+          } else {
+              // Fallback local se a chamada rápida falhar por timeout
+              setAiFastData({
+                  tldr: article.summary || "Visualizando briefing rápido...",
+                  bullets: [article.title, "Sintetizando fatos cruciais pela inteligência Vetra..."],
+                  faqs: ["Quais as consequências?", "O que acontece a seguir?"]
+              });
+              setUiStage('reading');
+          }
+
+          // Resolve a Chamada Pesada (Background) usando o texto completo extraído do site
+          const proxyData = await proxyPromise;
+          if (proxyData?.data?.reader?.textContent) {
+              const fullText = proxyData.data.reader.textContent;
+              setReaderContent(proxyData?.reader); 
+
+              const deepResult = await generateDeepAnalysis(fullText, apiKey);
+              if (deepResult) {
+                  setAiDeepData(deepResult);
+                  setAiStatus('success');
+              } else {
+                  setAiStatus('error');
+              }
           } else {
               setAiStatus('error');
           }
+
       } catch (err) { 
+          console.error("Erro no runProgressivePrompt:", err);
           setUiStage('error'); 
           setAiStatus('error');
+          if (stepTimer) clearInterval(stepTimer);
       }
-  }, [apiKey, article]);
+  }, [apiKey, fastApiKey, article]);
 
   // Juntar os dados consolidados da IA
   const aiData = useMemo(() => ({
@@ -11174,7 +11224,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           const node = safeLower(nodeName);
           return term.includes(node) || node.includes(term);
       });      
-      const dataToSet = nodeData || { name: nodeName, context: "Contexto geral.", sentiment: "neutral", evidence_quotes: [] };
+      const dataToSet = nodeData || { name: nodeName, context: "Contexto detalhado.", sentiment: "neutral", evidence_quotes: [] };
       setFocusedNode({ ...dataToSet, position }); 
       setViewMode('drilldown');
   }, [aiData]);
@@ -11193,19 +11243,27 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
 
   const squares = Array.from({ length: 12 }, (_, i) => i);
   const innerSquares = Array.from({ length: 8 }, (_, i) => i);
+
+  // Lista de Abas Unificadas do Topo (Sem cara de IA)
+  const TABS_SECTIONS = [
+    { id: 'overview', label: 'Overview', icon: <Sparkles size={13}/> },
+    { id: 'executive', label: 'Executivo', icon: <FileText size={13}/> },
+    { id: 'eli5', label: 'Simples (ELI5)', icon: <ALargeSmall size={13}/> },
+    { id: 'sentiment', label: 'Viés', icon: <ScaleIcon className="w-3.5 h-3.5"/> },
+    { id: 'mindmap', label: 'Mapa do Caso', icon: <BrainCircuit size={13}/> },
+    { id: 'timeline', label: 'Linha do Tempo', icon: <History size={13}/> },
+    { id: 'future', label: 'Cenários', icon: <Telescope size={13}/> },
+  ];
   
 return (
 <div className={`h-full w-full flex flex-col rounded-[1.9rem] overflow-hidden relative ${isDarkMode ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-200 bg-white'} transition-colors duration-300`}>    
-    
-    {uiStage === 'error' && (
-      <div className="flex flex-col items-center justify-center h-full text-center p-8">
-        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
-        <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
-        <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia. O site pode estar bloqueando a extração ou a API de IA está offline.</p>
-        <button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button>
-      </div>
-    )}
-
+    <style jsx="true">{`
+        @keyframes spin-slow { to { transform: rotate(360deg); } }
+        .animate-spin-slow { animation: spin-slow 20s linear infinite; }
+        @keyframes spin-reverse-slow { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+        .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
+    `}</style>
+  
     {/* --- TELA DE LOADING PREMIUM VETRA (3s exatos) --- */}
     {uiStage === 'splash' && (
       <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050914] p-8 animate-in fade-in duration-300">
@@ -11224,7 +11282,8 @@ return (
         <div className="absolute inset-0 opacity-[0.08] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
 
         <div className="flex flex-col items-center text-center relative z-10">
-          <div className="relative mb-8 flex h-40 h-40 items-center justify-center">
+          
+          <div className="relative mb-8 flex h-40 w-40 items-center justify-center">
              <div className="absolute inset-0 animate-[spin_18s_linear_infinite]">
                 {squares.map(i => {
                   const a = (i / squares.length) * Math.PI * 2;
@@ -11245,12 +11304,14 @@ return (
                   );
                 })}
              </div>
+             
+             {/* Vetra V se desenhando na tela de forma premium */}
              <div className="relative flex h-24 w-24 items-center justify-center rounded-[1.5rem] border border-white/10 bg-black/60 shadow-[0_0_50px_rgba(255,255,255,.1)]">
                 <VetraMark className="h-16 w-16" animate={true} strokeLeft="#ffffff" strokeRight="#3b82f6" />
              </div>
           </div>
 
-          <h3 className="text-xl font-black text-white tracking-[0.2em] mb-8">
+          <h3 className="text-xl font-black text-white tracking-[0.2em] mb-8 animate-pulse">
             VETRA <span className="text-indigo-400">IA</span>
           </h3>
 
@@ -11263,7 +11324,16 @@ return (
       </div>
     )}
 
-    {/* --- TELA DE CONTEÚDO (Hiearquia Visual) --- */}
+    {uiStage === 'error' && (
+      <div className="flex flex-col items-center justify-center h-full text-center p-8">
+        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
+        <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
+        <p className="text-sm text-zinc-500 mb-6">Não foi possível processar a notícia. O site pode estar bloqueando a extração ou a API de IA está offline.</p>
+        <button onClick={onClose} className="px-6 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-full font-bold text-sm">Voltar</button>
+      </div>
+    )}
+
+    {/* --- TELA DE CONTEÚDO (DEPOIS DOS 3s) --- */}
     {uiStage === 'reading' && (
       <> 
         {/* CABEÇALHO DO PAINEL */}
@@ -11306,97 +11376,134 @@ return (
             )}
           </div>
         </div>
+
+        {/* MENU DE ABAS UNIFICADAS NO TOPO (Design Premium) */}
+        {viewMode === 'analysis' && (
+           <div className={`flex items-center gap-2 overflow-x-auto scrollbar-hide px-6 py-3 border-b shrink-0 relative z-30 ${isDarkMode ? 'bg-zinc-950/80 border-white/5' : 'bg-white/90 border-zinc-200'}`}>
+              {TABS_SECTIONS.map(tab => {
+                 const active = activeTabSection === tab.id;
+                 return (
+                    <button 
+                       key={tab.id}
+                       onClick={() => setActiveTabSection(tab.id)}
+                       className={`flex items-center gap-1.5 px-4 py-2 text-[11px] font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap border ${active ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20 scale-105' : (isDarkMode ? 'bg-white/5 border-transparent text-zinc-400 hover:text-white' : 'bg-black/5 border-transparent text-zinc-500 hover:text-black')}`}
+                    >
+                       {tab.icon}
+                       {tab.label}
+                    </button>
+                 );
+              })}
+           </div>
+        )}
         
         {/* CONTAINER DE CONTEÚDO DINÂMICO */}
         <div className="flex-1 min-h-0 bg-zinc-50 dark:bg-zinc-950/50">
           
           {viewMode === 'analysis' && (
-            <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20 space-y-8">
+            <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20">
               
-              {/* SEÇÃO 1: OVERVIEW (Surgimento Instantâneo) */}
-              <div className="animate-in fade-in duration-500 space-y-4">
-                 <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-2 block">Overview</span>
-                    <p className={`text-sm leading-relaxed font-semibold mb-4 ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                        {aiFastData?.tldr || article.summary}
-                    </p>
-                    {aiFastData?.bullets && (
-                       <ul className="space-y-2 border-t pt-4 border-dashed border-zinc-500/20">
-                          {aiFastData.bullets.map((b, i) => (
-                             <li key={i} className="flex gap-2.5 items-start text-xs leading-relaxed">
-                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
-                                <span className={isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}>{b}</span>
-                             </li>
-                          ))}
-                       </ul>
+              {/* TAB 1: OVERVIEW DO CASO (TLDR + 4 Bullets + FAQs) */}
+              {activeTabSection === 'overview' && (
+                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500">
+                    <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
+                       <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-2 block">TL;DR</span>
+                       <p className={`text-[15px] font-black leading-relaxed mb-4 ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                           {aiFastData?.tldr || article.summary}
+                       </p>
+                       {aiFastData?.bullets && (
+                          <ul className="space-y-2 border-t pt-4 border-dashed border-zinc-500/20">
+                             {aiFastData.bullets.map((b, i) => (
+                                <li key={i} className="flex gap-2.5 items-start text-xs leading-relaxed">
+                                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                                   <span className={isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}>{b}</span>
+                                </li>
+                             ))}
+                          </ul>
+                       )}
+                    </div>
+
+                    {/* FAQs logo abaixo */}
+                    {aiFastData?.faqs && (
+                        <div className="space-y-3 pt-2">
+                           <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 px-2 flex items-center gap-2">
+                              <MessageCircle size={14}/> Perguntas Frequentes
+                           </h4>
+                           <div className="space-y-2">
+                             {aiFastData.faqs.map((q, i) => (
+                               <button key={i} onClick={() => handleFaqClick(q)} className={`w-full text-left p-4 rounded-2xl flex items-center justify-between group transition-colors shadow-sm ${isDarkMode ? 'bg-zinc-800/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}>
+                                 <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{q}</span>
+                                 <ArrowRight size={16} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500" />
+                               </button>
+                            ))}
+                           </div>
+                        </div>
                     )}
                  </div>
-              </div>
-
-              {/* SEÇÃO 2: PERGUNTAS FREQUENTES (Fica sob o Overview) */}
-              {aiFastData?.faqs && (
-                  <div className="animate-in fade-in duration-500 space-y-3">
-                     <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 px-2 flex items-center gap-2">
-                        <MessageCircle size={14}/> Perguntas Frequentes
-                     </h4>
-                     <div className="space-y-2">
-                       {aiFastData.faqs.map((q, i) => (
-                         <button key={i} onClick={() => handleFaqClick(q)} className={`w-full text-left p-4 rounded-2xl flex items-center justify-between group transition-colors shadow-sm ${isDarkMode ? 'bg-zinc-800/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}>
-                           <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{q}</span>
-                           <ArrowRight size={16} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500" />
-                         </button>
-                      ))}
-                     </div>
-                  </div>
               )}
 
-              {/* SEÇÃO 3: RESUMOS SUBCONTAINER (ELI5, Executivo, Sentimento/Viés) */}
-              <div className="animate-in fade-in duration-500 space-y-4">
-                <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5">
-                  <button onClick={() => setSummaryMode('executive')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'executive' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Executivo</button>
-                  <button onClick={() => setSummaryMode('eli5')} disabled={aiStatus !== 'success'} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'eli5' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'} disabled:opacity-40`}>ELI5 (Simples)</button>
-                  <button onClick={() => setSummaryMode('sentiment')} disabled={aiStatus !== 'success'} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'sentiment' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'} disabled:opacity-40`}>Viés & Sentimento</button>
-                </div>
-                
-                <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
-                  {summaryMode === 'executive' && (
-                      <div className={`text-sm ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                          {aiStatus === 'success' && aiData?.summaries?.executive 
-                             ? formatExecutiveText(aiData.summaries.executive)
-                             : <div className="p-2 flex gap-3 items-center opacity-50"><Loader2 size={16} className="animate-spin text-indigo-500"/> Escrevendo resumo executivo denso...</div>
-                          }
-                      </div>
-                  )}
-                  {summaryMode === 'eli5' && aiData && <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.eli5}</p>}
-                  {summaryMode === 'sentiment' && aiData && (
-                     <div className="space-y-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded">Detectado</span>
-                        <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.sentiment}</p>
-                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* SKELETON GERAL DO BACKGROUND (Aparece enquanto a IA finaliza os gráficos) */}
-              {aiStatus === 'fetching' && (
-                  <div className="animate-in fade-in duration-500">
-                    <div className="flex items-center gap-3 mb-6 opacity-60">
-                        <Loader2 size={16} className="animate-spin text-purple-500" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">IA Mapeando Conexões e Cenários...</span>
+              {/* TAB 2: RESUMO EXECUTIVO (IA em background) */}
+              {activeTabSection === 'executive' && (
+                 <div className="animate-in fade-in duration-300">
+                    <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
+                       {aiStatus === 'success' && aiData?.summaries?.executive ? (
+                           formatExecutiveText(aiData.summaries.executive)
+                       ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
                     </div>
-                    <AnalysisSkeleton isDarkMode={isDarkMode} />
-                  </div>
+                 </div>
               )}
 
-              {/* SEÇÃO 4: DADOS DE ANÁLISE IA (Carrega em Background de forma transparente) */}
-              {aiStatus === 'success' && aiData && (
-                 <div className="animate-in slide-in-from-bottom-8 fade-in duration-1000 space-y-8">
-                  <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
-                  <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
-                  <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
-                  <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
-                </div>
+              {/* TAB 3: RESUMO SIMPLES / ELI5 */}
+              {activeTabSection === 'eli5' && (
+                 <div className="animate-in fade-in duration-300">
+                    <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
+                       {aiStatus === 'success' && aiData?.summaries?.eli5 ? (
+                           <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.eli5}</p>
+                       ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
+                    </div>
+                 </div>
               )}
+
+              {/* TAB 4: VIÉS & SENTIMENTO */}
+              {activeTabSection === 'sentiment' && (
+                 <div className="animate-in fade-in duration-300">
+                    <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
+                       {aiStatus === 'success' && aiData?.summaries?.sentiment ? (
+                           <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.sentiment}</p>
+                       ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
+                    </div>
+                 </div>
+              )}
+
+              {/* TAB 5: MAPA DO CASO */}
+              {activeTabSection === 'mindmap' && (
+                 <div className="animate-in fade-in duration-300">
+                    {aiStatus === 'success' && aiData ? (
+                       <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
+                    ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
+                 </div>
+              )}
+
+              {/* TAB 6: LINHA DO TEMPO */}
+              {activeTabSection === 'timeline' && (
+                 <div className="animate-in fade-in duration-300">
+                    {aiStatus === 'success' && aiData ? (
+                       <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
+                    ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
+                 </div>
+              )}
+
+              {/* TAB 7: CENÁRIOS FUTUROS */}
+              {activeTabSection === 'future' && (
+                 <div className="animate-in fade-in duration-300">
+                    {aiStatus === 'success' && aiData ? (
+                       <>
+                          <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
+                          <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
+                       </>
+                    ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
+                 </div>
+              )}
+
             </div>
           )}
           
@@ -11412,11 +11519,11 @@ return (
           )}
         </div>
 
-        {/* --- MODAIS DE DRILL-DOWN: ABSOLUTE (CONGELADO DENTRO DO PAINEL LATERAL) --- */}
+        {/* --- MODAIS DE DRILL-DOWN: ABSOLUTE (CONGELADO NO PAINEL LATERAL) --- */}
         {showCenterModal && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
         
         {viewMode === 'drilldown' && focusedNode && (
-          // CORREÇÃO DO SEU PRINT: Trocamos o 'fixed' por 'absolute' para ele ficar encapsulado no painel lateral!
+          // CORREÇÃO MODAL DE NÓS (Seu print resolvido): Trocado para 'absolute'
           <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
             <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-[90%] p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
               <div className="flex items-start justify-between mb-4">
