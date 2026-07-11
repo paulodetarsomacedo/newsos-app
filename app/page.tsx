@@ -3530,9 +3530,9 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
 
         {/* RODAPÉ responsivo: flex-wrap e botões flexíveis */}
         <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-white/50 dark:border-white/10 flex flex-wrap sm:flex-nowrap gap-3 w-full">
-          <button onClick={openOriginal} className="flex-1 min-w-[120px] h-12 border-t bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 dark:hover:bg-white/10 transition whitespace-nowrap"><ExternalLink size={16} /> <span className="hidden min-[400px]:inline">Ler no site</span><span className="inline min-[400px]:hidden">Site</span></button>
-          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 min-w-[120px] h-12 border-t liquid-button text-[13px] font-semibold flex items-center justify-center gap-2 whitespace-nowrap"><Sparkles size={16} /> Análise IA</button>
-          <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat', openWhatsAppPanel: true }); }} className="flex-1 min-w-[120px] h-12 rounded-xl vetra-whatsapp-glass-button text-[13px] font-bold flex items-center justify-center gap-2 whitespace-nowrap"><WhatsAppGlyph className="w-5 h-5" /> Chat</button>
+          <button onClick={openOriginal} className="flex-1 min-w-[120px] h-12 rounded-2xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-[17px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 dark:hover:bg-white/10 transition whitespace-nowrap"><ExternalLink size={16} /> <span className="hidden min-[400px]:inline">Ler no site</span><span className="inline min-[400px]:hidden">Site</span></button>
+          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 min-w-[120px] h-12 rounded-2xl liquid-button text-[17px] font-semibold flex items-center justify-center gap-2 whitespace-nowrap"><Sparkles size={16} /> Análise IA</button>
+          <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat', openWhatsAppPanel: true }); }} className="flex-1 min-w-[120px] h-12 rounded-2xl vetra-whatsapp-glass-button text-[17px] font-bold flex items-center justify-center gap-2 whitespace-nowrap"><WhatsAppGlyph className="w-5 h-5" /> Chat</button>
         </div>
       </div>
     </>
