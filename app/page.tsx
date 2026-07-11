@@ -7637,16 +7637,27 @@ const inferArticleCategory = ({ title = '', summary = '', source = '', feedCateg
     return explicit.charAt(0).toUpperCase() + explicit.slice(1);
   }
   const haystack = normalizeSourceKey(`${title} ${summary} ${source} ${feedCategory}`);
-  const hasAny = (words) => words.some(word => haystack.includes(normalizeSourceKey(word)));
-  if (hasAny(['dolar','economia','mercado','bolsa','ibovespa','juros','selic','inflacao','pib','banco central','preco','preços','petrobras','vale','bitcoin','cripto','imposto','fazenda','fiscal'])) return 'Economia';
-  if (hasAny(['iphone','apple','google','microsoft','openai','inteligencia artificial','ia','tecnologia','app','software','chip','macbook','samsung','android','startup'])) return 'Tecnologia';
+  // BUGFIX: antes usava includes() — substring. Com isso, o termo 'ia' casava
+  // dentro de "notícia", "oficial", "parcial", "dias"… e jogava QUASE TUDO em
+  // Tecnologia. Agora o match é por PALAVRA INTEIRA (fronteira de palavra),
+  // permitindo termos compostos ("inteligencia artificial", "banco central").
+  const padded = ` ${haystack} `;
+  const hasAny = (words) => words.some(word => {
+    const w = normalizeSourceKey(word);
+    return w ? padded.includes(` ${w} `) : false;
+  });
+  // ORDEM DE PRECEDÊNCIA: do mais ESPECÍFICO para o mais genérico.
+  // "Mundo" é o mais amplo (um país citado aparece em qualquer assunto), então
+  // vem DEPOIS de Esportes/Ciência/Saúde — senão "Bélgica na Copa" virava Mundo.
+  if (hasAny(['copa','futebol','jogo','jogos','gol','gols','vitoria','vitória','derrota','selecao','seleção','craque','craques','flamengo','palmeiras','corinthians','vasco','botafogo','atletico','atlético','esporte','esportes','libertadores','brasileirao','brasileirão','campeonato','estadio','estádio','tecnico','técnico','atacante','zagueiro','goleiro','semifinal','final'])) return 'Esportes';
+  if (hasAny(['ciencia','ciência','cientifico','científico','pesquisa','pesquisadores','nasa','espaco','espaço','cientista','cientistas','astronomia','telescopio','telescópio','galaxia','galáxia','universo','planeta','asteroide','buraco negro'])) return 'Ciência';
+  if (hasAny(['saude','saúde','anvisa','hospital','doenca','doença','vacina','vacinas','virus','vírus','medico','médico','medicos','médicos','sus','cancer','câncer','internacao','internação','internado','dengue','surto','epidemia','remedio','remédio','medicamento'])) return 'Saúde';
+  if (hasAny(['dolar','dólar','economia','economico','econômico','mercado','bolsa','ibovespa','juros','selic','inflacao','inflação','pib','banco central','preco','preço','precos','preços','petrobras','bitcoin','cripto','imposto','impostos','fazenda','fiscal','incc','ipca','indice','índice','reajuste','contrato','contratos','imovel','imóvel','imoveis','imóveis'])) return 'Economia';
+  if (hasAny(['iphone','apple','google','microsoft','openai','inteligencia artificial','inteligência artificial','tecnologia','aplicativo','software','chip','macbook','samsung','android','startup','smartphone','celular'])) return 'Tecnologia';
   if (hasAny(['carro','carros','automovel','automóvel','veiculo','veículo','moto','f1','formula 1','fórmula 1','volkswagen','toyota','byd','tesla'])) return 'Carros';
-  if (hasAny(['eua','estados unidos','trump','china','europa','russia','rússia','ucrania','ucrânia','israel','gaza','argentina','venezuela','paraguai','alemanha','franca','frança','mundo','internacional'])) return 'Mundo';
-  if (hasAny(['lula','bolsonaro','congresso','senado','camara','câmara','stf','governo','ministro','eleicao','eleição','politica','política','prefeito','governador','deputado'])) return 'Política';
-  if (hasAny(['saude','saúde','anvisa','hospital','doenca','doença','vacina','virus','vírus','medico','médico','sus','cancer','câncer'])) return 'Saúde';
-  if (hasAny(['copa','futebol','jogo','gol','vitoria','vitória','seleção','selecao','flamengo','palmeiras','corinthians','vasco','botafogo','atletico','atlético','esporte'])) return 'Esportes';
-  if (hasAny(['ciencia','ciência','pesquisa','nasa','espaco','espaço','estudo','cientista','astronomia'])) return 'Ciência';
-  if (hasAny(['teresina','piaui','piauí','maranhao','maranhão','ceara','ceará','df','rio de janeiro','sao paulo','são paulo','municipio','município','cidade','bairro'])) return 'Local';
+  if (hasAny(['lula','bolsonaro','congresso','senado','camara','câmara','stf','stj','governo','ministro','ministra','eleicao','eleição','eleicoes','eleições','politica','política','prefeito','governador','deputado','senador','partido','pl','pt'])) return 'Política';
+  if (hasAny(['teresina','piaui','piauí','maranhao','maranhão','ceara','ceará','municipio','município','prefeitura','bairro','estacao','estação','metro','metrô'])) return 'Local';
+  if (hasAny(['eua','estados unidos','trump','china','europa','russia','rússia','ucrania','ucrânia','israel','gaza','argentina','venezuela','paraguai','alemanha','franca','frança','belgica','bélgica','espanha','portugal','ira','irã','mundo','internacional','onu'])) return 'Mundo';
   return 'Geral';
 };
 
