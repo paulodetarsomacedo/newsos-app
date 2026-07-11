@@ -11264,10 +11264,12 @@ return (
         .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
     `}</style>
   
-    {/* --- TELA DE LOADING PREMIUM VETRA (3s exatos) --- */}
+ {/* --- TELA DE LOADING PREMIUM VETRA (3s exatos) --- */}
     {uiStage === 'splash' && (
       <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050914] p-8 animate-in fade-in duration-300">
-        <style jsx="true">{`
+        
+        {/* CORREÇÃO DO COMPILADOR/LINTER (dangerouslySetInnerHTML) */}
+        <style dangerouslySetInnerHTML={{ __html: `
           @keyframes draw-path {
             0% { stroke-dashoffset: 100; }
             100% { stroke-dashoffset: 0; }
@@ -11277,7 +11279,8 @@ return (
             stroke-dashoffset: 100;
             animation: draw-path 3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
           }
-        `}</style>
+        `}} />
+
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(99,102,241,0.18),transparent_36%)]" />
         <div className="absolute inset-0 opacity-[0.08] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
 
