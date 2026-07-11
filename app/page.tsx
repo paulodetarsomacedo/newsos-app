@@ -2437,7 +2437,7 @@ const generateTimelineForCluster = async (articles, apiKey) => {
     }
 };
 
-// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Header Auth) ---
+// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Chave na URL) ---
 const generateFastSummary = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 7000);
@@ -2462,12 +2462,11 @@ const generateFastSummary = async (text, apiKey) => {
   `;
 
   try {
-    // CORREÇÃO DE SEGURANÇA: Retirado o ?key= da URL. Passamos agora no Header!
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+    // Restaurado o ?key= na URL para funcionar 100% no navegador
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST", 
       headers: { 
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey // <--- AUTENTICAÇÃO SEGURA POR HEADER
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.2 } })
     });
@@ -2489,7 +2488,7 @@ const generateFastSummary = async (text, apiKey) => {
   }
 };
 
-// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Header Auth) ---
+// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Chave na URL) ---
 const generateDeepAnalysis = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
@@ -2497,10 +2496,10 @@ const generateDeepAnalysis = async (text, apiKey) => {
   const prompt = `
   Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
   {
-    "executive": "Resumo executivo aprofundado e denso (3 parágrafos formais), organizar os parágrafos.",
+    "executive": "Resumo executivo aprofundado e denso (3 parágrafos formais).",
     "eli5": "Explicação simplificada e pedagógica usando uma analogia inteligente (1 parágrafo curto).",
     "sentiment": "Análise de tom, sentimento e viés jornalístico do artigo (neutro, crítico, otimista, etc., com justificativa de 1 parágrafo curto).",
-    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"] },
+    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C"] },
     "contextualTerms": [
       { "term": "Nó A", "context": "Importância específica deste nó na notícia. Max 25 palavras.", "evidence_quotes": ["Citação curta"] }
     ],
@@ -2512,12 +2511,11 @@ const generateDeepAnalysis = async (text, apiKey) => {
   `;
 
   try {
-    // CORREÇÃO DE SEGURANÇA: Retirado o ?key= da URL. Passamos agora no Header!
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+    // Restaurado o ?key= na URL para funcionar 100% no navegador
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST", 
       headers: { 
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey // <--- AUTENTICAÇÃO SEGURA POR HEADER
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.3 } })
     });
@@ -10908,7 +10906,6 @@ const VERCEL_URL = "https://newsos-app2.vercel.app";
 const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   if (!apiKey) return "Desculpe, a conexão com a IA não está configurada.";
 
-  // BLINDAGEM CONTRA CRASH: Substitui o findLast que quebra em iPhones antigos
   const userMsgs = chatHistory.filter(m => m.from === 'user');
   const userQuestion = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].text : null;
   
@@ -10918,31 +10915,24 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
 
   const prompt = `
   Você é um Assistente de Pesquisa especialista e amigável, conversando dentro de uma interface de chat.
-
-  CONTEXTO PRINCIPAL (A notícia que o usuário está lendo):
+  CONTEXTO PRINCIPAL:
   ---
   ${articleText.slice(0, 4000)}
   ---
-  
-  HISTÓRICO DA CONVERSA ATÉ AGORA:
+  HISTÓRICO DA CONVERSA:
   ---
   ${formattedHistory}
   ---
-
   SUA TAREFA:
-  Continue a conversa respondendo à última pergunta do "Usuário" de forma natural e conversacional.
-  - Utilize o CONTEXTO PRINCIPAL para responder sobre fatos da notícia.
-  - Mantenha as respostas curtas e diretas (1-3 frases).
-  - AJA COMO UMA PESSOA, NÃO COMO UM ROBÔ.
-  - Não repita a pergunta. Apenas dê a resposta.
+  Responda à última pergunta do "Usuário" de forma natural, curta e direta (1-3 frases).
   `;
 
-   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+  try {
+    // Restaurado o ?key= na URL
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { 
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey // <--- AUTENTICAÇÃO POR HEADER SEGURA
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
@@ -10952,7 +10942,6 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
     return "Houve um problema ao conectar com a IA.";
   }
 };
-
 
 
 // --- SKELETON PREMIUM DA ANÁLISE IA ---
