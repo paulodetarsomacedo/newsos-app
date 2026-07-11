@@ -2438,96 +2438,50 @@ const generateTimelineForCluster = async (articles, apiKey) => {
 };
 
 
-// --- FUNÇÃO DE IA: ANÁLISE COMPLETA (ABA AI) ---
+// --- FUNÇÃO DE IA: ANÁLISE COMPLETA ÚNICA OTIMIZADA (FREE TIER) ---
 const generateFullAnalysis = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
 
-  // Limpa e corta para economizar tokens
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 12000);
+  // Corta texto para poupar tokens
+  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
 
   const prompt = `
-  Aja como um Analista de Inteligência Sênior. Analise o texto fornecido.
-  
-  GERE UM JSON ESTRITO COM ESTA ESTRUTURA EXATA (Tudo em PT-BR):
+  Aja como Analista de Inteligência. GERE UM JSON ESTRITO (PT-BR) com:
   {
     "summaries": {
-      "executive": "Resumo formal, direto e jornalístico (3 parágrafos curtos e bem explicados).",
-      "tldr": "Resumo em 1 única frase de impacto (Too Long Didn't Read).",
-      "eli5": "Explicação didática como se fosse para uma criança de 5 anos (analogias).",
-      "bullets": ["Ponto chave 1", "Ponto chave 2", "Ponto chave 3", "Ponto chave 4"]
+      "tldr": "Resumo em 1 única frase de impacto.",
+      "eli5": "Explicação didática com analogia (para leigos).",
+      "bullets": ["Fato 1", "Fato 2", "Fato 3"]
     },
+    "faqs": [
+      "Quais as principais consequências disso?", 
+      "Há outras visões sobre o tema?", 
+      "O que acontece a seguir?"
+    ],
     "mindmap": {
-    "center": "Tema Central (Max 3 palavras)",
-    "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"]
-},
-"contextualTerms": [
-    {
-        "term": "Nó A (Nome exato do nó do mindmap)",
-        "context": "Definição do termo + Explique a importância específica dele NESTA notícia. SEJA DENSO E DETALHADO. NÃO use frases genéricas como 'Contexto geral'. Mínimo 25 palavras.",
-        "sentiment": "neutral", 
-        "evidence_quotes": ["Citação exata do texto onde o termo aparece."]
+      "center": "Tema Central (Max 3 palavras)",
+      "nodes": ["Nó A", "Nó B", "Nó C"]
     },
-    { "term": "Nó B", "context": "...", "sentiment": "positive", "evidence_quotes": ["..."] },
-    { "term": "Nó C", "context": "...", "sentiment": "negative", "evidence_quotes": ["..."] },
-    { "term": "Nó D", "context": "...", "sentiment": "neutral", "evidence_quotes": ["..."] }
-],
-    "timeline": [
-                      { "time": "Passado (Causa Raiz)", "event": "O que causou o contexto geral desta notícia?" },
-                      { "time": "Recente (Gatilho)", "event": "Qual foi o evento específico que levou diretamente a esta matéria?" },
-                      { "time": "Hoje (Fato Principal)", "event": "Qual é o fato principal reportado na notícia de hoje?" }
-                  ],
-    "future": {
-      "optimistic": "Melhor cenário possível a longo prazo.",
-      "pessimistic": "Pior cenário/Riscos envolvidos.",
-      "probable": "O que realmente deve acontecer (análise realista)."
-    }
+    "contextualTerms": [
+      { "term": "Nó A", "context": "Definição direta e impacto na notícia. Mínimo 20 palavras.", "evidence_quotes": ["Citação curta"] }
+    ],
+    "timeline": [ { "time": "Hoje", "event": "Fato principal" } ],
+    "future": { "optimistic": "Cenário positivo", "pessimistic": "Risco", "probable": "Realidade" }
   }
-
   TEXTO:
   ${cleanText}
   `;
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-      })
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.2 } })
     });
-
     const data = await response.json();
-    if (!response.ok || data.error) return null;
-
-       const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    // ==========================================================
-    // === INÍCIO DA CORREÇÃO: Lógica de Limpeza do JSON ===
-    // ==========================================================
-    if (!jsonString) {
-        console.error("Erro Full Analysis: A IA não retornou nenhum texto.");
-        return null;
-    }
-    
-    // 1. Remove os blocos de código markdown (como já fazia)
-    let cleanedString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    // 2. Tenta remover vírgulas finais traiçoeiras antes de fechar chaves ou colchetes.
-    // Esta expressão regular busca por ",}" e substitui por "}" e busca por ",]" e substitui por "]".
-    cleanedString = cleanedString.replace(/,\s*([}\]])/g, "$1");
-
-    // 3. Tenta fazer o parse do JSON limpo.
+    let cleanedString = data.candidates?.[0]?.content?.parts?.[0]?.text.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
     return JSON.parse(cleanedString);
-    // ==========================================================
-    // === FIM DA CORREÇÃO ===
-    // ==========================================================
-
   } catch (error) {
-    // Agora o log de erro será mais útil, mostrando o JSON problemático
     console.error("Erro Full Analysis:", error);
-    // Se quiser ver o que a IA retornou de errado, adicione este log:
-    // console.log("JSON problemático recebido da IA:", jsonString);
     return null;
   }
 };
@@ -3362,7 +3316,7 @@ ${context}
 // ==============================================================================
 // === GLASSBROWSER V7: Com Proteção Contra TypeError e Botão OK ===
 // ==============================================================================
-const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze, isSideBySide }) => { // onAnalyze = abre painel lateral / chat WhatsApp
+const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze, isSideBySide }) => {
   const [content, setContent] = useState(''); 
   const [status, setStatus] = useState('loading');
 
@@ -3397,11 +3351,10 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
     };
     fetchContent();
     return () => { isMounted = false; };
-  }, [article, onFetchContent]); // Depende da prop de fetch
+  }, [article, onFetchContent]);
 
   const openOriginal = async () => {
       try {
-        // CORREÇÃO DO BOTÃO: Usamos o método mais seguro de abertura
         await Browser.open({ 
             url: article.link, 
             presentationStyle: 'fullscreen', 
@@ -3414,20 +3367,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
       }
   };
 
-
-  const openArticleChatFromGlass = () => {
-      if (onAnalyze && typeof onAnalyze === 'function') {
-          onAnalyze(article, { initialViewMode: 'chat', source: 'glassbrowser', openWhatsAppPanel: true });
-      }
-      onClose();
-  };
-
-
   // RESUMO INTELIGENTE — HEURÍSTICO (sem IA).
-  // Abre imediatamente com generateSmartHeuristicSummary(article) e,
-  // quando o proxy-lite devolve texto (state `content`), recalcula com
-  // extractedText — os containers atualizam suavemente via re-render.
-  // O botão "Análise IA" continua chamando onAnalyze (fluxo intacto).
   const _gbDate = article?.rawDate ? new Date(article.rawDate) : null;
   const displayDate = _gbDate
     ? _gbDate.toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -3441,7 +3381,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
       return null;
     }
   }, [article, content]);
-  // (FASE 1) Mapa iconKey → ícone lucide + cor da caixa.
+
   const SECTION_STYLE = {
     zap:          { tile: 'bg-purple-500/15 text-purple-300',  icon: <Zap size={18} /> },
     filetext:     { tile: 'bg-blue-500/15 text-blue-300',      icon: <FileText size={18} /> },
@@ -3460,7 +3400,6 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
   };
   const styleFor = (k) => SECTION_STYLE[k] || SECTION_STYLE.filetext;
 
-  // Prefere as seções adaptativas do motor; se não houver, usa as 5 caixas antigas.
   const SUMMARY_ROWS = (smartSummary?.sections && smartSummary.sections.length > 0)
     ? smartSummary.sections.map((s) => ({
         label: s.label,
@@ -3492,7 +3431,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
       'Use "Análise IA" para uma análise aprofundada do conteúdo completo.',
     ];
 
- return (
+  return (
     <>
       {/* O overlay escuro será gerenciado pelo layout Pai caso seja SideBySide */}
       {!isSideBySide && <div className="fixed inset-0 bg-slate-500/30 backdrop-blur-md z-[9998]" onClick={onClose} />}
@@ -3523,29 +3462,29 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
 
         {/* CONTEÚDO */}
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 pb-5 custom-scrollbar">
-          <h2 className="mt-4 text-[22px] sm:text-[26px] font-black leading-tight tracking-tight text-zinc-900">{article.title}</h2>
+          <h2 className="mt-4 text-[22px] sm:text-[26px] font-black leading-tight tracking-tight text-zinc-900 dark:text-white">{article.title}</h2>
           <div className="flex flex-wrap gap-2 mt-3">
             {(article.category ? [article.category, 'Análise'] : ['Notícia', 'Análise']).map((c, i) => (
-              <span key={i} className="px-3 py-1 rounded-full text-[12px] font-medium text-zinc-600 bg-white/60 border border-white/70">{c}</span>
+              <span key={i} className="px-3 py-1 rounded-full text-[12px] font-medium text-zinc-600 dark:text-zinc-300 bg-white/60 dark:bg-white/10 border border-white/70 dark:border-white/20">{c}</span>
             ))}
           </div>
 
-          {/* RESUMO INTELIGENTE (mock visual) */}
-          <div className="mt-5 rounded-2xl bg-white/55 backdrop-blur-xl border border-white/70 p-4 shadow-sm">
+          {/* RESUMO INTELIGENTE */}
+          <div className="mt-5 rounded-2xl bg-white/55 dark:bg-white/5 backdrop-blur-xl border border-white/70 dark:border-white/10 p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Sparkles size={18} className="text-purple-500" />
-                <span className="text-[15px] font-bold text-zinc-900">Pontos Importantes</span>
+                <span className="text-[15px] font-bold text-zinc-900 dark:text-white">Pontos Importantes</span>
               </div>
               <span className="text-[11px] text-zinc-400">{summaryModeLabel}</span>
             </div>
             <div className="space-y-2">
               {SUMMARY_ROWS.map((row, i) => (
-                <div key={i} className="flex gap-3 items-start rounded-xl bg-white/60 border border-white/70 p-3">
+                <div key={i} className="flex gap-3 items-start rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 p-3">
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${row.tile}`}>{row.icon}</div>
                   <div className="min-w-0">
-                    {row.label ? <div className="text-[13px] font-bold text-zinc-900 mb-0.5">{row.label}</div> : null}
-                    <div className={`text-[13px] leading-relaxed ${row.label ? 'text-zinc-500' : 'text-zinc-700'}`}>{row.text}</div>
+                    {row.label ? <div className="text-[13px] font-bold text-zinc-900 dark:text-zinc-100 mb-0.5">{row.label}</div> : null}
+                    <div className={`text-[13px] leading-relaxed ${row.label ? 'text-zinc-500 dark:text-zinc-400' : 'text-zinc-700 dark:text-zinc-300'}`}>{row.text}</div>
                   </div>
                 </div>
               ))}
@@ -3555,22 +3494,21 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
             )}
           </div>
 
-          {/* TRECHOS RELEVANTES — só quando NÃO há tópicos premium (evita repetição) */}
+          {/* TRECHOS RELEVANTES */}
           {!(smartSummary?.sections && smartSummary.sections.length > 0 && !smartSummary.sections[0].label) && (
-          <div className="mt-4 rounded-2xl bg-white/55 backdrop-blur-xl border border-white/70 p-4 shadow-sm">
+          <div className="mt-4 rounded-2xl bg-white/55 dark:bg-white/5 backdrop-blur-xl border border-white/70 dark:border-white/10 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-purple-500 text-2xl leading-none">&ldquo;</span>
-              <span className="text-[15px] font-bold text-zinc-900">Trechos relevantes</span>
+              <span className="text-[15px] font-bold text-zinc-900 dark:text-white">Trechos relevantes</span>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               {QUOTES.map((q, i) => (
-                <div key={i} className="rounded-xl bg-white/60 border border-white/70 p-3 text-[13px] italic text-zinc-600 leading-relaxed">{q}</div>
+                <div key={i} className="rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 p-3 text-[13px] italic text-zinc-600 dark:text-zinc-400 leading-relaxed">{q}</div>
               ))}
             </div>
           </div>
           )}
 
-          {/* estado real do fetch (discreto) — sem subcontainer "Leitura otimizada" */}
           {status === 'loading' && (
             <div className="mt-4 flex items-center gap-2 text-zinc-400 text-[12px]"><Loader2 size={14} className="animate-spin" /> Otimizando leitura…</div>
           )}
@@ -3579,17 +3517,22 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
           )}
         </div>
 
-        {/* RODAPÉ — Ler no site (real) / Análise IA (abre painel lateral) / Chat (mock) */}
-        <div className="shrink-0 px-5 sm:px-6 py-4 border-t border-white/50 flex flex-col sm:flex-row gap-3">
+        {/* RODAPÉ — Ler no site (real) / Análise IA (abre painel lateral) / Chat */}
+        <div className="shrink-0 px-5 sm:px-6 py-4 border-t border-white/50 dark:border-white/10 flex flex-col sm:flex-row gap-3">
           <button onClick={openOriginal} className="flex-1 h-12 rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 dark:hover:bg-white/10 transition"><ExternalLink size={16} /> Ler no site</button>
-          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2"><Sparkles size={16} /> Análise IA</button>
-          <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat', openWhatsAppPanel: true }); }} className="flex-1 h-12 rounded-xl vetra-whatsapp-glass-button text-[13px] font-bold flex items-center justify-center gap-2"><WhatsAppGlyph className="w-5 h-5" /> Chat com a notícia</button>
+          
+          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2">
+            <Sparkles size={16} /> Análise IA
+          </button>
+          
+          <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat', openWhatsAppPanel: true }); }} className="flex-1 h-12 rounded-xl vetra-whatsapp-glass-button text-[13px] font-bold flex items-center justify-center gap-2">
+            <WhatsAppGlyph className="w-5 h-5" /> Chat com a notícia
+          </button>
         </div>
       </div>
     </>
   );
 };
-
 
 
 
@@ -8564,7 +8507,12 @@ const useLongPress = (onLongPress, onClick, { threshold = 500 } = {}) => {
   // ==============================================================================
 
   // 1. Estado para a largura "oficial" e Refs para manipulação direta
-  const [panelWidth, setPanelWidth] = useState(600); // Controla a largura final
+  const [panelWidth, setPanelWidth] = useState(600); // Controla a largura final standalone
+  
+  // Estados Nativos de Resize da Tela Dividida (Split View)
+  const [splitWidth, setSplitWidth] = useState(55); // % largura do GlassBrowser
+  const [splitHeight, setSplitHeight] = useState(75); // vh altura do Modal Principal
+
   const panelDivRef = useRef(null);      // Referência para o DIV do painel
   const isResizing = useRef(false);      // Flag para saber se estamos arrastando
   const resizeStartX = useRef(0);        // Posição X inicial do mouse/dedo
@@ -10138,16 +10086,38 @@ return (
 
 {/* Wrapper Integrado: Split View (GlassBrowser + ArticlePanel) */}
       {glassArticle && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300" style={{ paddingTop: `${100 - splitHeight}vh` }}>
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => { setGlassArticle(null); closeArticle(); }} />
             
-            <div className="relative w-full max-w-[1600px] h-[75vh] min-h-[600px] flex items-stretch justify-center gap-4 pointer-events-none">
+            {/* Puxador VERTICAL de Altura */}
+            <div 
+              className="absolute top-4 left-1/2 -translate-x-1/2 w-32 h-6 z-[10000] cursor-ns-resize flex items-center justify-center group"
+              onPointerDown={(e) => {
+                  e.preventDefault();
+                  const startY = e.clientY || e.touches?.[0]?.clientY;
+                  const startH = splitHeight;
+                  const onMove = (moveE) => {
+                      const curY = moveE.clientY || moveE.touches?.[0]?.clientY;
+                      const deltaY = curY - startY;
+                      const vhMoved = (deltaY / window.innerHeight) * 100;
+                      // Limites: de 50vh a 95vh
+                      setSplitHeight(Math.max(50, Math.min(95, startH - vhMoved)));
+                  };
+                  const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+                  window.addEventListener('pointermove', onMove);
+                  window.addEventListener('pointerup', onUp);
+              }}
+            >
+              <div className="w-16 h-2 bg-white/30 group-hover:bg-white/60 rounded-full shadow-lg transition-colors backdrop-blur-md" />
+            </div>
+
+            <div className="relative w-full max-w-[1600px] flex items-stretch justify-center gap-4 pointer-events-none transition-all duration-75" style={{ height: `${splitHeight}vh`, minHeight: '500px' }}>
                 
                 {/* GLASS BROWSER (ESQUERDA) */}
                 <motion.div 
                     layout 
                     initial={false}
-                    animate={{ width: selectedArticle ? '55%' : '100%' }}
+                    animate={{ width: selectedArticle ? `${splitWidth}%` : '100%' }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     className="h-full relative z-10 flex justify-center pointer-events-auto"
                 >
@@ -10156,17 +10126,43 @@ return (
                       onClose={() => { setGlassArticle(null); closeArticle(); }}
                       isDarkMode={isDarkMode}
                       onFetchContent={fetchOptimizedContent}
-                      onAnalyze={handleOpenArticle}
+                      onAnalyze={(art, opts) => handleOpenArticle(art, opts)}
                       isSideBySide={!!selectedArticle}
                     />
                 </motion.div>
+
+                {/* PUXADOR HORIZONTAL DE LARGURA (Ao meio) */}
+                {selectedArticle && (
+                   <div 
+                      className="absolute top-1/2 -translate-y-1/2 w-8 h-32 z-50 cursor-ew-resize flex items-center justify-center group pointer-events-auto"
+                      style={{ left: `calc(${splitWidth}% - 1rem)` }}
+                      onPointerDown={(e) => {
+                          e.preventDefault();
+                          const startX = e.clientX || e.touches?.[0]?.clientX;
+                          const startW = splitWidth;
+                          const containerWidth = window.innerWidth > 1600 ? 1600 : window.innerWidth;
+                          const onMove = (moveE) => {
+                              const curX = moveE.clientX || moveE.touches?.[0]?.clientX;
+                              const deltaX = curX - startX;
+                              const pctMoved = (deltaX / containerWidth) * 100;
+                              // Limites: de 30% a 70%
+                              setSplitWidth(Math.max(30, Math.min(70, startW + pctMoved)));
+                          };
+                          const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+                          window.addEventListener('pointermove', onMove);
+                          window.addEventListener('pointerup', onUp);
+                      }}
+                   >
+                      <div className="w-2 h-16 bg-white/30 group-hover:bg-purple-500 rounded-full shadow-lg transition-colors backdrop-blur-md" />
+                   </div>
+                )}
 
                 {/* PAINEL DE ANÁLISE IA (DIREITA) */}
                 <AnimatePresence>
                     {selectedArticle && (
                         <motion.div 
                             initial={{ opacity: 0, x: 50, width: '0%' }}
-                            animate={{ opacity: 1, x: 0, width: '45%' }}
+                            animate={{ opacity: 1, x: 0, width: `${100 - splitWidth}%` }}
                             exit={{ opacity: 0, x: 50, width: '0%' }}
                             transition={{ type: "spring", stiffness: 300, damping: 30 }}
                             className="h-full pointer-events-auto rounded-[1.9rem] overflow-hidden shadow-2xl relative bg-white dark:bg-zinc-950 border border-black/5 dark:border-white/10"
@@ -10202,20 +10198,20 @@ return (
                 backdrop-blur-3xl
             `}
             style={{ 
-                // Impede tela duplicada: Se o GlassArticle estiver aberto, o painel roda DENTRO dele (bloco acima). 
+                // Impede duplicata: Se o GlassArticle está aberto, o painel é renderizado DENTRO dele (bloco acima).
                 width: (!glassArticle && selectedArticle) ? `${panelWidth}px` : '0px',
                 transform: (!glassArticle && selectedArticle) ? 'translateX(0)' : 'translateX(100%)',
                 maxWidth: '100vw',
                 transition: isResizing.current ? 'none' : 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
         >
-            {/* INDICADOR DE RESIZE (ALÇA) */}
+            {/* INDICADOR DE RESIZE (ALÇA) DEFAULT */}
             {(!glassArticle && selectedArticle) && (
                 <div 
                     onMouseDown={handleResizeStart} // Mouse
                     onTouchStart={handleResizeStart} // Touch (iPad)
                     className="absolute top-0 bottom-0 left-0 w-8 z-[2001] cursor-ew-resize flex items-center justify-start pl-2 group select-none touch-none"
-                    style={{ touchAction: 'none' }} // IMPEDE SCROLL NO IPAD
+                    style={{ touchAction: 'none' }} 
                     onClick={(e) => e.stopPropagation()} 
                 >
                     <div className={`
@@ -10232,8 +10228,8 @@ return (
                 </div>
             )}
 
-            {/* CONTEÚDO */}
-            {selectedArticle && (
+            {/* CONTEÚDO DEFAULT */}
+            {(!glassArticle && selectedArticle) && (
                 <ArticlePanel 
                     article={selectedArticle} 
                     isOpen={!!selectedArticle} 
@@ -10962,17 +10958,18 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
 
 
 
-// --- SKELTON PREMIUM PARA ANÁLISE IA ---
+// --- SKELETON PREMIUM DA ANÁLISE IA ---
 const AnalysisSkeleton = ({ isDarkMode }) => (
-    <div className="p-6 space-y-8 h-full overflow-y-auto w-full custom-scrollbar">
-      <div className="space-y-4 animate-pulse mt-4">
+    <div className="p-6 space-y-8 h-full overflow-y-auto w-full custom-scrollbar animate-in fade-in duration-500">
+      <div className="space-y-4 animate-pulse mt-2">
         <div className="flex gap-2">
            <div className={`h-8 w-24 rounded-lg ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
            <div className={`h-8 w-24 rounded-lg ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
+           <div className={`h-8 w-24 rounded-lg ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
         </div>
-        <div className={`h-40 w-full rounded-3xl border border-dashed ${isDarkMode ? 'bg-zinc-800/50 border-zinc-700' : 'bg-zinc-50 border-zinc-200'}`}></div>
+        <div className={`h-32 w-full rounded-3xl border border-dashed ${isDarkMode ? 'bg-zinc-800/50 border-zinc-700' : 'bg-zinc-50 border-zinc-200'}`}></div>
       </div>
-      <div className="space-y-4 animate-pulse mt-8">
+      <div className="space-y-4 animate-pulse mt-12">
          <div className="flex justify-center mb-6">
             <div className={`w-32 h-32 rounded-full ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}></div>
          </div>
@@ -10982,37 +10979,28 @@ const AnalysisSkeleton = ({ isDarkMode }) => (
     </div>
 );
 
-// --- NOVO COMPONENTE: WHATSAPP CHAT INTERFACE ---
-const generateQuickChips = (title) => {
-  const chips = ["Resuma este artigo", "Qual o ponto principal?"];
-  const t = (title || '').toLowerCase();
-  if (t.includes('stf') || t.includes('governo') || t.includes('bolsonaro') || t.includes('lula')) chips.push("Quais os políticos envolvidos?");
-  if (t.includes('dólar') || t.includes('mercado') || t.includes('taxa')) chips.push("Como isso afeta o mercado?");
-  return chips;
-};
-
 const getGreeting = (title, sourceName) => {
   const greetings = [
     `Olá! Estou lendo a matéria do ${sourceName || 'site'} sobre "${title}". O que você gostaria de saber primeiro?`,
-    `Oi! Essa notícia sobre "${title}" tem pontos interessantes. Quer um resumo rápido ou prefere focar em algo específico?`,
-    `Pronto para analisar o artigo do ${sourceName || 'site'}. Pode perguntar, ou escolha uma das opções abaixo enquanto leio os detalhes.`
+    `Oi! Essa notícia sobre "${title}" tem pontos interessantes. Quer focar em algo específico?`,
+    `Pronto para analisar o artigo do ${sourceName || 'site'}. Pode perguntar, ou escolha uma das opções enquanto termino de ler os detalhes.`
   ];
   return greetings[Math.floor(Math.random() * greetings.length)];
 };
 
-const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, isLoadingFullText }) => {
-  const [history, setHistory] = useState([]);
+// --- WHATSAPP CHAT (INSTANTÂNEO & OTIMIZADO) ---
+const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, autoSendQuery, onAutoSendComplete }) => {
+  // Inicialização SÍNCRONA da primeira mensagem
+  const [history, setHistory] = useState(() => [{ 
+    from: 'ai', 
+    text: getGreeting(article?.title, article?.source) 
+  }]);
   const [inputValue, setInputValue] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
-  const [chips, setChips] = useState(() => generateQuickChips(article?.title));
+  const [chips, setChips] = useState(["Resuma em 1 frase", "Quais as consequências?", "Quais os políticos envolvidos?"]);
+  
   const chatEndRef = useRef(null);
-
-  useEffect(() => {
-    setHistory([{ 
-      from: 'ai', 
-      text: getGreeting(article?.title, article?.source) 
-    }]);
-  }, [article?.id]);
+  const hasAutoSent = useRef(false);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -11022,28 +11010,41 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, isLoadingFullT
     const userQuestion = typeof textOverride === 'string' ? textOverride.trim() : inputValue.trim();
     if (userQuestion === '' || isAiTyping) return;
 
-    setChips([]); // Oculta chips ao interagir
+    setChips([]); // Esconde chips na primeira interação
     const newHistory = [...history, { from: 'user', text: userQuestion }];
     setHistory(newHistory);
     setInputValue('');
     setIsAiTyping(true);
 
     if (!apiKey) {
-      setHistory(prev => [...prev, { from: 'ai', text: 'Erro: Nenhuma chave de API para o chat está configurada.' }]);
+      setHistory(prev => [...prev, { from: 'ai', text: 'Erro: Nenhuma chave de API configurada.' }]);
       setIsAiTyping(false);
       return;
     }
 
-    const textToUse = articleText || article?.summary || "Texto indisponível no momento.";
-    const aiResponse = await generateChatResponse(newHistory, textToUse, apiKey);
+    // OTIMIZAÇÃO FREE TIER: Limita o texto a 6000 chars e o histórico às últimas 4 mensagens
+    const textToUse = String(articleText || article?.summary || "Texto indisponível").slice(0, 6000);
+    const optimizedHistory = newHistory.slice(-4);
+    
+    const aiResponse = await generateChatResponse(optimizedHistory, textToUse, apiKey);
 
     setHistory(prev => [...prev, { from: 'ai', text: aiResponse }]);
     setIsAiTyping(false);
   };
 
+  // Disparo automático via FAQ
+  useEffect(() => {
+    if (autoSendQuery && !hasAutoSent.current) {
+        hasAutoSent.current = true;
+        handleSendMessage(autoSendQuery);
+        if (onAutoSendComplete) onAutoSendComplete();
+    }
+  }, [autoSendQuery]);
+
   return (
     <div className="flex flex-col h-full bg-cover bg-center" style={{ backgroundImage: isDarkMode ? "url('https://i.redd.it/qwd81h444yv51.jpg')" : "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')" }}>
-      {/* Histórico de Mensagens */}
+      
+      {/* Histórico */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
         {history.map((msg, index) => (
           <div key={index} className={`flex ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -11066,8 +11067,8 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, isLoadingFullT
         <div ref={chatEndRef} />
       </div>
       
-      {/* Chips Sugeridos */}
-      {chips.length > 0 && (
+      {/* Chips */}
+      {chips.length > 0 && !isAiTyping && (
         <div className="px-4 pb-2 pt-0 flex gap-2 overflow-x-auto scrollbar-hide">
           {chips.map(chip => (
             <button key={chip} onClick={() => handleSendMessage(chip)} className={`whitespace-nowrap px-4 py-2 text-xs font-bold rounded-full shadow-sm transition-transform active:scale-95 ${isDarkMode ? 'bg-zinc-800/90 text-zinc-200 hover:bg-zinc-700' : 'bg-white/90 text-zinc-800 hover:bg-white'}`}>
@@ -11082,7 +11083,7 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, isLoadingFullT
         <div className="flex items-center gap-2 relative">
           <input
             type="text"
-            placeholder={isLoadingFullText ? "Lendo artigo para contexto..." : "Sua mensagem..."}
+            placeholder="Sua mensagem..."
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
@@ -11105,7 +11106,7 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, isLoadingFullT
 
 const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, apiKey, isResizing, getChatApiKey, initialViewMode = 'analysis' }) => {
   const [aiData, setAiData] = useState(null);
-  const [loadingState, setLoadingState] = useState('idle'); 
+  const [loadingState, setLoadingState] = useState('analyzing'); // 'analyzing' | 'complete' | 'error'
   const [viewMode, setViewMode] = useState('analysis');
   const [summaryMode, setSummaryMode] = useState('executive');
   const [fontSize, setFontSize] = useState(19);
@@ -11114,82 +11115,80 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [readerContent, setReaderContent] = useState(null); 
   const [showCenterModal, setShowCenterModal] = useState(false);
   const [currentChatApiKey, setCurrentChatApiKey] = useState(null);
+  const [pendingChatQuery, setPendingChatQuery] = useState(null); // Usado para transferir FAQ -> Chat
 
+  // Formatação Premium do Texto Executivo (Local/Instantâneo)
+  const formatExecutiveText = (text) => {
+      if (!text) return "Buscando contexto...";
+      // Pega ~1200 chars (garante parágrafos inteiros)
+      let cleaned = text.slice(0, 1200).replace(/\n{3,}/g, '\n\n').trim();
+      const paragraphs = cleaned.split('\n\n').filter(p => p.length > 20);
+      
+      return (
+          <div className="space-y-4">
+              {paragraphs.map((p, i) => (
+                  <p key={i} className={`text-[15px] leading-loose ${i === 0 ? 'first-letter:text-5xl first-letter:font-serif first-letter:mr-2 first-letter:float-left first-letter:text-indigo-500' : ''}`}>
+                      {p}
+                  </p>
+              ))}
+          </div>
+      );
+  };
 
-// 1. Estado de Etapas (Começa em -1 para 'nenhum')
-  const [loadingStep, setLoadingStep] = useState(0);
-
-  // EFEITO DE LIMPEZA (Reseta tudo ao abrir)
+  // EFEITO DE LIMPEZA E CHAMADA ÚNICA (PROGRESSIVE UI)
   useEffect(() => {
       if (isOpen && article) {
           setAiData(null);
           setReaderContent(null);
-          setLoadingState('extracting');
           const nextMode = initialViewMode === 'chat' ? 'chat' : 'analysis';
           setViewMode(nextMode);
           if (nextMode === 'chat') setCurrentChatApiKey(getChatApiKey?.());
           setFocusedNode(null);
           setHighlightRequest(null);
           setShowCenterModal(false);
+          setPendingChatQuery(null);
+          setSummaryMode('executive'); // Sempre reseta pro executivo (imediato)
           
-          // Zera os passos visuais
-          setLoadingStep(0);
-          
-          runSuperPrompt();
+          setLoadingState('analyzing');
+          runOptimizedPrompt();
       }
   }, [article?.id, isOpen, initialViewMode]);
 
-  // A NOVA FUNÇÃO SINCRONIZADA COM A REALIDADE
-const runSuperPrompt = useCallback(async () => {
-      // apiKey agora vem das props, fornecida pelo pool 'analysis'
-      if (!apiKey || !article.link) {
-          setLoadingState('error');
-          return;
-      }
+  const runOptimizedPrompt = useCallback(async () => {
+      if (!apiKey || !article.link) return setLoadingState('error');
       
       try {
-          setLoadingStep(1); // Extraindo...
-          const { data: proxyData, error: proxyError } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+          // Extrai o texto limpo da página via proxy (retorna em < 1s)
+          const { data: proxyData } = await supabase.functions.invoke('proxy-view', { body: { url: article.link } });
+          const fullText = proxyData?.reader?.textContent || article.summary || "";
           
-          if (proxyError || !proxyData?.reader?.content) throw new Error("Falha na extração de texto");
-          
-          const fullText = proxyData.reader.textContent;
-          setReaderContent(proxyData.reader); 
+          // O texto já tá na tela no formato "Executive"! O usuário já começou a ler.
+          setReaderContent(proxyData?.reader); 
 
-          setLoadingStep(2); // Analisando...
-          setLoadingState('analyzing'); 
-
-          // A MÁGICA: Chama a função local generateFullAnalysis com a chave do pool
+          // Chama a IA pesada em BACKGROUND (leva uns 4~6s)
           const result = await generateFullAnalysis(fullText, apiKey);
           
-          if (!result) throw new Error("A análise da IA retornou vazia.");
-
-          setLoadingStep(3); // Sintetizando...
-          setAiData(result);
-          
-          setLoadingStep(4); // Finalizando...
-          setLoadingState('complete');
-
+          if (result) {
+              setAiData(result);
+              setLoadingState('complete'); // Faz os componentes da IA deslizarem p/ tela
+          } else {
+              setLoadingState('error');
+          }
       } catch (err) { 
-          console.error("Erro no runSuperPrompt:", err);
+          console.error("Erro no runOptimizedPrompt:", err);
           setLoadingState('error'); 
       }
-  }, [apiKey, article]); // Depende da chave e do artigo
+  }, [apiKey, article]);
 
-  
-const handleNodeClick = useCallback((nodeName, position) => {
+  const handleNodeClick = useCallback((nodeName, position) => {
       if (!aiData?.contextualTerms) return;
-      
-const nodeData = aiData.contextualTerms.find(t => {
-  const term = safeLower(t?.term);
-  const node = safeLower(nodeName);
-  return term.includes(node) || node.includes(term);
-});      
+      const nodeData = aiData.contextualTerms.find(t => {
+          const term = safeLower(t?.term);
+          const node = safeLower(nodeName);
+          return term.includes(node) || node.includes(term);
+      });      
       const dataToSet = nodeData || { name: nodeName, context: "Contexto geral.", sentiment: "neutral", evidence_quotes: [] };
-      
-      // Salva a posição para o CSS usar
       setFocusedNode({ ...dataToSet, position }); 
-      
       setViewMode('drilldown');
   }, [aiData]);
   
@@ -11198,17 +11197,18 @@ const nodeData = aiData.contextualTerms.find(t => {
       setViewMode('magic'); 
   }, []);
 
-    
-
-
+  const handleFaqClick = (question) => {
+      // Pega chave pro chat, muda o modo e manda a pergunta pro WhatsappChat
+      const newKey = getChatApiKey(); 
+      setCurrentChatApiKey(newKey);   
+      setPendingChatQuery(question);
+      setViewMode('chat');
+  };
   
-// --- return do ArticlePanel ---
 return (
 <div className={`h-full w-full flex flex-col rounded-l-[2.5rem] overflow-hidden ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'} border-l-2 transition-colors duration-300
     ${isResizing 
-        // Se estiver redimensionando, usa um fundo sólido e mais opaco
         ? (isDarkMode ? 'bg-zinc-950/95' : 'bg-white/95')
-        // Se não, usa o fundo com o efeito de desfoque pesado
         : (isDarkMode ? 'bg-zinc-950/90 backdrop-blur-3xl' : 'bg-white/80 backdrop-blur-3xl')
     }
   `}>    <style jsx="true">{`
@@ -11218,7 +11218,7 @@ return (
         .animate-spin-reverse-slow { animation: spin-reverse-slow 25s linear infinite; }
     `}</style>
   
-   {loadingState === 'error' && (
+    {loadingState === 'error' && (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><X size={32} className="text-red-500"/></div>
         <h3 className="font-bold text-lg mb-2">Falha na Análise</h3>
@@ -11227,9 +11227,10 @@ return (
       </div>
     )}
 
-    {/* --- TELA DE CONTEÚDO (APÓS SUCESSO OU INSTANTÂNEO NO CHAT) --- */}
+    {/* --- TELA DE CONTEÚDO (APÓS ABERTURA IMEDIATA) --- */}
     {loadingState !== 'error' && (
       <> 
+        
         {/* CABEÇALHO DO PAINEL */}
         <div className="relative h-72 w-full flex-shrink-0 sticky top-0 z-20">
           <img src={article.img} className="w-full h-full object-cover absolute inset-0 opacity-60" />
@@ -11256,76 +11257,89 @@ return (
               <h1 className="text-2xl md:text-3xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
             </div>
             {viewMode !== 'chat' && (
-   <button 
-    onClick={() => {
-        const newKey = getChatApiKey(); 
-        setCurrentChatApiKey(newKey);   
-        setViewMode('chat');             
-    }}
-    // AS CLASSES DE ESTILO FORAM RESTAURADAS AQUI
-    className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
->
-    <WhatsAppGlyph className="w-7 h-7" />
-    <span className="text-sm font-bold">Chat</span>
-</button>
-
+               <button 
+                onClick={() => {
+                    const newKey = getChatApiKey(); 
+                    setCurrentChatApiKey(newKey);   
+                    setViewMode('chat');             
+                }}
+                className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
+               >
+                <WhatsAppGlyph className="w-7 h-7" />
+                <span className="text-sm font-bold">Chat</span>
+               </button>
             )}
           </div>
         </div>
         
-  {/* CONTAINER DE CONTEÚDO DINÂMICO */}
+        {/* CONTAINER DE CONTEÚDO DINÂMICO */}
         <div className="flex-1 min-h-0 bg-zinc-50 dark:bg-zinc-950/50">
           
-          {viewMode === 'analysis' && loadingState !== 'complete' && (
-              <AnalysisSkeleton isDarkMode={isDarkMode} />
-          )}
-
-          {viewMode === 'analysis' && loadingState === 'complete' && aiData && (
+          {viewMode === 'analysis' && (
             <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20 animate-in fade-in">
+              
+              {/* BLOCO 1: RESUMOS INSTANTÂNEOS */}
               <div className="mb-10">
                 <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-white/5 mb-4">
-                  {['executive', 'tldr', 'eli5', 'bullets'].map(mode => (
-                    <button key={mode} onClick={() => setSummaryMode(mode)} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === mode ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>
-                      {mode === 'executive' ? 'Executivo' : (mode === 'tldr' ? 'Curto' : (mode === 'eli5' ? 'Simples' : 'Tópicos'))}
-                    </button>
-                  ))}
+                  <button onClick={() => setSummaryMode('executive')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'executive' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Executivo</button>
+                  {aiData && <button onClick={() => setSummaryMode('tldr')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'tldr' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Curto</button>}
+                  {aiData && <button onClick={() => setSummaryMode('eli5')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'eli5' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Simples</button>}
+                  {aiData && <button onClick={() => setSummaryMode('bullets')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${summaryMode === 'bullets' ? 'bg-white dark:bg-zinc-800 text-indigo-600 shadow-md' : 'text-zinc-400'}`}>Tópicos</button>}
                 </div>
+                
                 <div className={`p-6 rounded-3xl border border-dashed ${isDarkMode ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-300 bg-zinc-50'}`}>
-                  {summaryMode === 'bullets' ? (
+                  {summaryMode === 'executive' && (
+                      // Exibe o texto imediato. Com capitular premium.
+                      <div className={`text-sm ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                          {formatExecutiveText(readerContent?.textContent || article.summary)}
+                      </div>
+                  )}
+                  {summaryMode === 'tldr' && aiData && <p className={`text-sm font-semibold italic leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>"{aiData.summaries.tldr}"</p>}
+                  {summaryMode === 'eli5' && aiData && <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.eli5}</p>}
+                  {summaryMode === 'bullets' && aiData && (
                     <ul className="list-disc pl-5 space-y-3 marker:text-indigo-400 text-sm leading-loose">
                       {aiData.summaries.bullets.map((b, i) => <li key={i}>{b}</li>)}
                     </ul>
-                  ) : (
-                    <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                      {aiData.summaries[summaryMode]}
-                    </p>
                   )}
                 </div>
               </div>
-              <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
-              <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
-              <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
-              
-              {/* B2 FAQ -> Vai para o Chat */}
-              <div className="mt-8 mb-6 p-6 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
-                <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4 flex items-center gap-2">
-                    <MessageCircle size={14}/> Perguntas Frequentes
-                </h4>
-                <div className="space-y-2">
-                  {["Quais as principais consequências disso?", "Há outras visões sobre o tema?", "O que acontece a seguir?"].map((q, i) => (
-                    <button key={i} onClick={() => {
-                        const newKey = getChatApiKey(); 
-                        setCurrentChatApiKey(newKey);   
-                        setViewMode('chat');
-                    }} className={`w-full text-left p-4 rounded-2xl flex items-center justify-between group transition-colors shadow-sm ${isDarkMode ? 'bg-zinc-800/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}>
-                      <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{q}</span>
-                      <ArrowRight size={16} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500" />
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
+              {/* BLOCO 2: SKELETON EM BACKGROUND ENQUANTO IA PENSA */}
+              {loadingState === 'analyzing' && (
+                  <div className="animate-in fade-in duration-500">
+                    <div className="flex items-center gap-3 mb-6 opacity-60">
+                        <Loader2 size={16} className="animate-spin text-purple-500" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">IA Analisando Conexões e Cenários...</span>
+                    </div>
+                    <AnalysisSkeleton isDarkMode={isDarkMode} />
+                  </div>
+              )}
+
+              {/* BLOCO 3: DADOS PROFUNDOS (Deslizam quando a IA terminar) */}
+              {loadingState === 'complete' && aiData && (
+                <div className="animate-in slide-in-from-bottom-8 fade-in duration-1000">
+                  <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
+                  
+                  {/* FAQs antes da Linha do Tempo */}
+                  <div className="mt-8 mb-8 p-6 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-4 flex items-center gap-2">
+                        <MessageCircle size={14}/> Perguntas Frequentes
+                    </h4>
+                    <div className="space-y-2">
+                      {(aiData.faqs || []).map((q, i) => (
+                        <button key={i} onClick={() => handleFaqClick(q)} className={`w-full text-left p-4 rounded-2xl flex items-center justify-between group transition-colors shadow-sm ${isDarkMode ? 'bg-zinc-800/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}>
+                          <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{q}</span>
+                          <ArrowRight size={16} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
+                  <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
+                  <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
+                </div>
+              )}
             </div>
           )}
           
@@ -11335,12 +11349,13 @@ return (
                 articleText={readerContent?.textContent || article.summary}
                 apiKey={currentChatApiKey}
                 isDarkMode={isDarkMode}
-                isLoadingFullText={loadingState !== 'complete'}
+                autoSendQuery={pendingChatQuery}
+                onAutoSendComplete={() => setPendingChatQuery(null)}
             />
           )}
         </div>
 
-        {/* MODAIS (Renderizados por cima de tudo, mas dentro da condição 'complete') */}
+        {/* MODAIS (Renderizados por cima de tudo) */}
         {showCenterModal && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
         {viewMode === 'drilldown' && focusedNode && (
           <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
