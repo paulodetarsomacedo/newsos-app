@@ -9919,19 +9919,19 @@ const handlePlayAudio = async (article) => {
   // ALTERAÇÃO 1: LÓGICA DE "CONGELAMENTO" E GATILHO
   // ==========================================================
   
-  // A chave de análise para o painel lateral. Esta lógica está CORRETA e deve ser mantida.
+  // A chave de análise para o painel lateral memorizada
   const analysisApiKey = useMemo(() => {
-      // Se não houver artigo selecionado, não faz sentido pegar uma chave.
       if (!selectedArticle) return null;
-
-      // A função é chamada aqui dentro, mas não está no array de dependências.
-      // Isso é seguro porque a lógica de pegar a chave só precisa rodar
-      // quando o artigo MUDA, e isso é garantido pela dependência [selectedArticle?.id].
-      console.log(`useMemo: EXECUTANDO ROTAÇÃO para o artigo ID: ${selectedArticle.id}`);
+      console.log(`useMemo: EXECUTANDO ROTAÇÃO HEAVY para o artigo ID: ${selectedArticle.id}`);
       return getApiKey('analysis');
-  
-  // A ÚNICA DEPENDÊNCIA AGORA É O ID DO ARTIGO.
-  }, [selectedArticle?.id]);
+  }, [selectedArticle?.id, getApiKey]);
+
+  // A chave rápida (Fast) memorizada para a Chamada 1 (EVITA LOOP INFINITO)
+  const fastApiKey = useMemo(() => {
+      if (!selectedArticle) return null;
+      console.log(`useMemo: EXECUTANDO ROTAÇÃO WIDGETS para o artigo ID: ${selectedArticle.id}`);
+      return getApiKey('widgets');
+  }, [selectedArticle?.id, getApiKey]);
 // 2. Esta lista é para a NAVEGAÇÃO. Ela contém TODOS os stories, sem filtro.
 const allAvailableStories = useMemo(() => {
     if (!realNews || realNews.length === 0) return [];
@@ -10218,7 +10218,7 @@ return (
                             onClose={() => closeArticle()}
                             onToggleSave={handleToggleSave}
                             isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-                            fastApiKey={getApiKey('widgets')}
+                            fastApiKey={fastApiKey}
                             apiKey={analysisApiKey} 
                             getChatApiKey={getChatApiKey}
                             isDarkMode={isDarkMode}
