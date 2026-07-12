@@ -2437,6 +2437,44 @@ const generateTimelineForCluster = async (articles, apiKey) => {
     }
 };
 
+// Parser tolerante: o Gemini às vezes corta a saída no limite de tokens e o
+// JSON chega truncado ("Expected ',' or '}' ... at position 881"). Em vez de
+// perder tudo, recupera o que já veio, fechando as estruturas abertas.
+const safeJsonParse = (raw) => {
+  if (!raw) return null;
+  let s = String(raw).replace(/```json/gi, '').replace(/```/g, '').trim();
+  s = s.replace(/,\s*([}\]])/g, '$1');
+  try { return JSON.parse(s); } catch {}
+
+  let inStr = false, esc = false, lastSafe = -1;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (esc) { esc = false; continue; }
+    if (c === '\\') { esc = true; continue; }
+    if (c === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (c === ',' || c === '}' || c === ']') lastSafe = i;
+  }
+  if (lastSafe > 0) {
+    let cand = s.slice(0, lastSafe + 1).replace(/,\s*$/, '');
+    const st = [];
+    let is = false, es = false;
+    for (const c of cand) {
+      if (es) { es = false; continue; }
+      if (c === '\\') { es = true; continue; }
+      if (c === '"') { is = !is; continue; }
+      if (is) continue;
+      if (c === '{') st.push('}');
+      else if (c === '[') st.push(']');
+      else if (c === '}' || c === ']') st.pop();
+    }
+    while (st.length) cand += st.pop();
+    try { return JSON.parse(cand); } catch {}
+  }
+  return null;
+};
+
+
 // --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Chave na URL) ---
 const generateFastSummary = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
@@ -2468,7 +2506,15 @@ const generateFastSummary = async (text, apiKey) => {
       headers: { 
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.1 } })
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          response_mime_type: "application/json",
+          temperature: 0.2,
+          maxOutputTokens: 1200,                    // evita corte no meio do JSON
+          thinkingConfig: { thinkingBudget: 0 },    // thinking consome orçamento e atrasa
+        }
+      })
     });
 
     if (!res.ok) {
@@ -2480,8 +2526,9 @@ const generateFastSummary = async (text, apiKey) => {
     const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!resultText) throw new Error("Resposta da IA vazia");
 
-    let cleanedString = resultText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
-    return JSON.parse(cleanedString);
+    const parsed = safeJsonParse(resultText);
+    if (!parsed) console.warn("[Fast Summary] JSON irrecuperável — usando fallback.");
+    return parsed;
   } catch (e) { 
     console.error("Erro Fast Summary:", e); 
     return null; 
@@ -2517,7 +2564,15 @@ const generateDeepAnalysis = async (text, apiKey) => {
       headers: { 
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.3 } })
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          response_mime_type: "application/json",
+          temperature: 0.3,
+          maxOutputTokens: 4096,                    // a deep gera muito mais
+          thinkingConfig: { thinkingBudget: 0 },
+        }
+      })
     });
 
     if (!res.ok) {
@@ -2529,8 +2584,9 @@ const generateDeepAnalysis = async (text, apiKey) => {
     const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!resultText) throw new Error("Resposta da IA vazia");
 
-    let cleanedString = resultText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
-    return JSON.parse(cleanedString);
+    const parsed = safeJsonParse(resultText);
+    if (!parsed) console.warn("[Deep Analysis] JSON irrecuperável.");
+    return parsed;
   } catch (e) { 
     console.error("Erro Deep Analysis:", e); 
     return null; 
@@ -11223,7 +11279,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           const proxyData = await proxyPromise;
           if (proxyData?.data?.reader?.textContent) {
               const fullText = proxyData.data.reader.textContent;
-              setReaderContent(proxyData?.reader); 
+              setReaderContent(proxyData.data.reader); 
 
               const deepResult = await generateDeepAnalysis(fullText, apiKey);
               if (deepResult) {
