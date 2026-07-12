@@ -2768,7 +2768,7 @@ ${cleanText}
       apiKey,
       schema: FAST_SUMMARY_SCHEMA,
       temperature: 0.1,
-      maxOutputTokens: 1200,
+      maxOutputTokens: 8000,
       label: "Fast Summary"
     });
 
@@ -2849,7 +2849,7 @@ ${cleanText}
       apiKey,
       schema: DEEP_ANALYSIS_SCHEMA,
       temperature: 0.2,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 9000,
       label: "Deep Analysis"
     });
 
