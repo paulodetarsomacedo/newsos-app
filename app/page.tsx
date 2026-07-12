@@ -11199,9 +11199,20 @@ const CenterNodeModal = ({ data, onClose, isDarkMode }) => (
                 <div>
                     <h4 className="font-bold mb-2 opacity-60">Principais Nós:</h4>
                     <ul className="list-none space-y-1">
-                        {data?.mindmap?.nodes?.map((node, i) => (
-                           <li key={i} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></div>{node}</li>
-                        ))}
+                        {data?.mindmap?.nodes?.map((node, i) => {
+                           // Os nós agora são OBJETOS {label, kind, relation}. Renderizar
+                           // o objeto direto quebrava o React (error #31).
+                           const label = typeof node === 'string' ? node : (node?.label || '');
+                           const relation = typeof node === 'string' ? '' : (node?.relation || '');
+                           if (!label) return null;
+                           return (
+                             <li key={i} className="flex items-center gap-2">
+                               <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></div>
+                               <span>{label}</span>
+                               {relation && <span className="opacity-50 text-[11px]">· {relation}</span>}
+                             </li>
+                           );
+                        })}
                     </ul>
                 </div>
             </div>
@@ -11216,100 +11227,118 @@ const formatExecutiveTextStatic = (text) => {
     if (!text) return "Visualização em progresso...";
     return text.split('\n\n').filter(p => p.length > 5).map((p, i) => <p key={i} className="mb-2 last:mb-0">{p}</p>);
 };
+// Normaliza o tipo do nó: a IA devolve variações ("empresa", "ferramenta",
+// "valor"...) que não batem com os 5 tipos canônicos.
+const normalizeNodeKind = (kind, label = '') => {
+  const k = String(kind || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/pessoa|personagem|individuo|autoridade|ministro|presidente/.test(k)) return 'pessoa';
+  if (/organiza|empresa|instituicao|orgao|governo|partido|ferramenta|produto|marca|tribunal/.test(k)) return 'organizacao';
+  if (/numero|valor|quantia|cifra|montante|quantidade|percentual|dado/.test(k)) return 'numero';
+  if (/local|lugar|cidade|estado|pais|regiao|endereco/.test(k)) return 'local';
+  if (/evento|acao|fato|decisao|acontecimento/.test(k)) return 'evento';
+  if (/\d/.test(String(label))) return 'numero';
+  return 'evento';
+};
 
-// ============================================================================
-// MAPA DO CASO — reescrito
-// Antes: 4 balões genéricos ("Impacto Social") ligados a um centro. Decoração
-// que fingia inteligência. Agora: entidades CONCRETAS, tipadas por ícone, com
-// o PAPEL de cada uma no caso. Liquid glass, sem cara de IA.
-// ============================================================================
-const NODE_KIND_META = {
-  pessoa:      { Icon: User,      ring: 'from-sky-400/70 to-blue-500/40',      dot: 'bg-sky-400',     tint: 'text-sky-300'   },
-  organizacao: { Icon: Building2, ring: 'from-violet-400/70 to-purple-500/40', dot: 'bg-violet-400',  tint: 'text-violet-300'},
-  numero:      { Icon: Hash,      ring: 'from-emerald-400/70 to-teal-500/40',  dot: 'bg-emerald-400', tint: 'text-emerald-300'},
-  local:       { Icon: MapPin,    ring: 'from-amber-400/70 to-orange-500/40',  dot: 'bg-amber-400',   tint: 'text-amber-300' },
-  evento:      { Icon: Zap,       ring: 'from-rose-400/70 to-pink-500/40',     dot: 'bg-rose-400',    tint: 'text-rose-300'  },
+const NODE_KIND_TINT = {
+  pessoa:      { dark: 'text-sky-300',     light: 'text-sky-600'     },
+  organizacao: { dark: 'text-violet-300',  light: 'text-violet-600'  },
+  numero:      { dark: 'text-emerald-300', light: 'text-emerald-600' },
+  local:       { dark: 'text-amber-300',   light: 'text-amber-600'   },
+  evento:      { dark: 'text-rose-300',    light: 'text-rose-600'    },
 };
 
 const ConstellationWidget = ({ mindmap, onNodeClick, onCenterClick, isDarkMode }) => {
-    if (!mindmap?.nodes?.length) return null;
+    if (!mindmap || !mindmap.nodes) return null;
+    const center = { x: 50, y: 50 };
+    const nodesPos = [{ x: 50, y: 15 }, { x: 85, y: 50 }, { x: 50, y: 85 }, { x: 15, y: 50 }];
 
     // Retrocompatível: aceita nós antigos (string) e novos (objeto tipado).
-    const nodes = mindmap.nodes.map(n =>
-        typeof n === 'string'
-            ? { label: n, kind: 'evento', relation: '' }
-            : { label: n?.label || '', kind: n?.kind || 'evento', relation: n?.relation || '' }
-    ).filter(n => n.label);
+    const nodes = mindmap.nodes.slice(0, 4).map(n => {
+        const label = typeof n === 'string' ? n : (n?.label || '');
+        const rawKind = typeof n === 'string' ? '' : (n?.kind || '');
+        return {
+            label,
+            kind: normalizeNodeKind(rawKind, label),
+            relation: typeof n === 'string' ? '' : (n?.relation || ''),
+        };
+    }).filter(n => n.label);
 
     return (
-        <div className="relative w-full select-none">
-            {/* Centro: o FATO, não o assunto */}
-            <button
-                onClick={onCenterClick}
-                className={`group relative mb-5 w-full overflow-hidden rounded-3xl border p-5 text-left backdrop-blur-2xl transition-all duration-500 ${
-                    isDarkMode
-                        ? 'border-white/10 bg-white/[0.05] hover:bg-white/[0.08]'
-                        : 'border-black/5 bg-white/70 shadow-sm hover:shadow-lg'
-                }`}
-            >
-                {/* brilho liquid glass */}
-                <div className="pointer-events-none absolute -left-1/4 -top-1/2 h-[200%] w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_-20%,rgba(129,140,248,0.18),transparent_55%)]" />
+        <div className="relative h-[360px] w-full mb-8 select-none">
+            <div className="absolute top-0 left-0 right-0 flex justify-center z-10">
+                <div className={`px-4 py-1 rounded-full border backdrop-blur-md ${isDarkMode ? 'bg-white/[0.06] border-white/10' : 'bg-white/60 border-black/5'}`}>
+                    <h3 className={`text-[9px] font-black uppercase tracking-[0.3em] ${isDarkMode ? 'text-indigo-300' : 'text-indigo-500'}`}>Mapa do Caso</h3>
+                </div>
+            </div>
 
-                <span className={`relative text-[10px] font-bold uppercase tracking-[0.16em] ${isDarkMode ? 'text-indigo-300/80' : 'text-indigo-500'}`}>
-                    O caso
-                </span>
-                <h3 className={`relative mt-1.5 text-[22px] font-black leading-tight tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                    {mindmap.center}
-                </h3>
-                <span className={`relative mt-2 inline-flex items-center gap-1 text-[11px] font-semibold ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    Toque para ver o panorama <ArrowRight size={11} />
-                </span>
-            </button>
+            <div className="absolute inset-0 top-6">
+                {/* linhas de conexão */}
+                <svg className="w-full h-full pointer-events-none absolute inset-0 z-0">
+                    {nodes.map((_, i) => (
+                        <line
+                            key={i}
+                            x1={`${center.x}%`} y1={`${center.y}%`}
+                            x2={`${nodesPos[i].x}%`} y2={`${nodesPos[i].y}%`}
+                            stroke={isDarkMode ? 'rgba(167, 139, 250, 0.35)' : 'rgba(99, 102, 241, 0.35)'}
+                            strokeWidth="1.5"
+                            strokeDasharray="3 5"
+                        />
+                    ))}
+                </svg>
 
-            {/* Os atores: cada um com tipo, papel e evidência ao clicar */}
-            <div className="grid grid-cols-2 gap-3">
+                {/* NÚCLEO — quadrado (arredondado), destacado dos nós */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group" onClick={onCenterClick}>
+                    <div className="relative">
+                        <div className="absolute inset-0 bg-indigo-500 rounded-[2rem] blur-2xl opacity-30 animate-pulse-slow" />
+                        <div className={`relative w-36 h-36 rounded-[1.75rem] flex items-center justify-center text-center p-4 shadow-2xl overflow-hidden backdrop-blur-2xl border transition-transform duration-500 group-hover:scale-[1.04] ${
+                            isDarkMode
+                                ? 'bg-gradient-to-br from-zinc-900/90 to-indigo-950/80 border-indigo-400/25'
+                                : 'bg-gradient-to-br from-white/90 to-indigo-50/90 border-indigo-300/40'
+                        }`}>
+                            {/* reflexo liquid glass */}
+                            <div className="pointer-events-none absolute -left-1/3 -top-1/2 h-[200%] w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
+                            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_-10%,rgba(139,92,246,0.28),transparent_60%)]" />
+                            <span className={`relative text-[12px] font-black uppercase leading-tight tracking-wide ${isDarkMode ? 'text-white drop-shadow-lg' : 'text-zinc-900'}`}>
+                                {mindmap.center}
+                            </span>
+                        </div>
+                        <div className="absolute inset-[-10px] border border-white/[0.07] rounded-[2rem] animate-spin-slow pointer-events-none" />
+                        <div className="absolute inset-[-20px] border border-white/[0.05] rounded-[2.25rem] animate-spin-reverse-slow pointer-events-none" />
+                    </div>
+                </div>
+
+                {/* NÓS — vidro líquido, com o papel (relation) visível */}
                 {nodes.map((node, i) => {
-                    const meta = NODE_KIND_META[node.kind] || NODE_KIND_META.evento;
-                    const { Icon } = meta;
+                    const tint = (NODE_KIND_TINT[node.kind] || NODE_KIND_TINT.evento);
                     return (
                         <button
                             key={i}
-                            onClick={() => onNodeClick(node.label, null)}
-                            className={`group relative overflow-hidden rounded-2xl border p-4 text-left backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 ${
+                            onClick={() => onNodeClick(node.label, { x: nodesPos[i].x, y: nodesPos[i].y })}
+                            className={`group absolute z-30 max-w-[168px] overflow-hidden rounded-2xl border px-4 py-3 backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:z-40 ${
                                 isDarkMode
-                                    ? 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20'
-                                    : 'border-black/5 bg-white/70 shadow-sm hover:shadow-md'
+                                    ? 'bg-white/[0.06] border-white/12 hover:bg-white/[0.11] hover:border-white/25 shadow-[0_4px_24px_rgba(0,0,0,0.35)]'
+                                    : 'bg-white/55 border-white/70 hover:bg-white/80 shadow-[0_4px_20px_rgba(31,38,135,0.10)] hover:shadow-[0_8px_28px_rgba(31,38,135,0.16)]'
                             }`}
-                            style={{ animationDelay: `${i * 60}ms` }}
+                            style={{ top: `${nodesPos[i].y}%`, left: `${nodesPos[i].x}%`, transform: 'translate(-50%, -50%)' }}
                         >
-                            {/* aro de cor por tipo */}
-                            <div className={`pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r ${meta.ring}`} />
+                            {/* reflexo de vidro que varre no hover */}
+                            <div className="pointer-events-none absolute -left-1/2 -top-1/2 h-[200%] w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
 
-                            <div className="flex items-center gap-2">
-                                <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${
-                                    isDarkMode ? 'bg-white/[0.06]' : 'bg-zinc-100'
-                                }`}>
-                                    <Icon size={13} className={isDarkMode ? meta.tint : 'text-zinc-600'} />
+                            {node.relation && (
+                                <span className={`relative block text-center text-[8px] font-bold uppercase tracking-wider ${isDarkMode ? tint.dark : tint.light} opacity-80`}>
+                                    {node.relation}
                                 </span>
-                                {node.relation && (
-                                    <span className={`truncate text-[10px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                                        {node.relation}
-                                    </span>
-                                )}
-                            </div>
-
-                            <p className={`mt-2.5 text-[15px] font-bold leading-tight ${isDarkMode ? 'text-zinc-50' : 'text-zinc-900'}`}>
+                            )}
+                            <span className={`relative mt-0.5 block text-center text-[11px] font-bold leading-tight ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>
                                 {node.label}
-                            </p>
-
-                            <span className={`mt-2 inline-flex items-center gap-1 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                                Ver evidência <ArrowRight size={10} />
                             </span>
                         </button>
                     );
                 })}
             </div>
+
+            <style jsx="true">{`@keyframes spin-slow { to { transform: rotate(360deg); } } .animate-spin-slow { animation: spin-slow 20s linear infinite; } .animate-spin-reverse-slow { animation: spin-slow 25s linear infinite reverse; } .animate-pulse-slow { animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite; }`}</style>
         </div>
     );
 };
