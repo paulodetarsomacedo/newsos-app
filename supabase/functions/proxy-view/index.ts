@@ -1,5 +1,5 @@
 // ARQUIVO: supabase/functions/proxy-view/index.ts
-// Vetra — proxy de leitura com cache curto, modo lite/full e Readability.
+// Vetra — proxy de leitura completa com headers de navegador, timeout, charset BR e Readability.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
@@ -11,35 +11,20 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 12000;
 const MAX_HTML_BYTES = 2_500_000;
-const LITE_CONTEXT_MAX = 4_000;
-const CACHE_TTL_LITE = 5 * 60 * 1000;
-const CACHE_TTL_FULL = 10 * 60 * 1000;
-const MAX_CACHE_ITEMS = 80;
 
-const memoryCache = new Map<string, { expiresAt: number; payload: Record<string, unknown> }>();
-
-function jsonResponse(body: Record<string, unknown>, status = 200, extraHeaders: Record<string, string> = {}): Response {
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      ...extraHeaders,
-    },
+    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
   });
 }
 
 function normalizeUrl(input: string): string {
   const value = String(input || "").trim();
   if (!value) throw new Error("URL required");
-  const normalized = /^https?:\/\//i.test(value) ? value : `https://${value}`;
-  const url = new URL(normalized);
-  ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "fbclid"].forEach((key) => url.searchParams.delete(key));
-  url.hash = "";
-  return url.toString();
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
 }
 
 function withTimeoutSignal(ms: number): AbortSignal {
@@ -67,6 +52,8 @@ function stripDangerousNodes(doc: any): void {
   nodes.forEach((node: any) => node.remove());
 }
 
+// --- Vetra proxy-view LITE: contexto curto sem Readability (aditivo) ---
+const LITE_CONTEXT_MAX = 1400;
 function liteStripTags(input: any, max = 1400) {
   return String(input || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -74,34 +61,20 @@ function liteStripTags(input: any, max = 1400) {
     .replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&apos;/g,"'").replace(/&nbsp;/g," ").replace(/&amp;/g,"&")
     .replace(/\s+/g, " ").trim().slice(0, max);
 }
-
-function liteFirstMatch(re: RegExp, s: any) {
-  const m = String(s || "").match(re);
-  return m ? m[1] : "";
-}
-
+function liteFirstMatch(re: RegExp, s: any) { const m = String(s || "").match(re); return m ? m[1] : ""; }
 function liteAbsolutize(candidate: any, base: any) {
-  const c = String(candidate || "").trim();
-  if (!c) return null;
+  const c = String(candidate || "").trim(); if (!c) return null;
   if (/^https?:\/\//i.test(c)) return c;
   if (c.startsWith("//")) return "https:" + c;
   try { return new URL(c, base).href; } catch { return null; }
 }
-
 function liteStableHash(str: any) {
-  let h1 = 0x811c9dc5, h2 = 0x1000193 >>> 0;
-  const s = String(str || "");
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    h1 ^= c;
-    h1 = Math.imul(h1, 0x01000193);
-    h2 = Math.imul(h2 ^ c, 0x85ebca6b);
-  }
+  let h1 = 0x811c9dc5, h2 = 0x1000193 >>> 0; const s = String(str || "");
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 ^= c; h1 = Math.imul(h1, 0x01000193); h2 = Math.imul(h2 ^ c, 0x85ebca6b); }
   return (h1 >>> 0).toString(16).padStart(8, "0") + (h2 >>> 0).toString(16).padStart(8, "0");
 }
-
 function extractLiteContext(html: any, doc: any, finalUrl: any) {
-  const head = String(html || "").slice(0, 350000);
+  const head = String(html || "").slice(0, 300000);
   const canonicalRaw = liteFirstMatch(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i, head)
     || liteFirstMatch(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i, head);
   const canonicalUrl = liteAbsolutize(canonicalRaw, finalUrl) || finalUrl;
@@ -113,96 +86,57 @@ function extractLiteContext(html: any, doc: any, finalUrl: any) {
   const publishedTime = liteFirstMatch(/<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']*)["']/i, head) || liteFirstMatch(/<time[^>]+datetime=["']([^"']+)["']/i, head);
   const siteName = liteStripTags(liteFirstMatch(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']*)["']/i, head), 120);
   const image = liteAbsolutize(liteFirstMatch(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i, head) || liteFirstMatch(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i, head), finalUrl);
-
   let jsonLdDescription = "";
   const scripts = head.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
   for (const script of scripts) {
     const raw = script.replace(/^[\s\S]*?>/, "").replace(/<\/script>$/i, "").trim();
     try {
-      const parsed = JSON.parse(raw);
-      const list = Array.isArray(parsed) ? parsed : [parsed];
-      const stack = [...list];
-      while (stack.length) {
-        const node: any = stack.shift();
-        if (!node || typeof node !== "object") continue;
+      const parsed = JSON.parse(raw); const list = Array.isArray(parsed) ? parsed : [parsed]; const stack = [...list];
+      while (stack.length) { const node: any = stack.shift(); if (!node || typeof node !== "object") continue;
         const desc = node.description || node.articleBody || node.abstract;
         if (typeof desc === "string" && desc.length > jsonLdDescription.length) jsonLdDescription = desc;
-        const graph = node["@graph"];
-        if (graph) stack.push(...(Array.isArray(graph) ? graph : [graph]));
-      }
-    } catch { /* JSON-LD quebrado não impede o restante */ }
+        const graph = node["@graph"]; if (graph) stack.push(...(Array.isArray(graph) ? graph : [graph])); }
+    } catch (_e) {}
     if (jsonLdDescription) break;
   }
   jsonLdDescription = liteStripTags(jsonLdDescription, LITE_CONTEXT_MAX);
-
-  const topParagraphs: string[] = [];
-  let firstParagraph = "";
+  const topParagraphs: string[] = []; let firstParagraph = "";
   try {
     const container = doc.querySelector("article") || doc.querySelector("main") || doc.body || doc;
     for (const p of Array.from(container?.querySelectorAll?.("p") || [])) {
-      const t = liteStripTags((p as any).textContent, 850);
-      if (t && t.length >= 60) {
-        if (!firstParagraph) firstParagraph = t;
-        if (topParagraphs.length < 8) topParagraphs.push(t);
-      }
-      if (topParagraphs.length >= 8) break;
+      const t = liteStripTags((p as any).textContent, 600);
+      if (t && t.length >= 60) { if (!firstParagraph) firstParagraph = t; if (topParagraphs.length < 6) topParagraphs.push(t); }
+      if (topParagraphs.length >= 6) break;
     }
-  } catch { /* segue com metadados */ }
-
-  const parts = [jsonLdDescription, ogDescription, metaDescription, ...topParagraphs, firstParagraph].filter(Boolean);
+  } catch (_e) {}
+  const parts = [jsonLdDescription, ogDescription, metaDescription, firstParagraph].filter(Boolean);
   let contextText = "";
-  for (const part of parts) {
-    if (contextText.length >= LITE_CONTEXT_MAX) break;
-    if (!contextText.includes(String(part).slice(0, 70))) contextText += (contextText ? " " : "") + part;
-  }
+  for (const part of parts) { if (contextText.length >= LITE_CONTEXT_MAX) break; if (!contextText.includes(part.slice(0, 60))) contextText += (contextText ? " " : "") + part; }
   contextText = contextText.slice(0, LITE_CONTEXT_MAX).replace(/\s+\S*$/, "").trim();
-  const contentHash = "v2_" + liteStableHash([String(canonicalUrl).split(/[?#]/)[0], title, publishedTime, contextText.slice(0, 400)].join("|"));
-
+  const contentHash = "v1_" + liteStableHash([String(canonicalUrl).split(/[?#]/)[0], title, publishedTime, contextText.slice(0, 200)].join("|"));
   return { canonicalUrl, title, metaDescription, ogDescription, jsonLdDescription, firstParagraph, topParagraphs, contextText, contentHash, siteName, author, publishedTime, section, image };
-}
-
-function getCached(key: string) {
-  const entry = memoryCache.get(key);
-  if (!entry) return null;
-  if (entry.expiresAt < Date.now()) {
-    memoryCache.delete(key);
-    return null;
-  }
-  return entry.payload;
-}
-
-function setCached(key: string, payload: Record<string, unknown>, ttl: number) {
-  if (memoryCache.size >= MAX_CACHE_ITEMS) {
-    const oldest = memoryCache.keys().next().value;
-    if (oldest) memoryCache.delete(oldest);
-  }
-  memoryCache.set(key, { expiresAt: Date.now() + ttl, payload });
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
-  const startedAt = performance.now();
   try {
     const { url, mode } = await req.json().catch(() => ({}));
     const targetUrl = normalizeUrl(url);
     const liteMode = String(mode || "").toLowerCase() === "lite";
-    const cacheKey = `${liteMode ? "lite" : "full"}:${targetUrl}`;
-    const cached = getCached(cacheKey);
-    if (cached) {
-      return jsonResponse({ ...cached, cache: "hit" }, 200, { "Server-Timing": `total;dur=${(performance.now() - startedAt).toFixed(1)}` });
-    }
 
     const response = await fetch(targetUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36 VetraReader/2.0",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36 VetraReader/1.0",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
         "Upgrade-Insecure-Requests": "1",
       },
       redirect: "follow",
-      signal: withTimeoutSignal(liteMode ? 6000 : TIMEOUT_MS),
+      signal: withTimeoutSignal(liteMode ? Math.min(TIMEOUT_MS, 6000) : TIMEOUT_MS),
     });
 
     if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
@@ -218,23 +152,17 @@ serve(async (req) => {
     const doc = new DOMParser().parseFromString(html, "text/html");
     if (!doc) throw new Error("Falha ao fazer parse do HTML");
 
-    const finalUrl = response.url || targetUrl;
-    const context = extractLiteContext(html, doc, finalUrl);
-
     if (liteMode) {
-      const payload = { finalUrl, mode: "lite", context };
-      setCached(cacheKey, payload, CACHE_TTL_LITE);
-      return jsonResponse({ ...payload, cache: "miss" }, 200, { "Server-Timing": `total;dur=${(performance.now() - startedAt).toFixed(1)}` });
+      const context = extractLiteContext(html, doc, response.url || targetUrl);
+      return jsonResponse({ finalUrl: response.url || targetUrl, mode: "lite", context });
     }
 
     stripDangerousNodes(doc);
-    const reader = new Readability(doc, { charThreshold: 260 }).parse();
+    const reader = new Readability(doc, { charThreshold: 300 }).parse();
     if (!reader || !reader.textContent) throw new Error("Readability não conseguiu extrair conteúdo principal");
 
-    const payload = {
-      finalUrl,
-      mode: "full",
-      context,
+    return jsonResponse({
+      finalUrl: response.url || targetUrl,
       reader: {
         title: reader.title,
         content: reader.content,
@@ -243,12 +171,10 @@ serve(async (req) => {
         siteName: reader.siteName,
         length: reader.length,
       },
-    };
-    setCached(cacheKey, payload, CACHE_TTL_FULL);
-    return jsonResponse({ ...payload, cache: "miss" }, 200, { "Server-Timing": `total;dur=${(performance.now() - startedAt).toFixed(1)}` });
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido no proxy";
     console.error("proxy-view error:", message);
-    return jsonResponse({ error: message }, 500, { "Server-Timing": `total;dur=${(performance.now() - startedAt).toFixed(1)}` });
+    return jsonResponse({ error: message }, 500);
   }
 });
