@@ -2339,7 +2339,7 @@ const generateBriefingFallback = async (news, apiKey) => {
     `;
 
     try {
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {            body: JSON.stringify({
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {            body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: { response_mime_type: "application/json" }
             })
@@ -2380,7 +2380,7 @@ const generateNeutralSummaryForCluster = async (articles, apiKey) => {
     `;
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2419,7 +2419,7 @@ const generateTimelineForCluster = async (articles, apiKey) => {
     `;
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json" } })
@@ -2437,8 +2437,7 @@ const generateTimelineForCluster = async (articles, apiKey) => {
     }
 };
 
-
-// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Retorna em ~1.5s) ---
+// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Chave na URL) ---
 const generateFastSummary = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 7000);
@@ -2463,17 +2462,33 @@ const generateFastSummary = async (text, apiKey) => {
   `;
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+    // Restaurado o ?key= na URL para funcionar 100% no navegador
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
+      method: "POST", 
+      headers: { 
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.2 } })
     });
+
+    if (!res.ok) {
+      console.warn(`[Fast Summary] Gemini retornou erro ${res.status}. Usando fallback local.`);
+      return null;
+    }
+
     const data = await res.json();
-    let cleanedString = data.candidates?.[0]?.content?.parts?.[0]?.text.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
+    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!resultText) throw new Error("Resposta da IA vazia");
+
+    let cleanedString = resultText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
     return JSON.parse(cleanedString);
-  } catch (e) { console.error("Erro Fast Summary:", e); return null; }
+  } catch (e) { 
+    console.error("Erro Fast Summary:", e); 
+    return null; 
+  }
 };
 
-// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Background) ---
+// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Chave na URL) ---
 const generateDeepAnalysis = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
   const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
@@ -2496,16 +2511,31 @@ const generateDeepAnalysis = async (text, apiKey) => {
   `;
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+    // Restaurado o ?key= na URL para funcionar 100% no navegador
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
+      method: "POST", 
+      headers: { 
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.3 } })
     });
-    const data = await res.json();
-    let cleanedString = data.candidates?.[0]?.content?.parts?.[0]?.text.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
-    return JSON.parse(cleanedString);
-  } catch (e) { console.error("Erro Deep Analysis:", e); return null; }
-};
 
+    if (!res.ok) {
+      console.warn(`[Deep Analysis] Gemini retornou erro ${res.status}.`);
+      return null;
+    }
+
+    const data = await res.json();
+    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!resultText) throw new Error("Resposta da IA vazia");
+
+    let cleanedString = resultText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
+    return JSON.parse(cleanedString);
+  } catch (e) { 
+    console.error("Erro Deep Analysis:", e); 
+    return null; 
+  }
+};
 
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODELO 2.5 FLASH) ---
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V3 - 4 CARDS + TEXTO FLUÍDO) ---
@@ -2546,7 +2576,7 @@ RETORNE APENAS JSON:
   `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
       method: "POST", 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3105,7 +3135,7 @@ const generateNewsContext = async (fullText, apiKey) => {
   try {
     // CORREÇÃO 1: Atualizado para gemini-2.5-flash
     // CORREÇÃO 2: Garantido method: "POST"
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3167,7 +3197,7 @@ const generateBriefing = async (news, apiKey) => {
 
   try {
     // ATUALIZADO PARA gemini-2.5-flash
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3301,7 +3331,7 @@ ${context}
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3500,9 +3530,9 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
 
         {/* RODAPÉ responsivo: flex-wrap e botões flexíveis */}
         <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-white/50 dark:border-white/10 flex flex-wrap sm:flex-nowrap gap-3 w-full">
-          <button onClick={openOriginal} className="flex-1 min-w-[120px] h-12 rounded-xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 dark:hover:bg-white/10 transition whitespace-nowrap"><ExternalLink size={16} /> <span className="hidden min-[400px]:inline">Ler no site</span><span className="inline min-[400px]:hidden">Site</span></button>
-          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 min-w-[120px] h-12 rounded-xl liquid-button text-[13px] font-semibold flex items-center justify-center gap-2 whitespace-nowrap"><Sparkles size={16} /> Análise IA</button>
-          <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat', openWhatsAppPanel: true }); }} className="flex-1 min-w-[120px] h-12 rounded-xl vetra-whatsapp-glass-button text-[13px] font-bold flex items-center justify-center gap-2 whitespace-nowrap"><WhatsAppGlyph className="w-5 h-5" /> Chat</button>
+          <button onClick={openOriginal} className="flex-1 min-w-[120px] h-12 rounded-2xl bg-white/60 dark:bg-white/5 border border-white/70 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-[17px] font-semibold flex items-center justify-center gap-2 hover:bg-white/80 dark:hover:bg-white/10 transition whitespace-nowrap"><ExternalLink size={16} /> <span className="hidden min-[400px]:inline">Ler no site</span><span className="inline min-[400px]:hidden">Site</span></button>
+          <button onClick={() => { if (onAnalyze) onAnalyze(article); }} className="flex-1 min-w-[120px] h-12 rounded-2xl liquid-button text-[17px] font-semibold flex items-center justify-center gap-2 whitespace-nowrap"><Sparkles size={16} /> Análise IA</button>
+          <button onClick={() => { if (onAnalyze) onAnalyze(article, { initialViewMode: 'chat', openWhatsAppPanel: true }); }} className="flex-1 min-w-[120px] h-12 rounded-2xl vetra-whatsapp-glass-button text-[17px] font-bold flex items-center justify-center gap-2 whitespace-nowrap"><WhatsAppGlyph className="w-5 h-5" /> Chat</button>
         </div>
       </div>
     </>
@@ -4458,7 +4488,7 @@ function ClusterCaseModal({ cluster, onClose, openArticle, getApiKey, isDarkMode
     setAiLoading(true);
     try {
       const context = articles.slice(0, 12).map((a, i) => `${i + 1}. ${a.source}: ${a.title}`).join('\n');
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: `Analise este cluster de notícias em português. Retorne JSON estrito com headline e 4 bullets objetivos.\n${context}` }] }],
@@ -7378,7 +7408,7 @@ const askGeminiWithContext = async (question, contextResults, apiKey) => {
     `;
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -8371,13 +8401,18 @@ export default function NewsOS_V12() {
   const [isDarkMode, setIsDarkMode] = useState(false); 
 // --- ESTADO DE CHAVES (ARQUITETURA DE POOLS) ---
 const [apiKeys, setApiKeys] = useState([
-    // Pool 1: Widgets (Leve) - Agora com 6 chaves
+    // Pool 1: Widgets (Leve) - Agora com 11 chaves (também serve os Clusters)
     { id: 1, value: '', type: 'free_widget' },
     { id: 2, value: '', type: 'free_widget' },
     { id: 3, value: '', type: 'free_widget' },
     { id: 4, value: '', type: 'free_widget' },
     { id: 14, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
     { id: 16, value: '', type: 'free_widget' }, // <<-- NOVA CHAVE
+    { id: 19, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 20, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 21, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 22, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 23, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
     
     // Legado / Backup
     { id: 5, value: '', type: 'legacy_text' },
@@ -9005,6 +9040,11 @@ const handleStoryNavigation = (direction) => {
                                 { id: 4, value: '', type: 'free_widget' },
                                 { id: 14, value: '', type: 'free_widget' },
                                 { id: 16, value: '', type: 'free_widget' },
+                                { id: 19, value: '', type: 'free_widget' },
+                                { id: 20, value: '', type: 'free_widget' },
+                                { id: 21, value: '', type: 'free_widget' },
+                                { id: 22, value: '', type: 'free_widget' },
+                                { id: 23, value: '', type: 'free_widget' },
                                 { id: 5, value: '', type: 'legacy_text' },
                                 { id: 6, value: '', type: 'legacy_audio' },
                                 { id: 7, value: '', type: 'heavy_rotation' },
@@ -9666,7 +9706,7 @@ const handleOpenArticle = async (article, options = {}) => {
 
     // 4. SITES DE TEXTO (UOL, ETC) -> CAPACITOR BROWSER
     // Mantém a leitura de sites pesados no modo leitura nativo
-    const blockedDomains = ['uol.com.br', 'investing.com', 'nytimes.com'];
+    const blockedDomains = [];
     if (blockedDomains.some(d => url.includes(d))) {
         await Browser.open({
             url,
@@ -9877,19 +9917,19 @@ const handlePlayAudio = async (article) => {
   // ALTERAÇÃO 1: LÓGICA DE "CONGELAMENTO" E GATILHO
   // ==========================================================
   
-  // A chave de análise para o painel lateral. Esta lógica está CORRETA e deve ser mantida.
+  // A chave de análise para o painel lateral memorizada
   const analysisApiKey = useMemo(() => {
-      // Se não houver artigo selecionado, não faz sentido pegar uma chave.
       if (!selectedArticle) return null;
-
-      // A função é chamada aqui dentro, mas não está no array de dependências.
-      // Isso é seguro porque a lógica de pegar a chave só precisa rodar
-      // quando o artigo MUDA, e isso é garantido pela dependência [selectedArticle?.id].
-      console.log(`useMemo: EXECUTANDO ROTAÇÃO para o artigo ID: ${selectedArticle.id}`);
+      console.log(`useMemo: EXECUTANDO ROTAÇÃO HEAVY para o artigo ID: ${selectedArticle.id}`);
       return getApiKey('analysis');
-  
-  // A ÚNICA DEPENDÊNCIA AGORA É O ID DO ARTIGO.
-  }, [selectedArticle?.id]);
+  }, [selectedArticle?.id, getApiKey]);
+
+  // A chave rápida (Fast) memorizada para a Chamada 1 (EVITA LOOP INFINITO)
+  const fastApiKey = useMemo(() => {
+      if (!selectedArticle) return null;
+      console.log(`useMemo: EXECUTANDO ROTAÇÃO WIDGETS para o artigo ID: ${selectedArticle.id}`);
+      return getApiKey('widgets');
+  }, [selectedArticle?.id, getApiKey]);
 // 2. Esta lista é para a NAVEGAÇÃO. Ela contém TODOS os stories, sem filtro.
 const allAvailableStories = useMemo(() => {
     if (!realNews || realNews.length === 0) return [];
@@ -10176,7 +10216,7 @@ return (
                             onClose={() => closeArticle()}
                             onToggleSave={handleToggleSave}
                             isSaved={savedItems.some(i => i.id === selectedArticle?.id)}
-                            fastApiKey={getApiKey('widgets')}
+                            fastApiKey={fastApiKey}
                             apiKey={analysisApiKey} 
                             getChatApiKey={getChatApiKey}
                             isDarkMode={isDarkMode}
@@ -10866,7 +10906,6 @@ const VERCEL_URL = "https://newsos-app2.vercel.app";
 const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   if (!apiKey) return "Desculpe, a conexão com a IA não está configurada.";
 
-  // BLINDAGEM CONTRA CRASH: Substitui o findLast que quebra em iPhones antigos
   const userMsgs = chatHistory.filter(m => m.from === 'user');
   const userQuestion = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].text : null;
   
@@ -10876,29 +10915,25 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
 
   const prompt = `
   Você é um Assistente de Pesquisa especialista e amigável, conversando dentro de uma interface de chat.
-
-  CONTEXTO PRINCIPAL (A notícia que o usuário está lendo):
+  CONTEXTO PRINCIPAL:
   ---
   ${articleText.slice(0, 4000)}
   ---
-  
-  HISTÓRICO DA CONVERSA ATÉ AGORA:
+  HISTÓRICO DA CONVERSA:
   ---
   ${formattedHistory}
   ---
-
   SUA TAREFA:
-  Continue a conversa respondendo à última pergunta do "Usuário" de forma natural e conversacional.
-  - Utilize o CONTEXTO PRINCIPAL para responder sobre fatos da notícia.
-  - Mantenha as respostas curtas e diretas (1-3 frases).
-  - AJA COMO UMA PESSOA, NÃO COMO UM ROBÔ.
-  - Não repita a pergunta. Apenas dê a resposta.
+  Responda à última pergunta do "Usuário" de forma natural, curta e direta (1-3 frases).
   `;
 
   try {
+    // Restaurado o ?key= na URL
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
     const data = await response.json();
@@ -10907,7 +10942,6 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
     return "Houve um problema ao conectar com a IA.";
   }
 };
-
 
 
 // --- SKELETON PREMIUM DA ANÁLISE IA ---
@@ -11411,7 +11445,7 @@ return (
               {activeTabSection === 'overview' && (
                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500">
                     <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-                       <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-2 block">TL;DR</span>
+                       <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-2 block"></span>
                        <p className={`text-[15px] font-black leading-relaxed mb-4 ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
                            {aiFastData?.tldr || article.summary}
                        </p>
@@ -12145,7 +12179,7 @@ const handleKeyChange = (targetId, newValue) => {
 <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/5' : 'bg-zinc-50 border-zinc-200'}`}>
    <div className="flex items-center gap-2 mb-3">
        <Activity size={14} className="text-blue-500"/>
-       <h3 className="text-sm font-bold">Pool 1: Widgets (Leve)</h3>
+       <h3 className="text-sm font-bold">Pool 1: Widgets + Clusters (Leve)</h3>
    </div>
    <div className="space-y-2">
        {apiKeys.filter(k => k.type === 'free_widget').map((key) => (

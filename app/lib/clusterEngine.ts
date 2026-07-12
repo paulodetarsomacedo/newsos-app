@@ -12,6 +12,7 @@
 import * as stringSimilarity from 'string-similarity';
 import { normalizeTerm, getCanonicalTerms, getDomainHints } from './semanticDictionary';
 import { detectEventType } from './articleSummaryEngine';
+import { countCoverage, formatCoverageLabel } from './editorialGroups';
 
 // ------------------------------------------------------------
 // Configuração (sobrepor via options se quiser)
@@ -51,7 +52,7 @@ const stripHtml = (s: any): string =>
   String(s ?? '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
 
 const toDateMs = (a: any): number => {
-  const candidates = [a?.publishedAt, a?.rawDate, a?.historicalTimestamp];
+  const candidates = [a?.publishedAt, a?.rawDate, a?.historicalTimestamp, a?.published_at, a?.pubDate, a?.date];
   for (const c of candidates) {
     if (c == null) continue;
     const t = typeof c === 'number' ? c : new Date(c).getTime();
@@ -299,6 +300,7 @@ const buildTimeline = (items: NormalizedArticle[]) => {
 // Resumo heurístico do cluster
 // ------------------------------------------------------------
 const buildClusterSummary = (items: NormalizedArticle[], rep: NormalizedArticle, sourceCount: number): string => {
+  // sourceCount aqui = número de GRUPOS editoriais independentes (não veículos).
   const windowMs = Math.max(...items.map(i => i._timeMs)) - Math.min(...items.map(i => i._timeMs));
   const windowMinutes = Math.max(1, Math.round(windowMs / 60000));
   const windowLabel = windowMinutes < 60
@@ -317,12 +319,29 @@ const buildClusterSummary = (items: NormalizedArticle[], rep: NormalizedArticle,
     .sort((x, y) => counts[y] - counts[x])
     .slice(0, 3);
 
-  const base = `${sourceCount} fonte${sourceCount > 1 ? 's' : ''} ${sourceCount > 1 ? 'cobrem' : 'cobre'} o assunto ${windowLabel}.`;
-  if (common.length > 0) {
-    return `${base} O ponto comum é ${common[0]}, com foco em ${common.slice(0, 3).join(', ')}.`;
+  // (C1) O resumo do card NÃO despeja termos normalizados ("stf, apreensao,
+  // vorcaro" — minúsculos, sem acento, ilegíveis). Usa a frase real da matéria
+  // representativa + a contagem honesta de veículos/grupos.
+  const first = (rep.snippet || rep.title || '').trim();
+  const lead = firstCleanSentence(first, 180);
+
+  const base = `${sourceCount} ${sourceCount > 1 ? 'veículos cobrem' : 'veículo cobre'} o caso ${windowLabel}.`;
+  return lead ? `${lead} ${base}` : base;
+};
+
+// Primeira frase limpa, cortada em fronteira de palavra.
+const firstCleanSentence = (text: string, max = 180): string => {
+  const t = String(text || '').replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  const sentences = t.split(/(?<=[.!?])\s+(?=[A-ZÀ-Ú0-9"])/);
+  let out = (sentences[0] || t).trim();
+  if (out.length > max) {
+    const slice = out.slice(0, max);
+    const cut = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf(', '), slice.lastIndexOf(' '));
+    out = (cut > max * 0.5 ? slice.slice(0, cut) : slice).trim() + '…';
   }
-  const fallbackSnippet = rep.snippet || rep.title;
-  return `${base} ${fallbackSnippet}`;
+  if (!/[.!?…]$/.test(out)) out += '.';
+  return out;
 };
 
 // ------------------------------------------------------------
@@ -351,25 +370,40 @@ export const generateSmartHeuristicClusters = (articles: any[], options: Cluster
     const perSource = new Map<string, number>([[seedArt.source, 1]]);
     used.add(seedArt.id);
 
-    for (let j = i + 1; j < normalized.length; j++) {
-      const cand = normalized[j];
-      if (used.has(cand.id)) continue;
+    // (C1) Varre repetidamente até o cluster estabilizar: um candidato rejeitado
+    // quando o cluster era pequeno pode passar depois que ele cresce (o max-linkage
+    // ganha novos membros para comparar). Sem isso, a ordem do feed definia o
+    // resultado — e matérias do mesmo caso ficavam de fora.
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (let j = i + 1; j < normalized.length; j++) {
+        const cand = normalized[j];
+        if (used.has(cand.id)) continue;
 
-      const score = computePairScore(seedArt, cand, cfg.weights);
-      const sameSource = perSource.has(cand.source);
+        // MAX-LINKAGE: compara com o membro MAIS PRÓXIMO do cluster, não só a semente.
+        let score = -Infinity;
+        let bestMember = seedArt;
+        for (const member of items) {
+          const s = computePairScore(member, cand, cfg.weights);
+          if (s > score) { score = s; bestMember = member; }
+        }
+        const sameSource = perSource.has(cand.source);
 
-      if (sameSource) {
-        const titleSim = stringSimilarity.compareTwoStrings(seedArt.cleanTitle, cand.cleanTitle);
-        if (titleSim >= cfg.duplicateTitleSim) { used.add(cand.id); continue; } // duplicata: consome, não infla
-        if ((perSource.get(cand.source) || 0) >= cfg.maxPerSourceInCluster) continue;
-        if (score < cfg.sameSourceThreshold) continue;
-      } else if (score < cfg.scoreThreshold) {
-        continue;
+        if (sameSource) {
+          const titleSim = stringSimilarity.compareTwoStrings(bestMember.cleanTitle, cand.cleanTitle);
+          if (titleSim >= cfg.duplicateTitleSim) { used.add(cand.id); continue; } // duplicata: consome, não infla
+          if ((perSource.get(cand.source) || 0) >= cfg.maxPerSourceInCluster) continue;
+          if (score < cfg.sameSourceThreshold) continue;
+        } else if (score < cfg.scoreThreshold) {
+          continue;
+        }
+
+        items.push(cand);
+        perSource.set(cand.source, (perSource.get(cand.source) || 0) + 1);
+        used.add(cand.id);
+        grew = true;   // cluster cresceu → revarre, pode atrair mais
       }
-
-      items.push(cand);
-      perSource.set(cand.source, (perSource.get(cand.source) || 0) + 1);
-      used.add(cand.id);
     }
 
     if (items.length > 1) potential.push({ items, perSource });
@@ -424,11 +458,16 @@ export const generateSmartHeuristicClusters = (articles: any[], options: Cluster
 
     const confidence = Math.min(1, (cluster.sourceCount / 4) * 0.6 + Math.min(1, cluster.items.length / 6) * 0.4);
 
+    // (C1) Contagem HONESTA: separa publicações, veículos e GRUPOS editoriais
+    // independentes. G1 + O Globo + Valor = 3 veículos, mas 1 grupo — não são
+    // três confirmações independentes.
+    const coverage = countCoverage(cluster.items.map(a => ({ source: a.source })));
+
     return {
       // --- shape esperado pela UI atual (inalterado) ---
       clusterId: `smart-${simpleHash(sortedItems.map(a => a.fingerprint).join('|'))}`,
       ai_title: rep.title,
-      ai_summary: buildClusterSummary(cluster.items, rep, cluster.sourceCount),
+      ai_summary: buildClusterSummary(cluster.items, rep, coverage.groups),
       representative_image: repImage.img,
       related_articles: relatedArticles,
       keyEntities,
@@ -438,6 +477,8 @@ export const generateSmartHeuristicClusters = (articles: any[], options: Cluster
       temperature: computeTemperature(cluster.items, cluster.sourceCount),
       confidence: Number(confidence.toFixed(2)),
       source_count: cluster.sourceCount,
+      coverage,                       // ← publications / outlets / groups / byGroup
+      coverage_label: formatCoverageLabel(coverage),
       topic_words: topicWords,
       entities: keyEntities,
       top_snippets: topSnippets,
