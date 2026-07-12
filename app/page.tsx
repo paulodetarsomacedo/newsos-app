@@ -2811,7 +2811,7 @@ Analise exclusivamente o texto fornecido e responda em português do Brasil.
 Regras obrigatórias:
 - Não invente fatos, datas ou citações.
 - O executivo deve ter dois ou três parágrafos curtos e densos.
-- O mapa deve ter um centro curto e exatamente três nós.
+- O mapa deve ter um centro curto e exatamente quatro nós.
 - A linha do tempo deve usar somente eventos sustentados pelo texto e no máximo cinco itens.
 - A análise de viés deve separar tom, enquadramento e possíveis omissões sem acusação gratuita.
 - O ELI5 deve ser curto e pedagógico.
@@ -11368,43 +11368,146 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
 const VERCEL_URL = "https://newsos-app2.vercel.app"; 
 
 // --- FUNÇÃO DE IA HÍBRIDA (Compatível com Web e iPad) ---
+// --- CHAT IA ULTRA-RÁPIDO: resposta curta, timeout, cache e payload pequeno ---
+const CHAT_RESPONSE_CACHE = new Map();
+
+const normalizeChatCacheKey = (text = "") =>
+  String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 260);
+
+const createChatTimeoutSignal = (ms = 6500) => {
+  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+    return AbortSignal.timeout(ms);
+  }
+
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+};
+
+const compactChatText = (text = "", max = 1600) => {
+  return String(text || "")
+    .replace(/<[^>]*>?/gm, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+};
+
+const quickLocalChatAnswer = (chatHistory, articleText) => {
+  const userMsgs = chatHistory.filter((m) => m.from === "user");
+  const question = safeLower(userMsgs[userMsgs.length - 1]?.text || "");
+  const context = compactChatText(articleText, 900);
+
+  if (!context) return null;
+
+  if (
+    /\b(resuma|resumo|1 frase|uma frase|em uma frase|em 1 frase|tl;?dr)\b/i.test(question)
+  ) {
+    const firstSentence =
+      context.match(/[^.!?…]{40,220}[.!?…]/)?.[0] ||
+      context.slice(0, 220).trim();
+
+    return firstSentence
+      ? firstSentence.replace(/\s+/g, " ").trim()
+      : null;
+  }
+
+  return null;
+};
+
 const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   if (!apiKey) return "Desculpe, a conexão com a IA não está configurada.";
 
-  const userMsgs = chatHistory.filter(m => m.from === 'user');
-  const userQuestion = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].text : null;
-  
-  if (!userQuestion) return "Não entendi sua pergunta.";
+  const userMsgs = chatHistory.filter((m) => m.from === "user");
+  const userQuestion = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].text : "";
 
-  const formattedHistory = chatHistory.map(m => `${m.from === 'user' ? 'Usuário' : 'Assistente'}: ${m.text}`).join('\n');
+  if (!userQuestion?.trim()) return "Não entendi sua pergunta.";
+
+  // Resposta instantânea local para perguntas simples
+  const instant = quickLocalChatAnswer(chatHistory, articleText);
+  if (instant) return instant;
+
+  const compactContext = compactChatText(articleText, 1500);
+  const compactHistory = chatHistory
+    .slice(-3)
+    .map((m) => `${m.from === "user" ? "Usuário" : "Assistente"}: ${String(m.text || "").slice(0, 420)}`)
+    .join("\n");
+
+  const cacheKey = normalizeChatCacheKey(`${userQuestion}::${compactContext.slice(0, 500)}`);
+  if (CHAT_RESPONSE_CACHE.has(cacheKey)) {
+    return CHAT_RESPONSE_CACHE.get(cacheKey);
+  }
 
   const prompt = `
-  Você é um Assistente de Pesquisa especialista e amigável, conversando dentro de uma interface de chat.
-  CONTEXTO PRINCIPAL:
-  ---
-  ${articleText.slice(0, 4000)}
-  ---
-  HISTÓRICO DA CONVERSA:
-  ---
-  ${formattedHistory}
-  ---
-  SUA TAREFA:
-  Responda à última pergunta do "Usuário" de forma natural, curta e direta (1-3 frases).
-  `;
+Você é o chat rápido do Vetra dentro de uma matéria jornalística.
+
+REGRAS:
+- Responda em português do Brasil.
+- Seja direto, natural e curto.
+- Use 1 a 3 frases.
+- Não faça introdução.
+- Se a informação não estiver no contexto, diga que o texto disponível não confirma isso.
+- Não invente nomes, números ou acusações.
+
+CONTEXTO DA MATÉRIA:
+${compactContext}
+
+HISTÓRICO RECENTE:
+${compactHistory}
+
+PERGUNTA FINAL:
+${userQuestion}
+
+RESPOSTA CURTA:
+`.trim();
 
   try {
-    // Restaurado o ?key= na URL
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: createChatTimeoutSignal(6500),
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            topP: 0.8,
+            candidateCount: 1,
+            maxOutputTokens: 180,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
+        }),
+      }
+    );
+
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Não consegui processar a resposta. Tente novamente.";
+
+    if (!response.ok || data.error) {
+      console.warn("[Chat IA] erro:", data.error || response.status);
+      return "A IA demorou ou recusou a resposta agora. Tente de novo em alguns segundos.";
+    }
+
+    const text =
+      data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+      "Não consegui processar a resposta. Tente novamente.";
+
+    CHAT_RESPONSE_CACHE.set(cacheKey, text);
+
+    if (CHAT_RESPONSE_CACHE.size > 80) {
+      const firstKey = CHAT_RESPONSE_CACHE.keys().next().value;
+      CHAT_RESPONSE_CACHE.delete(firstKey);
+    }
+
+    return text;
   } catch (e) {
-    return "Houve um problema ao conectar com a IA.";
+    console.warn("[Chat IA] timeout/conexão:", e);
+    return "A conexão com a IA demorou demais. Tente novamente.";
   }
 };
 
@@ -11473,11 +11576,21 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, autoSendQuery,
       return;
     }
 
-    // OTIMIZAÇÃO FREE TIER: Limita o texto a 6000 chars e o histórico às últimas 4 mensagens
-    const textToUse = String(articleText || article?.summary || "Texto indisponível").slice(0, 6000);
-    const optimizedHistory = newHistory.slice(-4);
-    
-    const aiResponse = await generateChatResponse(optimizedHistory, textToUse, apiKey);
+ // CHAT FLUIDO: contexto compacto, não manda artigo inteiro
+const textToUse = [
+  article?.title ? `Título: ${article.title}` : "",
+  article?.source ? `Fonte: ${article.source}` : "",
+  article?.summary ? `Resumo RSS: ${article.summary}` : "",
+  articleText ? `Texto disponível: ${String(articleText).slice(0, 4000)}` : "",
+]
+  .filter(Boolean)
+  .join("\n")
+  .replace(/\s+/g, " ")
+  .trim();
+
+const optimizedHistory = newHistory.slice(-3);
+
+const aiResponse = await generateChatResponse(optimizedHistory, textToUse, apiKey);
 
     setHistory(prev => [...prev, { from: 'ai', text: aiResponse }]);
     setIsAiTyping(false);
@@ -11646,94 +11759,147 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
         .slice(0, 10000);
   }, [article]);
 
-  const runProgressivePrompt = useCallback((currentMode, runId, signal) => {
-      const isCurrentRun = () => analysisRunRef.current === runId && !signal.aborted;
+const runProgressivePrompt = useCallback((currentMode, runId, signal) => {
+  const isCurrentRun = () => analysisRunRef.current === runId && !signal.aborted;
 
-      if (!apiKey) {
-          setUiStage('error');
-          setAiStatus('error');
-          return;
-      }
+  const immediateText = buildImmediateAnalysisText();
 
-      const immediateText = buildImmediateAnalysisText();
-      setUiStage('reading');
+  // ==========================================================
+  // CHAT MODE — CAMINHO ULTRA-LEVE
+  // Não exige apiKey pesada.
+  // Não chama proxy-view.
+  // Não chama fast summary.
+  // Não chama deep analysis.
+  // ==========================================================
+  if (currentMode === 'chat') {
+    setUiStage('reading');
+    setAiStatus('idle');
 
-      // A Overview nunca fica vazia enquanto a chamada rápida está em trânsito.
-      setAiFastData({
-          tldr: article?.summary || article?.description || article?.title || 'Preparando briefing...',
-          bullets: [],
-          faqs: STATIC_FAQS
-      });
-      setAiDeepData({});
-      setAiStatus('fetching');
+    const lightweightReader = {
+      title: article?.title || '',
+      textContent:
+        article?.contextText ||
+        article?.summary ||
+        article?.description ||
+        article?.title ||
+        'Texto indisponível',
+      excerpt: article?.summary || article?.description || article?.title || '',
+      siteName: article?.source || '',
+      url: article?.link || '',
+    };
 
-      // O proxy é auxiliar: serve ao leitor/chat, mas não bloqueia a IA.
-      const readerTask = article?.link
-        ? supabase.functions.invoke('proxy-view', { body: { url: article.link } })
-            .then(({ data, error }) => {
-                if (!isCurrentRun()) return null;
-                if (error) {
-                    console.warn('[Reader] extração completa indisponível; análise local mantida.', error?.message || error);
-                    return null;
-                }
-                const reader = data?.reader || null;
-                if (reader) setReaderContent(reader);
-                return reader;
-            })
-            .catch(error => {
-                if (!signal.aborted) console.warn('[Reader] falha não bloqueante.', error?.message || error);
-                return null;
-            })
-        : Promise.resolve(null);
+    setReaderContent(lightweightReader);
 
-      if (currentMode === 'chat') {
-          void readerTask;
-          return;
-      }
+    setAiFastData({
+      tldr: article?.summary || article?.description || article?.title || 'Chat aberto.',
+      bullets: [],
+      faqs: STATIC_FAQS,
+    });
 
-      // As duas funções abaixo são invocadas no mesmo ciclo de JavaScript.
-      // Portanto os dois fetches começam em paralelo, sem sleep e sem esperar o proxy.
-      const fastTask = generateFastSummary(immediateText, fastApiKey || apiKey, signal)
-        .then(result => {
-            if (!isCurrentRun()) return null;
-            if (result) setAiFastData(result);
-            return result;
+    setAiDeepData({});
+    setLoadingStep(3);
+    return;
+  }
+
+  // ==========================================================
+  // ANALYSIS MODE — só aqui exige chave pesada
+  // ==========================================================
+  if (!apiKey) {
+    setUiStage('error');
+    setAiStatus('error');
+    return;
+  }
+
+  setUiStage('reading');
+
+  setAiFastData({
+    tldr: article?.summary || article?.description || article?.title || 'Preparando briefing...',
+    bullets: [],
+    faqs: STATIC_FAQS,
+  });
+
+  setAiDeepData({});
+  setAiStatus('fetching');
+
+  // Proxy só roda em modo análise. No chat, não.
+  const readerTask = article?.link
+    ? supabase.functions.invoke('proxy-view', { body: { url: article.link } })
+        .then(({ data, error }) => {
+          if (!isCurrentRun()) return null;
+
+          if (error) {
+            console.warn('[Reader] extração completa indisponível; análise local mantida.', error?.message || error);
+            return null;
+          }
+
+          const reader = data?.reader || null;
+          if (reader) setReaderContent(reader);
+          return reader;
         })
         .catch(error => {
-            if (error?.name !== 'AbortError') console.warn('[Fast Summary] falha não bloqueante.', error?.message || error);
-            return null;
-        });
-
-      const deepTask = generateDeepAnalysisStream(
-        immediateText,
-        apiKey,
-        patch => {
-            if (!isCurrentRun()) return;
-            setAiDeepData(previous => ({ ...(previous || {}), ...patch }));
-            setAiStatus('partial');
-        },
-        signal
-      )
-        .then(result => {
-            if (!isCurrentRun()) return null;
-            if (result && Object.keys(result).length > 0) {
-                setAiDeepData(previous => ({ ...(previous || {}), ...result }));
-                setAiStatus('success');
-            } else {
-                setAiStatus('partial');
-            }
-            return result;
+          if (!signal.aborted) {
+            console.warn('[Reader] falha não bloqueante.', error?.message || error);
+          }
+          return null;
         })
-        .catch(error => {
-            if (error?.name !== 'AbortError' && isCurrentRun()) {
-                console.warn('[Deep Analysis] falha não bloqueante; mantendo seções já recebidas.', error?.message || error);
-                setAiStatus('partial');
-            }
-            return null;
-        });
+    : Promise.resolve(null);
 
-      void Promise.allSettled([fastTask, deepTask, readerTask]);
-  }, [apiKey, fastApiKey, article, buildImmediateAnalysisText]);
+  const fastTask = generateFastSummary(immediateText, fastApiKey || apiKey, signal)
+    .then(result => {
+      if (!isCurrentRun()) return null;
+      if (result) setAiFastData(result);
+      return result;
+    })
+    .catch(error => {
+      if (error?.name !== 'AbortError') {
+        console.warn('[Fast Summary] falha não bloqueante.', error?.message || error);
+      }
+      return null;
+    });
+
+  const deepTask = generateDeepAnalysisStream(
+    immediateText,
+    apiKey,
+    patch => {
+      if (!isCurrentRun()) return;
+      setAiDeepData(previous => ({ ...(previous || {}), ...patch }));
+      setAiStatus('partial');
+    },
+    signal
+  )
+    .then(result => {
+      if (!isCurrentRun()) return null;
+
+      if (result && Object.keys(result).length > 0) {
+        setAiDeepData(previous => ({ ...(previous || {}), ...result }));
+        setAiStatus('success');
+      } else {
+        setAiStatus('partial');
+      }
+
+      return result;
+    })
+    .catch(error => {
+      if (error?.name !== 'AbortError' && isCurrentRun()) {
+        console.warn('[Deep Analysis] falha não bloqueante; mantendo seções já recebidas.', error?.message || error);
+        setAiStatus('partial');
+      }
+      return null;
+    });
+
+  void Promise.allSettled([fastTask, deepTask, readerTask]);
+}, [
+  apiKey,
+  fastApiKey,
+  article?.id,
+  article?.link,
+  article?.title,
+  article?.summary,
+  article?.description,
+  article?.contextText,
+  article?.source,
+  buildImmediateAnalysisText
+]);
 
   useLayoutEffect(() => {
       if (!isOpen || !article) return;
