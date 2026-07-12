@@ -12370,15 +12370,16 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           <button
             key={tab.id}
             onClick={() => setActiveTabSection(tab.id)}
-            className={`ai-analysis-tab relative overflow-hidden ${active ? 'is-active' : ''}`}
-            style={{
-              border: '1px solid transparent',
-              backgroundImage: isDarkMode
-                ? 'linear-gradient(#18181b,#18181b), linear-gradient(135deg,rgba(255,255,255,.28),rgba(255,255,255,.06) 40%,rgba(255,255,255,.02) 60%,rgba(255,255,255,.22))'
-                : 'linear-gradient(#fff,#fff), linear-gradient(135deg,rgba(0,0,0,.16),rgba(0,0,0,.04) 40%,rgba(255,255,255,.9) 60%,rgba(0,0,0,.12))',
-              backgroundOrigin: 'border-box',
-              backgroundClip: 'padding-box, border-box',
-            }}
+            className={`ai-analysis-tab ${active ? 'is-active' : ''}`}
+            style={active ? {
+              background: isDarkMode
+                ? 'linear-gradient(135deg, #4f46e5, #7c3aed)'
+                : 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+              color: '#fff',
+              borderColor: 'rgba(255,255,255,0.25)',
+              boxShadow: '0 4px 16px rgba(79,70,229,0.35)',
+            } : undefined}
+         
           >
             <span className="ai-analysis-tab-icon">{tab.icon}</span>
             <span
@@ -12448,7 +12449,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
                         {/* O que dizem outras fontes (Análise de Co-cobertura do Vetra) */}
                         <div className="space-y-3">
                            <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 px-2 flex items-center gap-2">
-                              <Globe size={14}/> O que dizem outras fontes
+                              
                            </h4>
                            <div className="space-y-2 h-full flex flex-col">
                               {(() => {
