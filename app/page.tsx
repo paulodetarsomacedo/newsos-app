@@ -11233,61 +11233,55 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
 
   const runProgressivePrompt = useCallback(async (currentMode) => {
       if (!apiKey || !article.link) return setUiStage('error');
-      
+
       let stepTimer;
-      let splashExitTimer;
+      const t0 = Date.now();
+      const MIN_SPLASH_MS = 800;   // piso VISUAL (evita piscar), não bloqueio de 3s
 
       try {
           if (currentMode !== 'chat') {
               stepTimer = setInterval(() => {
                   setLoadingStep(prev => prev < 2 ? prev + 1 : prev);
-              }, 1200);
-
-              splashExitTimer = setTimeout(() => {
-                  setUiStage('reading');
-                  clearInterval(stepTimer);
-              }, 3000);
+              }, 700);
           }
 
-          // Chamada 1 (FAST) paralela imediata usando metadados locais
+          // ── Tudo dispara AGORA, em paralelo ──
           const fastText = `${article.title}. ${article.summary || article.description || ""}`;
-          const fastResultPromise = generateFastSummary(fastText, fastApiKey || apiKey);
-
-          // Download do site em background
+          const fastPromise = generateFastSummary(fastText, fastApiKey || apiKey).catch(() => null);
           const proxyPromise = supabase.functions.invoke('proxy-view', { body: { url: article.link } });
 
-          const [fastResult] = await Promise.all([
-              fastResultPromise.catch(() => null),
-              sleep(3000)
-          ]);
+          // CHAMADA 2 dispara assim que o proxy chegar (~1s) — NÃO espera a
+          // chamada 1 nem o splash. É o que faltava: antes ela só começava
+          // depois dos 3s de sleep + o fim da chamada 1.
+          const deepPromise = proxyPromise
+              .then((proxyData) => {
+                  const reader = proxyData?.data?.reader;
+                  if (!reader?.textContent) return null;
+                  setReaderContent(reader);
+                  return generateDeepAnalysis(reader.textContent, apiKey);
+              })
+              .catch(() => null);
 
-          if (fastResult) {
-              setAiFastData(fastResult);
-          } else {
-              setAiFastData({
-                  tldr: article.summary || "Visualizando briefing rápido...",
-                  bullets: [article.title, "Sintetizando fatos cruciais pela inteligência Vetra..."],
-                  faqs: STATIC_FAQS
-              });
-          }
+          // ── Chamada 1: mostra assim que chegar (com piso visual curto) ──
+          const fastResult = await fastPromise;
+          const elapsed = Date.now() - t0;
+          if (elapsed < MIN_SPLASH_MS) await sleep(MIN_SPLASH_MS - elapsed);
+
+          setAiFastData(fastResult || {
+              tldr: article.summary || "Visualizando briefing rápido...",
+              bullets: [article.title, "Sintetizando fatos cruciais pela inteligência Vetra..."],
+              faqs: STATIC_FAQS
+          });
 
           setLoadingStep(3);
-          setUiStage('reading'); 
+          setUiStage('reading');
           if (stepTimer) clearInterval(stepTimer);
 
-          // Chamada 2 (Deep) em background com texto completo
-          const proxyData = await proxyPromise;
-          if (proxyData?.data?.reader?.textContent) {
-              const fullText = proxyData.data.reader.textContent;
-              setReaderContent(proxyData.data.reader); 
-
-              const deepResult = await generateDeepAnalysis(fullText, apiKey);
-              if (deepResult) {
-                  setAiDeepData(deepResult);
-                  setAiStatus('success');
-              } else {
-                  setAiStatus('error');
-              }
+          // ── Chamada 2: já está rodando desde ~1s; só colhemos o resultado ──
+          const deepResult = await deepPromise;
+          if (deepResult) {
+              setAiDeepData(deepResult);
+              setAiStatus('success');
           } else {
               setAiStatus('error');
           }
@@ -11299,6 +11293,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           if (stepTimer) clearInterval(stepTimer);
       }
   }, [apiKey, fastApiKey, article]);
+  
 
   // Juntar os dados consolidados da IA
   const aiData = useMemo(() => ({
