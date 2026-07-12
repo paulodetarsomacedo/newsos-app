@@ -2499,7 +2499,7 @@ const generateDeepAnalysis = async (text, apiKey) => {
     "executive": "Resumo executivo aprofundado e denso (3 parágrafos formais).",
     "eli5": "Explicação simplificada e pedagógica usando uma analogia inteligente (1 parágrafo curto).",
     "sentiment": "Análise de tom, sentimento e viés jornalístico do artigo (neutro, crítico, otimista, etc., com justificativa de 1 parágrafo curto).",
-    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C", "Nó D"] },
+    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C"] },
     "contextualTerms": [
       { "term": "Nó A", "context": "Importância específica deste nó na notícia. Max 25 palavras.", "evidence_quotes": ["Citação curta"] }
     ],
