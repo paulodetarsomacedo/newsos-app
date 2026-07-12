@@ -2436,104 +2436,519 @@ const generateTimelineForCluster = async (articles, apiKey) => {
         return null;
     }
 };
+// ============================================================
+// GEMINI — JSON ESTRUTURADO E SEGURO
+// Corrige:
+// 1. JSON sem vírgula ou chave de fechamento;
+// 2. resposta dividida em várias parts;
+// 3. resposta truncada por limite de tokens;
+// 4. formato diferente do esperado pela interface.
+// ============================================================
 
-// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Chave na URL) ---
-const generateFastSummary = async (text, apiKey) => {
-  if (!text || text.length < 100 || !apiKey) return null;
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
+const FAST_SUMMARY_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    tldr: {
+      type: "STRING",
+      description: "Resumo denso, formal e explicativo de 2 a 3 frases."
+    },
+    bullets: {
+      type: "ARRAY",
+      description: "Exatamente quatro fatos cruciais.",
+      items: {
+        type: "STRING"
+      }
+    },
+    faqs: {
+      type: "ARRAY",
+      description: "Exatamente duas perguntas frequentes importantes.",
+      items: {
+        type: "STRING"
+      }
+    }
+  },
+  required: ["tldr", "bullets", "faqs"]
+};
 
-  const prompt = `
-  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
-  {
-    "tldr": "TLDR denso, formal e explicativo de 2 a 3 frases de forte impacto.",
-    "bullets": [
-      "Fato crucial 1 (Máx 15 palavras)",
-      "Fato crucial 2 (Máx 15 palavras)",
-      "Fato crucial 3 (Máx 15 palavras)",
-      "Fato crucial 4 (Máx 15 palavras)"
-    ],
-    "faqs": [
-      "Pergunta frequente crucial 1?",
-      "Pergunta frequente crucial 2?"
-    ]
+
+const DEEP_ANALYSIS_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    executive: {
+      type: "STRING",
+      description: "Resumo executivo aprofundado em três parágrafos."
+    },
+
+    eli5: {
+      type: "STRING",
+      description: "Explicação simplificada e pedagógica."
+    },
+
+    sentiment: {
+      type: "STRING",
+      description: "Análise do tom, sentimento e possível viés jornalístico."
+    },
+
+    mindmap: {
+      type: "OBJECT",
+      properties: {
+        center: {
+          type: "STRING"
+        },
+        nodes: {
+          type: "ARRAY",
+          items: {
+            type: "STRING"
+          }
+        }
+      },
+      required: ["center", "nodes"]
+    },
+
+    contextualTerms: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          term: {
+            type: "STRING"
+          },
+          context: {
+            type: "STRING"
+          },
+          evidence_quotes: {
+            type: "ARRAY",
+            items: {
+              type: "STRING"
+            }
+          }
+        },
+        required: ["term", "context", "evidence_quotes"]
+      }
+    },
+
+    timeline: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          time: {
+            type: "STRING"
+          },
+          event: {
+            type: "STRING"
+          }
+        },
+        required: ["time", "event"]
+      }
+    },
+
+    future: {
+      type: "OBJECT",
+      properties: {
+        optimistic: {
+          type: "STRING"
+        },
+        pessimistic: {
+          type: "STRING"
+        },
+        probable: {
+          type: "STRING"
+        }
+      },
+      required: ["optimistic", "pessimistic", "probable"]
+    }
+  },
+
+  required: [
+    "executive",
+    "eli5",
+    "sentiment",
+    "mindmap",
+    "contextualTerms",
+    "timeline",
+    "future"
+  ]
+};
+
+
+// Junta todas as partes textuais retornadas pelo Gemini.
+// O código antigo lia somente parts[0], podendo receber JSON incompleto.
+const getGeminiCandidateText = (data) => {
+  const candidate = data?.candidates?.[0];
+
+  if (!candidate) {
+    throw new Error("Gemini não retornou nenhum candidato.");
   }
-  TEXTO:
-  ${cleanText}
-  `;
+
+  const finishReason = candidate?.finishReason;
+
+  if (finishReason === "MAX_TOKENS") {
+    throw new Error(
+      "A resposta do Gemini foi interrompida por limite de tokens."
+    );
+  }
+
+  if (
+    finishReason &&
+    !["STOP", "FINISH_REASON_UNSPECIFIED"].includes(finishReason)
+  ) {
+    console.warn(
+      `[Gemini] Resposta finalizada com motivo: ${finishReason}`
+    );
+  }
+
+  const parts = Array.isArray(candidate?.content?.parts)
+    ? candidate.content.parts
+    : [];
+
+  const text = parts
+    .map((part) => {
+      return typeof part?.text === "string" ? part.text : "";
+    })
+    .join("")
+    .trim();
+
+  if (!text) {
+    throw new Error("Resposta textual da IA vazia.");
+  }
+
+  return text;
+};
+
+
+// Limpeza defensiva.
+// Com response_schema, normalmente o primeiro JSON.parse já funcionará.
+const parseGeminiJson = (rawText, label = "Gemini") => {
+  const cleaned = String(rawText || "")
+    .replace(/^\uFEFF/, "")
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
 
   try {
-    // Restaurado o ?key= na URL para funcionar 100% no navegador
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
-      method: "POST", 
-      headers: { 
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.1 } })
-    });
+    return JSON.parse(cleaned);
+  } catch (firstError) {
+    /*
+     * Fallback apenas para situações nas quais exista algum texto
+     * antes ou depois do objeto JSON.
+     *
+     * Isso não tenta inventar vírgulas ou reconstruir conteúdo,
+     * pois isso poderia modificar os dados gerados.
+     */
+    const objectStart = cleaned.indexOf("{");
+    const objectEnd = cleaned.lastIndexOf("}");
 
-    if (!res.ok) {
-      console.warn(`[Fast Summary] Gemini retornou erro ${res.status}. Usando fallback local.`);
-      return null;
+    if (objectStart >= 0 && objectEnd > objectStart) {
+      const extractedObject = cleaned
+        .slice(objectStart, objectEnd + 1)
+        .replace(/,\s*([}\]])/g, "$1");
+
+      try {
+        return JSON.parse(extractedObject);
+      } catch {
+        // O erro original será exibido abaixo com diagnóstico.
+      }
     }
 
-    const data = await res.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!resultText) throw new Error("Resposta da IA vazia");
-
-    let cleanedString = resultText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
-    return JSON.parse(cleanedString);
-  } catch (e) { 
-    console.error("Erro Fast Summary:", e); 
-    return null; 
+    console.error(`[${label}] JSON bruto inválido:`, cleaned);
+    throw firstError;
   }
 };
 
-// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Chave na URL) ---
-const generateDeepAnalysis = async (text, apiKey) => {
-  if (!text || text.length < 100 || !apiKey) return null;
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
 
-  const prompt = `
-  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
-  {
-    "executive": "Resumo executivo aprofundado e denso (3 parágrafos formais).",
-    "eli5": "Explicação simplificada e pedagógica usando uma analogia inteligente (1 parágrafo curto).",
-    "sentiment": "Análise de tom, sentimento e viés jornalístico do artigo (neutro, crítico, otimista, etc., com justificativa de 1 parágrafo curto).",
-    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C"] },
-    "contextualTerms": [
-      { "term": "Nó A", "context": "Importância específica deste nó na notícia. Max 25 palavras.", "evidence_quotes": ["Citação curta"] }
-    ],
-    "timeline": [ { "time": "Hoje", "event": "Fato principal" } ],
-    "future": { "optimistic": "Cenário positivo", "pessimistic": "Risco", "probable": "Realidade" }
-  }
-  TEXTO:
-  ${cleanText}
-  `;
+// Função comum para as duas chamadas.
+// O response_schema é a principal correção do bug.
+const requestGeminiStructuredJson = async ({
+  prompt,
+  apiKey,
+  schema,
+  temperature,
+  maxOutputTokens,
+  label
+}) => {
+  const endpoint =
+    `https://generativelanguage.googleapis.com/v1beta/models/` +
+    `gemini-flash-latest:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+
+    headers: {
+      "Content-Type": "application/json"
+    },
+
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: prompt
+            }
+          ]
+        }
+      ],
+
+      generationConfig: {
+        response_mime_type: "application/json",
+
+        // ESTA É A CORREÇÃO PRINCIPAL:
+        response_schema: schema,
+
+        temperature,
+        max_output_tokens: maxOutputTokens
+      }
+    })
+  });
+
+  let data;
 
   try {
-    // Restaurado o ?key= na URL para funcionar 100% no navegador
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
-      method: "POST", 
-      headers: { 
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.3 } })
+    data = await response.json();
+  } catch {
+    throw new Error(
+      `${label}: a API retornou uma resposta que não era JSON HTTP válido.`
+    );
+  }
+
+  if (!response.ok) {
+    const apiMessage =
+      data?.error?.message ||
+      data?.error?.status ||
+      `HTTP ${response.status}`;
+
+    throw new Error(`${label}: ${apiMessage}`);
+  }
+
+  const resultText = getGeminiCandidateText(data);
+  return parseGeminiJson(resultText, label);
+};
+
+
+// ============================================================
+// FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY
+// ============================================================
+
+const generateFastSummary = async (text, apiKey) => {
+  if (!text || text.length < 100 || !apiKey) {
+    return null;
+  }
+
+  const cleanText = String(text)
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]*>?/gm, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 8000);
+
+  const prompt = `
+Você é um Analista de Inteligência Sênior.
+
+Analise somente as informações presentes no texto.
+
+Regras:
+- Escreva em português do Brasil.
+- Não invente fatos.
+- Não inclua markdown.
+- O TLDR deve ter de 2 a 3 frases.
+- Produza exatamente 4 bullets.
+- Cada bullet deve ter no máximo 15 palavras.
+- Produza exatamente 2 perguntas frequentes.
+- Não repita a mesma informação em campos diferentes.
+
+TEXTO:
+${cleanText}
+  `.trim();
+
+  try {
+    const result = await requestGeminiStructuredJson({
+      prompt,
+      apiKey,
+      schema: FAST_SUMMARY_SCHEMA,
+      temperature: 0.1,
+      maxOutputTokens: 1200,
+      label: "Fast Summary"
     });
 
-    if (!res.ok) {
-      console.warn(`[Deep Analysis] Gemini retornou erro ${res.status}.`);
-      return null;
-    }
+    // Normalização adicional para a interface nunca quebrar.
+    return {
+      tldr:
+        typeof result?.tldr === "string"
+          ? result.tldr.trim()
+          : "",
 
-    const data = await res.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!resultText) throw new Error("Resposta da IA vazia");
+      bullets:
+        Array.isArray(result?.bullets)
+          ? result.bullets
+              .filter((item) => typeof item === "string")
+              .map((item) => item.trim())
+              .filter(Boolean)
+              .slice(0, 4)
+          : [],
 
-    let cleanedString = resultText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
-    return JSON.parse(cleanedString);
-  } catch (e) { 
-    console.error("Erro Deep Analysis:", e); 
-    return null; 
+      faqs:
+        Array.isArray(result?.faqs)
+          ? result.faqs
+              .filter((item) => typeof item === "string")
+              .map((item) => item.trim())
+              .filter(Boolean)
+              .slice(0, 2)
+          : []
+    };
+  } catch (error) {
+    console.error("Erro Fast Summary:", error);
+    return null;
+  }
+};
+
+
+// ============================================================
+// FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS
+// ============================================================
+
+const generateDeepAnalysis = async (text, apiKey) => {
+  if (!text || text.length < 100 || !apiKey) {
+    return null;
+  }
+
+  const cleanText = String(text)
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]*>?/gm, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 8000);
+
+  const prompt = `
+Você é um Analista de Inteligência Sênior.
+
+Analise somente as informações presentes no texto.
+
+Regras:
+- Escreva em português do Brasil.
+- Não invente fatos, datas, acontecimentos ou citações.
+- O resumo executivo deve ser aprofundado e dividido em 3 parágrafos.
+- A explicação ELI5 deve ser curta, pedagógica e usar uma analogia útil.
+- Analise tom, sentimento, enquadramento e possível viés.
+- O mapa mental deve ter um tema central curto e exatamente 3 nós.
+- Crie termos contextuais apenas quando sustentados pelo texto.
+- Citações de evidência devem ser curtas e existir literalmente no texto.
+- A linha do tempo deve usar apenas eventos e datas sustentados pelo texto.
+- Os cenários devem ser apresentados como possibilidades, não como fatos.
+- Não inclua markdown.
+
+TEXTO:
+${cleanText}
+  `.trim();
+
+  try {
+    const result = await requestGeminiStructuredJson({
+      prompt,
+      apiKey,
+      schema: DEEP_ANALYSIS_SCHEMA,
+      temperature: 0.2,
+      maxOutputTokens: 4096,
+      label: "Deep Analysis"
+    });
+
+    return {
+      executive:
+        typeof result?.executive === "string"
+          ? result.executive.trim()
+          : "",
+
+      eli5:
+        typeof result?.eli5 === "string"
+          ? result.eli5.trim()
+          : "",
+
+      sentiment:
+        typeof result?.sentiment === "string"
+          ? result.sentiment.trim()
+          : "",
+
+      mindmap: {
+        center:
+          typeof result?.mindmap?.center === "string"
+            ? result.mindmap.center.trim()
+            : "Tema central",
+
+        nodes:
+          Array.isArray(result?.mindmap?.nodes)
+            ? result.mindmap.nodes
+                .filter((item) => typeof item === "string")
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .slice(0, 3)
+            : []
+      },
+
+      contextualTerms:
+        Array.isArray(result?.contextualTerms)
+          ? result.contextualTerms
+              .filter((item) => item && typeof item === "object")
+              .map((item) => ({
+                term:
+                  typeof item.term === "string"
+                    ? item.term.trim()
+                    : "",
+
+                context:
+                  typeof item.context === "string"
+                    ? item.context.trim()
+                    : "",
+
+                evidence_quotes:
+                  Array.isArray(item.evidence_quotes)
+                    ? item.evidence_quotes
+                        .filter((quote) => typeof quote === "string")
+                        .map((quote) => quote.trim())
+                        .filter(Boolean)
+                    : []
+              }))
+              .filter((item) => item.term && item.context)
+          : [],
+
+      timeline:
+        Array.isArray(result?.timeline)
+          ? result.timeline
+              .filter((item) => item && typeof item === "object")
+              .map((item) => ({
+                time:
+                  typeof item.time === "string"
+                    ? item.time.trim()
+                    : "",
+
+                event:
+                  typeof item.event === "string"
+                    ? item.event.trim()
+                    : ""
+              }))
+              .filter((item) => item.event)
+          : [],
+
+      future: {
+        optimistic:
+          typeof result?.future?.optimistic === "string"
+            ? result.future.optimistic.trim()
+            : "",
+
+        pessimistic:
+          typeof result?.future?.pessimistic === "string"
+            ? result.future.pessimistic.trim()
+            : "",
+
+        probable:
+          typeof result?.future?.probable === "string"
+            ? result.future.probable.trim()
+            : ""
+      }
+    };
+  } catch (error) {
+    console.error("Erro Deep Analysis:", error);
+    return null;
   }
 };
 
