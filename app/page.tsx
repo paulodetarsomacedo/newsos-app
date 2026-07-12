@@ -2650,7 +2650,7 @@ const requestGeminiStructuredJson = async ({
         temperature,
         maxOutputTokens,
         thinkingConfig: {
-          thinkingLevel: 'MINIMAL',
+          thinkingBudget: 0,        // 0 = desliga o "pensar em silêncio" (thinkingLevel NÃO existe na API)
           includeThoughts: false
         }
       }
@@ -2836,7 +2836,7 @@ ${cleanText}
         temperature: 0.2,
         maxOutputTokens: 8192,
         thinkingConfig: {
-          thinkingLevel: 'MINIMAL',
+          thinkingBudget: 0,        // 0 = desliga o "pensar em silêncio" (thinkingLevel NÃO existe na API)
           includeThoughts: false
         }
       }
@@ -11399,7 +11399,14 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
       headers: { 
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 800,
+          thinkingConfig: { thinkingBudget: 0 }   // sem isso o chat "pensa" 5-10s em silêncio
+        }
+      })
     });
     const data = await response.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "Não consegui processar a resposta. Tente novamente.";
@@ -11656,7 +11663,18 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       }
 
       const immediateText = buildImmediateAnalysisText();
-      setUiStage('reading');
+
+      // SPLASH: o loading premium volta. Ele sai assim que a chamada rápida
+      // responder (não é timer fixo) — ver stopSplash() no fastTask.
+      setUiStage('splash');
+      setLoadingStep(0);
+      const splashTimer = setInterval(() => {
+          setLoadingStep(prev => (prev < 2 ? prev + 1 : prev));
+      }, 900);
+      const stopSplash = () => {
+          clearInterval(splashTimer);
+          if (isCurrentRun()) { setLoadingStep(3); setUiStage('reading'); }
+      };
 
       // A Overview nunca fica vazia enquanto a chamada rápida está em trânsito.
       setAiFastData({
@@ -11687,9 +11705,16 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
         : Promise.resolve(null);
 
       if (currentMode === 'chat') {
-          void readerTask;
+          // Chat abre INSTANTÂNEO: não usa splash nem espera IA nenhuma.
+          clearInterval(splashTimer);
+          setUiStage('reading');
+          void readerTask;   // texto completo continua vindo por baixo
           return;
       }
+
+      // Rede de segurança: se a chamada rápida travar, o splash não prende o
+      // usuário para sempre (mostra o que houver após 12s).
+      setTimeout(() => { if (isCurrentRun()) stopSplash(); }, 12000);
 
       // As duas funções abaixo são invocadas no mesmo ciclo de JavaScript.
       // Portanto os dois fetches começam em paralelo, sem sleep e sem esperar o proxy.
@@ -11697,10 +11722,12 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
         .then(result => {
             if (!isCurrentRun()) return null;
             if (result) setAiFastData(result);
+            stopSplash();          // ← overview pronta: sai do splash AGORA
             return result;
         })
         .catch(error => {
             if (error?.name !== 'AbortError') console.warn('[Fast Summary] falha não bloqueante.', error?.message || error);
+            stopSplash();          // falhou: não deixa o usuário preso no splash
             return null;
         });
 
