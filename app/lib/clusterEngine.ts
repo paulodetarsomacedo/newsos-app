@@ -13,6 +13,7 @@ import * as stringSimilarity from 'string-similarity';
 import { normalizeTerm, getCanonicalTerms, getDomainHints } from './semanticDictionary';
 import { detectEventType } from './articleSummaryEngine';
 import { countCoverage, formatCoverageLabel } from './editorialGroups';
+import { extractEventCore, eventCompatibility, EventCore } from './eventCore';
 
 // ------------------------------------------------------------
 // Configuração (sobrepor via options se quiser)
@@ -122,6 +123,7 @@ export interface NormalizedArticle {
   _entitySet: Set<string>;
   _canonSet: Set<string>;
   _timeMs: number;
+  _eventCore: EventCore;   // (PEÇA 1) núcleo do evento: ator/ação/alvo
 }
 
 export const normalizeArticleForCluster = (
@@ -183,6 +185,7 @@ export const normalizeArticleForCluster = (
       _entitySet: new Set([...entities, ...canonicalTerms.map(t => normalizeTerm(t))]),
       _canonSet: new Set(canonicalTerms.map(t => normalizeTerm(t))),
       _timeMs: timeMs,
+      _eventCore: extractEventCore(title, entities),
     };
   } catch {
     return null; // item malformado nunca derruba o pipeline
@@ -191,12 +194,93 @@ export const normalizeArticleForCluster = (
 
 // ------------------------------------------------------------
 // Score composto entre dois artigos normalizados
+// ---------------------------------------------------------------------------
+// (PEÇA 4) JANELA DO CASO — o tempo é FILTRO, não tempero de 5%.
+// Um caso tem duração. Duas matérias sobre "Lula" separadas por 3 dias
+// provavelmente NÃO são o mesmo fato. A janela varia por tipo de evento:
+// breaking dura horas; investigação, dias.
+// ---------------------------------------------------------------------------
+const CASE_WINDOW_HOURS: Record<string, number> = {
+  accident: 12, security_operation: 12, conflict: 12, death: 24,
+  sports_match: 8, market_move: 12,
+  legal_decision: 48, dismissal: 48, appointment: 48, approval: 48,
+  announcement: 36, launch: 72, crisis: 72, regulation: 72,
+  investigation: 96,
+  general: 36,
+};
+
+export const withinCaseWindow = (a: NormalizedArticle, b: NormalizedArticle): boolean => {
+  const hoursApart = Math.abs(a._timeMs - b._timeMs) / 3600000;
+  // Usa a janela MAIS LONGA entre os dois tipos (conservador: prefere agrupar
+  // a fragmentar, desde que dentro de um horizonte plausível).
+  const wa = CASE_WINDOW_HOURS[a.eventType] ?? CASE_WINDOW_HOURS.general;
+  const wb = CASE_WINDOW_HOURS[b.eventType] ?? CASE_WINDOW_HOURS.general;
+  return hoursApart <= Math.max(wa, wb);
+};
+
+// ---------------------------------------------------------------------------
+// (PEÇA 3) PESOS POR DOMÍNIO
+// Um peso único para todos os assuntos é grosseiro. Em MERCADO, o número é a
+// identidade do fato ("dólar a R$ 6,10"); em POLÍTICA/JUSTIÇA, a entidade e a
+// ação mandam; em ESPORTES, os times e o placar.
+// ---------------------------------------------------------------------------
+type WeightSet = typeof DEFAULTS.weights & { eventCore: number };
+
+const DOMAIN_WEIGHTS: Record<string, WeightSet> = {
+  mercado: {
+    titleSimilarity: 0.16, coreWordOverlap: 0.14, entityOverlap: 0.12,
+    canonicalTermOverlap: 0.12, eventTypeMatch: 0.05, categoryMatch: 0.02,
+    timeProximity: 0.09, eventCore: 0.30,   // núcleo carrega o número
+  },
+  politica: {
+    titleSimilarity: 0.18, coreWordOverlap: 0.12, entityOverlap: 0.22,
+    canonicalTermOverlap: 0.10, eventTypeMatch: 0.05, categoryMatch: 0.02,
+    timeProximity: 0.06, eventCore: 0.25,
+  },
+  justica: {
+    titleSimilarity: 0.18, coreWordOverlap: 0.12, entityOverlap: 0.22,
+    canonicalTermOverlap: 0.10, eventTypeMatch: 0.05, categoryMatch: 0.02,
+    timeProximity: 0.06, eventCore: 0.25,
+  },
+  esportes: {
+    titleSimilarity: 0.16, coreWordOverlap: 0.12, entityOverlap: 0.22,
+    canonicalTermOverlap: 0.08, eventTypeMatch: 0.05, categoryMatch: 0.02,
+    timeProximity: 0.13, eventCore: 0.22,   // jogo é datado: tempo pesa
+  },
+  seguranca: {
+    titleSimilarity: 0.20, coreWordOverlap: 0.14, entityOverlap: 0.16,
+    canonicalTermOverlap: 0.08, eventTypeMatch: 0.05, categoryMatch: 0.02,
+    timeProximity: 0.13, eventCore: 0.22,
+  },
+  geral: {
+    titleSimilarity: 0.20, coreWordOverlap: 0.14, entityOverlap: 0.16,
+    canonicalTermOverlap: 0.10, eventTypeMatch: 0.05, categoryMatch: 0.02,
+    timeProximity: 0.08, eventCore: 0.25,
+  },
+};
+
+const pickDomainWeights = (a: NormalizedArticle, b: NormalizedArticle): WeightSet => {
+  const da = getDomainHints(a.title)[0];
+  const db = getDomainHints(b.title)[0];
+  const domain = (da && da === db) ? da : (da || db || 'geral');
+  return DOMAIN_WEIGHTS[domain] || DOMAIN_WEIGHTS.geral;
+};
+
 // ------------------------------------------------------------
 export const computePairScore = (
   a: NormalizedArticle,
   b: NormalizedArticle,
   weights = DEFAULTS.weights
 ): number => {
+  // (PEÇA 1) NÚCLEO DO EVENTO — o portão.
+  // Mede identidade de EVENTO (ator/ação/alvo), não parecença de palavras.
+  // "Lula critica STF" e "STF critica Lula" têm as MESMAS palavras e núcleo
+  // incompatível (papéis invertidos) → não agrupam.
+  const coreCompat = eventCompatibility(a._eventCore, b._eventCore);
+  if (coreCompat === 0) return 0;   // papéis invertidos: evento oposto
+
+  const w = pickDomainWeights(a, b);   // (PEÇA 3) pesos por domínio
+
   const titleSim = stringSimilarity.compareTwoStrings(a.cleanTitle, b.cleanTitle);
   const coreOverlap = jaccard(a._coreSet, b._coreSet);
   const entityOverlap = semanticOverlap(a._entitySet, b._entitySet);
@@ -206,15 +290,53 @@ export const computePairScore = (
   const diffMin = Math.abs(a._timeMs - b._timeMs) / 60000;
   const timeProx = diffMin <= 60 ? 1 : diffMin <= 240 ? 0.6 : diffMin <= 720 ? 0.3 : 0;
 
-  return (
-    titleSim * weights.titleSimilarity +
-    coreOverlap * weights.coreWordOverlap +
-    entityOverlap * weights.entityOverlap +
-    canonOverlap * weights.canonicalTermOverlap +
-    eventMatch * weights.eventTypeMatch +
-    catMatch * weights.categoryMatch +
-    timeProx * weights.timeProximity
+  const score = (
+    titleSim * w.titleSimilarity +
+    coreOverlap * w.coreWordOverlap +
+    entityOverlap * w.entityOverlap +
+    canonOverlap * w.canonicalTermOverlap +
+    eventMatch * w.eventTypeMatch +
+    catMatch * w.categoryMatch +
+    timeProx * w.timeProximity +
+    coreCompat * w.eventCore
   );
+
+  // Núcleo fraco puxa o score para baixo mesmo com palavras parecidas —
+  // é o que impede "mesmo assunto, outro fato" de agrupar.
+  return coreCompat < 0.25 ? score * 0.6 : score;
+};
+
+// ---------------------------------------------------------------------------
+// (PEÇA 7) CICLO DE VIDA DO CASO
+// Um caso nasce, escala, satura e esfria — e às vezes ressurge (desdobramento:
+// reação, investigação). O motor antigo só sabia "temperatura" por contagem de
+// fontes. A fase dá contexto real — inclusive para a IA no próximo passo, que
+// precisa saber se está olhando o FATO ou a REPERCUSSÃO.
+// ---------------------------------------------------------------------------
+export type CasePhase = 'emergindo' | 'escalando' | 'consolidado' | 'desdobrando' | 'esfriando';
+
+const detectCasePhase = (items: NormalizedArticle[], groups: number): CasePhase => {
+  const times = items.map(a => a._timeMs).sort((x, y) => x - y);
+  const nowMs = Date.now();
+  const newestMin = (nowMs - times[times.length - 1]) / 60000;
+  const spanHours = Math.max(0.25, (times[times.length - 1] - times[0]) / 3600000);
+  const velocity = groups / spanHours;   // grupos por hora
+
+  // Silêncio longo seguido de nova onda = desdobramento (reação/investigação).
+  let biggestGapH = 0;
+  for (let i = 1; i < times.length; i++) {
+    const gap = (times[i] - times[i - 1]) / 3600000;
+    if (gap > biggestGapH) biggestGapH = gap;
+  }
+  const hadPause = biggestGapH >= 6;
+  const recentBurst = times.filter(t => (nowMs - t) / 60000 <= 120).length >= 2;
+
+  if (newestMin > 360) return 'esfriando';                       // 6h sem nada novo
+  if (hadPause && recentBurst) return 'desdobrando';             // ressurgiu
+  if (groups <= 2 && newestMin <= 45) return 'emergindo';        // começando agora
+  if (velocity >= 1.5 && newestMin <= 120) return 'escalando';   // entrando rápido
+  if (groups >= 4) return 'consolidado';                         // todo mundo cobriu
+  return 'emergindo';
 };
 
 // ------------------------------------------------------------
@@ -359,68 +481,126 @@ export const generateSmartHeuristicClusters = (articles: any[], options: Cluster
   }
   if (normalized.length < 5) return [];
 
-  // 2) Agrupamento greedy com score composto
-  const used = new Set<any>();
-  const potential: Array<{ items: NormalizedArticle[]; perSource: Map<string, number> }> = [];
+  // ==========================================================================
+  // 2) AGRUPAMENTO AGLOMERATIVO COM FUSÃO
+  // Substitui o greedy antigo (que dependia da ORDEM do feed: o primeiro
+  // cluster formado "roubava" artigos e nada nunca se fundia depois).
+  // Agora: cada artigo começa sozinho; unimos repetidamente o par de clusters
+  // MAIS SIMILAR enquanto passar do limiar. Determinístico e independente
+  // da ordem de chegada.
+  // ==========================================================================
 
+  // Similaridade entre CLUSTERS: híbrido average + max.
+  // - AVERAGE sozinho é conservador demais: uma matéria de título atípico
+  //   ("Caso Master: PF alega risco de fuga...") tem média baixa contra o
+  //   cluster e fica de fora, mesmo sendo do mesmo caso.
+  // - MAX sozinho encadeia clusters distintos (basta um par parecido).
+  // Solução: média, mas com piso — se o MELHOR par é claramente forte, o
+  // vínculo vale, ainda que os demais títulos sejam verbalizados diferente.
+  const clusterSim = (A: NormalizedArticle[], B: NormalizedArticle[]): number => {
+    let sum = 0, n = 0, best = 0;
+    for (const a of A) {
+      for (const b of B) {
+        // JANELA TEMPORAL como FILTRO DURO (peça 4): fora da janela do caso,
+        // não é o mesmo fato — por mais parecidas que as palavras sejam.
+        if (!withinCaseWindow(a, b)) return -1;
+        const s = computePairScore(a, b, cfg.weights);
+        sum += s;
+        if (s > best) best = s;
+        n++;
+      }
+    }
+    if (n === 0) return 0;
+    const avg = sum / n;
+    // O melhor par tem peso, mas não domina (evita encadeamento espúrio).
+    return Math.max(avg, best * 0.82);
+  };
+
+  // Cada artigo começa como seu próprio cluster.
+  let groups: NormalizedArticle[][] = normalized.map(a => [a]);
+
+  // Duplicatas exatas da MESMA fonte são consumidas antes (não inflam nada).
+  const dupOf = new Set<any>();
   for (let i = 0; i < normalized.length; i++) {
-    const seedArt = normalized[i];
-    if (used.has(seedArt.id)) continue;
-    const items = [seedArt];
-    const perSource = new Map<string, number>([[seedArt.source, 1]]);
-    used.add(seedArt.id);
+    for (let j = i + 1; j < normalized.length; j++) {
+      const a = normalized[i], b = normalized[j];
+      if (dupOf.has(b.id) || a.source !== b.source) continue;
+      if (stringSimilarity.compareTwoStrings(a.cleanTitle, b.cleanTitle) >= cfg.duplicateTitleSim) {
+        dupOf.add(b.id);
+      }
+    }
+  }
+  groups = groups.filter(g => !dupOf.has(g[0].id));
 
-    // (C1) Varre repetidamente até o cluster estabilizar: um candidato rejeitado
-    // quando o cluster era pequeno pode passar depois que ele cresce (o max-linkage
-    // ganha novos membros para comparar). Sem isso, a ordem do feed definia o
-    // resultado — e matérias do mesmo caso ficavam de fora.
-    let grew = true;
-    while (grew) {
-      grew = false;
-      for (let j = i + 1; j < normalized.length; j++) {
-        const cand = normalized[j];
-        if (used.has(cand.id)) continue;
+  // Fusão iterativa: une sempre o par mais similar acima do limiar.
+  // (peça 5) SEM limite por fonte: um veículo que cobre bem o caso com 5
+  // matérias não deve ter 3 descartadas — isso PERDE cobertura, o oposto
+  // do que queremos. A diversidade é medida por GRUPOS editoriais, não
+  // jogando matéria fora.
+  let merged = true;
+  while (merged && groups.length > 1) {
+    merged = false;
+    let bestI = -1, bestJ = -1, bestScore = cfg.scoreThreshold;
 
-        // MAX-LINKAGE: compara com o membro MAIS PRÓXIMO do cluster, não só a semente.
-        let score = -Infinity;
-        let bestMember = seedArt;
-        for (const member of items) {
-          const s = computePairScore(member, cand, cfg.weights);
-          if (s > score) { score = s; bestMember = member; }
-        }
-        const sameSource = perSource.has(cand.source);
-
-        if (sameSource) {
-          const titleSim = stringSimilarity.compareTwoStrings(bestMember.cleanTitle, cand.cleanTitle);
-          if (titleSim >= cfg.duplicateTitleSim) { used.add(cand.id); continue; } // duplicata: consome, não infla
-          if ((perSource.get(cand.source) || 0) >= cfg.maxPerSourceInCluster) continue;
-          if (score < cfg.sameSourceThreshold) continue;
-        } else if (score < cfg.scoreThreshold) {
-          continue;
-        }
-
-        items.push(cand);
-        perSource.set(cand.source, (perSource.get(cand.source) || 0) + 1);
-        used.add(cand.id);
-        grew = true;   // cluster cresceu → revarre, pode atrair mais
+    for (let i = 0; i < groups.length; i++) {
+      for (let j = i + 1; j < groups.length; j++) {
+        const s = clusterSim(groups[i], groups[j]);
+        if (s > bestScore) { bestScore = s; bestI = i; bestJ = j; }
       }
     }
 
-    if (items.length > 1) potential.push({ items, perSource });
+    if (bestI >= 0) {
+      groups[bestI] = [...groups[bestI], ...groups[bestJ]];
+      groups.splice(bestJ, 1);
+      merged = true;
+    }
   }
+
+  const potential = groups
+    .filter(items => items.length > 1)
+    .map(items => {
+      const perSource = new Map<string, number>();
+      for (const a of items) perSource.set(a.source, (perSource.get(a.source) || 0) + 1);
+      return { items, perSource };
+    });
 
   if (potential.length === 0) return [];
 
-  // 3) Ranking de clusters: diversidade de fontes > tamanho bruto
+  // ==========================================================================
+  // 3) RANKING — (PEÇA 6) por IMPORTÂNCIA, não por volume.
+  // O antigo era: itens × pesoFontes × fontes^1.4 × imagem × recência — ou seja,
+  // premiava QUANTIDADE de cobertura. Uma notícia coberta por 8 veículos fracos
+  // ganhava de uma exclusiva do Estadão.
+  // Agora o sinal central é ESCALADA (velocidade de adesão) e INDEPENDÊNCIA
+  // (grupos editoriais distintos, não veículos do mesmo dono).
+  // ==========================================================================
   const scored = potential.map(c => {
     const sources = new Set(c.items.map(a => a.source));
     let sourceImpact = 0;
     sources.forEach(s => { sourceImpact += (cfg.sourceWeights[s] || 1); });
+
+    // Independência real: G1 + O Globo + Valor = 1 grupo, não 3 confirmações.
+    const cov = countCoverage(c.items.map(a => ({ source: a.source })));
+    const independence = Math.pow(Math.max(1, cov.groups), 1.35);
+
+    // ESCALADA: quantos GRUPOS entraram por hora desde a primeira publicação.
+    // 5 fontes em 20 min >> 8 fontes em 6 h. Este é o sinal de "quente" de
+    // verdade — os timestamps estavam parados no motor antigo.
+    const times = c.items.map(a => a._timeMs);
+    const firstMs = Math.min(...times);
+    const lastMs = Math.max(...times);
+    const spanHours = Math.max(0.25, (lastMs - firstMs) / 3600000);
+    const velocity = cov.groups / spanHours;                 // grupos por hora
+    const escalation = 1 + Math.min(2.5, velocity * 0.8);    // 1.0 … 3.5
+
     const hasGoodImage = c.items.some(a => hasRealImageUrl(a.img) && !cfg.imageBlockedSources.includes(a.source));
     const newest = Math.min(...c.items.map(a => a.ageMinutes));
-    const recencyBoost = newest <= 60 ? 1.4 : newest <= 180 ? 1.15 : 1;
-    const impactScore = c.items.length * sourceImpact * Math.pow(sources.size, 1.4) * (hasGoodImage ? 1.15 : 1) * recencyBoost;
-    return { ...c, impactScore, sourceCount: sources.size };
+    const recencyBoost = newest <= 60 ? 1.4 : newest <= 180 ? 1.15 : newest <= 720 ? 1 : 0.75;
+    const quality = (hasGoodImage ? 1.15 : 1) * (c.items.some(a => a.summary.length > 80) ? 1.05 : 1);
+
+    const impactScore = escalation * independence * sourceImpact * recencyBoost * quality;
+
+    return { ...c, impactScore, sourceCount: sources.size, _coverage: cov, _velocity: velocity, _firstMs: firstMs, _lastMs: lastMs };
   });
 
   const top = scored.sort((a, b) => b.impactScore - a.impactScore).slice(0, cfg.clusterLimit);
@@ -458,10 +638,9 @@ export const generateSmartHeuristicClusters = (articles: any[], options: Cluster
 
     const confidence = Math.min(1, (cluster.sourceCount / 4) * 0.6 + Math.min(1, cluster.items.length / 6) * 0.4);
 
-    // (C1) Contagem HONESTA: separa publicações, veículos e GRUPOS editoriais
-    // independentes. G1 + O Globo + Valor = 3 veículos, mas 1 grupo — não são
-    // três confirmações independentes.
-    const coverage = countCoverage(cluster.items.map(a => ({ source: a.source })));
+    // Contagem HONESTA: publicações ≠ veículos ≠ grupos independentes.
+    const coverage = cluster._coverage || countCoverage(cluster.items.map(a => ({ source: a.source })));
+    const phase = detectCasePhase(cluster.items, coverage.groups);
 
     return {
       // --- shape esperado pela UI atual (inalterado) ---
@@ -477,8 +656,10 @@ export const generateSmartHeuristicClusters = (articles: any[], options: Cluster
       temperature: computeTemperature(cluster.items, cluster.sourceCount),
       confidence: Number(confidence.toFixed(2)),
       source_count: cluster.sourceCount,
-      coverage,                       // ← publications / outlets / groups / byGroup
+      coverage,                                        // publications/outlets/groups/byGroup
       coverage_label: formatCoverageLabel(coverage),
+      phase,                                           // (PEÇA 7) ciclo de vida
+      velocity: Number((cluster._velocity || 0).toFixed(2)),  // grupos/hora (escalada)
       topic_words: topicWords,
       entities: keyEntities,
       top_snippets: topSnippets,
