@@ -8975,6 +8975,11 @@ const [apiKeys, setApiKeys] = useState([
 { id: 33, value: '', type: 'heavy_rotation' },
 { id: 34, value: '', type: 'heavy_rotation' },
 { id: 35, value: '', type: 'heavy_rotation' },
+{ id: 40, value: '', type: 'heavy_rotation' },
+{ id: 41, value: '', type: 'heavy_rotation' },
+{ id: 42, value: '', type: 'heavy_rotation' },
+{ id: 43, value: '', type: 'heavy_rotation' },
+{ id: 44, value: '', type: 'heavy_rotation' },
 
     // Pool 3: Chat - Agora com 3 chaves
     { id: 12, value: '', type: 'chat_key' },
@@ -9613,6 +9618,11 @@ const handleStoryNavigation = (direction) => {
 { id: 33, value: '', type: 'heavy_rotation' },
 { id: 34, value: '', type: 'heavy_rotation' },
 { id: 35, value: '', type: 'heavy_rotation' },
+{ id: 40, value: '', type: 'heavy_rotation' },
+{ id: 41, value: '', type: 'heavy_rotation' },
+{ id: 42, value: '', type: 'heavy_rotation' },
+{ id: 43, value: '', type: 'heavy_rotation' },
+{ id: 44, value: '', type: 'heavy_rotation' },
                                 { id: 12, value: '', type: 'chat_key' },
                                 { id: 13, value: '', type: 'chat_key' },
                                 { id: 18, value: '', type: 'chat_key' },
@@ -12370,17 +12380,37 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           <button
             key={tab.id}
             onClick={() => setActiveTabSection(tab.id)}
-            className={`ai-analysis-tab ${active ? 'is-active' : ''}`}
-            style={active ? {
-              background: isDarkMode
-                ? 'linear-gradient(135deg, #4f46e5, #7c3aed)'
-                : 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-              color: '#fff',
-              borderColor: 'rgba(255,255,255,0.25)',
-              boxShadow: '0 4px 16px rgba(79,70,229,0.35)',
-            } : undefined}
-         
+          className={`ai-analysis-tab ${active ? 'is-active' : ''}`}
+            style={{
+              height: 'auto',
+              minHeight: '58px',
+              paddingTop: '8px',
+              paddingBottom: '8px',
+              border: '1px solid transparent',
+              borderRadius: '14px',
+              // Aço escovado: 2 camadas — o miolo e a borda em degradê.
+              backgroundOrigin: 'border-box',
+              backgroundClip: 'padding-box, border-box',
+              ...(active ? {
+                // ATIVO: miolo índigo + borda de aço mais brilhante
+                backgroundImage:
+                  'linear-gradient(135deg,#4f46e5,#7c3aed), linear-gradient(135deg,rgba(255,255,255,.55),rgba(255,255,255,.12) 42%,rgba(255,255,255,.05) 58%,rgba(255,255,255,.45))',
+                color: '#fff',
+                boxShadow: '0 4px 18px rgba(79,70,229,.38)',
+              } : {
+                // INATIVO: miolo do tema + borda de aço sutil
+                backgroundImage: isDarkMode
+                  ? 'linear-gradient(#1c1c1f,#141417), linear-gradient(135deg,rgba(255,255,255,.30),rgba(255,255,255,.06) 42%,rgba(255,255,255,.02) 58%,rgba(255,255,255,.24))'
+                  : 'linear-gradient(#ffffff,#f6f6f8), linear-gradient(135deg,rgba(0,0,0,.20),rgba(0,0,0,.05) 42%,rgba(255,255,255,.95) 58%,rgba(0,0,0,.14))',
+                boxShadow: isDarkMode
+                  ? '0 1px 2px rgba(0,0,0,.4)'
+                  : '0 1px 3px rgba(0,0,0,.06)',
+              }),
+            }}
           >
+            
+         
+          
             <span className="ai-analysis-tab-icon">{tab.icon}</span>
             <span
               className="ai-analysis-tab-label"
