@@ -11,6 +11,8 @@ import * as stringSimilarity from 'string-similarity';
 import { generateSmartHeuristicSummary } from './lib/articleSummaryEngine';
 import { generateSmartHeuristicClusters } from './lib/clusterEngine';
 
+const VETRA_AI_PIPELINE_BUILD = 'V5_PARALLEL_STREAM_2026_07_12';
+
 // Coloque suas chaves reais aqui
 const supabase = createClient('https://usnhoviysiaeqcwvnhcd.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbmhvdml5c2lhZXFjd3ZuaGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NjQ1NjksImV4cCI6MjA4MTM0MDU2OX0.7K1qfEeRZ7qrJBf0noIZJ6fkT4OMKIljgwd6r2MLUXk')
 import { 
@@ -919,7 +921,7 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
         ) : (
            <div className="w-6 h-6 rounded-md overflow-hidden border border-white/20">
               <img 
-                src={uniqueSources.find(s => s.source === selectedSource)?.logo} 
+                src={safeLogoUrl(uniqueSources.find(s => s.source === selectedSource)?.logo, uniqueSources.find(s => s.source === selectedSource)?.link, selectedSource)} 
                 className="w-full h-full object-cover"
                 onError={(e) => e.target.style.display = 'none'}
               />
@@ -971,7 +973,7 @@ function SourceSelector({ news, selectedSource, onSelect, isDarkMode }) {
                      title={item.source}
                    >
                      <img 
-                       src={item.logo} 
+                       src={safeLogoUrl(item.logo, item.link || item.url, item.source || item.name)} 
                        alt={item.source} 
                        // MUDANÇA 2: rounded-full -> rounded-md aqui também
                        className="w-full h-full rounded-md object-cover border border-black/10 bg-white"
@@ -1015,7 +1017,7 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
            <LayoutGrid size={20} className={isOpen ? 'text-purple-500' : ''} />
         ) : (
            <div className="flex items-center gap-2">
-              <img src={uniqueChannels.find(c => c.name === selectedChannel)?.logo} className="w-6 h-6 rounded-full object-cover border border-white/20" />
+              <img src={safeLogoUrl(uniqueChannels.find(c => c.name === selectedChannel)?.logo, '', selectedChannel)} className="w-6 h-6 rounded-full object-cover border border-white/20" />
               <span className="text-[10px] font-bold uppercase truncate max-w-[80px]">{selectedChannel}</span>
            </div>
         )}
@@ -1032,7 +1034,7 @@ function YouTubeChannelSelector({ videos, selectedChannel, onSelect, isDarkMode 
              <div className={`h-[1px] w-full my-1 ${isDarkMode ? 'bg-white/10' : 'bg-zinc-200'}`} />
              {uniqueChannels.map((ch) => (
                <button key={ch.name} onClick={() => { onSelect(ch.name); setIsOpen(false); }} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all w-full ${selectedChannel === ch.name ? 'bg-purple-500/20 ring-1 ring-purple-500/50' : (isDarkMode ? 'hover:bg-white/5' : 'hover:bg-black/5')}`}>
-                 <img src={ch.logo} className="w-7 h-7 rounded-full object-cover border border-black/10 shrink-0" />
+                 <img src={safeLogoUrl(ch.logo, '', ch.name)} className="w-7 h-7 rounded-full object-cover border border-black/10 shrink-0" />
                  <span className={`text-xs font-bold whitespace-nowrap truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>{ch.name}</span>
                </button>
              ))}
@@ -1283,7 +1285,7 @@ const NewsCard = React.memo(({
             </span>
             {news.logo && (
               <img
-                src={news.logo}
+                src={safeLogoUrl(news.logo, news.link || news.canonicalUrl, news.source)}
                 alt=""
                 className="relative w-[46%] h-[46%] object-contain rounded-2xl bg-white p-2.5 shadow-sm"
                 onError={(e) => {
@@ -1363,7 +1365,7 @@ const NewsCard = React.memo(({
                 </span>
                 {news.logo && (
                   <img
-                    src={news.logo}
+                    src={safeLogoUrl(news.logo, news.link || news.canonicalUrl, news.source)}
                     className="relative w-full h-full object-contain p-1.5 bg-white"
                     alt=""
                     onError={(e) => {
@@ -1804,7 +1806,7 @@ const handleTouchEnd = async () => {
                     const count = sourceCacheView?.[n.id]?.length || filteredByCategory.filter(item => item.sourceId === n.id || item.source === n.name || getEditorialGroupKey(item.source, item.link) === n.groupKey).length;
                     return (
                     <button key={n.id} onClick={() => { setSourceFilter(n.id); setSrcOpen(false); if (onEnsureSourceLoaded) onEnsureSourceLoaded(n.id); }} className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl text-[13px] font-medium transition-colors ${sourceFilter===n.id ? 'bg-[#0a1a3d] text-white' : 'text-zinc-600 hover:bg-black/5'}`}>
-                      {n.logo && <img src={n.logo} className="w-5 h-5 rounded object-cover shrink-0 bg-white" onError={(e)=>e.target.style.display='none'} alt="" />}
+                      {n.logo && <img src={safeLogoUrl(n.logo, n.link || n.url, n.name || n.source)} className="w-5 h-5 rounded object-cover shrink-0 bg-white" onError={(e)=>e.target.style.display='none'} alt="" />}
                       <span className="truncate flex-1">{n.name}</span>
                       <span className={`text-[10px] ${sourceFilter===n.id ? 'text-white/70' : 'text-zinc-400'}`}>{status === 'loading' ? '...' : count || '—'}</span>
                     </button>
@@ -2255,7 +2257,7 @@ function YouTubeTab({ isDarkMode, onToggleSave, savedItems, realVideos, isLoadin
                         <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-full p-[2px] ${isSeen ? 'bg-zinc-500' : 'bg-gradient-to-r from-red-600 to-orange-600'}`}>
                                 <div className="w-full h-full bg-white rounded-full border-2 border-white overflow-hidden">
-                                    <img src={video.logo} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${video.source}&rounded=true`} />
+                                    <img src={safeLogoUrl(video.logo, video.link || video.url, video.source || video.channel)} className="w-full h-full object-cover rounded-full" onError={(e) => e.target.src = `https://ui-avatars.com/api/?name=${video.source}&rounded=true`} />
                                 </div>
                             </div>
                             <div>
@@ -2437,159 +2439,497 @@ const generateTimelineForCluster = async (articles, apiKey) => {
     }
 };
 
-// Parser tolerante: o Gemini às vezes corta a saída no limite de tokens e o
-// JSON chega truncado ("Expected ',' or '}' ... at position 881"). Em vez de
-// perder tudo, recupera o que já veio, fechando as estruturas abertas.
-const safeJsonParse = (raw) => {
-  if (!raw) return null;
-  let s = String(raw).replace(/```json/gi, '').replace(/```/g, '').trim();
-  s = s.replace(/,\s*([}\]])/g, '$1');
-  try { return JSON.parse(s); } catch {}
+// ============================================================
+// VETRA — PIPELINE DE IA PROGRESSIVA V5
+// - Chamada 1: resumo rápido estruturado, iniciada imediatamente.
+// - Chamada 2: análise profunda em streaming, iniciada em paralelo.
+// - JSON validado por schema (elimina JSON.parse de texto livre).
+// - Campos profundos são emitidos assim que ficam completos.
+// - Respostas parciais são preservadas; MAX_TOKENS não apaga dados já recebidos.
+// ============================================================
 
-  let inStr = false, esc = false, lastSafe = -1;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (esc) { esc = false; continue; }
-    if (c === '\\') { esc = true; continue; }
-    if (c === '"') { inStr = !inStr; continue; }
-    if (inStr) continue;
-    if (c === ',' || c === '}' || c === ']') lastSafe = i;
-  }
-  if (lastSafe > 0) {
-    let cand = s.slice(0, lastSafe + 1).replace(/,\s*$/, '');
-    const st = [];
-    let is = false, es = false;
-    for (const c of cand) {
-      if (es) { es = false; continue; }
-      if (c === '\\') { es = true; continue; }
-      if (c === '"') { is = !is; continue; }
-      if (is) continue;
-      if (c === '{') st.push('}');
-      else if (c === '[') st.push(']');
-      else if (c === '}' || c === ']') st.pop();
+const GEMINI_ANALYSIS_MODEL = 'gemini-3.5-flash';
+
+const FAST_SUMMARY_SCHEMA = {
+  type: 'OBJECT',
+  propertyOrdering: ['tldr', 'bullets', 'faqs'],
+  properties: {
+    tldr: {
+      type: 'STRING',
+      description: 'Resumo formal, explicativo e objetivo em duas ou três frases.'
+    },
+    bullets: {
+      type: 'ARRAY',
+      minItems: 4,
+      maxItems: 4,
+      items: { type: 'STRING' },
+      description: 'Exatamente quatro fatos cruciais, cada um com no máximo quinze palavras.'
+    },
+    faqs: {
+      type: 'ARRAY',
+      minItems: 2,
+      maxItems: 2,
+      items: { type: 'STRING' },
+      description: 'Exatamente duas perguntas frequentes relevantes.'
     }
-    while (st.length) cand += st.pop();
-    try { return JSON.parse(cand); } catch {}
-  }
-  return null;
+  },
+  required: ['tldr', 'bullets', 'faqs']
 };
 
+const DEEP_ANALYSIS_SCHEMA = {
+  type: 'OBJECT',
+  // A ordem é intencional: os campos mais visíveis chegam primeiro no stream.
+  propertyOrdering: [
+    'executive',
+    'mindmap',
+    'timeline',
+    'sentiment',
+    'eli5',
+    'future',
+    'contextualTerms'
+  ],
+  properties: {
+    executive: {
+      type: 'STRING',
+      description: 'Resumo executivo aprofundado em dois ou três parágrafos curtos.'
+    },
+    mindmap: {
+      type: 'OBJECT',
+      propertyOrdering: ['center', 'nodes'],
+      properties: {
+        center: { type: 'STRING', description: 'Tema central com no máximo quatro palavras.' },
+        nodes: {
+          type: 'ARRAY',
+          minItems: 3,
+          maxItems: 3,
+          items: { type: 'STRING' }
+        }
+      },
+      required: ['center', 'nodes']
+    },
+    timeline: {
+      type: 'ARRAY',
+      minItems: 1,
+      maxItems: 5,
+      items: {
+        type: 'OBJECT',
+        propertyOrdering: ['time', 'event'],
+        properties: {
+          time: { type: 'STRING' },
+          event: { type: 'STRING' }
+        },
+        required: ['time', 'event']
+      }
+    },
+    sentiment: {
+      type: 'STRING',
+      description: 'Análise curta de tom, enquadramento, sentimento e possível viés editorial.'
+    },
+    eli5: {
+      type: 'STRING',
+      description: 'Explicação pedagógica e curta, usando uma analogia quando ela realmente ajudar.'
+    },
+    future: {
+      type: 'OBJECT',
+      propertyOrdering: ['probable', 'optimistic', 'pessimistic'],
+      properties: {
+        probable: { type: 'STRING' },
+        optimistic: { type: 'STRING' },
+        pessimistic: { type: 'STRING' }
+      },
+      required: ['probable', 'optimistic', 'pessimistic']
+    },
+    contextualTerms: {
+      type: 'ARRAY',
+      minItems: 3,
+      maxItems: 4,
+      items: {
+        type: 'OBJECT',
+        propertyOrdering: ['term', 'context', 'evidence_quotes'],
+        properties: {
+          term: { type: 'STRING' },
+          context: { type: 'STRING' },
+          evidence_quotes: {
+            type: 'ARRAY',
+            minItems: 0,
+            maxItems: 1,
+            items: { type: 'STRING' }
+          }
+        },
+        required: ['term', 'context', 'evidence_quotes']
+      }
+    }
+  },
+  required: [
+    'executive',
+    'mindmap',
+    'timeline',
+    'sentiment',
+    'eli5',
+    'future',
+    'contextualTerms'
+  ]
+};
 
-// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Chave na URL) ---
-const generateFastSummary = async (text, apiKey) => {
-  if (!text || text.length < 100 || !apiKey) return null;
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
+const sanitizeAiInput = (value, maxChars = 10000) => String(value || '')
+  .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+  .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+  .replace(/<[^>]*>?/gm, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, maxChars);
 
-  const prompt = `
-  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
-  {
-    "tldr": "TLDR denso, formal e explicativo de 2 a 3 frases de forte impacto.",
-    "bullets": [
-      "Fato crucial 1 (Máx 15 palavras)",
-      "Fato crucial 2 (Máx 15 palavras)",
-      "Fato crucial 3 (Máx 15 palavras)",
-      "Fato crucial 4 (Máx 15 palavras)"
-    ],
-    "faqs": [
-      "Pergunta frequente crucial 1?",
-      "Pergunta frequente crucial 2?"
-    ]
+const getGeminiCandidatePayload = (data) => {
+  const candidate = data?.candidates?.[0];
+  if (!candidate) {
+    const blockReason = data?.promptFeedback?.blockReason;
+    throw new Error(blockReason ? `Resposta bloqueada: ${blockReason}` : 'Gemini não retornou candidato.');
   }
-  TEXTO:
-  ${cleanText}
-  `;
+
+  const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
+  const text = parts
+    .filter(part => !part?.thought)
+    .map(part => typeof part?.text === 'string' ? part.text : '')
+    .join('')
+    .trim();
+
+  return {
+    text,
+    finishReason: candidate?.finishReason || 'FINISH_REASON_UNSPECIFIED',
+    usageMetadata: data?.usageMetadata || null
+  };
+};
+
+const parseGeminiJson = (rawText, label = 'Gemini') => {
+  const cleaned = String(rawText || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
 
   try {
-    // Restaurado o ?key= na URL para funcionar 100% no navegador
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
-      method: "POST", 
-      headers: { 
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          response_mime_type: "application/json",
-          temperature: 0.2,
-          maxOutputTokens: 1200,                    // evita corte no meio do JSON
-          thinkingConfig: { thinkingBudget: 0 },    // thinking consome orçamento e atrasa
-        }
-      })
-    });
-
-    if (!res.ok) {
-      console.warn(`[Fast Summary] Gemini retornou erro ${res.status}. Usando fallback local.`);
-      return null;
+    return JSON.parse(cleaned);
+  } catch (firstError) {
+    const objectStart = cleaned.indexOf('{');
+    const objectEnd = cleaned.lastIndexOf('}');
+    if (objectStart >= 0 && objectEnd > objectStart) {
+      const candidate = cleaned
+        .slice(objectStart, objectEnd + 1)
+        .replace(/,\s*([}\]])/g, '$1');
+      try {
+        return JSON.parse(candidate);
+      } catch (_) {
+        // O schema torna este fallback excepcional; o chamador aplicará o fallback local.
+      }
     }
-
-    const data = await res.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!resultText) throw new Error("Resposta da IA vazia");
-
-    const parsed = safeJsonParse(resultText);
-    if (!parsed) console.warn("[Fast Summary] JSON irrecuperável — usando fallback.");
-    return parsed;
-  } catch (e) { 
-    console.error("Erro Fast Summary:", e); 
-    return null; 
+    const error = new Error(`${label}: JSON estruturado incompleto ou inválido.`);
+    error.cause = firstError;
+    throw error;
   }
 };
 
-// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Chave na URL) ---
-const generateDeepAnalysis = async (text, apiKey) => {
-  if (!text || text.length < 100 || !apiKey) return null;
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
+const requestGeminiStructuredJson = async ({
+  prompt,
+  apiKey,
+  schema,
+  temperature = 0.1,
+  maxOutputTokens = 2048,
+  signal,
+  label = 'Gemini'
+}) => {
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_ANALYSIS_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: schema,
+        temperature,
+        maxOutputTokens,
+        thinkingConfig: {
+          thinkingLevel: 'MINIMAL',
+          includeThoughts: false
+        }
+      }
+    })
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const apiMessage = data?.error?.message || data?.error?.status || `HTTP ${response.status}`;
+    throw new Error(`${label}: ${apiMessage}`);
+  }
+
+  const payload = getGeminiCandidatePayload(data);
+  if (!payload.text) throw new Error(`${label}: resposta textual vazia (${payload.finishReason}).`);
+
+  // Mesmo com MAX_TOKENS o JSON pode ter sido concluído. Tentamos o parse primeiro.
+  const parsed = parseGeminiJson(payload.text, label);
+  if (payload.finishReason === 'MAX_TOKENS') {
+    console.warn(`[${label}] limite alcançado, mas o JSON completo foi aproveitado.`);
+  }
+  return parsed;
+};
+
+// --- CHAMADA 1: FAST SUMMARY ESTRUTURADO ---
+const generateFastSummary = async (text, apiKey, signal) => {
+  if (!apiKey) return null;
+  const cleanText = sanitizeAiInput(text, 7000);
+  if (cleanText.length < 20) return null;
 
   const prompt = `
-  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
-  {
-    "executive": "Resumo executivo aprofundado e denso (3 parágrafos formais).",
-    "eli5": "Explicação simplificada e pedagógica usando uma analogia inteligente (1 parágrafo curto).",
-    "sentiment": "Análise de tom, sentimento e viés jornalístico do artigo (neutro, crítico, otimista, etc., com justificativa de 1 parágrafo curto).",
-    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C"] },
-    "contextualTerms": [
-      { "term": "Nó A", "context": "Importância específica deste nó na notícia. Max 25 palavras.", "evidence_quotes": ["Citação curta"] }
-    ],
-    "timeline": [ { "time": "Hoje", "event": "Fato principal" } ],
-    "future": { "optimistic": "Cenário positivo", "pessimistic": "Risco", "probable": "Realidade" }
-  }
-  TEXTO:
-  ${cleanText}
-  `;
+Você é um Analista de Inteligência Sênior.
+Analise exclusivamente o texto fornecido e responda em português do Brasil.
+
+Regras obrigatórias:
+- Não invente fatos.
+- O TLDR deve ter duas ou três frases, ser formal e informativo.
+- Produza exatamente quatro fatos cruciais, cada um com no máximo quinze palavras.
+- Produza exatamente duas perguntas frequentes.
+- Não repita a mesma informação nos campos.
+- Não use markdown.
+
+TEXTO:
+${cleanText}
+  `.trim();
 
   try {
-    // Restaurado o ?key= na URL para funcionar 100% no navegador
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
-      method: "POST", 
-      headers: { 
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          response_mime_type: "application/json",
-          temperature: 0.3,
-          maxOutputTokens: 4096,                    // a deep gera muito mais
-          thinkingConfig: { thinkingBudget: 0 },
-        }
-      })
+    const result = await requestGeminiStructuredJson({
+      prompt,
+      apiKey,
+      schema: FAST_SUMMARY_SCHEMA,
+      temperature: 0.1,
+      maxOutputTokens: 2048,
+      signal,
+      label: 'Fast Summary'
     });
 
-    if (!res.ok) {
-      console.warn(`[Deep Analysis] Gemini retornou erro ${res.status}.`);
-      return null;
+    return {
+      tldr: typeof result?.tldr === 'string' ? result.tldr.trim() : '',
+      bullets: Array.isArray(result?.bullets)
+        ? result.bullets.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 4)
+        : [],
+      faqs: Array.isArray(result?.faqs)
+        ? result.faqs.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 2)
+        : []
+    };
+  } catch (error) {
+    if (error?.name !== 'AbortError') {
+      console.warn('[Fast Summary] resposta não aproveitável; mantendo o resumo local.', error?.message || error);
+    }
+    return null;
+  }
+};
+
+const DEEP_STREAM_KEYS = [
+  'executive',
+  'mindmap',
+  'timeline',
+  'sentiment',
+  'eli5',
+  'future',
+  'contextualTerms'
+];
+
+// Extrai um valor top-level somente quando ele já está completo no JSON parcial.
+const extractCompleteTopLevelJsonValue = (source, key) => {
+  const token = `"${key}"`;
+  let tokenIndex = source.indexOf(token);
+  if (tokenIndex < 0) return { complete: false };
+
+  const colonIndex = source.indexOf(':', tokenIndex + token.length);
+  if (colonIndex < 0) return { complete: false };
+
+  let start = colonIndex + 1;
+  while (start < source.length && /\s/.test(source[start])) start += 1;
+  if (start >= source.length) return { complete: false };
+
+  const first = source[start];
+  if (first === '"') {
+    let escaped = false;
+    for (let i = start + 1; i < source.length; i += 1) {
+      const ch = source[i];
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
+      if (ch === '"') {
+        try {
+          return { complete: true, value: JSON.parse(source.slice(start, i + 1)) };
+        } catch (_) {
+          return { complete: false };
+        }
+      }
+    }
+    return { complete: false };
+  }
+
+  if (first === '{' || first === '[') {
+    const opening = first;
+    const closing = first === '{' ? '}' : ']';
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start; i < source.length; i += 1) {
+      const ch = source[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') { inString = true; continue; }
+      if (ch === opening) depth += 1;
+      else if (ch === closing) {
+        depth -= 1;
+        if (depth === 0) {
+          try {
+            return { complete: true, value: JSON.parse(source.slice(start, i + 1)) };
+          } catch (_) {
+            return { complete: false };
+          }
+        }
+      }
+    }
+  }
+
+  return { complete: false };
+};
+
+// --- CHAMADA 2: DEEP ANALYSIS EM STREAMING ---
+const generateDeepAnalysisStream = async (text, apiKey, onPatch, signal) => {
+  if (!apiKey) return null;
+  const cleanText = sanitizeAiInput(text, 10000);
+  if (cleanText.length < 20) return null;
+
+  const prompt = `
+Você é um Analista de Inteligência Sênior.
+Analise exclusivamente o texto fornecido e responda em português do Brasil.
+
+Regras obrigatórias:
+- Não invente fatos, datas ou citações.
+- O executivo deve ter dois ou três parágrafos curtos e densos.
+- O mapa deve ter um centro curto e exatamente três nós.
+- A linha do tempo deve usar somente eventos sustentados pelo texto e no máximo cinco itens.
+- A análise de viés deve separar tom, enquadramento e possíveis omissões sem acusação gratuita.
+- O ELI5 deve ser curto e pedagógico.
+- Os cenários são possibilidades, nunca fatos confirmados.
+- Gere de três a quatro termos contextuais; no máximo uma citação curta por termo.
+- Evite repetição e não use markdown.
+
+TEXTO:
+${cleanText}
+  `.trim();
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_ANALYSIS_MODEL}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: DEEP_ANALYSIS_SCHEMA,
+        temperature: 0.2,
+        maxOutputTokens: 8192,
+        thinkingConfig: {
+          thinkingLevel: 'MINIMAL',
+          includeThoughts: false
+        }
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Deep Analysis: HTTP ${response.status}${errorText ? ` — ${errorText.slice(0, 300)}` : ''}`);
+  }
+  if (!response.body) throw new Error('Deep Analysis: stream indisponível neste navegador.');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let transportBuffer = '';
+  let eventLines = [];
+  let generatedJson = '';
+  let finishReason = 'FINISH_REASON_UNSPECIFIED';
+  const assembled = {};
+  const emitted = new Set();
+
+  const emitCompletedFields = () => {
+    for (const key of DEEP_STREAM_KEYS) {
+      if (emitted.has(key)) continue;
+      const extracted = extractCompleteTopLevelJsonValue(generatedJson, key);
+      if (!extracted.complete) continue;
+      emitted.add(key);
+      assembled[key] = extracted.value;
+      onPatch?.({ [key]: extracted.value });
+    }
+  };
+
+  const consumeEvent = () => {
+    if (!eventLines.length) return;
+    const raw = eventLines.join('\n').trim();
+    eventLines = [];
+    if (!raw || raw === '[DONE]') return;
+
+    let packet;
+    try {
+      packet = JSON.parse(raw);
+    } catch (_) {
+      return;
     }
 
-    const data = await res.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!resultText) throw new Error("Resposta da IA vazia");
+    const candidate = packet?.candidates?.[0];
+    if (candidate?.finishReason) finishReason = candidate.finishReason;
+    const delta = (candidate?.content?.parts || [])
+      .filter(part => !part?.thought)
+      .map(part => typeof part?.text === 'string' ? part.text : '')
+      .join('');
+    if (!delta) return;
+    generatedJson += delta;
+    emitCompletedFields();
+  };
 
-    const parsed = safeJsonParse(resultText);
-    if (!parsed) console.warn("[Deep Analysis] JSON irrecuperável.");
-    return parsed;
-  } catch (e) { 
-    console.error("Erro Deep Analysis:", e); 
-    return null; 
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    transportBuffer += decoder.decode(value, { stream: true });
+    const lines = transportBuffer.split(/\r?\n/);
+    transportBuffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (line === '') {
+        consumeEvent();
+      } else if (line.startsWith('data:')) {
+        eventLines.push(line.slice(5).trimStart());
+      }
+    }
+  }
+
+  transportBuffer += decoder.decode();
+  if (transportBuffer.startsWith('data:')) eventLines.push(transportBuffer.slice(5).trimStart());
+  consumeEvent();
+  emitCompletedFields();
+
+  const cleaned = generatedJson
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  try {
+    const finalResult = JSON.parse(cleaned);
+    onPatch?.(finalResult);
+    return finalResult;
+  } catch (error) {
+    // Um stream truncado não deve apagar as seções já concluídas.
+    if (Object.keys(assembled).length > 0) {
+      console.warn(`[Deep Analysis] stream finalizado como ${finishReason}; preservando ${Object.keys(assembled).length} seções completas.`);
+      return assembled;
+    }
+    throw new Error(`Deep Analysis: resposta final incompleta (${finishReason}).`);
   }
 };
 
@@ -2741,7 +3081,7 @@ const AssetCard = ({ asset, allNews, openArticle, isDarkMode }) => {
                                     onClick={(e) => { e.stopPropagation(); openArticle(news); }}
                                     className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors text-left group ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
                                 >
-                                    <img src={news.logo} className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover" alt="Logo" onError={(e) => e.target.style.display='none'} />
+                                    <img src={safeLogoUrl(news.logo, news.link || news.canonicalUrl, news.source)} className="w-6 h-6 rounded-full border border-white/10 flex-shrink-0 object-cover" alt="Logo" onError={(e) => e.target.style.display='none'} />
                                     <span className={`text-xs font-semibold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-300 group-hover:text-white' : 'text-zinc-700 group-hover:text-black'}`}>
                                         {news.title}
                                     </span>
@@ -3081,7 +3421,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
                               </div>
                               {mover.article && (
                                 <button onClick={() => openArticle(mover.article)} className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-500 hover:text-purple-400 transition-colors">
-                                    Ver fonte <img src={mover.article.logo} className="w-4 h-4 rounded-full" />
+                                    Ver fonte <img src={safeLogoUrl(mover.article.logo, mover.article.link || mover.article.url, mover.article.source)} className="w-4 h-4 rounded-full" />
                                 </button>
                               )}
                           </div>
@@ -3135,7 +3475,7 @@ const MarketPulseWidget = ({ newsData, apiKey, isDarkMode, openArticle }) => {
             {heuristicData?.topMovers?.map(({ name, article }, idx) => (
                 <div key={idx} className={`p-4 rounded-2xl flex flex-col justify-between h-36 ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white border-zinc-200 shadow-sm'}`}>
                     <div><span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>{name}</span><h4 className={`font-bold text-sm leading-tight line-clamp-2 mt-1 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>{article.title}</h4></div>
-                    <button onClick={() => openArticle(article)} className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-white transition-colors self-start"><img src={article.logo} className="w-4 h-4 rounded-full" />Ler na fonte</button>
+                    <button onClick={() => openArticle(article)} className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-white transition-colors self-start"><img src={safeLogoUrl(article.logo, article.link || article.url, article.source)} className="w-4 h-4 rounded-full" />Ler na fonte</button>
                 </div>
             ))}
         </div>
@@ -3521,7 +3861,7 @@ const GlassBrowser = ({ article, onClose, isDarkMode, onFetchContent, onAnalyze,
           <div className="absolute top-4 left-4 right-4 flex items-start justify-between gap-2">
             <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
               <div className="w-11 h-11 rounded-xl bg-white border border-white/70 shadow-md overflow-hidden shrink-0 flex items-center justify-center">
-                <img src={article.logo} className="w-full h-full object-contain p-1.5" onError={(e) => (e.target.style.display='none')} alt="" />
+                <img src={safeLogoUrl(article.logo, article.link || article.url, article.source)} className="w-full h-full object-contain p-1.5" onError={(e) => (e.target.style.display='none')} alt="" />
               </div>
               <div className="leading-tight min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 min-w-0">
@@ -4053,7 +4393,7 @@ const SmartDigestWidget = ({ newsData, getApiKey, isDarkMode, refreshTrigger, op
                                 >
                                   <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
                                     <img
-                                      src={article.logo}
+                                      src={safeLogoUrl(article.logo, article.link || article.url, article.source)}
                                       alt=""
                                       className="w-full h-full object-cover"
                                       onError={(e) => {
@@ -4273,7 +4613,7 @@ const KeywordFocusModal = ({ data, onClose, openArticle, isDarkMode }) => {
                 <div className="flex-1 overflow-y-auto p-2 space-y-2">
                     {articles.map(article => (
                         <button key={article.id} onClick={() => openArticle(article)} className={`w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-colors ${isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'}`}>
-                            <img src={article.logo} className="w-8 h-8 rounded-full border border-black/10 shrink-0" onError={(e) => e.target.style.display = 'none'} />
+                            <img src={safeLogoUrl(article.logo, article.link || article.url, article.source)} className="w-8 h-8 rounded-full border border-black/10 shrink-0" onError={(e) => e.target.style.display = 'none'} />
                             <div className="min-w-0">
                                 <p className={`text-sm font-bold leading-tight line-clamp-2 ${isDarkMode ? 'text-zinc-100' : 'text-zinc-800'}`}>{article.title}</p>
                                 <span className="text-xs text-zinc-500">{article.source}</span>
@@ -4407,7 +4747,7 @@ function ClusterSourceAvatar({ source, index = 0, compact = false }) {
     >
       <div className="vetra-source-orb-inner" style={{ background: gradients[index % gradients.length] }}>
         {source?.logo ? (
-          <img src={source.logo} alt={source.name || 'Fonte'} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <img src={safeLogoUrl(source.logo, source.link || source.url, source.name || source.source)} alt={source.name || 'Fonte'} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         ) : (
           <span>{initials}</span>
         )}
@@ -5126,7 +5466,7 @@ function ClusterDetailModal({ cluster, onClose, isDarkMode, openArticle, getApiK
           <div className="px-4 py-2 text-[10px] font-bold uppercase opacity-40 tracking-widest">Cobertura Completa</div>
           {cluster.related_articles.map(article => (
             <button key={article.id} onClick={() => openArticle(article)} className={`w-full flex items-center gap-3 p-3 text-left rounded-xl transition-colors ${isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-50'}`}>
-              <img src={article.logo} className="w-8 h-8 rounded-md border border-black/10 shrink-0 object-contain bg-white p-0.5" onError={(e) => e.target.style.display='none'}/>
+              <img src={safeLogoUrl(article.logo, article.link || article.url, article.source)} className="w-8 h-8 rounded-md border border-black/10 shrink-0 object-contain bg-white p-0.5" onError={(e) => e.target.style.display='none'}/>
               <div className="min-w-0">
                 <p className="text-sm font-bold line-clamp-2 leading-snug">{article.title}</p>
                 <div className="flex items-center gap-2 mt-1">
@@ -5871,7 +6211,7 @@ const searchTerms = safeLower(word).split(' ').filter(term => term.length > 1);
                                       >
                                         <span className="text-[11px] font-bold truncate pr-4">{art.title}</span>
                                         <img
-                                          src={art.logo}
+                                          src={safeLogoUrl(art.logo, art.link || art.url, art.source)}
                                           alt=""
                                           className="w-5 h-5 rounded-md flex-shrink-0 border border-white/10 bg-white object-contain"
                                           onError={(e) => {
@@ -5954,7 +6294,7 @@ const searchTerms = safeLower(word).split(' ').filter(term => term.length > 1);
                         </span>
                       </div>
                       <img
-                        src={art.logo}
+                        src={safeLogoUrl(art.logo, art.link || art.url, art.source)}
                         alt=""
                         className="w-8 h-8 rounded-lg flex-shrink-0 border border-white/10 bg-white object-contain"
                         onError={(e) => {
@@ -6462,7 +6802,7 @@ return (
               {/* SEU CABEÇALHO (INTOCADO) */}
               <div className={`h-1/3 flex items-center justify-center p-4 ${isDarkMode ? 'bg-zinc-700' : 'bg-gray-100'}`}>
                   <img 
-                      src={item.logo} 
+                      src={safeLogoUrl(item.logo, item.link || item.url, item.source || item.name)} 
                       alt={item.name} 
                       className="max-h-full max-w-full object-contain drop-shadow-lg p-2"
                   />
@@ -7703,12 +8043,46 @@ const buildSourceCatalogFromFeeds = (feeds) => {
 
 const countDistinctEditorialGroups = (items) => new Set((items || []).map(item => item?.sourceGroup || getEditorialGroupKey(item?.source, item?.link)).filter(Boolean)).size;
 
+const stripBrokenFaviconSuffix = (value) => String(value || '')
+  .trim()
+  .replace(/&sz=\d+\/?(?:[?#].*)?$/i, '')
+  .replace(/\?sz=\d+\/?(?:[?#].*)?$/i, '')
+  .replace(/\/+$/, '');
+
 const getUrlDomain = (value) => {
-  try { if (!value) return ''; const normalized = isLikelyHttpUrl(value) ? value : `https://${value}`; return new URL(normalized).hostname.replace(/^www\./i, '').toLowerCase(); } catch { return ''; }
+  try {
+    if (!value) return '';
+    let raw = String(value).trim();
+
+    // Google favicon: o domínio real está no parâmetro domain.
+    if (/google\.com\/s2\/favicons/i.test(raw)) {
+      const parsedFavicon = new URL(raw);
+      const faviconDomain = parsedFavicon.searchParams.get('domain');
+      if (faviconDomain) return getUrlDomain(faviconDomain);
+    }
+
+    raw = stripBrokenFaviconSuffix(raw);
+    const normalized = isLikelyHttpUrl(raw) ? raw : `https://${raw}`;
+    return new URL(normalized).hostname.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return '';
+  }
 };
+
+const buildGoogleFaviconUrl = (value) => {
+  const domain = getUrlDomain(value);
+  return domain ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128` : '';
+};
+
 const absolutizeUrl = (candidate, baseUrl) => {
   let clean = String(candidate ?? '').trim().replace(/^['"]+|['"]+$/g, '').replace(/\s/g, '');
   if (!clean) return null;
+
+  // Repara URLs como https://poder360.com.br&sz=128/ antes do new URL.
+  if (/^https?:\/\/[^/?#]+&sz=\d+/i.test(clean) || /^[^/?#]+\.[a-z]{2,}&sz=\d+/i.test(clean)) {
+    clean = stripBrokenFaviconSuffix(clean);
+  }
+
   const lastHttps = clean.lastIndexOf('https://');
   const lastHttp = clean.lastIndexOf('http://');
   const lastAbsolute = Math.max(lastHttps, lastHttp);
@@ -7718,16 +8092,51 @@ const absolutizeUrl = (candidate, baseUrl) => {
   if (clean.startsWith('https://')) return clean;
   try { return new URL(clean, baseUrl || 'https://example.com').href; } catch { return null; }
 };
-const resolveLogoUrl = ({ source, feedUrl, feedLogo, siteUrl }) => {
-  const feedDomain = getUrlDomain(feedUrl || siteUrl);
-  const siteDomain = getUrlDomain(siteUrl || feedUrl);
-  const trustedLogo = String(feedLogo ?? '').trim();
-  const override = getSourceOverride(source, siteUrl || feedUrl);
-  if (override?.logo) return override.logo;
-  if (trustedLogo && !trustedLogo.includes('ui-avatars.com') && !trustedLogo.includes('t0.gstatic.com')) return absolutizeUrl(trustedLogo, siteUrl || feedUrl) || trustedLogo;
-  const domain = siteDomain || feedDomain;
-  if (domain) return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+
+const normalizeLogoCandidate = (candidate, baseUrl = '') => {
+  let raw = String(candidate || '').trim();
+  if (!raw) return '';
+
+  if (/google\.com\/s2\/favicons/i.test(raw)) {
+    return buildGoogleFaviconUrl(raw);
+  }
+
+  // Feed/cache antigo contaminado: poder360.com.br&sz=128.
+  if (/&sz=\d+/i.test(raw) && !/[?]domain=/i.test(raw)) {
+    return buildGoogleFaviconUrl(stripBrokenFaviconSuffix(raw));
+  }
+
+  const absolute = absolutizeUrl(raw, baseUrl);
+  if (!absolute) return '';
+  try {
+    const parsed = new URL(absolute);
+    if (/[&=]/.test(parsed.hostname)) return '';
+    return parsed.href;
+  } catch {
+    return '';
+  }
+};
+
+const safeLogoUrl = (candidate, fallbackUrl = '', source = 'Fonte') => {
+  const normalized = normalizeLogoCandidate(candidate, fallbackUrl);
+  if (normalized && !normalized.includes('t0.gstatic.com')) return normalized;
+  const favicon = buildGoogleFaviconUrl(fallbackUrl);
+  if (favicon) return favicon;
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanSourceDisplayName(source || 'Fonte'))}&background=random&color=fff&size=128&bold=true`;
+};
+
+const resolveLogoUrl = ({ source, feedUrl, feedLogo, siteUrl }) => {
+  const baseUrl = siteUrl || feedUrl || '';
+  const override = getSourceOverride(source, baseUrl);
+  const overrideLogo = normalizeLogoCandidate(override?.logo, baseUrl);
+  if (overrideLogo) return overrideLogo;
+
+  const trustedLogo = normalizeLogoCandidate(feedLogo, baseUrl);
+  if (trustedLogo && !trustedLogo.includes('ui-avatars.com') && !trustedLogo.includes('t0.gstatic.com')) {
+    return trustedLogo;
+  }
+
+  return safeLogoUrl('', baseUrl, source);
 };
 const fetchWithTimeout = async (url, options = {}) => {
   const { timeout = FEED_FETCH_TIMEOUT_MS, ...fetchOptions } = options || {};
@@ -10491,7 +10900,7 @@ function OutletDetail({ outlet, onClose, openArticle, isDarkMode, realNews }) {
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-black/5"></div>
         <div className="w-full h-full flex items-center justify-center p-8">
             <img 
-                src={outlet.logo} 
+                src={safeLogoUrl(outlet.logo, outlet.link || outlet.url, outlet.name || outlet.source)} 
                 className="max-h-full max-w-full object-contain"
             />
         </div>
@@ -10652,7 +11061,7 @@ const FeedNavigator = React.memo(({ article, feedItems, onArticleChange, isDarkM
                   <div className="flex items-center gap-3 min-w-0 pointer-events-none">
                       <div className="relative">
                           <div className={`absolute inset-0 rounded-full animate-pulse opacity-20 ${isPodcast ? 'bg-orange-500' : (isVideo ? 'bg-red-500' : 'bg-green-500')}`}></div>
-                          <img src={article.logo} className="relative w-8 h-8 rounded-full border border-white/20 object-cover bg-white" onError={(e) => e.target.style.display = 'none'} />
+                          <img src={safeLogoUrl(article.logo, article.link || article.url, article.source)} className="relative w-8 h-8 rounded-full border border-white/20 object-cover bg-white" onError={(e) => e.target.style.display = 'none'} />
                       </div>
                       <div className="flex flex-col min-w-0 pr-1">
                           <span className={`text-[9px] uppercase font-bold tracking-wider leading-none ${isPodcast ? 'text-orange-400' : (isVideo ? 'text-red-400' : 'text-zinc-400')}`}>
@@ -11148,10 +11557,11 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, autoSendQuery,
 
 const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSaved, isDarkMode, fastApiKey, apiKey, isResizing, getChatApiKey, initialViewMode = 'analysis', allNews, openArticle }) => {
   const [aiFastData, setAiFastData] = useState(null);
-  const [aiDeepData, setAiDeepData] = useState(null);
+  const [aiDeepData, setAiDeepData] = useState({});
   
-  const [uiStage, setUiStage] = useState('splash'); // 'splash' | 'reading' | 'error'
-  const [aiStatus, setAiStatus] = useState('fetching'); // 'fetching' | 'success' | 'error'
+  // O painel abre direto no conteúdo; skeletons locais indicam o que ainda está chegando.
+  const [uiStage, setUiStage] = useState('reading'); // 'reading' | 'error'
+  const [aiStatus, setAiStatus] = useState('fetching'); // 'fetching' | 'partial' | 'success' | 'error'
   
   const [viewMode, setViewMode] = useState('analysis');
   const [activeTabSection, setActiveTabSection] = useState('overview'); // Tab Section Ativa
@@ -11164,6 +11574,8 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const [currentChatApiKey, setCurrentChatApiKey] = useState(null);
   const [pendingChatQuery, setPendingChatQuery] = useState(null);
   const [loadingStep, setLoadingStep] = useState(0);
+  const analysisRunRef = useRef(0);
+  const analysisAbortRef = useRef(null);
 
   // As 4 perguntas estáticas clássicas
   const STATIC_FAQS = [
@@ -11209,91 +11621,151 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       );
   };
 
-  useEffect(() => {
-      if (isOpen && article) {
-          setAiFastData(null);
-          setAiDeepData(null);
-          setReaderContent(null);
-          const nextMode = initialViewMode === 'chat' ? 'chat' : 'analysis';
-          setViewMode(nextMode);
-          if (nextMode === 'chat') setCurrentChatApiKey(getChatApiKey?.());
-          setFocusedNode(null);
-          setHighlightRequest(null);
-          setShowCenterModal(false);
-          setPendingChatQuery(null);
-          setSummaryMode('executive'); 
-          setActiveTabSection('overview'); // Inicia sempre na aba Overview
-          
-          setLoadingStep(0);
-          setUiStage(nextMode === 'chat' ? 'reading' : 'splash');
-          setAiStatus('fetching');
-          runProgressivePrompt(nextMode);
-      }
-  }, [article?.id, isOpen, initialViewMode]);
-
-  const runProgressivePrompt = useCallback(async (currentMode) => {
-      if (!apiKey || !article.link) return setUiStage('error');
-
-      let stepTimer;
-      const t0 = Date.now();
-      const MIN_SPLASH_MS = 800;   // piso VISUAL (evita piscar), não bloqueio de 3s
-
+  const buildImmediateAnalysisText = useCallback(() => {
+      let cachedRichText = '';
       try {
-          if (currentMode !== 'chat') {
-              stepTimer = setInterval(() => {
-                  setLoadingStep(prev => prev < 2 ? prev + 1 : prev);
-              }, 700);
+          if (typeof window !== 'undefined' && article?.id != null) {
+              cachedRichText = sessionStorage.getItem(`newsos_richtext_${article.id}`) || '';
           }
-
-          // ── Tudo dispara AGORA, em paralelo ──
-          const fastText = `${article.title}. ${article.summary || article.description || ""}`;
-          const fastPromise = generateFastSummary(fastText, fastApiKey || apiKey).catch(() => null);
-          const proxyPromise = supabase.functions.invoke('proxy-view', { body: { url: article.link } });
-
-          // CHAMADA 2 dispara assim que o proxy chegar (~1s) — NÃO espera a
-          // chamada 1 nem o splash. É o que faltava: antes ela só começava
-          // depois dos 3s de sleep + o fim da chamada 1.
-          const deepPromise = proxyPromise
-              .then((proxyData) => {
-                  const reader = proxyData?.data?.reader;
-                  if (!reader?.textContent) return null;
-                  setReaderContent(reader);
-                  return generateDeepAnalysis(reader.textContent, apiKey);
-              })
-              .catch(() => null);
-
-          // ── Chamada 1: mostra assim que chegar (com piso visual curto) ──
-          const fastResult = await fastPromise;
-          const elapsed = Date.now() - t0;
-          if (elapsed < MIN_SPLASH_MS) await sleep(MIN_SPLASH_MS - elapsed);
-
-          setAiFastData(fastResult || {
-              tldr: article.summary || "Visualizando briefing rápido...",
-              bullets: [article.title, "Sintetizando fatos cruciais pela inteligência Vetra..."],
-              faqs: STATIC_FAQS
-          });
-
-          setLoadingStep(3);
-          setUiStage('reading');
-          if (stepTimer) clearInterval(stepTimer);
-
-          // ── Chamada 2: já está rodando desde ~1s; só colhemos o resultado ──
-          const deepResult = await deepPromise;
-          if (deepResult) {
-              setAiDeepData(deepResult);
-              setAiStatus('success');
-          } else {
-              setAiStatus('error');
-          }
-
-      } catch (err) { 
-          console.error("Erro no runProgressivePrompt:", err);
-          setUiStage('error'); 
-          setAiStatus('error');
-          if (stepTimer) clearInterval(stepTimer);
+      } catch (_) {
+          cachedRichText = '';
       }
-  }, [apiKey, fastApiKey, article]);
-  
+
+      return [
+          article?.title,
+          article?.summary,
+          article?.description,
+          article?.snippet,
+          article?.contextText,
+          cachedRichText
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 10000);
+  }, [article]);
+
+  const runProgressivePrompt = useCallback((currentMode, runId, signal) => {
+      const isCurrentRun = () => analysisRunRef.current === runId && !signal.aborted;
+
+      if (!apiKey) {
+          setUiStage('error');
+          setAiStatus('error');
+          return;
+      }
+
+      const immediateText = buildImmediateAnalysisText();
+      setUiStage('reading');
+
+      // A Overview nunca fica vazia enquanto a chamada rápida está em trânsito.
+      setAiFastData({
+          tldr: article?.summary || article?.description || article?.title || 'Preparando briefing...',
+          bullets: [],
+          faqs: STATIC_FAQS
+      });
+      setAiDeepData({});
+      setAiStatus('fetching');
+
+      // O proxy é auxiliar: serve ao leitor/chat, mas não bloqueia a IA.
+      const readerTask = article?.link
+        ? supabase.functions.invoke('proxy-view', { body: { url: article.link } })
+            .then(({ data, error }) => {
+                if (!isCurrentRun()) return null;
+                if (error) {
+                    console.warn('[Reader] extração completa indisponível; análise local mantida.', error?.message || error);
+                    return null;
+                }
+                const reader = data?.reader || null;
+                if (reader) setReaderContent(reader);
+                return reader;
+            })
+            .catch(error => {
+                if (!signal.aborted) console.warn('[Reader] falha não bloqueante.', error?.message || error);
+                return null;
+            })
+        : Promise.resolve(null);
+
+      if (currentMode === 'chat') {
+          void readerTask;
+          return;
+      }
+
+      // As duas funções abaixo são invocadas no mesmo ciclo de JavaScript.
+      // Portanto os dois fetches começam em paralelo, sem sleep e sem esperar o proxy.
+      const fastTask = generateFastSummary(immediateText, fastApiKey || apiKey, signal)
+        .then(result => {
+            if (!isCurrentRun()) return null;
+            if (result) setAiFastData(result);
+            return result;
+        })
+        .catch(error => {
+            if (error?.name !== 'AbortError') console.warn('[Fast Summary] falha não bloqueante.', error?.message || error);
+            return null;
+        });
+
+      const deepTask = generateDeepAnalysisStream(
+        immediateText,
+        apiKey,
+        patch => {
+            if (!isCurrentRun()) return;
+            setAiDeepData(previous => ({ ...(previous || {}), ...patch }));
+            setAiStatus('partial');
+        },
+        signal
+      )
+        .then(result => {
+            if (!isCurrentRun()) return null;
+            if (result && Object.keys(result).length > 0) {
+                setAiDeepData(previous => ({ ...(previous || {}), ...result }));
+                setAiStatus('success');
+            } else {
+                setAiStatus('partial');
+            }
+            return result;
+        })
+        .catch(error => {
+            if (error?.name !== 'AbortError' && isCurrentRun()) {
+                console.warn('[Deep Analysis] falha não bloqueante; mantendo seções já recebidas.', error?.message || error);
+                setAiStatus('partial');
+            }
+            return null;
+        });
+
+      void Promise.allSettled([fastTask, deepTask, readerTask]);
+  }, [apiKey, fastApiKey, article, buildImmediateAnalysisText]);
+
+  useLayoutEffect(() => {
+      if (!isOpen || !article) return;
+
+      // Evita duplicação no Strict Mode e impede que uma matéria anterior altere a atual.
+      analysisAbortRef.current?.abort();
+      const controller = new AbortController();
+      analysisAbortRef.current = controller;
+      const runId = analysisRunRef.current + 1;
+      analysisRunRef.current = runId;
+
+      setAiFastData(null);
+      setAiDeepData({});
+      setReaderContent(null);
+      const nextMode = initialViewMode === 'chat' ? 'chat' : 'analysis';
+      setViewMode(nextMode);
+      if (nextMode === 'chat') setCurrentChatApiKey(getChatApiKey?.());
+      setFocusedNode(null);
+      setHighlightRequest(null);
+      setShowCenterModal(false);
+      setPendingChatQuery(null);
+      setSummaryMode('executive');
+      setActiveTabSection('overview');
+      setLoadingStep(0);
+      setUiStage('reading');
+      setAiStatus('fetching');
+
+      // Inicia antes do próximo paint após o clique em “Análise IA”.
+      runProgressivePrompt(nextMode, runId, controller.signal);
+
+      return () => controller.abort();
+  }, [article?.id, isOpen, initialViewMode, runProgressivePrompt, getChatApiKey]);
 
   // Juntar os dados consolidados da IA
   const aiData = useMemo(() => ({
@@ -11348,9 +11820,11 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
     { id: 'timeline', label: 'Linha do Tempo', icon: <History size={13}/> },
     { id: 'future', label: 'Cenários', icon: <Telescope size={13}/> },
   ];
-  
-return (
-<div className={`h-full w-full flex flex-col rounded-[1.9rem] overflow-hidden relative ${isDarkMode ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-200 bg-white'} transition-colors duration-300`}>    
+  return (
+  <div
+    data-theme={isDarkMode ? 'dark' : 'light'}
+    className="ai-analysis-shell h-full w-full flex flex-col rounded-[1.9rem] overflow-hidden relative transition-colors duration-300"
+  >
     
     {uiStage === 'error' && (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -11443,54 +11917,56 @@ return (
             <div className="min-w-0">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl border-2 border-white/20 bg-white p-0.5 shadow-lg">
-                  <img src={article.logo} className="w-full h-full object-contain rounded-md"/>
+                  <img src={safeLogoUrl(article.logo, article.link || article.url, article.source)} className="w-full h-full object-contain rounded-md"/>
                 </div>
                 <span className="text-base font-bold text-white/80 uppercase tracking-widest drop-shadow-lg">{article.source}</span>
               </div>
               <h1 className="text-2xl md:text-3xl font-black text-white leading-tight font-serif drop-shadow-2xl">{article.title}</h1>
             </div>
-            {viewMode !== 'chat' && (
-               <button 
-                onClick={() => {
-                    const newKey = getChatApiKey(); 
-                    setCurrentChatApiKey(newKey);   
-                    setViewMode('chat');             
-                }}
-                className="group relative px-6 py-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white shrink-0 shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
-               >
-                <WhatsAppGlyph className="w-7 h-7" />
-                <span className="text-sm font-bold">Chat</span>
-               </button>
-            )}
+      {viewMode !== 'chat' && (
+  <button
+    onClick={() => {
+      const newKey = getChatApiKey();
+      setCurrentChatApiKey(newKey);
+      setViewMode('chat');
+    }}
+    className="ai-analysis-chat-button group relative shrink-0"
+  >
+    <WhatsAppGlyph className="w-7 h-7" />
+    <span>Chat</span>
+  </button>
+)}
           </div>
         </div>
 
-        {/* MENU DE ABAS UNIFICADAS NO TOPO (BUG 2 RESOLVIDO: Grid simétrico em 2 linhas) */}
-        {viewMode === 'analysis' && (
-           <div className={`grid grid-cols-4 gap-2 px-6 py-3 border-b shrink-0 relative z-30 ${isDarkMode ? 'bg-zinc-950/80 border-white/5' : 'bg-white/90 border-zinc-200'}`}>
-              {TABS_SECTIONS.map((tab, idx) => {
-                 const active = activeTabSection === tab.id;
-                 // Cenários Futuros (índice 6) ganha col-span-2 para preencher as duas colunas restantes na linha 2 perfeitamente!
-                 const colSpan = idx === 6 ? 'col-span-2' : '';
-                 return (
-                    <button 
-                       key={tab.id}
-                       onClick={() => setActiveTabSection(tab.id)}
-                       className={`flex items-center justify-center gap-1.5 px-2 py-2.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all border ${colSpan} ${active ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20 scale-102' : (isDarkMode ? 'bg-white/5 border-transparent text-zinc-400 hover:text-white' : 'bg-black/5 border-transparent text-zinc-500 hover:text-black')}`}
-                    >
-                       {tab.icon}
-                       <span className="truncate">{tab.label}</span>
-                    </button>
-                 );
-              })}
-           </div>
-        )}
+{/* MENU DE ABAS — Liquid Glass Premium */}
+{viewMode === 'analysis' && (
+  <div className="ai-analysis-tabs-wrap shrink-0 relative z-30">
+    <div className="ai-analysis-tabs-grid">
+      {TABS_SECTIONS.map((tab, idx) => {
+        const active = activeTabSection === tab.id;
+        const colSpan = idx === 6 ? 'col-span-2' : '';
+
+        return (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTabSection(tab.id)}
+            className={`ai-analysis-tab ${colSpan} ${active ? 'is-active' : ''}`}
+          >
+            <span className="ai-analysis-tab-icon">{tab.icon}</span>
+            <span className="ai-analysis-tab-label">{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+)}
         
-        {/* CONTAINER DE CONTEÚDO DINÂMICO */}
-        <div className="flex-1 min-h-0 bg-zinc-50 dark:bg-zinc-950/50">
-          
-          {viewMode === 'analysis' && (
-            <div className="h-full overflow-y-auto custom-scrollbar px-4 pt-6 pb-20">
+    {/* CONTAINER DE CONTEÚDO DINÂMICO */}
+<div className="ai-analysis-body flex-1 min-h-0">
+  
+  {viewMode === 'analysis' && (
+    <div className="ai-analysis-content h-full overflow-y-auto custom-scrollbar px-4 sm:px-6 pt-5 sm:pt-6 pb-20">
               
               {/* TAB 1: OVERVIEW DO CASO (TLDR + 4 Bullets + LADO A LADO: FAQs e Co-cobertura) */}
               {activeTabSection === 'overview' && (
@@ -11552,7 +12028,7 @@ return (
                                        onClick={() => openArticle(art)} 
                                        className={`w-full text-left p-3.5 rounded-2xl flex items-center gap-3 transition-colors shadow-sm group ${isDarkMode ? 'bg-zinc-900/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}
                                     >
-                                       <img src={art.logo} className="w-8 h-8 rounded-lg border border-black/10 shrink-0 object-contain bg-white p-0.5" onError={(e) => e.target.style.display='none'} />
+                                       <img src={safeLogoUrl(art.logo, art.link || art.url, art.source)} className="w-8 h-8 rounded-lg border border-black/10 shrink-0 object-contain bg-white p-0.5" onError={(e) => e.target.style.display='none'} />
                                        <div className="min-w-0 flex-1">
                                           <span className="text-[9px] font-bold uppercase text-indigo-500 tracking-wide">{art.source}</span>
                                           <h5 className={`text-xs font-bold leading-tight truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{art.title}</h5>
@@ -11572,7 +12048,7 @@ return (
               {activeTabSection === 'executive' && (
                  <div className="animate-in fade-in duration-300">
                     <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-                       {aiStatus === 'success' && aiData?.summaries?.executive ? (
+                       {aiData?.summaries?.executive ? (
                            formatExecutiveText(aiData.summaries.executive)
                        ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
                     </div>
@@ -11583,7 +12059,7 @@ return (
               {activeTabSection === 'eli5' && (
                  <div className="animate-in fade-in duration-300">
                     <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-                       {aiStatus === 'success' && aiData?.summaries?.eli5 ? (
+                       {aiData?.summaries?.eli5 ? (
                            <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.eli5}</p>
                        ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
                     </div>
@@ -11594,7 +12070,7 @@ return (
               {activeTabSection === 'sentiment' && (
                  <div className="animate-in fade-in duration-300">
                     <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900/50 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-                       {aiStatus === 'success' && aiData?.summaries?.sentiment ? (
+                       {aiData?.summaries?.sentiment ? (
                            <div className="space-y-2">
                               <span className="text-[10px] font-bold uppercase tracking-wider text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded">Análise Editorial</span>
                               <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.sentiment}</p>
@@ -11607,7 +12083,7 @@ return (
               {/* TAB 5: MAPA DO CASO */}
               {activeTabSection === 'mindmap' && (
                  <div className="animate-in fade-in duration-300">
-                    {aiStatus === 'success' && aiData ? (
+                    {aiData?.mindmap?.center && aiData?.mindmap?.nodes?.length > 0 ? (
                        <ConstellationWidget mindmap={aiData.mindmap} onNodeClick={handleNodeClick} onCenterClick={() => setShowCenterModal(true)} isDarkMode={isDarkMode} />
                     ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
                  </div>
@@ -11616,7 +12092,7 @@ return (
               {/* TAB 6: LINHA DO TEMPO */}
               {activeTabSection === 'timeline' && (
                  <div className="animate-in fade-in duration-300">
-                    {aiStatus === 'success' && aiData ? (
+                    {aiData?.timeline?.length > 0 ? (
                        <TimelineWidget items={aiData.timeline} isDarkMode={isDarkMode} />
                     ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
                  </div>
@@ -11625,7 +12101,7 @@ return (
               {/* TAB 7: CENÁRIOS FUTUROS */}
               {activeTabSection === 'future' && (
                  <div className="animate-in fade-in duration-300">
-                    {aiStatus === 'success' && aiData ? (
+                    {aiData?.future && (aiData.future.probable || aiData.future.optimistic || aiData.future.pessimistic) ? (
                        <>
                           <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
                           <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
@@ -11658,7 +12134,7 @@ return (
             <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-[95%] p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2 opacity-70">
-                  <img src={article.logo} className="w-5 h-5 rounded-full" />
+                  <img src={safeLogoUrl(article.logo, article.link || article.url, article.source)} className="w-5 h-5 rounded-full" />
                   <span className="text-xs font-bold uppercase tracking-wider">{article.source}</span>
                 </div>
                 <button onClick={() => setViewMode('analysis')} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
@@ -12401,7 +12877,7 @@ const newsletters = (newsData ?? []).filter(n =>
                 >
                     <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-3">
-                            <img src={item.logo} className="w-8 h-8 rounded-full border border-black/10" alt="" />
+                            <img src={safeLogoUrl(item.logo, item.link || item.url, item.source || item.name)} className="w-8 h-8 rounded-full border border-black/10" alt="" />
                             <div>
                                 <span className={`text-sm font-bold block ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{item.source}</span>
                             </div>
