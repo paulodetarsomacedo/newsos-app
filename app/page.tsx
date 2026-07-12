@@ -2628,6 +2628,35 @@ const parseGeminiJson = (rawText, label = 'Gemini') => {
   }
 };
 
+
+// O Gemini free tier devolve 503 UNAVAILABLE ("high demand") com frequência.
+// É transitório: uma segunda tentativa, com um respiro curto, quase sempre passa.
+// Sem isso, a Análise IA quebra por sobrecarga do Google — não por erro nosso.
+const RETRYABLE_STATUS = [429, 500, 502, 503, 504];
+
+const isRetryableGeminiError = (err) => {
+  const m = String(err?.message || '');
+  return RETRYABLE_STATUS.some(code => m.includes(`HTTP ${code}`))
+      || /UNAVAILABLE|high demand|overloaded|RESOURCE_EXHAUSTED/i.test(m);
+};
+
+const withGeminiRetry = async (fn, { attempts = 3, label = 'Gemini', signal } = {}) => {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn(i);
+    } catch (err) {
+      if (err?.name === 'AbortError' || signal?.aborted) throw err;
+      lastErr = err;
+      if (!isRetryableGeminiError(err) || i === attempts - 1) throw err;
+      const wait = 700 * Math.pow(2, i) + Math.random() * 400;   // 0,7s → 1,4s → ...
+      console.warn(`[${label}] ${err.message} — nova tentativa em ${Math.round(wait)}ms (${i + 1}/${attempts - 1}).`);
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
+};
+
 const requestGeminiStructuredJson = async ({
   prompt,
   apiKey,
@@ -2697,15 +2726,20 @@ ${cleanText}
   `.trim();
 
   try {
-    const result = await requestGeminiStructuredJson({
-      prompt,
-      apiKey,
-      schema: FAST_SUMMARY_SCHEMA,
-      temperature: 0.1,
-      maxOutputTokens: 2048,
-      signal,
-      label: 'Fast Summary'
-    });
+    // Retry: o 503 "high demand" do free tier é transitório. Sem isso, a
+    // Overview simplesmente não aparece quando o Google está congestionado.
+    const result = await withGeminiRetry(
+      () => requestGeminiStructuredJson({
+        prompt,
+        apiKey,
+        schema: FAST_SUMMARY_SCHEMA,
+        temperature: 0.1,
+        maxOutputTokens: 2048,
+        signal,
+        label: 'Fast Summary'
+      }),
+      { attempts: 3, label: 'Fast Summary', signal }
+    );
 
     return {
       tldr: typeof result?.tldr === 'string' ? result.tldr.trim() : '',
@@ -2808,16 +2842,16 @@ const generateDeepAnalysisStream = async (text, apiKey, onPatch, signal) => {
 Você é um Analista de Inteligência Sênior.
 Analise exclusivamente o texto fornecido e responda em português do Brasil.
 
-Regras obrigatórias:
+Regras obrigatórias (SEJA CONCISO — a saída tem limite rígido de tokens):
 - Não invente fatos, datas ou citações.
-- O executivo deve ter dois ou três parágrafos curtos e densos.
+- O executivo deve ter DOIS parágrafos densos (o segundo pode ser mais curto).
 - O mapa deve ter um centro curto e exatamente 4 nós.
-- A linha do tempo deve usar somente eventos sustentados pelo texto e no máximo cinco itens.
-- A análise de viés deve separar tom, enquadramento e possíveis omissões sem acusação gratuita.
-- O ELI5 deve ser curto e pedagógico.
-- Os cenários são possibilidades, nunca fatos confirmados.
-- Gere de três a quatro termos contextuais; no máximo uma citação curta por termo.
-- Evite repetição e não use markdown.
+- A linha do tempo deve usar somente eventos sustentados pelo texto: MÁXIMO 4 itens.
+- A análise de viés deve ser UMA FRASE objetiva (tom + enquadramento), sem acusação gratuita.
+- O ELI5 deve ser curto e pedagógico: no máximo 3 frases.
+- Os cenários são possibilidades, nunca fatos confirmados: 1 frase cada.
+- Gere EXATAMENTE 3 termos contextuais; no máximo uma citação curta por termo.
+- Evite repetição e não use markdown. Frases diretas, sem preâmbulo.
 
 TEXTO:
 ${cleanText}
@@ -2834,7 +2868,7 @@ ${cleanText}
         responseMimeType: 'application/json',
         responseSchema: DEEP_ANALYSIS_SCHEMA,
         temperature: 0.2,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 10000,
         thinkingConfig: {
           thinkingBudget: 0,        // 0 = desliga o "pensar em silêncio" (thinkingLevel NÃO existe na API)
           includeThoughts: false
@@ -11731,15 +11765,20 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
             return null;
         });
 
-      const deepTask = generateDeepAnalysisStream(
-        immediateText,
-        apiKey,
-        patch => {
-            if (!isCurrentRun()) return;
-            setAiDeepData(previous => ({ ...(previous || {}), ...patch }));
-            setAiStatus('partial');
-        },
-        signal
+      // Retry no 503 "high demand". O stream só emite patches DEPOIS do
+      // response.ok, então repetir é seguro: não duplica seções renderizadas.
+      const deepTask = withGeminiRetry(
+        () => generateDeepAnalysisStream(
+          immediateText,
+          apiKey,
+          patch => {
+              if (!isCurrentRun()) return;
+              setAiDeepData(previous => ({ ...(previous || {}), ...patch }));
+              setAiStatus('partial');
+          },
+          signal
+        ),
+        { attempts: 3, label: 'Deep Analysis', signal }
       )
         .then(result => {
             if (!isCurrentRun()) return null;
