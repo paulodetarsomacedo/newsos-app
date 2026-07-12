@@ -8958,6 +8958,11 @@ const [apiKeys, setApiKeys] = useState([
     { id: 29, value: '', type: 'free_widget' },
 { id: 30, value: '', type: 'free_widget' },
 { id: 31, value: '', type: 'free_widget' },
+{ id: 51, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 52, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 53, value: '', type: 'free_widget' },
+{ id: 54, value: '', type: 'free_widget' },
+{ id: 55, value: '', type: 'free_widget' },
     
     // Legado / Backup
     { id: 5, value: '', type: 'legacy_text' },
@@ -8980,6 +8985,11 @@ const [apiKeys, setApiKeys] = useState([
 { id: 42, value: '', type: 'heavy_rotation' },
 { id: 43, value: '', type: 'heavy_rotation' },
 { id: 44, value: '', type: 'heavy_rotation' },
+{ id: 56, value: '', type: 'heavy_rotation' },
+{ id: 57, value: '', type: 'heavy_rotation' },
+{ id: 58, value: '', type: 'heavy_rotation' },
+{ id: 59, value: '', type: 'heavy_rotation' },
+{ id: 60, value: '', type: 'heavy_rotation' },
 
     // Pool 3: Chat - Agora com 3 chaves
     { id: 12, value: '', type: 'chat_key' },
@@ -9605,6 +9615,11 @@ const handleStoryNavigation = (direction) => {
                                 { id: 29, value: '', type: 'free_widget' },
 { id: 30, value: '', type: 'free_widget' },
 { id: 31, value: '', type: 'free_widget' },
+{ id: 51, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 52, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 53, value: '', type: 'free_widget' },
+{ id: 54, value: '', type: 'free_widget' },
+{ id: 55, value: '', type: 'free_widget' },
                                 { id: 5, value: '', type: 'legacy_text' },
                                 { id: 6, value: '', type: 'legacy_audio' },
                                 { id: 7, value: '', type: 'heavy_rotation' },
@@ -9623,6 +9638,11 @@ const handleStoryNavigation = (direction) => {
 { id: 42, value: '', type: 'heavy_rotation' },
 { id: 43, value: '', type: 'heavy_rotation' },
 { id: 44, value: '', type: 'heavy_rotation' },
+{ id: 56, value: '', type: 'heavy_rotation' },
+{ id: 57, value: '', type: 'heavy_rotation' },
+{ id: 58, value: '', type: 'heavy_rotation' },
+{ id: 59, value: '', type: 'heavy_rotation' },
+{ id: 60, value: '', type: 'heavy_rotation' },
                                 { id: 12, value: '', type: 'chat_key' },
                                 { id: 13, value: '', type: 'chat_key' },
                                 { id: 18, value: '', type: 'chat_key' },
@@ -11345,12 +11365,21 @@ const ConstellationWidget = ({ mindmap, onNodeClick, onCenterClick, isDarkMode }
                         <button
                             key={i}
                             onClick={() => onNodeClick(node.label, { x: nodesPos[i].x, y: nodesPos[i].y })}
-                            className={`group absolute z-30 max-w-[168px] overflow-hidden rounded-2xl border px-4 py-3 backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:z-40 ${
-                                isDarkMode
-                                    ? 'bg-white/[0.06] border-white/12 hover:bg-white/[0.11] hover:border-white/25 shadow-[0_4px_24px_rgba(0,0,0,0.35)]'
-                                    : 'bg-white/55 border-white/70 hover:bg-white/80 shadow-[0_4px_20px_rgba(31,38,135,0.10)] hover:shadow-[0_8px_28px_rgba(31,38,135,0.16)]'
-                            }`}
-                            style={{ top: `${nodesPos[i].y}%`, left: `${nodesPos[i].x}%`, transform: 'translate(-50%, -50%)' }}
+                            className="group absolute z-30 max-w-[168px] overflow-hidden rounded-2xl px-4 py-3 backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:z-40"
+                            style={{
+                                top: `${nodesPos[i].y}%`,
+                                left: `${nodesPos[i].x}%`,
+                                transform: 'translate(-50%, -50%)',
+                                border: '1px solid transparent',
+                                backgroundOrigin: 'border-box',
+                                backgroundClip: 'padding-box, border-box',
+                                backgroundImage: isDarkMode
+                                    ? 'linear-gradient(rgba(255,255,255,.06),rgba(255,255,255,.03)), linear-gradient(135deg,rgba(255,255,255,.45),rgba(255,255,255,.08) 42%,rgba(255,255,255,.03) 58%,rgba(255,255,255,.38))'
+                                    : 'linear-gradient(rgba(255,255,255,.75),rgba(255,255,255,.5)), linear-gradient(135deg,rgba(0,0,0,.22),rgba(0,0,0,.05) 42%,rgba(255,255,255,.95) 58%,rgba(0,0,0,.16))',
+                                boxShadow: isDarkMode
+                                    ? '0 4px 24px rgba(0,0,0,.35)'
+                                    : '0 4px 20px rgba(31,38,135,.10)',
+                            }}
                         >
                             {/* reflexo de vidro que varre no hover */}
                             <div className="pointer-events-none absolute -left-1/2 -top-1/2 h-[200%] w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
