@@ -11759,147 +11759,94 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
         .slice(0, 10000);
   }, [article]);
 
-const runProgressivePrompt = useCallback((currentMode, runId, signal) => {
-  const isCurrentRun = () => analysisRunRef.current === runId && !signal.aborted;
+  const runProgressivePrompt = useCallback((currentMode, runId, signal) => {
+      const isCurrentRun = () => analysisRunRef.current === runId && !signal.aborted;
 
-  const immediateText = buildImmediateAnalysisText();
+      if (!apiKey) {
+          setUiStage('error');
+          setAiStatus('error');
+          return;
+      }
 
-  // ==========================================================
-  // CHAT MODE — CAMINHO ULTRA-LEVE
-  // Não exige apiKey pesada.
-  // Não chama proxy-view.
-  // Não chama fast summary.
-  // Não chama deep analysis.
-  // ==========================================================
-  if (currentMode === 'chat') {
-    setUiStage('reading');
-    setAiStatus('idle');
+      const immediateText = buildImmediateAnalysisText();
+      setUiStage('reading');
 
-    const lightweightReader = {
-      title: article?.title || '',
-      textContent:
-        article?.contextText ||
-        article?.summary ||
-        article?.description ||
-        article?.title ||
-        'Texto indisponível',
-      excerpt: article?.summary || article?.description || article?.title || '',
-      siteName: article?.source || '',
-      url: article?.link || '',
-    };
+      // A Overview nunca fica vazia enquanto a chamada rápida está em trânsito.
+      setAiFastData({
+          tldr: article?.summary || article?.description || article?.title || 'Preparando briefing...',
+          bullets: [],
+          faqs: STATIC_FAQS
+      });
+      setAiDeepData({});
+      setAiStatus('fetching');
 
-    setReaderContent(lightweightReader);
+      // O proxy é auxiliar: serve ao leitor/chat, mas não bloqueia a IA.
+      const readerTask = article?.link
+        ? supabase.functions.invoke('proxy-view', { body: { url: article.link } })
+            .then(({ data, error }) => {
+                if (!isCurrentRun()) return null;
+                if (error) {
+                    console.warn('[Reader] extração completa indisponível; análise local mantida.', error?.message || error);
+                    return null;
+                }
+                const reader = data?.reader || null;
+                if (reader) setReaderContent(reader);
+                return reader;
+            })
+            .catch(error => {
+                if (!signal.aborted) console.warn('[Reader] falha não bloqueante.', error?.message || error);
+                return null;
+            })
+        : Promise.resolve(null);
 
-    setAiFastData({
-      tldr: article?.summary || article?.description || article?.title || 'Chat aberto.',
-      bullets: [],
-      faqs: STATIC_FAQS,
-    });
+      if (currentMode === 'chat') {
+          void readerTask;
+          return;
+      }
 
-    setAiDeepData({});
-    setLoadingStep(3);
-    return;
-  }
-
-  // ==========================================================
-  // ANALYSIS MODE — só aqui exige chave pesada
-  // ==========================================================
-  if (!apiKey) {
-    setUiStage('error');
-    setAiStatus('error');
-    return;
-  }
-
-  setUiStage('reading');
-
-  setAiFastData({
-    tldr: article?.summary || article?.description || article?.title || 'Preparando briefing...',
-    bullets: [],
-    faqs: STATIC_FAQS,
-  });
-
-  setAiDeepData({});
-  setAiStatus('fetching');
-
-  // Proxy só roda em modo análise. No chat, não.
-  const readerTask = article?.link
-    ? supabase.functions.invoke('proxy-view', { body: { url: article.link } })
-        .then(({ data, error }) => {
-          if (!isCurrentRun()) return null;
-
-          if (error) {
-            console.warn('[Reader] extração completa indisponível; análise local mantida.', error?.message || error);
-            return null;
-          }
-
-          const reader = data?.reader || null;
-          if (reader) setReaderContent(reader);
-          return reader;
+      // As duas funções abaixo são invocadas no mesmo ciclo de JavaScript.
+      // Portanto os dois fetches começam em paralelo, sem sleep e sem esperar o proxy.
+      const fastTask = generateFastSummary(immediateText, fastApiKey || apiKey, signal)
+        .then(result => {
+            if (!isCurrentRun()) return null;
+            if (result) setAiFastData(result);
+            return result;
         })
         .catch(error => {
-          if (!signal.aborted) {
-            console.warn('[Reader] falha não bloqueante.', error?.message || error);
-          }
-          return null;
+            if (error?.name !== 'AbortError') console.warn('[Fast Summary] falha não bloqueante.', error?.message || error);
+            return null;
+        });
+
+      const deepTask = generateDeepAnalysisStream(
+        immediateText,
+        apiKey,
+        patch => {
+            if (!isCurrentRun()) return;
+            setAiDeepData(previous => ({ ...(previous || {}), ...patch }));
+            setAiStatus('partial');
+        },
+        signal
+      )
+        .then(result => {
+            if (!isCurrentRun()) return null;
+            if (result && Object.keys(result).length > 0) {
+                setAiDeepData(previous => ({ ...(previous || {}), ...result }));
+                setAiStatus('success');
+            } else {
+                setAiStatus('partial');
+            }
+            return result;
         })
-    : Promise.resolve(null);
+        .catch(error => {
+            if (error?.name !== 'AbortError' && isCurrentRun()) {
+                console.warn('[Deep Analysis] falha não bloqueante; mantendo seções já recebidas.', error?.message || error);
+                setAiStatus('partial');
+            }
+            return null;
+        });
 
-  const fastTask = generateFastSummary(immediateText, fastApiKey || apiKey, signal)
-    .then(result => {
-      if (!isCurrentRun()) return null;
-      if (result) setAiFastData(result);
-      return result;
-    })
-    .catch(error => {
-      if (error?.name !== 'AbortError') {
-        console.warn('[Fast Summary] falha não bloqueante.', error?.message || error);
-      }
-      return null;
-    });
-
-  const deepTask = generateDeepAnalysisStream(
-    immediateText,
-    apiKey,
-    patch => {
-      if (!isCurrentRun()) return;
-      setAiDeepData(previous => ({ ...(previous || {}), ...patch }));
-      setAiStatus('partial');
-    },
-    signal
-  )
-    .then(result => {
-      if (!isCurrentRun()) return null;
-
-      if (result && Object.keys(result).length > 0) {
-        setAiDeepData(previous => ({ ...(previous || {}), ...result }));
-        setAiStatus('success');
-      } else {
-        setAiStatus('partial');
-      }
-
-      return result;
-    })
-    .catch(error => {
-      if (error?.name !== 'AbortError' && isCurrentRun()) {
-        console.warn('[Deep Analysis] falha não bloqueante; mantendo seções já recebidas.', error?.message || error);
-        setAiStatus('partial');
-      }
-      return null;
-    });
-
-  void Promise.allSettled([fastTask, deepTask, readerTask]);
-}, [
-  apiKey,
-  fastApiKey,
-  article?.id,
-  article?.link,
-  article?.title,
-  article?.summary,
-  article?.description,
-  article?.contextText,
-  article?.source,
-  buildImmediateAnalysisText
-]);
+      void Promise.allSettled([fastTask, deepTask, readerTask]);
+  }, [apiKey, fastApiKey, article, buildImmediateAnalysisText]);
 
   useLayoutEffect(() => {
       if (!isOpen || !article) return;
