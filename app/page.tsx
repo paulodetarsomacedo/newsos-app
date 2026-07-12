@@ -2440,7 +2440,7 @@ const generateTimelineForCluster = async (articles, apiKey) => {
 // --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Chave na URL) ---
 const generateFastSummary = async (text, apiKey) => {
   if (!text || text.length < 100 || !apiKey) return null;
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
+  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 6000);
 
   const prompt = `
   Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
