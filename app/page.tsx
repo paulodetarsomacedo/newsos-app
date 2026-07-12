@@ -12370,8 +12370,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           <button
             key={tab.id}
             onClick={() => setActiveTabSection(tab.id)}
-            className={`ai-analysis-tab ${active ? 'is-active' : ''}`}
-            style={{ height: 'auto', minHeight: '58px', paddingTop: '8px', paddingBottom: '8px' }}
+            className={`ai-analysis-tab relative overflow-hidden ${active ? 'is-active' : ''}`}
             style={{
               border: '1px solid transparent',
               backgroundImage: isDarkMode
