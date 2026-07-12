@@ -3005,3 +3005,15 @@ body {
     text-align: left;
   }
 }
+
+.ai-analysis-tab-label {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.15;
+  word-break: break-word;
+}
+.ai-analysis-tab {
+  height: auto;
+  min-height: 58px;
+}

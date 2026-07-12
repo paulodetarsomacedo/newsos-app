@@ -8955,6 +8955,9 @@ const [apiKeys, setApiKeys] = useState([
     { id: 21, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
     { id: 22, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
     { id: 23, value: '', type: 'free_widget' }, // <<-- NOVA (clusters)
+    { id: 29, value: '', type: 'free_widget' },
+{ id: 30, value: '', type: 'free_widget' },
+{ id: 31, value: '', type: 'free_widget' },
     
     // Legado / Backup
     { id: 5, value: '', type: 'legacy_text' },
@@ -8968,11 +8971,18 @@ const [apiKeys, setApiKeys] = useState([
     { id: 11, value: '', type: 'heavy_rotation' },
     { id: 15, value: '', type: 'heavy_rotation' },
     { id: 17, value: '', type: 'heavy_rotation' }, // <<-- NOVA CHAVE
+    { id: 32, value: '', type: 'heavy_rotation' },
+{ id: 33, value: '', type: 'heavy_rotation' },
+{ id: 34, value: '', type: 'heavy_rotation' },
+{ id: 35, value: '', type: 'heavy_rotation' },
 
     // Pool 3: Chat - Agora com 3 chaves
     { id: 12, value: '', type: 'chat_key' },
     { id: 13, value: '', type: 'chat_key' },
     { id: 18, value: '', type: 'chat_key' }, // <<-- NOVA CHAVE
+    { id: 36, value: '', type: 'chat_key' },
+{ id: 37, value: '', type: 'chat_key' },
+{ id: 38, value: '', type: 'chat_key' },
 ]);
 
 
@@ -9587,6 +9597,9 @@ const handleStoryNavigation = (direction) => {
                                 { id: 21, value: '', type: 'free_widget' },
                                 { id: 22, value: '', type: 'free_widget' },
                                 { id: 23, value: '', type: 'free_widget' },
+                                { id: 29, value: '', type: 'free_widget' },
+{ id: 30, value: '', type: 'free_widget' },
+{ id: 31, value: '', type: 'free_widget' },
                                 { id: 5, value: '', type: 'legacy_text' },
                                 { id: 6, value: '', type: 'legacy_audio' },
                                 { id: 7, value: '', type: 'heavy_rotation' },
@@ -9596,9 +9609,16 @@ const handleStoryNavigation = (direction) => {
                                 { id: 11, value: '', type: 'heavy_rotation' },
                                 { id: 15, value: '', type: 'heavy_rotation' },
                                 { id: 17, value: '', type: 'heavy_rotation' },
+                                { id: 32, value: '', type: 'heavy_rotation' },
+{ id: 33, value: '', type: 'heavy_rotation' },
+{ id: 34, value: '', type: 'heavy_rotation' },
+{ id: 35, value: '', type: 'heavy_rotation' },
                                 { id: 12, value: '', type: 'chat_key' },
                                 { id: 13, value: '', type: 'chat_key' },
                                 { id: 18, value: '', type: 'chat_key' },
+                                { id: 36, value: '', type: 'chat_key' },
+{ id: 37, value: '', type: 'chat_key' },
+{ id: 38, value: '', type: 'chat_key' },
                            ];
                            const mergedKeys = defaultKeysStructure.map(defaultKey => {
                                const keyFromDB = parsedFromDB.find(dbKey => dbKey.id === defaultKey.id);
@@ -12351,9 +12371,30 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
             key={tab.id}
             onClick={() => setActiveTabSection(tab.id)}
             className={`ai-analysis-tab ${active ? 'is-active' : ''}`}
+            style={{ height: 'auto', minHeight: '58px', paddingTop: '8px', paddingBottom: '8px' }}
+            style={{
+              border: '1px solid transparent',
+              backgroundImage: isDarkMode
+                ? 'linear-gradient(#18181b,#18181b), linear-gradient(135deg,rgba(255,255,255,.28),rgba(255,255,255,.06) 40%,rgba(255,255,255,.02) 60%,rgba(255,255,255,.22))'
+                : 'linear-gradient(#fff,#fff), linear-gradient(135deg,rgba(0,0,0,.16),rgba(0,0,0,.04) 40%,rgba(255,255,255,.9) 60%,rgba(0,0,0,.12))',
+              backgroundOrigin: 'border-box',
+              backgroundClip: 'padding-box, border-box',
+            }}
           >
             <span className="ai-analysis-tab-icon">{tab.icon}</span>
-            <span className="ai-analysis-tab-label">{tab.label}</span>
+            <span
+              className="ai-analysis-tab-label"
+              style={{
+                whiteSpace: 'normal',      // permite quebrar linha
+                overflow: 'visible',       // tira o corte
+                textOverflow: 'clip',      // tira o "…"
+                lineHeight: 1.15,
+                textAlign: 'center',
+                wordBreak: 'break-word',
+              }}
+            >
+              {tab.label}
+            </span>
           </button>
         );
       })}
@@ -12421,20 +12462,8 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
                                         </div>
                                     );
                                  }
-                                 return otherSources.map((art, i) => (
-                                    <button 
-                                       key={art.id || i} 
-                                       onClick={() => openArticle(art)} 
-                                       className={`w-full text-left p-3.5 rounded-2xl flex items-center gap-3 transition-colors shadow-sm group ${isDarkMode ? 'bg-zinc-900/80 hover:bg-zinc-700 border border-white/5' : 'bg-white hover:bg-zinc-50 border border-zinc-200'}`}
-                                    >
-                                       <img src={safeLogoUrl(art.logo, art.link || art.url, art.source)} className="w-8 h-8 rounded-lg border border-black/10 shrink-0 object-contain bg-white p-0.5" onError={(e) => e.target.style.display='none'} />
-                                       <div className="min-w-0 flex-1">
-                                          <span className="text-[9px] font-bold uppercase text-indigo-500 tracking-wide">{art.source}</span>
-                                          <h5 className={`text-xs font-bold leading-tight truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{art.title}</h5>
-                                       </div>
-                                       <ChevronRight size={14} className="opacity-30 group-hover:opacity-100 transition-opacity text-indigo-500 shrink-0" />
-                                    </button>
-                                 ));
+                                 
+                                 
                               })()}
                            </div>
                         </div>
