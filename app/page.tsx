@@ -2437,7 +2437,105 @@ const generateTimelineForCluster = async (articles, apiKey) => {
     }
 };
 
+// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Chave na URL) ---
+const generateFastSummary = async (text, apiKey) => {
+  if (!text || text.length < 100 || !apiKey) return null;
+  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
 
+  const prompt = `
+  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
+  {
+    "tldr": "TLDR denso, formal e explicativo de 2 a 3 frases de forte impacto.",
+    "bullets": [
+      "Fato crucial 1 (Máx 15 palavras)",
+      "Fato crucial 2 (Máx 15 palavras)",
+      "Fato crucial 3 (Máx 15 palavras)",
+      "Fato crucial 4 (Máx 15 palavras)"
+    ],
+    "faqs": [
+      "Pergunta frequente crucial 1?",
+      "Pergunta frequente crucial 2?"
+    ]
+  }
+  TEXTO:
+  ${cleanText}
+  `;
+
+  try {
+    // Restaurado o ?key= na URL para funcionar 100% no navegador
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
+      method: "POST", 
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.1 } })
+    });
+
+    if (!res.ok) {
+      console.warn(`[Fast Summary] Gemini retornou erro ${res.status}. Usando fallback local.`);
+      return null;
+    }
+
+    const data = await res.json();
+    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!resultText) throw new Error("Resposta da IA vazia");
+
+    let cleanedString = resultText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
+    return JSON.parse(cleanedString);
+  } catch (e) { 
+    console.error("Erro Fast Summary:", e); 
+    return null; 
+  }
+};
+
+// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Chave na URL) ---
+const generateDeepAnalysis = async (text, apiKey) => {
+  if (!text || text.length < 100 || !apiKey) return null;
+  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
+
+  const prompt = `
+  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
+  {
+    "executive": "Resumo executivo aprofundado e denso (3 parágrafos formais).",
+    "eli5": "Explicação simplificada e pedagógica usando uma analogia inteligente (1 parágrafo curto).",
+    "sentiment": "Análise de tom, sentimento e viés jornalístico do artigo (neutro, crítico, otimista, etc., com justificativa de 1 parágrafo curto).",
+    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C"] },
+    "contextualTerms": [
+      { "term": "Nó A", "context": "Importância específica deste nó na notícia. Max 25 palavras.", "evidence_quotes": ["Citação curta"] }
+    ],
+    "timeline": [ { "time": "Hoje", "event": "Fato principal" } ],
+    "future": { "optimistic": "Cenário positivo", "pessimistic": "Risco", "probable": "Realidade" }
+  }
+  TEXTO:
+  ${cleanText}
+  `;
+
+  try {
+    // Restaurado o ?key= na URL para funcionar 100% no navegador
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
+      method: "POST", 
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { response_mime_type: "application/json", temperature: 0.3 } })
+    });
+
+    if (!res.ok) {
+      console.warn(`[Deep Analysis] Gemini retornou erro ${res.status}.`);
+      return null;
+    }
+
+    const data = await res.json();
+    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!resultText) throw new Error("Resposta da IA vazia");
+
+    let cleanedString = resultText.replace(/```json/g, '').replace(/```/g, '').trim().replace(/,\s*([}\]])/g, "$1");
+    return JSON.parse(cleanedString);
+  } catch (e) { 
+    console.error("Erro Deep Analysis:", e); 
+    return null; 
+  }
+};
 
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (MODELO 2.5 FLASH) ---
 // --- FUNÇÃO DE IA: CLUSTERIZAÇÃO NARRATIVA (V3 - 4 CARDS + TEXTO FLUÍDO) ---
@@ -10804,155 +10902,7 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
 // --- FUNÇÃO DE IA HÍBRIDA E FINAL ---
 const VERCEL_URL = "https://newsos-app2.vercel.app"; 
 
-// ==========================================================
-// FUNÇÕES DE INTELIGÊNCIA ARTIFICIAL (BLINDADAS)
-// ==========================================================
-
-// 1. Sanitizador e Reparador de JSON (Salva JSONs cortados ou com aspas erradas)
-const parseSecureJSON = (rawText) => {
-  if (!rawText) return null;
-  
-  // Limpa blocos de formatação markdown caso a IA envie
-  let cleanText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-  
-  try {
-      // Tentativa 1: O Caminho Feliz
-      return JSON.parse(cleanText);
-  } catch (error1) {
-      console.warn("Aviso: Falha no Parse inicial. Tentando reparar o JSON...");
-      
-      try {
-          // Tentativa 2: Remove vírgulas sobrando no final de listas/objetos (erro comum de IA)
-          cleanText = cleanText.replace(/,\s*([}\]])/g, "$1");
-          return JSON.parse(cleanText);
-      } catch (error2) {
-          try {
-              // Tentativa 3: Se o JSON foi guilhotinado (faltou fechar chaves no final)
-              return JSON.parse(cleanText + '}');
-          } catch (error3) {
-              try { return JSON.parse(cleanText + ']}'); } catch(e) {}
-              try { return JSON.parse(cleanText + '"]}' ); } catch(e) {}
-              
-              console.error("Erro fatal: JSON corrompido irreparavelmente pela IA.", cleanText);
-              return null;
-          }
-      }
-  }
-};
-
-// --- FUNÇÃO DE IA PROGRESSIVA 1: FAST SUMMARY (Resumo Veloz) ---
-const generateFastSummary = async (text, apiKey) => {
-  if (!text || text.length < 100 || !apiKey) return null;
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 7000);
-
-  const prompt = `
-  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR).
-  REGRA: Responda rápido, seja extremamente direto e não use aspas dentro das respostas.
-  {
-    "tldr": "TLDR denso e explicativo de 2 a 3 frases de forte impacto.",
-    "bullets": [
-      "Fato crucial 1 (Máx 15 palavras)",
-      "Fato crucial 2 (Máx 15 palavras)",
-      "Fato crucial 3 (Máx 15 palavras)",
-      "Fato crucial 4 (Máx 15 palavras)"
-    ],
-    "faqs": [
-      "Pergunta frequente crucial 1?",
-      "Pergunta frequente crucial 2?"
-    ]
-  }
-  TEXTO:
-  ${cleanText}
-  `;
-
-  try {
-    // Usamos o alias flash-latest para não ter problemas de versão no futuro
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: "POST", 
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-          contents: [{ parts: [{ text: prompt }] }], 
-          generationConfig: { 
-              responseMimeType: "application/json", // Força o Google a enviar apenas JSON
-              temperature: 0.1, // Quase zero para resposta veloz e exata
-              maxOutputTokens: 800 // Aumentado para evitar que o JSON seja cortado no meio (SyntaxError)
-          } 
-      })
-    });
-
-    if (!res.ok) {
-      console.warn(`[Fast Summary] Falha na rede ou na chave. Status: ${res.status}`);
-      return null;
-    }
-
-    const data = await res.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    return parseSecureJSON(resultText);
-
-  } catch (e) { 
-    console.error("Erro no Fast Summary:", e); 
-    return null; 
-  }
-};
-
-
-// --- FUNÇÃO DE IA PROGRESSIVA 2: DEEP ANALYSIS (Fundo de Tela) ---
-const generateDeepAnalysis = async (text, apiKey) => {
-  if (!text || text.length < 100 || !apiKey) return null;
-  const cleanText = text.replace(/<[^>]*>?/gm, ' ').slice(0, 8000);
-
-  const prompt = `
-  Aja como Analista de Inteligência Sênior. GERE APENAS UM JSON ESTRITO (PT-BR) com:
-  {
-    "executive": "Resumo executivo aprofundado e denso (3 parágrafos formais).",
-    "eli5": "Explicação simplificada e pedagógica usando uma analogia inteligente (1 parágrafo curto).",
-    "sentiment": "Análise de tom, sentimento e viés jornalístico do artigo (neutro, crítico, otimista, etc., com justificativa de 1 parágrafo curto).",
-    "mindmap": { "center": "Tema Central (Max 3 palavras)", "nodes": ["Nó A", "Nó B", "Nó C"] },
-    "contextualTerms": [
-      { "term": "Nó A", "context": "Importância específica deste nó na notícia. Max 25 palavras.", "evidence_quotes": ["Citação curta do texto"] }
-    ],
-    "timeline": [ { "time": "Hoje", "event": "Fato principal" } ],
-    "future": { "optimistic": "Cenário positivo", "pessimistic": "Risco", "probable": "Realidade" }
-  }
-  TEXTO:
-  ${cleanText}
-  `;
-
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: "POST", 
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-          contents: [{ parts: [{ text: prompt }] }], 
-          generationConfig: { 
-              responseMimeType: "application/json",
-              temperature: 0.3,
-              maxOutputTokens: 1800 // Bastante espaço para não ser cortado
-          } 
-      })
-    });
-
-    if (!res.ok) {
-      console.warn(`[Deep Analysis] Falha na rede ou na chave. Status: ${res.status}`);
-      return null;
-    }
-
-    const data = await res.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    return parseSecureJSON(resultText);
-
-  } catch (e) { 
-    console.error("Erro no Deep Analysis:", e); 
-    return null; 
-  }
-};
-
-
-// --- CHAT COM A NOTÍCIA ---
+// --- FUNÇÃO DE IA HÍBRIDA (Compatível com Web e iPad) ---
 const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   if (!apiKey) return "Desculpe, a conexão com a IA não está configurada.";
 
@@ -10978,22 +10928,21 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   `;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: "POST", 
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.4 } // Chat pode ser levemente mais natural
-      })
+    // Restaurado o ?key= na URL
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
-
     const data = await response.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "Não consegui processar a resposta. Tente novamente.";
   } catch (e) {
     return "Houve um problema ao conectar com a IA.";
   }
 };
+
 
 // --- SKELETON PREMIUM DA ANÁLISE IA ---
 const AnalysisSkeleton = ({ isDarkMode }) => (
