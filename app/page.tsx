@@ -22,7 +22,7 @@ import {
   Sun, Moon, TrendingUp, TrendingDown, CloudSun, CloudMoon, MapPin, Telescope,
   Clock, DollarSign, Bitcoin, Activity, Zap, GripVertical,
   FileText, CheckCircle, Trash2, BrainCircuit, Euro, 
-  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, ExternalLink, ArrowUpRight, SlidersHorizontal,
+  Headphones, Search, ChevronRight, Rss, Calendar as CalendarIcon, Loader2, RefreshCw, Music, Disc3, SkipBack, SkipForward, Type, ALargeSmall, Minus, Plus, PenTool, Highlighter, StickyNote, Save, Archive, Pencil, Eraser, Undo, Redo, Mail, Copy, Check, Wand2, Languages, Mic, Volume2, VolumeX, Heart, ChevronDown, History, MessageCircle, ExternalLink, ArrowUpRight, SlidersHorizontal, HelpCircle, Newspaper, User, Building2, Hash, Landmark,
 } from 'lucide-react';
 
 
@@ -2482,35 +2482,64 @@ const DEEP_ANALYSIS_SCHEMA = {
   propertyOrdering: [
     'executive',
     'mindmap',
+    'contextualTerms',
     'timeline',
-    'sentiment',
     'eli5',
-    'future',
-    'contextualTerms'
+    'gaps',
+    'watchNext'
   ],
   properties: {
     executive: {
       type: 'STRING',
-      description: 'Resumo executivo aprofundado em dois ou três parágrafos curtos.'
+      description: 'Resumo executivo em dois parágrafos densos.'
     },
     mindmap: {
       type: 'OBJECT',
       propertyOrdering: ['center', 'nodes'],
       properties: {
-        center: { type: 'STRING', description: 'Tema central com no máximo quatro palavras.' },
+        center: { type: 'STRING', description: 'O fato central em até 4 palavras. Concreto, nunca abstrato.' },
         nodes: {
           type: 'ARRAY',
-          minItems: 3,
-          maxItems: 3,
-          items: { type: 'STRING' }
+          minItems: 4,
+          maxItems: 4,
+          items: {
+            type: 'OBJECT',
+            propertyOrdering: ['label', 'kind', 'relation'],
+            properties: {
+              label: { type: 'STRING', description: 'A entidade ou dado CONCRETO. Ex: "Nicolás Maduro", "US$ 12 bilhões", "Banco Mundial".' },
+              kind: { type: 'STRING', enum: ['pessoa', 'organizacao', 'numero', 'local', 'evento'] },
+              relation: { type: 'STRING', description: 'Papel no caso, em 2-4 palavras. Ex: "quem decide", "quanto custa", "quem paga".' }
+            },
+            required: ['label', 'kind', 'relation']
+          }
         }
       },
       required: ['center', 'nodes']
     },
+    contextualTerms: {
+      type: 'ARRAY',
+      minItems: 4,
+      maxItems: 4,
+      items: {
+        type: 'OBJECT',
+        propertyOrdering: ['term', 'context', 'evidence_quotes'],
+        properties: {
+          term: { type: 'STRING', description: 'Deve ser IDÊNTICO ao label de um nó do mapa.' },
+          context: { type: 'STRING', description: 'O que este ator/dado faz NESTA matéria. Específico, 20-35 palavras.' },
+          evidence_quotes: {
+            type: 'ARRAY',
+            minItems: 1,
+            maxItems: 1,
+            items: { type: 'STRING', description: 'Citação LITERAL do texto que sustenta o contexto.' }
+          }
+        },
+        required: ['term', 'context', 'evidence_quotes']
+      }
+    },
     timeline: {
       type: 'ARRAY',
       minItems: 1,
-      maxItems: 5,
+      maxItems: 4,
       items: {
         type: 'OBJECT',
         propertyOrdering: ['time', 'event'],
@@ -2521,53 +2550,47 @@ const DEEP_ANALYSIS_SCHEMA = {
         required: ['time', 'event']
       }
     },
-    sentiment: {
-      type: 'STRING',
-      description: 'Análise curta de tom, enquadramento, sentimento e possível viés editorial.'
-    },
     eli5: {
       type: 'STRING',
-      description: 'Explicação pedagógica e curta, usando uma analogia quando ela realmente ajudar.'
+      description: 'Explicação pedagógica curta, com analogia quando ela realmente ajudar.'
     },
-    future: {
-      type: 'OBJECT',
-      propertyOrdering: ['probable', 'optimistic', 'pessimistic'],
-      properties: {
-        probable: { type: 'STRING' },
-        optimistic: { type: 'STRING' },
-        pessimistic: { type: 'STRING' }
-      },
-      required: ['probable', 'optimistic', 'pessimistic']
-    },
-    contextualTerms: {
+    gaps: {
       type: 'ARRAY',
       minItems: 3,
-      maxItems: 4,
+      maxItems: 3,
       items: {
         type: 'OBJECT',
-        propertyOrdering: ['term', 'context', 'evidence_quotes'],
+        propertyOrdering: ['question', 'why'],
         properties: {
-          term: { type: 'STRING' },
-          context: { type: 'STRING' },
-          evidence_quotes: {
-            type: 'ARRAY',
-            minItems: 0,
-            maxItems: 1,
-            items: { type: 'STRING' }
-          }
+          question: { type: 'STRING', description: 'O que a matéria NÃO responde. Pergunta concreta.' },
+          why: { type: 'STRING', description: 'Por que essa lacuna importa. Uma frase.' }
         },
-        required: ['term', 'context', 'evidence_quotes']
+        required: ['question', 'why']
+      }
+    },
+    watchNext: {
+      type: 'ARRAY',
+      minItems: 3,
+      maxItems: 3,
+      items: {
+        type: 'OBJECT',
+        propertyOrdering: ['marker', 'detail'],
+        properties: {
+          marker: { type: 'STRING', description: 'Marco CONCRETO e verificável. Ex: "Julgamento no STF em 14/8".' },
+          detail: { type: 'STRING', description: 'O que observar nele. Uma frase.' }
+        },
+        required: ['marker', 'detail']
       }
     }
   },
   required: [
     'executive',
     'mindmap',
+    'contextualTerms',
     'timeline',
-    'sentiment',
     'eli5',
-    'future',
-    'contextualTerms'
+    'gaps',
+    'watchNext'
   ]
 };
 
@@ -2761,11 +2784,11 @@ ${cleanText}
 const DEEP_STREAM_KEYS = [
   'executive',
   'mindmap',
+  'contextualTerms',
   'timeline',
-  'sentiment',
   'eli5',
-  'future',
-  'contextualTerms'
+  'gaps',
+  'watchNext'
 ];
 
 // Extrai um valor top-level somente quando ele já está completo no JSON parcial.
@@ -2843,15 +2866,35 @@ Você é um Analista de Inteligência Sênior.
 Analise exclusivamente o texto fornecido e responda em português do Brasil.
 
 Regras obrigatórias (SEJA CONCISO — a saída tem limite rígido de tokens):
-- Não invente fatos, datas ou citações.
+- Não invente fatos, datas ou citações. Tudo deve sair do texto.
 - O executivo deve ter DOIS parágrafos densos (o segundo pode ser mais curto).
-- O mapa deve ter um centro curto e exatamente 4 nós.
-- A linha do tempo deve usar somente eventos sustentados pelo texto: MÁXIMO 4 itens.
-- A análise de viés deve ser UMA FRASE objetiva (tom + enquadramento), sem acusação gratuita.
-- O ELI5 deve ser curto e pedagógico: no máximo 3 frases.
-- Os cenários são possibilidades, nunca fatos confirmados: 1 frase cada.
-- Gere EXATAMENTE 3 termos contextuais; no máximo uma citação curta por termo.
-- Evite repetição e não use markdown. Frases diretas, sem preâmbulo.
+- O ELI5: no máximo 3 frases, pedagógico.
+- A linha do tempo: MÁXIMO 4 itens, apenas eventos sustentados pelo texto.
+- Não use markdown. Frases diretas, sem preâmbulo.
+
+MAPA DO CASO — a regra mais importante:
+Cada nó deve ser uma ENTIDADE ou DADO CONCRETO desta matéria, NUNCA um tema abstrato.
+  BOM:  "Nicolás Maduro" | "US$ 12 bilhões" | "Banco Mundial" | "3 estados atingidos"
+  RUIM: "Impacto Social" | "Contexto Econômico" | "Terremotos devastadores" | "Repercussão"
+Se o nó puder aparecer em qualquer outra notícia, ele está ERRADO — refaça.
+Classifique cada nó (pessoa/organizacao/numero/local/evento) e diga seu PAPEL no caso
+em 2-4 palavras ("quem decide", "quanto custa", "quem paga", "onde ocorreu").
+O centro é o FATO central, não o assunto: "Apreensão do passaporte", não "Justiça".
+
+TERMOS CONTEXTUAIS:
+Um para CADA nó do mapa (o campo "term" deve ser IDÊNTICO ao "label" do nó).
+O contexto explica o que aquele ator/dado faz NESTA matéria — específico, 20-35 palavras.
+Cada termo traz UMA citação LITERAL do texto que sustenta o que você afirmou.
+
+O QUE A MATÉRIA NÃO DIZ (gaps):
+Três perguntas concretas que a reportagem deixa SEM resposta, e por que cada uma importa.
+Não invente crítica: aponte lacunas reais de informação.
+
+O QUE OBSERVAR A SEGUIR (watchNext):
+Três marcos CONCRETOS e verificáveis — data, evento, decisão esperada.
+  BOM:  "Julgamento no STF marcado para 14/8" | "Divulgação do balanço do 3º trimestre"
+  RUIM: "Cenário otimista: a economia melhora" | "Possível reação do mercado"
+Nunca especule sobre resultados: aponte o que vai ACONTECER e onde olhar.
 
 TEXTO:
 ${cleanText}
@@ -11174,44 +11217,283 @@ const formatExecutiveTextStatic = (text) => {
     return text.split('\n\n').filter(p => p.length > 5).map((p, i) => <p key={i} className="mb-2 last:mb-0">{p}</p>);
 };
 
+// ============================================================================
+// MAPA DO CASO — reescrito
+// Antes: 4 balões genéricos ("Impacto Social") ligados a um centro. Decoração
+// que fingia inteligência. Agora: entidades CONCRETAS, tipadas por ícone, com
+// o PAPEL de cada uma no caso. Liquid glass, sem cara de IA.
+// ============================================================================
+const NODE_KIND_META = {
+  pessoa:      { Icon: User,      ring: 'from-sky-400/70 to-blue-500/40',      dot: 'bg-sky-400',     tint: 'text-sky-300'   },
+  organizacao: { Icon: Building2, ring: 'from-violet-400/70 to-purple-500/40', dot: 'bg-violet-400',  tint: 'text-violet-300'},
+  numero:      { Icon: Hash,      ring: 'from-emerald-400/70 to-teal-500/40',  dot: 'bg-emerald-400', tint: 'text-emerald-300'},
+  local:       { Icon: MapPin,    ring: 'from-amber-400/70 to-orange-500/40',  dot: 'bg-amber-400',   tint: 'text-amber-300' },
+  evento:      { Icon: Zap,       ring: 'from-rose-400/70 to-pink-500/40',     dot: 'bg-rose-400',    tint: 'text-rose-300'  },
+};
+
 const ConstellationWidget = ({ mindmap, onNodeClick, onCenterClick, isDarkMode }) => {
-    if (!mindmap || !mindmap.nodes) return null;
-    const center = { x: 50, y: 50 };
-    const nodesPos = [{ x: 50, y: 15 }, { x: 85, y: 50 }, { x: 50, y: 85 }, { x: 15, y: 50 }];
+    if (!mindmap?.nodes?.length) return null;
+
+    // Retrocompatível: aceita nós antigos (string) e novos (objeto tipado).
+    const nodes = mindmap.nodes.map(n =>
+        typeof n === 'string'
+            ? { label: n, kind: 'evento', relation: '' }
+            : { label: n?.label || '', kind: n?.kind || 'evento', relation: n?.relation || '' }
+    ).filter(n => n.label);
 
     return (
-        <div className="relative h-[360px] w-full mb-8 select-none">
-               <div className="absolute top-0 left-0 right-0 flex justify-center">
-                <div className="bg-black/20 backdrop-blur-md px-4 py-1 rounded-full border border-white/5">
-                    <h3 className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400">Mapa do Caso</h3>
-                </div>
+        <div className="relative w-full select-none">
+            {/* Centro: o FATO, não o assunto */}
+            <button
+                onClick={onCenterClick}
+                className={`group relative mb-5 w-full overflow-hidden rounded-3xl border p-5 text-left backdrop-blur-2xl transition-all duration-500 ${
+                    isDarkMode
+                        ? 'border-white/10 bg-white/[0.05] hover:bg-white/[0.08]'
+                        : 'border-black/5 bg-white/70 shadow-sm hover:shadow-lg'
+                }`}
+            >
+                {/* brilho liquid glass */}
+                <div className="pointer-events-none absolute -left-1/4 -top-1/2 h-[200%] w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_-20%,rgba(129,140,248,0.18),transparent_55%)]" />
+
+                <span className={`relative text-[10px] font-bold uppercase tracking-[0.16em] ${isDarkMode ? 'text-indigo-300/80' : 'text-indigo-500'}`}>
+                    O caso
+                </span>
+                <h3 className={`relative mt-1.5 text-[22px] font-black leading-tight tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                    {mindmap.center}
+                </h3>
+                <span className={`relative mt-2 inline-flex items-center gap-1 text-[11px] font-semibold ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    Toque para ver o panorama <ArrowRight size={11} />
+                </span>
+            </button>
+
+            {/* Os atores: cada um com tipo, papel e evidência ao clicar */}
+            <div className="grid grid-cols-2 gap-3">
+                {nodes.map((node, i) => {
+                    const meta = NODE_KIND_META[node.kind] || NODE_KIND_META.evento;
+                    const { Icon } = meta;
+                    return (
+                        <button
+                            key={i}
+                            onClick={() => onNodeClick(node.label, null)}
+                            className={`group relative overflow-hidden rounded-2xl border p-4 text-left backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 ${
+                                isDarkMode
+                                    ? 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20'
+                                    : 'border-black/5 bg-white/70 shadow-sm hover:shadow-md'
+                            }`}
+                            style={{ animationDelay: `${i * 60}ms` }}
+                        >
+                            {/* aro de cor por tipo */}
+                            <div className={`pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r ${meta.ring}`} />
+
+                            <div className="flex items-center gap-2">
+                                <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                                    isDarkMode ? 'bg-white/[0.06]' : 'bg-zinc-100'
+                                }`}>
+                                    <Icon size={13} className={isDarkMode ? meta.tint : 'text-zinc-600'} />
+                                </span>
+                                {node.relation && (
+                                    <span className={`truncate text-[10px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                                        {node.relation}
+                                    </span>
+                                )}
+                            </div>
+
+                            <p className={`mt-2.5 text-[15px] font-bold leading-tight ${isDarkMode ? 'text-zinc-50' : 'text-zinc-900'}`}>
+                                {node.label}
+                            </p>
+
+                            <span className={`mt-2 inline-flex items-center gap-1 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                                Ver evidência <ArrowRight size={10} />
+                            </span>
+                        </button>
+                    );
+                })}
             </div>
-            <div className="absolute inset-0 top-6">
-                <svg className="w-full h-full pointer-events-none absolute inset-0 z-0 filter drop-shadow-[0_0_3px_rgba(139,92,246,0.5)]">
-                    {mindmap.nodes.slice(0, 4).map((_, i) => (
-                        <line key={i} x1={`${center.x}%`} y1={`${center.y}%`} x2={`${nodesPos[i].x}%`} y2={`${nodesPos[i].y}%`} stroke={isDarkMode ? "rgba(167, 139, 250, 0.3)" : "rgba(99, 102, 241, 0.4)"} strokeWidth="2" strokeDasharray="2 4"/>
-                    ))}
-                </svg>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group" onClick={onCenterClick}>
-                    <div className="relative">
-                        <div className="absolute inset-0 bg-indigo-500 rounded-full blur-2xl opacity-40 animate-pulse-slow"></div>
-                        <div className="w-32 h-32 rounded-full bg-gradient-to-br from-zinc-900 to-indigo-950 flex items-center justify-center text-center p-4 shadow-2xl border-4 border-indigo-500/30 group-hover:scale-105 transition-transform duration-500">
-                            <span className="text-xs font-black text-white uppercase leading-tight tracking-wide drop-shadow-lg">{mindmap.center}</span>
-                        </div>
-                        <div className="absolute inset-[-10px] border border-white/5 rounded-full animate-spin-slow pointer-events-none"></div>
-                        <div className="absolute inset-[-20px] border border-white/10 rounded-full animate-spin-reverse-slow pointer-events-none"></div>
-                    </div>
-                </div>
-                {mindmap.nodes.slice(0, 4).map((node, i) => (
-                    <button key={i} onClick={() => onNodeClick(node, { x: nodesPos[i].x, y: nodesPos[i].y })} className={`absolute z-30 px-5 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:border-purple-500 hover:z-40 max-w-[160px] group ${isDarkMode ? 'bg-zinc-900/80 border-white/10 text-zinc-300' : 'bg-white/90 border-zinc-200 text-zinc-800'}`} style={{ top: `${nodesPos[i].y}%`, left: `${nodesPos[i].x}%`, transform: 'translate(-50%, -50%)' }}>
-                        <span className="text-[10px] font-bold leading-tight block text-center group-hover:text-purple-400 transition-colors">{node}</span>
-                    </button>
-                ))}
-            </div>
-            <style jsx="true">{`@keyframes spin-slow { to { transform: rotate(360deg); } } .animate-spin-slow { animation: spin-slow 20s linear infinite; } .animate-spin-reverse-slow { animation: spin-slow 25s linear infinite reverse; } .animate-pulse-slow { animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite; }`}</style>
         </div>
     );
 };
+
+const WatchNextWidget = ({ items, isDarkMode }) => {
+  if (!items?.length) return null;
+  return (
+    <div className="space-y-3">
+      {items.map((it, i) => (
+        <div
+          key={i}
+          className={`group relative overflow-hidden rounded-2xl border backdrop-blur-xl transition-all duration-300 ${
+            isDarkMode
+              ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.07]'
+              : 'bg-white/70 border-black/5 shadow-sm hover:shadow-md'
+          }`}
+        >
+          <div className="absolute left-0 top-0 h-full w-[3px] bg-gradient-to-b from-indigo-400 via-violet-400 to-transparent opacity-70" />
+          <div className="flex gap-4 p-4 pl-5">
+            <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-black tabular-nums ${
+              isDarkMode ? 'bg-white/[0.06] text-indigo-300' : 'bg-indigo-50 text-indigo-600'
+            }`}>
+              {String(i + 1).padStart(2, '0')}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={`text-[15px] font-semibold leading-snug ${isDarkMode ? 'text-zinc-50' : 'text-zinc-900'}`}>
+                {it.marker}
+              </p>
+              {it.detail && (
+                <p className={`mt-1.5 text-[13px] leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                  {it.detail}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ============================================================================
+// WIDGET: O QUE ESTA MATÉRIA NÃO DIZ
+// O diferencial. Nenhum agregador faz isso: expõe as LACUNAS da reportagem.
+// Cada lacuna é clicável e vira uma pergunta no Chat.
+// ============================================================================
+const GapsWidget = ({ items, isDarkMode, onAsk }) => {
+  if (!items?.length) return null;
+  return (
+    <div className="space-y-3">
+      <p className={`px-1 text-[13px] leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+        Toda reportagem escolhe o que contar. Estas são as perguntas que esta matéria
+        <span className={isDarkMode ? ' text-zinc-200 font-medium' : ' text-zinc-900 font-medium'}> deixou em aberto</span>.
+      </p>
+
+      {items.map((g, i) => (
+        <button
+          key={i}
+          onClick={() => onAsk?.(g.question)}
+          className={`group w-full overflow-hidden rounded-2xl border text-left backdrop-blur-xl transition-all duration-300 ${
+            isDarkMode
+              ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08] hover:border-white/20'
+              : 'bg-white/70 border-black/5 shadow-sm hover:shadow-md hover:border-black/10'
+          }`}
+        >
+          <div className="p-4">
+            <div className="flex items-start gap-3">
+              <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                isDarkMode ? 'bg-amber-400/10 text-amber-300' : 'bg-amber-50 text-amber-600'
+              }`}>
+                <HelpCircle size={14} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className={`text-[15px] font-semibold leading-snug ${isDarkMode ? 'text-zinc-50' : 'text-zinc-900'}`}>
+                  {g.question}
+                </p>
+                {g.why && (
+                  <p className={`mt-1.5 text-[13px] leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                    {g.why}
+                  </p>
+                )}
+                <span className={`mt-2.5 inline-flex items-center gap-1 text-[11px] font-semibold opacity-0 transition-opacity group-hover:opacity-100 ${
+                  isDarkMode ? 'text-indigo-300' : 'text-indigo-600'
+                }`}>
+                  Perguntar no chat <ArrowRight size={11} />
+                </span>
+              </div>
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+};
+
+// ============================================================================
+// WIDGET: OUTRAS FONTES COBRIRAM ISSO
+// Heurístico (sem custo de IA): acha, no feed atual, matérias do mesmo caso.
+// É o recurso do Particle — e você já tem os dados.
+// ============================================================================
+const OtherSourcesWidget = ({ article, allNews, isDarkMode, onOpen }) => {
+  const related = useMemo(() => {
+    if (!article || !Array.isArray(allNews)) return [];
+    const norm = (t) => String(t || '')
+      .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const STOP = new Set(['de','da','do','das','dos','a','o','as','os','e','em','no','na','nos','nas',
+                          'para','por','com','que','um','uma','ao','aos','apos','sobre','ate','se','mais']);
+    const words = (t) => new Set(norm(t).split(' ').filter(w => w.length > 3 && !STOP.has(w)));
+
+    const base = words(article.title);
+    if (base.size === 0) return [];
+
+    return allNews
+      .filter(n => n?.id !== article.id && n?.source !== article.source)
+      .map(n => {
+        const w = words(n.title);
+        if (w.size === 0) return null;
+        let inter = 0;
+        for (const x of base) if (w.has(x)) inter++;
+        const score = inter / Math.min(base.size, w.size);
+        return score >= 0.34 ? { ...n, _score: score } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b._score - a._score)
+      .slice(0, 6);
+  }, [article, allNews]);
+
+  if (related.length === 0) {
+    return (
+      <div className={`rounded-2xl border p-6 text-center backdrop-blur-xl ${
+        isDarkMode ? 'bg-white/[0.03] border-white/10' : 'bg-white/60 border-black/5'
+      }`}>
+        <Newspaper size={20} className={`mx-auto mb-3 ${isDarkMode ? 'text-zinc-600' : 'text-zinc-400'}`} />
+        <p className={`text-sm font-medium ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+          Nenhum outro veículo do seu feed cobriu este caso ainda.
+        </p>
+        <p className={`mt-1 text-xs ${isDarkMode ? 'text-zinc-500' : 'text-zinc-500'}`}>
+          Pode ser exclusiva — ou a repercussão ainda não chegou.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className={`px-1 text-[13px] ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+        <span className={isDarkMode ? 'text-zinc-100 font-semibold' : 'text-zinc-900 font-semibold'}>
+          {related.length} {related.length === 1 ? 'outro veículo' : 'outros veículos'}
+        </span> do seu feed também cobriram este caso.
+      </p>
+
+      {related.map((n) => (
+        <button
+          key={n.id}
+          onClick={() => onOpen?.(n)}
+          className={`group flex w-full items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left backdrop-blur-xl transition-all duration-300 ${
+            isDarkMode
+              ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
+              : 'bg-white/70 border-black/5 shadow-sm hover:shadow-md'
+          }`}
+        >
+          <img
+            src={safeLogoUrl(n.logo, n.link || n.url, n.source)}
+            alt=""
+            className="h-8 w-8 shrink-0 rounded-lg object-cover"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className={`text-[11px] font-bold uppercase tracking-wide ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                {n.source}
+              </span>
+            </div>
+            <p className={`mt-0.5 line-clamp-2 text-[13px] font-medium leading-snug ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>
+              {n.title}
+            </p>
+          </div>
+          <ArrowUpRight size={15} className={`shrink-0 opacity-0 transition-opacity group-hover:opacity-100 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`} />
+        </button>
+      ))}
+    </div>
+  );
+};
+
 
 const TimelineWidget = ({ items, isDarkMode }) => {
     if (!items || items.length === 0) return null;
@@ -11856,13 +12138,13 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
       tldr: aiFastData?.tldr || "",
       bullets: aiFastData?.bullets || [],
       executive: aiDeepData?.executive || "",
-      eli5: aiDeepData?.eli5 || "",
-      sentiment: aiDeepData?.sentiment || ""
+      eli5: aiDeepData?.eli5 || ""
     },
     faqs: STATIC_FAQS, // Força o uso do pool estático
     mindmap: aiDeepData?.mindmap || { center: "", nodes: [] },
     timeline: aiDeepData?.timeline || [],
-    future: aiDeepData?.future || null,
+    gaps: aiDeepData?.gaps || [],           // o que a matéria NÃO diz
+    watchNext: aiDeepData?.watchNext || [], // marcos concretos (substitui "Cenários")
     contextualTerms: aiDeepData?.contextualTerms || []
   }), [aiFastData, aiDeepData]);
 
@@ -11896,14 +12178,16 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
   const innerSquares = Array.from({ length: 8 }, (_, i) => i);
 
   // Lista de Abas Unificadas do Topo (Sem cara de IA)
+  // 8 abas em DUAS LINHAS DE 4 (grid, não scroll horizontal).
   const TABS_SECTIONS = [
-    { id: 'overview', label: 'Overview', icon: <Sparkles size={13}/> },
-    { id: 'executive', label: 'Executivo', icon: <FileText size={13}/> },
-    { id: 'eli5', label: 'Simples (ELI5)', icon: <ALargeSmall size={13}/> },
-    { id: 'sentiment', label: 'Viés', icon: <ScaleIcon className="w-3.5 h-3.5"/> },
-    { id: 'mindmap', label: 'Mapa do Caso', icon: <BrainCircuit size={13}/> },
-    { id: 'timeline', label: 'Linha do Tempo', icon: <History size={13}/> },
-    { id: 'future', label: 'Cenários', icon: <Telescope size={13}/> },
+    { id: 'overview',  label: 'Overview',      icon: <Sparkles size={13}/> },
+    { id: 'executive', label: 'Executivo',     icon: <FileText size={13}/> },
+    { id: 'eli5',      label: 'Simples',       icon: <ALargeSmall size={13}/> },
+    { id: 'mindmap',   label: 'Mapa do Caso',  icon: <BrainCircuit size={13}/> },
+    { id: 'timeline',  label: 'Linha do Tempo',icon: <History size={13}/> },
+    { id: 'watch',     label: 'O que observar',icon: <Telescope size={13}/> },
+    { id: 'gaps',      label: 'O que não diz', icon: <HelpCircle size={13}/> },
+    { id: 'sources',   label: 'Outras fontes', icon: <Newspaper size={13}/> },
   ];
   return (
   <div
@@ -12028,16 +12312,16 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
 {/* MENU DE ABAS — Liquid Glass Premium */}
 {viewMode === 'analysis' && (
   <div className="ai-analysis-tabs-wrap shrink-0 relative z-30">
-    <div className="ai-analysis-tabs-grid">
+    <div className="ai-analysis-tabs-grid grid grid-cols-4 gap-1.5">
       {TABS_SECTIONS.map((tab, idx) => {
         const active = activeTabSection === tab.id;
-        const colSpan = idx === 6 ? 'col-span-2' : '';
+        // 8 abas → grid 4x2 exato. (O col-span-2 existia para compensar 7 abas.)
 
         return (
           <button
             key={tab.id}
             onClick={() => setActiveTabSection(tab.id)}
-            className={`ai-analysis-tab ${colSpan} ${active ? 'is-active' : ''}`}
+            className={`ai-analysis-tab ${active ? 'is-active' : ''}`}
           >
             <span className="ai-analysis-tab-icon">{tab.icon}</span>
             <span className="ai-analysis-tab-label">{tab.label}</span>
@@ -12153,18 +12437,7 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
               )}
 
               {/* TAB 4: VIÉS & SENTIMENTO */}
-              {activeTabSection === 'sentiment' && (
-                 <div className="animate-in fade-in duration-300">
-                    <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-zinc-900/50 border-white/5' : 'bg-white border-zinc-200 shadow-sm'}`}>
-                       {aiData?.summaries?.sentiment ? (
-                           <div className="space-y-2">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded">Análise Editorial</span>
-                              <p className={`text-sm leading-loose ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>{aiData.summaries.sentiment}</p>
-                           </div>
-                       ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
-                    </div>
-                 </div>
-              )}
+              
 
               {/* TAB 5: MAPA DO CASO */}
               {activeTabSection === 'mindmap' && (
@@ -12184,15 +12457,28 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
                  </div>
               )}
 
-              {/* TAB 7: CENÁRIOS FUTUROS */}
-              {activeTabSection === 'future' && (
+              {/* TAB: O QUE OBSERVAR A SEGUIR (marcos concretos, não especulação) */}
+              {activeTabSection === 'watch' && (
                  <div className="animate-in fade-in duration-300">
-                    {aiData?.future && (aiData.future.probable || aiData.future.optimistic || aiData.future.pessimistic) ? (
-                       <>
-                          <FutureWidget data={aiData.future} isDarkMode={isDarkMode} />
-                          <DeepDiveWidget topic={aiData.mindmap.center} isDarkMode={isDarkMode} />
-                       </>
+                    {aiData?.watchNext?.length > 0 ? (
+                       <WatchNextWidget items={aiData.watchNext} isDarkMode={isDarkMode} />
                     ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
+                 </div>
+              )}
+
+              {/* TAB: O QUE A MATÉRIA NÃO DIZ (o diferencial) */}
+              {activeTabSection === 'gaps' && (
+                 <div className="animate-in fade-in duration-300">
+                    {aiData?.gaps?.length > 0 ? (
+                       <GapsWidget items={aiData.gaps} isDarkMode={isDarkMode} onAsk={handleFaqClick} />
+                    ) : <AnalysisSkeleton isDarkMode={isDarkMode} />}
+                 </div>
+              )}
+
+              {/* TAB: OUTRAS FONTES (do feed — heurístico, sem custo de IA) */}
+              {activeTabSection === 'sources' && (
+                 <div className="animate-in fade-in duration-300">
+                    <OtherSourcesWidget article={article} allNews={allNews} isDarkMode={isDarkMode} onOpen={openArticle} />
                  </div>
               )}
 
@@ -12217,30 +12503,75 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
         {focusedNode && (
           // Overlay SOBRE o mapa (o mapa permanece visível/desfocado atrás).
           <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-in fade-in duration-200" onClick={() => setFocusedNode(null)}>
-            <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-[95%] p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-2 opacity-70">
-                  <img src={safeLogoUrl(article.logo, article.link || article.url, article.source)} className="w-5 h-5 rounded-full" />
-                  <span className="text-xs font-bold uppercase tracking-wider">{article.source}</span>
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`relative w-full max-w-md overflow-hidden rounded-[1.75rem] border shadow-2xl animate-in zoom-in-95 duration-300 backdrop-blur-2xl ${
+                isDarkMode ? 'border-white/12 bg-zinc-900/85 text-white' : 'border-black/5 bg-white/90 text-zinc-900'
+              }`}
+            >
+              {/* brilho liquid glass no topo */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-400/60 to-transparent" />
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_-10%,rgba(129,140,248,0.16),transparent_50%)]" />
+
+              <div className="relative p-6">
+                <div className="mb-5 flex items-start justify-between">
+                  <span className={`text-[10px] font-bold uppercase tracking-[0.16em] ${isDarkMode ? 'text-indigo-300/80' : 'text-indigo-500'}`}>
+                    No caso
+                  </span>
+                  <button
+                    onClick={() => setFocusedNode(null)}
+                    className={`-mr-1 -mt-1 rounded-full p-1.5 transition-colors ${
+                      isDarkMode ? 'text-zinc-500 hover:bg-white/[0.06] hover:text-white' : 'text-zinc-400 hover:bg-black/5 hover:text-zinc-900'
+                    }`}
+                  >
+                    <X size={15}/>
+                  </button>
                 </div>
-                <button onClick={() => setFocusedNode(null)} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
-              </div>
-              <h2 className="text-2xl font-black text-indigo-400 leading-tight mb-4">{focusedNode.name || focusedNode.term}</h2>
-              {(!focusedNode?.context || safeLower(focusedNode?.context).includes('contexto geral')) ? (                
-                <div>
-                  <p className="text-xs italic opacity-60 mb-3">Contexto detalhado não gerado. Pontos principais:</p>
-                  <ul className="list-disc pl-4 space-y-1 marker:text-purple-400 text-xs">{aiData?.summaries?.bullets.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                </div>
-              ) : (
-                <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>{focusedNode.context}</p>
-              )}
-              <div className="space-y-2 mt-4 max-h-48 overflow-y-auto pr-2">
-                <h4 className="text-[9px] font-black uppercase tracking-widest opacity-50">Evidências</h4>
-                {focusedNode.evidence_quotes && focusedNode.evidence_quotes.length > 0 ? (
-                  focusedNode.evidence_quotes.map((quote, i) => (
-                    <div key={i} onClick={() => handleQuoteClick(quote)} className={`p-3 rounded-xl border cursor-pointer text-xs italic ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-zinc-50 border-zinc-200'}`}>"{quote}"</div>
-                  ))
-                ) : <p className="text-xs opacity-50 italic">Nenhuma citação direta encontrada.</p>}
+
+                <h2 className={`text-[26px] font-black leading-tight tracking-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                  {focusedNode.name || focusedNode.term}
+                </h2>
+
+                {focusedNode?.context ? (
+                  <p className={`mt-3 text-[14px] leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                    {focusedNode.context}
+                  </p>
+                ) : (
+                  <p className={`mt-3 text-[13px] italic ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                    A análise não detalhou este item.
+                  </p>
+                )}
+
+                {focusedNode.evidence_quotes?.length > 0 && (
+                  <div className="mt-5">
+                    <h4 className={`mb-2 text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                      No texto da matéria
+                    </h4>
+                    <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                      {focusedNode.evidence_quotes.map((quote, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleQuoteClick(quote)}
+                          className={`group relative block w-full overflow-hidden rounded-2xl border p-3.5 pl-4 text-left transition-all ${
+                            isDarkMode
+                              ? 'border-white/10 bg-white/[0.03] hover:bg-white/[0.07]'
+                              : 'border-black/5 bg-zinc-50/80 hover:bg-zinc-100'
+                          }`}
+                        >
+                          <span className="absolute left-0 top-0 h-full w-[2.5px] bg-gradient-to-b from-indigo-400 to-violet-500/40" />
+                          <p className={`text-[13px] leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                            {quote}
+                          </p>
+                          <span className={`mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100 ${
+                            isDarkMode ? 'text-indigo-300' : 'text-indigo-600'
+                          }`}>
+                            Ver no texto <ArrowRight size={10} />
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
