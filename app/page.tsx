@@ -11402,7 +11402,7 @@ const LoadingStep = ({ title, isActive, isComplete }) => {
 const VERCEL_URL = "https://newsos-app2.vercel.app"; 
 
 // --- FUNÇÃO DE IA HÍBRIDA (Compatível com Web e iPad) ---
-const generateChatResponse = async (chatHistory, articleText, apiKey) => {
+const generateChatResponse = async (chatHistory, articleText, apiKey, article = null) => {
   if (!apiKey) return "Desculpe, a conexão com a IA não está configurada.";
 
   const userMsgs = chatHistory.filter(m => m.from === 'user');
@@ -11412,11 +11412,26 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
 
   const formattedHistory = chatHistory.map(m => `${m.from === 'user' ? 'Usuário' : 'Assistente'}: ${m.text}`).join('\n');
 
+  // BUGFIX: o TÍTULO nunca era enviado — só o corpo do texto. A IA respondia
+  // literalmente "não tenho o título da matéria". Agora vai o cabeçalho completo.
+  const body = String(articleText || '').slice(0, 4000);
+  const hasFullText = body.length > 400;   // abaixo disso é só o resumo do RSS
+  const header = article ? [
+    `TÍTULO: ${article.title || 's/ título'}`,
+    article.source ? `FONTE: ${article.source}` : '',
+    article.publishedAt || article.rawDate ? `PUBLICADO: ${article.publishedAt || article.rawDate}` : '',
+    article.category ? `EDITORIA: ${article.category}` : '',
+  ].filter(Boolean).join('\n') : '';
+
   const prompt = `
   Você é um Assistente de Pesquisa especialista e amigável, conversando dentro de uma interface de chat.
+
   CONTEXTO PRINCIPAL:
   ---
-  ${articleText.slice(0, 4000)}
+  ${header}
+
+  ${hasFullText ? 'CORPO DA MATÉRIA:' : 'RESUMO DISPONÍVEL (o texto completo não pôde ser extraído deste site):'}
+  ${body}
   ---
   HISTÓRICO DA CONVERSA:
   ---
@@ -11424,6 +11439,8 @@ const generateChatResponse = async (chatHistory, articleText, apiKey) => {
   ---
   SUA TAREFA:
   Responda à última pergunta do "Usuário" de forma natural, curta e direta (1-3 frases).
+  Você TEM o título e os metadados acima — use-os quando a pergunta for sobre eles.
+  ${hasFullText ? '' : 'Se a pergunta exigir detalhes que não estão no resumo, diga com honestidade que só o resumo está disponível.'}
   `;
 
   try {
@@ -11518,7 +11535,7 @@ const WhatsappChat = ({ article, articleText, apiKey, isDarkMode, autoSendQuery,
     const textToUse = String(articleText || article?.summary || "Texto indisponível").slice(0, 6000);
     const optimizedHistory = newHistory.slice(-4);
     
-    const aiResponse = await generateChatResponse(optimizedHistory, textToUse, apiKey);
+    const aiResponse = await generateChatResponse(optimizedHistory, textToUse, apiKey, article);
 
     setHistory(prev => [...prev, { from: 'ai', text: aiResponse }]);
     setIsAiTyping(false);
@@ -11856,9 +11873,11 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
           const node = safeLower(nodeName);
           return term.includes(node) || node.includes(term);
       });      
-      const dataToSet = nodeData || { name: nodeName, context: "Contexto detalhado.", sentiment: "neutral", evidence_quotes: [] };
-      setFocusedNode({ ...dataToSet, position }); 
-      setViewMode('drilldown');
+      const dataToSet = nodeData || { name: nodeName, context: "", sentiment: "neutral", evidence_quotes: [] };
+      setFocusedNode({ ...dataToSet, position });
+      // BUGFIX: NÃO troca o viewMode. Antes ia para 'drilldown', e como o mapa
+      // só renderiza em 'analysis', ele SUMIA — o modal ficava flutuando no vazio.
+      // Agora o card do nó é um overlay SOBRE o mapa, que continua visível atrás.
   }, [aiData]);
   
   const handleQuoteClick = useCallback((quote) => { 
@@ -12195,16 +12214,16 @@ const ArticlePanel = React.memo(({ article, isOpen, onClose, onToggleSave, isSav
         {/* --- MODAIS DE DRILL-DOWN: ABSOLUTE (CONGELADO NO PAINEL LATERAL) --- */}
         {showCenterModal && (<CenterNodeModal data={aiData} onClose={() => setShowCenterModal(false)} isDarkMode={isDarkMode} />)}
         
-        {viewMode === 'drilldown' && focusedNode && (
-          // CORREÇÃO DO SEU PRINT: Trocado para 'absolute'
-          <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setViewMode('analysis')}>
+        {focusedNode && (
+          // Overlay SOBRE o mapa (o mapa permanece visível/desfocado atrás).
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-in fade-in duration-200" onClick={() => setFocusedNode(null)}>
             <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-[95%] p-6 rounded-3xl shadow-2xl border animate-in zoom-in-95 ${isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2 opacity-70">
                   <img src={safeLogoUrl(article.logo, article.link || article.url, article.source)} className="w-5 h-5 rounded-full" />
                   <span className="text-xs font-bold uppercase tracking-wider">{article.source}</span>
                 </div>
-                <button onClick={() => setViewMode('analysis')} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
+                <button onClick={() => setFocusedNode(null)} className="p-1 text-zinc-400 hover:text-white"><X size={16}/></button>
               </div>
               <h2 className="text-2xl font-black text-indigo-400 leading-tight mb-4">{focusedNode.name || focusedNode.term}</h2>
               {(!focusedNode?.context || safeLower(focusedNode?.context).includes('contexto geral')) ? (                
